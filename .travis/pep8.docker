@@ -1,0 +1,6 @@
+FROM kernsuite/base:5
+RUN docker-apt-install python3-pip
+RUN pip3 install pycodestyle
+ADD . /code
+WORKDIR /code
+RUN pycodestyle cwl_utils
