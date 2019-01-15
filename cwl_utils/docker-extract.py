@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
-import CommonWorkflowLanguage as cwl
+import cwl_utils.parser_v1_0 as cwl
 import subprocess
 import argparse
 
