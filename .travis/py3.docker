@@ -2,5 +2,4 @@ FROM kernsuite/base:5
 RUN docker-apt-install python3-pip
 ADD . /code
 WORKDIR /code
-RUN pip3 install CacheControl==0.11.7
 RUN pip3 install .
