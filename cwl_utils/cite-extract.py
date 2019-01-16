@@ -26,7 +26,7 @@ def extract_software_reqs(process: cwl.Process):
                                      process.id, process.loadingOptions)
 
 
-def process_software_requirement(req: cwl.SoftwarePackage):
+def process_software_requirement(req: cwl.SoftwareRequirement):
     for package in req.packages:
         print("Package: {}, version: {}, specs: {}".format(
             package.package, package.version, package.specs))
