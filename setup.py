@@ -6,7 +6,6 @@ setup_requires = [
     'six',
     'requests',
     'cachecontrol',
-    'schema_salad',
 ]
 
 setup(
