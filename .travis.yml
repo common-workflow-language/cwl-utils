@@ -1,0 +1,16 @@
+language: python
+matrix:
+  include:
+  - env: TARGET=py3
+  - env: TARGET=pep8
+  - env: TARGET=mypy
+  allow_failures:
+  - env: TARGET=pep8
+  - env: TARGET=mypy
+sudo: required
+services:
+ - docker
+install:
+ - true
+script:
+- docker build . -f .travis/${TARGET}.docker

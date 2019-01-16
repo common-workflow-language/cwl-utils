@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 import sys
-import CommonWorkflowLanguage as cwl
+import cwl_utils.parser_v1_0 as cwl
+
 
 def main():
     top = cwl.load_document(sys.argv[1])
     traverse(top)
 
+
 def extract_software_packages(process: cwl.Process):
     for req in extract_software_reqs(process):
         print(process.id)
         process_software_requirement(req)
+
 
 def extract_software_reqs(process: cwl.Process):
     if process.requirements:
@@ -22,10 +25,11 @@ def extract_software_reqs(process: cwl.Process):
                 yield cwl.load_field(req, cwl.SoftwareRequirementLoader,
                                      process.id, process.loadingOptions)
 
-def process_software_requirement(req: cwl.SoftwarePackage):
+
+def process_software_requirement(req: cwl.SoftwareRequirement):
     for package in req.packages:
         print("Package: {}, version: {}, specs: {}".format(
-              package.package, package.version, package.specs))
+            package.package, package.version, package.specs))
 
 
 def traverse(process: cwl.Process):
@@ -33,10 +37,12 @@ def traverse(process: cwl.Process):
     if isinstance(process, cwl.Workflow):
         traverse_workflow(process)
 
+
 def get_process_from_step(step: cwl.WorkflowStep):
     if isinstance(step.run, str):
         return cwl.load_document(step.run)
     return step.run
+
 
 def traverse_workflow(workflow: cwl.Workflow):
     for step in workflow.steps:

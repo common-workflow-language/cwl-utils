@@ -1,5 +1,0 @@
-ruamel.yaml
-six
-requests
-cachecontrol
-schema_salad
