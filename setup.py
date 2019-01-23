@@ -15,4 +15,7 @@ setup(
         'schema_salad',
         'typing_extensions',
     ],
+    setup_requires=['pytest-runner'],
+    tests_require=['pytest'],
+    test_suite='tests',
 )
