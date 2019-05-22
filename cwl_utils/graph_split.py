@@ -52,7 +52,7 @@ def rewrite(document, doc_id):
                         entry['id'] = entry['id'][len(this_id)+1:]
                     return entry
                 document[key][:] = [rewrite_id(entry) for entry in value]
-            elif key in ('source', 'scatter', 'items'):
+            elif key in ('source', 'scatter', 'items', "format"):
                 if isinstance(value, Text) and value.startswith('#') and '/' in value:
                     referrant_file, sub = value[1:].split('/', 1)
                     if referrant_file == doc_id:
