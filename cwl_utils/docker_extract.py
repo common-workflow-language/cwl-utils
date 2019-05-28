@@ -29,8 +29,7 @@ def main():
         else:
             image_name = get_image_name(req)
             save_docker_image(req, image_name, args.dir)
-
-        print(load_docker_image(image_name))
+            print(load_docker_image(image_name))
 
 
 def get_image_name(req):
