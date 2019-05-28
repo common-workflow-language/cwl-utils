@@ -23,10 +23,11 @@ def main():
     top = cwl.load_document(args.input)
 
     for req in set(traverse(top)):
-        image_name = get_image_name(req)
         if args.singularity:
+            image_name = get_image_name_singularity(req)
             save_docker_image_singularity(req, image_name, args.dir)
         else:
+            image_name = get_image_name(req)
             save_docker_image(req, image_name, args.dir)
 
         print(load_docker_image(image_name))
@@ -34,6 +35,15 @@ def main():
 
 def get_image_name(req):
     return ''.join(req.split('/')) + '.tar'
+
+
+def get_image_name_singularity(req):
+    CHARS_TO_REPLACE = ['/', ':']
+    NEW_CHAR = '-'
+    image_name = req
+    for char in CHARS_TO_REPLACE:
+        image_name = image_name.replace(char, NEW_CHAR)
+    return f'{image_name}.img'
 
 
 def load_docker_image(image_name):
