@@ -5,11 +5,13 @@
 #
 from __future__ import absolute_import
 
+import itertools
 import os
 import re
 import traceback
 from typing import (Any, AnyStr, Callable, Dict, List, MutableMapping,
-                    MutableSequence, Union)
+                    MutableSequence, Pattern, Tuple, Union)
+from future.utils import raise_from
 
 import ruamel.yaml
 import six
@@ -19,6 +21,86 @@ from typing_extensions import Text  # pylint: disable=unused-import
 
 
 lineno_re = re.compile(u"^(.*?:[0-9]+:[0-9]+: )(( *)(.*))")
+
+
+def regex_chunk(lines, regex):
+    # type: (List[str], Pattern[str]) -> List[List[str]]
+    lst = list(itertools.dropwhile(lambda x: not regex.match(x), lines))
+    arr = []
+    while lst:
+        ret = [lst[0]]+list(itertools.takewhile(lambda x: not regex.match(x),
+                                                lst[1:]))
+        arr.append(ret)
+        lst = list(itertools.dropwhile(lambda x: not regex.match(x),
+                                       lst[1:]))
+    return arr
+
+
+def chunk_messages(message):  # type: (str) -> List[Tuple[int, str]]
+    file_regex = re.compile(r'^(.+:\d+:\d+:)(\s+)(.+)$')
+    item_regex = re.compile(r'^\s*\*\s+')
+    arr = []
+    for chun in regex_chunk(message.splitlines(), file_regex):
+        fst = chun[0]
+        mat = file_regex.match(fst)
+        if mat:
+            place = mat.group(1)
+            indent = len(mat.group(2))
+
+            lst = [mat.group(3)]+chun[1:]
+            if [x for x in lst if item_regex.match(x)]:
+                for item in regex_chunk(lst, item_regex):
+                    msg = re.sub(item_regex, '', "\n".join(item))
+                    arr.append((indent, place+' '+re.sub(
+                        r'[\n\s]+', ' ', msg)))
+            else:
+                msg = re.sub(item_regex, '', "\n".join(lst))
+                arr.append((indent, place+' '+re.sub(
+                    r'[\n\s]+', ' ', msg)))
+    return arr
+
+
+def to_one_line_messages(message):  # type: (str) -> str
+    ret = []
+    max_elem = (0, '')
+    for (indent, msg) in chunk_messages(message):
+        if indent > max_elem[0]:
+            max_elem = (indent, msg)
+        else:
+            ret.append(max_elem[1])
+            max_elem = (indent, msg)
+    ret.append(max_elem[1])
+    return "\n".join(ret)
+
+
+def reformat_yaml_exception_message(message):  # type: (str) -> str
+    line_regex = re.compile(r'^\s+in "(.+)", line (\d+), column (\d+)$')
+    fname_regex = re.compile(r'^file://'+re.escape(os.getcwd())+'/')
+    msgs = message.splitlines()
+    ret = []
+
+    if len(msgs) == 3:
+        msgs = msgs[1:]
+        nblanks = 0
+    elif len(msgs) == 4:
+        c_msg = msgs[0]
+        match = line_regex.match(msgs[1])
+        if match:
+            c_file, c_line, c_column = match.groups()
+            c_file = re.sub(fname_regex, '', c_file)
+            ret.append("%s:%s:%s: %s" % (c_file, c_line, c_column, c_msg))
+
+        msgs = msgs[2:]
+        nblanks = 2
+
+    p_msg = msgs[0]
+    match = line_regex.match(msgs[1])
+    if match:
+        p_file, p_line, p_column = match.groups()
+        p_file = re.sub(fname_regex, '', p_file)
+        ret.append("%s:%s:%s:%s %s" % (p_file, p_line, p_column, ' '*nblanks, p_msg))
+    return "\n".join(ret)
+
 
 def _add_lc_filename(r, source):  # type: (ruamel.yaml.comments.CommentedBase, AnyStr) -> None
     if isinstance(r, ruamel.yaml.comments.CommentedBase):
@@ -167,10 +249,12 @@ class SourceLine(object):
                  ):   # -> Any
         if not exc_value:
             return
-        if self.include_traceback:
-            raise self.makeError("\n".join(traceback.format_exception(exc_type, exc_value, tb)))
+        if self.include_traceback and six.PY2:
+            # Python2 doesn't actually have chained exceptions, so
+            # fake it by injecting the backtrace into the message.
+            raise_from(self.makeError("\n".join(traceback.format_exception(exc_type, exc_value, tb))), exc_value)
         else:
-            raise self.makeError(six.text_type(exc_value))
+            raise_from(self.makeError(six.text_type(exc_value)), exc_value)
 
     def makeLead(self):  # type: () -> Text
         if self.key is None or self.item.lc.data is None or self.key not in self.item.lc.data:
@@ -367,7 +451,7 @@ class _PrimitiveLoader(_Loader):
 
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         if not isinstance(doc, self.tp):
-            raise ValidationException("Expected a %s but got %s" % (self.tp, type(doc)))
+            raise ValidationException("Expected a %s but got %s" % (self.tp.__class__.__name__, doc.__class__.__name__))
         return doc
 
     def __repr__(self):
@@ -436,7 +520,7 @@ class _UnionLoader(_Loader):
             try:
                 return t.load(doc, baseuri, loadingOptions, docRoot=docRoot)
             except ValidationException as e:
-                errors.append("tried %s but\n%s" % (t, indent(str(e))))
+                errors.append("tried %s but\n%s" % (t.__class__.__name__, indent(str(e))))
         raise ValidationException(bullets(errors, "- "))
 
     def __repr__(self):
@@ -6102,3 +6186,13 @@ def load_document(doc, baseuri=None, loadingOptions=None):
     if loadingOptions is None:
         loadingOptions = LoadingOptions()
     return _document_load(union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader, doc, baseuri, loadingOptions)
+
+def load_document_by_string(string, uri, loadingOptions=None):
+    result = yaml.round_trip_load(string, preserve_quotes=True)
+    add_lc_filename(result, uri)
+
+    if loadingOptions is None:
+        loadingOptions = LoadingOptions(fileuri=uri)
+    loadingOptions.idx[uri] = result
+
+    return _document_load(union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader, result, uri, loadingOptions)
