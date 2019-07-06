@@ -68,19 +68,22 @@ def load_step(step: cwl.WorkflowStep) -> cwl.WorkflowStep:
     if isinstance(step.run, str):
         step.run = traverse(cwl.load_document(step.run))
 
-def generate_etool_from_expr(expr: str, target: cwl.Parameter ) -> cwl.ExpressionTool:
+def generate_etool_from_expr(expr: str, target: cwl.Parameter, no_inputs=False) -> cwl.ExpressionTool:
     inputs = yaml.comments.CommentedSeq()
-    inputs.append(cwl.InputParameter(
-        target.label, target.secondaryFiles, target.streamable, target.doc, "self",
-        target.format, None, None, target.type, target.extension_fields, target.loadingOptions))
+    if not no_inputs:
+        inputs.append(cwl.InputParameter(
+            target.label, target.secondaryFiles, target.streamable, target.doc, "self",
+            target.format, None, None, target.type, target.extension_fields, target.loadingOptions))
     outputs = yaml.comments.CommentedSeq()
     outputs.append(cwl.ExpressionToolOutputParameter(
         target.label, target.secondaryFiles, target.streamable, target.doc,
         "result", None, target.format, target.type))
-    expression = """${
-  var self=inputs.self;
+    expression = "${"
+    if not no_inputs:
+        expression += "\n  var self=inputs.self;"
+    expression += """
   return {"result": function(){"""+expr[2:-1]+"""}()};
-}"""
+ }"""
     return cwl.ExpressionTool(
         None, inputs, outputs, [cwl.InlineJavascriptRequirement(None)], None,
         None, None, "v1.0", expression)
@@ -108,19 +111,22 @@ def find_expressionLib(processes: List[cwl.Process]) -> Optional[List[str]]:
 def replace_expr_with_etool(expr: str,
                             name: str,
                             workflow: cwl.Workflow,
-                            source: str,
                             target: cwl.Parameter,
+                            source: Optional[str],
                             replace_etool=False,
                             extra_process: cwl.Process = None) -> None:
-    etool = generate_etool_from_expr(expr, target)
+    etool = generate_etool_from_expr(expr, target, source == None)
     if replace_etool:
         processes = [workflow]
         if extra_process:
             processes.append(extra_process)
         etool = etool_to_cltool(etool, find_expressionLib(processes))
+    inps = []
+    if source:
+        inps.append(cwl.WorkflowStepInput(source, None, "self", None, None))
     workflow.steps.append(cwl.WorkflowStep(
         name,
-        [cwl.WorkflowStepInput(source, None, "self", None, None)],
+        inps,
         [cwl.WorkflowStepOutput("result")], None, None, None, None, etool, None, None))
 
 def replace_wf_input_ref_with_step_output(workflow: cwl.Workflow, name: str, target: str) -> None:
@@ -145,26 +151,7 @@ def replace_wf_input_ref_with_step_output(workflow: cwl.Workflow, name: str, tar
                         if outputSource == name:
                             outp.outputSource[index] = target
 
-def traverse_workflow(workflow: cwl.Workflow, replace_etool=False) -> cwl.Workflow:
-    for index, step in enumerate(workflow.steps):
-        if isinstance(step.run, cwl.ExpressionTool) and replace_etool:
-            workflow.steps[index].run = etool_to_cltool(step.run)
-        else:
-            load_step(step)
-    for index, step in enumerate(workflow.steps):
-        for inp in step.in_:
-            if inp.valueFrom and inp.valueFrom.startswith('${'):
-                etool_id = "_expression_{}_{}".format(step.id.split('#')[-1], inp.id.split('/')[-1])
-                replace_expr_with_etool(
-                    inp.valueFrom,
-                    etool_id,
-                    workflow,
-                    inp.source.split('#')[-1],
-                    get_input_for_id(inp.id, step.run),
-                    replace_etool,
-                    step)
-                inp.valueFrom = None
-                inp.source = "{}/result".format(etool_id)
+def process_workflow_inputs_and_outputs(workflow: cwl.Workflow, replace_etool) -> None:
     for param in workflow.inputs:
         if param.format and param.format.startswith('${'):
             param_copy = copy.deepcopy(param)
@@ -177,8 +164,8 @@ def traverse_workflow(workflow: cwl.Workflow, replace_etool=False) -> cwl.Workfl
   return self;""",
                 etool_id,
                 workflow,
-                param_copy.id.split('#')[-1],
                 param_copy,
+                param_copy.id.split('#')[-1],
                 replace_etool=replace_etool)
             param.format = None
         if param.secondaryFiles and param.secondaryFiles.startswith('${'):
@@ -193,12 +180,166 @@ def traverse_workflow(workflow: cwl.Workflow, replace_etool=False) -> cwl.Workfl
   return self;""",
                 etool_id,
                 workflow,
-                param_copy.id.split('#')[-1],
                 param_copy,
+                param_copy.id.split('#')[-1],
                 replace_etool=replace_etool)
             param.secondaryFiles = None
 
+def process_workflow_reqs_and_hints(workflow: cwl.Workflow, replace_etool=False) -> None:
+    # TODO: consolidate the generated etools/cltools into a single "_expression_workflow_reqs" step
+    # TODO: support resourceReq.* references to Workflow.inputs?
+    #       ^ By refactoring replace_expr_etool to allow multiple inputs, and connecting all workflow inputs to the generated step
+    generated_res_reqs: List[Tuple[str, str]] = []
+    generated_iwdr_reqs: List[Tuple[str, str]] = []
+    prop_reqs: Tuple[cwl.ProcessRequirement] = ()
+    resourceReq: cwl.ResourceRequirement = None
+    iwdr: cwl.InitialWorkDirRequirement = None
+    if workflow.requirements:
+        for req in workflow.requirements:
+            if req and isinstance(req, cwl.ResourceRequirement):
+                for attr in cwl.ResourceRequirement.attrs:
+                    this_attr = getattr(req, attr, None)
+                    if this_attr and this_attr.startswith("${"):
+                        target = cwl.InputParameter(None, None, None, None, None, None, None, None, "long")
+                        etool_id = "_expression_workflow_ResourceRequirement_{}".format(attr)
+                        replace_expr_with_etool(
+                            this_attr,
+                            etool_id,
+                            workflow,
+                            target,
+                            None,
+                            replace_etool)
+                        if not resourceReq:
+                            resourceReq = cwl.ResourceRequirement(
+                                None, None, None, None, None, None, None, None,
+                                loadingOptions=workflow.loadingOptions)
+                            prop_reqs += (cwl.ResourceRequirement, )
+                        setattr(resourceReq, attr, "$(inputs._{})".format(attr))
+                        generated_res_reqs.append((etool_id, attr))
+            if req and isinstance(req, cwl.InitialWorkDirRequirement):
+                if req.listing:
+                    if isinstance(req.listing, str) and req.listing.startswith("${"):
+                        target_type = cwl.InputArraySchema(['File', 'Directory'], 'array', None, None)
+                        target = cwl.InputParameter(None, None, None, None, None, None, None, None, target_type)
+                        etool_id = "_expression_workflow_InitialWorkDirRequirement"
+                        replace_expr_with_etool(
+                            req.listing,
+                            etool_id,
+                            workflow,
+                            target,
+                            None,
+                            replace_etool)
+                        iwdr = cwl.InitialWorkDirRequirement(
+                            "$(inputs._iwdr_listing)",
+                            loadingOptions=workflow.loadingOptions)
+                        prop_reqs += (cwl.InitialWorkDirRequirement, )
+                    else:
+                        iwdr = copy.deepcopy(req)
+                        for index, entry in enumerate(req.listing):
+                            if entry.startswith("${"):
+                                target_type = cwl.InputArraySchema(['File', 'Directory'], 'array', None, None)
+                                target = cwl.InputParameter(None, None, None, None, None, None, None, None, target_type)
+                                etool_id = "_expression_workflow_InitialWorkDirRequirement_{}".format(index)
+                                replace_expr_with_etool(
+                                    entry,
+                                    etool_id,
+                                    workflow,
+                                    target,
+                                    None,
+                                    replace_etool)
+                                iwdr.listing[index] = "$(inputs._iwdr_listing_{}".format(index)
+                                generated_iwdr_reqs.append((etool_id, index))
+                            elif isinstance(entry, cwl.Dirent):
+                                if entry.entry and entry.entry.startswith('${'):
+                                    target_type = [cwl.File, cwl.Dirent]
+                                    target = cwl.InputParameter(None, None, None, None, None, None, None, None, target_type)
+                                    etool_id = "_expression_workflow_InitialWorkDirRequirement_{}".format(index)
+                                    replace_expr_with_etool(
+                                        entry.entry,
+                                        etool_id,
+                                        workflow,
+                                        target,
+                                        None,
+                                        replace_etool)
+                                    iwdr.listing[index] = "$(inputs._iwdr_listing_{}".format(index)
+                                    generated_iwdr_reqs.append((etool_id, index))
+                                elif entry.entryname and entry.entryname.startswith('${'):
+                                    target = cwl.InputParameter(None, None, None, None, None, None, None, None, str)
+                                    etool_id = "_expression_workflow_InitialWorkDirRequirement_{}".format(index)
+                                    replace_expr_with_etool(
+                                        entry.entryname,
+                                        etool_id,
+                                        workflow,
+                                        target,
+                                        None,
+                                        replace_etool)
+                                    iwdr.listing[index] = "$(inputs._iwdr_listing_{}".format(index)
+                                    generated_iwdr_reqs.append((etool_id, index))
+                        if generated_iwdr_reqs:
+                            prop_reqs += (cwl.InitialWorkDirRequirement, )
+                        else:
+                            iwdr = None
+ 
+    if resourceReq and workflow.steps:
+        for step in workflow.steps:
+            if step.id.split("#")[-1].startswith("_expression_"):
+                continue
+            if step.requirements:
+                for req in step.requirements:
+                    if isinstance(req, cwl.ResourceRequirement):
+                        continue
+            else:
+                step.requirements = yaml.comments.CommentedSeq()
+            step.requirements.append(resourceReq)
+            for entry in generated_res_reqs:
+                step.in_.append(cwl.WorkflowStepInput("{}/result".format(entry[0]), None, "_{}".format(entry[1]), None, None))
 
+    if iwdr and workflow.steps:
+        for step in workflow.steps:
+            if step.id.split("#")[-1].startswith("_expression_"):
+                continue
+            if step.requirements:
+                for req in step.requirements:
+                    if isinstance(req, cwl.InitialWorkDirRequirement):
+                        continue
+            else:
+                step.requirements = yaml.comments.CommentedSeq()
+            step.requirements.append(iwdr)
+            if generated_iwdr_reqs:
+                for entry in generatetd_iwdr_reqs:
+                    step.in_.append(cwl.WorkflowStepInput(entry[0], None, "_iwdr_listing_{}".format(index), None, None))
+            else:
+                step.in_.append(cwl.WorkflowStepInput("_expression_workflow_InitialWorkDirRequirement/result", None, "_iwdr_listing", None, None))
+
+
+    workflow.requirements[:] = [
+        x for x  in workflow.requirements
+        if not isinstance(x, prop_reqs)]
+
+
+
+def traverse_workflow(workflow: cwl.Workflow, replace_etool=False) -> cwl.Workflow:
+    for index, step in enumerate(workflow.steps):
+        if isinstance(step.run, cwl.ExpressionTool) and replace_etool:
+            workflow.steps[index].run = etool_to_cltool(step.run)
+        else:
+            load_step(step)
+    for index, step in enumerate(workflow.steps):
+        for inp in step.in_:
+            if inp.valueFrom and inp.valueFrom.startswith('${'):
+                etool_id = "_expression_{}_{}".format(step.id.split('#')[-1], inp.id.split('/')[-1])
+                replace_expr_with_etool(
+                    inp.valueFrom,
+                    etool_id,
+                    workflow,
+                    get_input_for_id(inp.id, step.run),
+                    inp.source.split('#')[-1],
+                    replace_etool,
+                    step)
+                inp.valueFrom = None
+                inp.source = "{}/result".format(etool_id)
+    process_workflow_inputs_and_outputs(workflow, replace_etool)
+    process_workflow_reqs_and_hints(workflow, replace_etool)
     workflow.requirements[:] = [
         x for x  in workflow.requirements
         if not isinstance(x, (cwl.InlineJavascriptRequirement,
