@@ -5,32 +5,41 @@ from ruamel import yaml
 
 def main():
     top = cwl.load_document(sys.argv[1])
-    yaml.dump(cwl.save(traverse(top)), sys.stdout, Dumper=yaml.SafeDumper)
+    result = traverse(top)
+    result_json = cwl.save(
+        result,
+        base_url=result.loadingOptions.fileuri)
+    #   ^^ Setting the base_url and keeping the default value
+    #      for relative_uris=True means that the IDs in the generated
+    #      JSON/YAML are kept clean of the path to the input document
+    yaml.scalarstring.walk_tree(result_json)
+    # ^ converts multine line strings to nice multiline YAML
+    yaml.round_trip_dump(result_json, sys.stdout)
 
 
 def replace_etool(etool: cwl.ExpressionTool) -> cwl.CommandLineTool:
-    inputs = {}
+    inputs = yaml.comments.CommentedSeq()  # preserve the order
     for inp in etool.inputs:
-        inputs[inp.id] = cwl.CommandInputParameter(
+        inputs.append(cwl.CommandInputParameter(
             inp.label, inp.secondaryFiles, inp.streamable, inp.doc, inp.id,
             inp.format, None, inp.default, inp.type, inp.extension_fields,
-            inp.loadingOptions)
-    outputs = {}
+            inp.loadingOptions))
+    outputs = yaml.comments.CommentedSeq()
     for outp in etool.outputs:
-        outputs[outp.id] = cwl.CommandOutputParameter(
+        outputs.append(cwl.CommandOutputParameter(
             outp.label, outp.secondaryFiles, outp.streamable, outp.doc,
             outp.id, None, outp.format, outp.type, outp.extension_fields,
-            outp.loadingOptions)
-    listing = [cwl.Dirent("expression.js", """
-"use strict";
+            outp.loadingOptions))
+    listing = [cwl.Dirent("expression.js", """"use strict";
 var inputs=$(inputs);
 var runtime=$(runtime);
 var ret = """+etool.expression.strip()+""";
-process.stdout.write(JSON.stringify(ret));""", writable=False)]
+process.stdout.write(JSON.stringify(ret));""", writable=None)]
     iwdr = cwl.InitialWorkDirRequirement(listing)
+    containerReq = cwl.DockerRequirement("node:slim", None, None, None, None, None)
     return cwl.CommandLineTool(
         etool.id, inputs, outputs, [iwdr, cwl.InlineJavascriptRequirement(None)],
-        None, etool.label, etool.doc,
+        [containerReq], etool.label, etool.doc,
         "v1.0", ["nodejs", "expression.js"], None, None, None, 
         "cwl.output.json", None, None, None, etool.extension_fields,
         etool.loadingOptions)

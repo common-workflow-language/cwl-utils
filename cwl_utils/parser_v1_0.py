@@ -32,6 +32,7 @@ class Savable(object):
     def fromDoc(cls, _doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, Text, LoadingOptions, Optional[Text]) -> Savable
         pass
+
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Text]
         pass
@@ -500,7 +501,7 @@ A field of a record.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.name = name
         self.doc = doc
@@ -545,7 +546,7 @@ A field of a record.
             errors.append(SourceLine(_doc, 'type', str).makeError("the `type` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -561,7 +562,7 @@ A field of a record.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -589,7 +590,7 @@ class RecordSchema(Savable):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.fields = fields
         self.type = type
@@ -618,7 +619,7 @@ class RecordSchema(Savable):
             errors.append(SourceLine(_doc, 'type', str).makeError("the `type` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -634,7 +635,7 @@ class RecordSchema(Savable):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -661,7 +662,7 @@ Define an enumerated type.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.symbols = symbols
         self.type = type
@@ -687,7 +688,7 @@ Define an enumerated type.
             errors.append(SourceLine(_doc, 'type', str).makeError("the `type` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -703,7 +704,7 @@ Define an enumerated type.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -728,7 +729,7 @@ class ArraySchema(Savable):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.items = items
         self.type = type
@@ -754,7 +755,7 @@ class ArraySchema(Savable):
             errors.append(SourceLine(_doc, 'type', str).makeError("the `type` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -770,7 +771,7 @@ class ArraySchema(Savable):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -864,7 +865,7 @@ the same value for `location`.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "File"
         self.location = location
@@ -982,7 +983,7 @@ the same value for `location`.
             contents = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -998,7 +999,7 @@ the same value for `location`.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -1102,7 +1103,7 @@ or in any entry in `secondaryFiles` in the listing) is a fatal error.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "Directory"
         self.location = location
@@ -1157,7 +1158,7 @@ or in any entry in `secondaryFiles` in the listing) is a fatal error.
             listing = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -1173,7 +1174,7 @@ or in any entry in `secondaryFiles` in the listing) is a fatal error.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -1230,7 +1231,7 @@ class InputRecordField(RecordField):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.name = name
         self.doc = doc
@@ -1293,7 +1294,7 @@ class InputRecordField(RecordField):
             label = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -1309,7 +1310,7 @@ class InputRecordField(RecordField):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -1343,7 +1344,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.fields = fields
         self.type = type
@@ -1397,7 +1398,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
             label = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -1413,7 +1414,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -1444,7 +1445,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.symbols = symbols
         self.type = type
@@ -1504,7 +1505,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
             inputBinding = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -1520,7 +1521,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -1556,7 +1557,7 @@ class InputArraySchema(ArraySchema, InputSchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.items = items
         self.type = type
@@ -1600,7 +1601,7 @@ class InputArraySchema(ArraySchema, InputSchema):
             inputBinding = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -1616,7 +1617,7 @@ class InputArraySchema(ArraySchema, InputSchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -1647,7 +1648,7 @@ class OutputRecordField(RecordField):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.name = name
         self.doc = doc
@@ -1701,7 +1702,7 @@ class OutputRecordField(RecordField):
             outputBinding = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -1717,7 +1718,7 @@ class OutputRecordField(RecordField):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -1748,7 +1749,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.fields = fields
         self.type = type
@@ -1786,7 +1787,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
             label = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -1802,7 +1803,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -1828,7 +1829,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.symbols = symbols
         self.type = type
@@ -1872,7 +1873,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
             outputBinding = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -1888,7 +1889,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -1919,7 +1920,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.items = items
         self.type = type
@@ -1963,7 +1964,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
             outputBinding = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -1979,7 +1980,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -2010,7 +2011,7 @@ class InputParameter(Parameter):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.label = label
         self.secondaryFiles = secondaryFiles
@@ -2112,7 +2113,7 @@ class InputParameter(Parameter):
             type = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -2128,7 +2129,7 @@ class InputParameter(Parameter):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -2176,7 +2177,7 @@ class OutputParameter(Parameter):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.label = label
         self.secondaryFiles = secondaryFiles
@@ -2260,7 +2261,7 @@ class OutputParameter(Parameter):
             format = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -2276,7 +2277,7 @@ class OutputParameter(Parameter):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -2346,7 +2347,7 @@ interpolatation.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "InlineJavascriptRequirement"
         self.expressionLib = expressionLib
@@ -2374,7 +2375,7 @@ interpolatation.
             expressionLib = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -2390,7 +2391,7 @@ interpolatation.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -2422,7 +2423,7 @@ to earlier schema definitions.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "SchemaDefRequirement"
         self.types = types
@@ -2447,7 +2448,7 @@ to earlier schema definitions.
             errors.append(SourceLine(_doc, 'types', str).makeError("the `types` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -2463,7 +2464,7 @@ to earlier schema definitions.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -2491,7 +2492,7 @@ result of executing an expression, such as getting a parameter from input.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.envName = envName
         self.envValue = envValue
@@ -2517,7 +2518,7 @@ result of executing an expression, such as getting a parameter from input.
             errors.append(SourceLine(_doc, 'envValue', str).makeError("the `envValue` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -2533,7 +2534,7 @@ result of executing an expression, such as getting a parameter from input.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -2594,7 +2595,7 @@ effective value.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.loadContents = loadContents
         self.position = position
@@ -2671,7 +2672,7 @@ effective value.
             shellQuote = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -2687,7 +2688,7 @@ effective value.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -2738,7 +2739,7 @@ following order:
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.glob = glob
         self.loadContents = loadContents
@@ -2779,7 +2780,7 @@ following order:
             outputEval = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -2795,7 +2796,7 @@ following order:
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -2821,7 +2822,7 @@ class CommandInputRecordField(InputRecordField):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.name = name
         self.doc = doc
@@ -2884,7 +2885,7 @@ class CommandInputRecordField(InputRecordField):
             label = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -2900,7 +2901,7 @@ class CommandInputRecordField(InputRecordField):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -2934,7 +2935,7 @@ class CommandInputRecordSchema(InputRecordSchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.fields = fields
         self.type = type
@@ -2988,7 +2989,7 @@ class CommandInputRecordSchema(InputRecordSchema):
             label = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -3004,7 +3005,7 @@ class CommandInputRecordSchema(InputRecordSchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -3035,7 +3036,7 @@ class CommandInputEnumSchema(InputEnumSchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.symbols = symbols
         self.type = type
@@ -3095,7 +3096,7 @@ class CommandInputEnumSchema(InputEnumSchema):
             inputBinding = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -3111,7 +3112,7 @@ class CommandInputEnumSchema(InputEnumSchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -3147,7 +3148,7 @@ class CommandInputArraySchema(InputArraySchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.items = items
         self.type = type
@@ -3191,7 +3192,7 @@ class CommandInputArraySchema(InputArraySchema):
             inputBinding = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -3207,7 +3208,7 @@ class CommandInputArraySchema(InputArraySchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -3238,7 +3239,7 @@ class CommandOutputRecordField(OutputRecordField):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.name = name
         self.doc = doc
@@ -3292,7 +3293,7 @@ class CommandOutputRecordField(OutputRecordField):
             outputBinding = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -3308,7 +3309,7 @@ class CommandOutputRecordField(OutputRecordField):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -3339,7 +3340,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.fields = fields
         self.type = type
@@ -3393,7 +3394,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             label = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -3409,7 +3410,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -3440,7 +3441,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.symbols = symbols
         self.type = type
@@ -3484,7 +3485,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             outputBinding = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -3500,7 +3501,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -3531,7 +3532,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.items = items
         self.type = type
@@ -3575,7 +3576,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             outputBinding = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -3591,7 +3592,7 @@ class CommandOutputArraySchema(OutputArraySchema):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -3625,7 +3626,7 @@ An input parameter for a CommandLineTool.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.label = label
         self.secondaryFiles = secondaryFiles
@@ -3727,7 +3728,7 @@ An input parameter for a CommandLineTool.
             type = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -3743,7 +3744,7 @@ An input parameter for a CommandLineTool.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -3794,7 +3795,7 @@ An output parameter for a CommandLineTool.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.label = label
         self.secondaryFiles = secondaryFiles
@@ -3887,7 +3888,7 @@ An output parameter for a CommandLineTool.
             type = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -3903,7 +3904,7 @@ An output parameter for a CommandLineTool.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -3952,7 +3953,7 @@ This defines the schema of the CWL Command Line Tool Description document.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.id = id
         self.inputs = inputs
@@ -4116,7 +4117,7 @@ This defines the schema of the CWL Command Line Tool Description document.
             permanentFailCodes = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -4132,7 +4133,7 @@ This defines the schema of the CWL Command Line Tool Description document.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -4239,7 +4240,7 @@ environment as defined by Docker.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "DockerRequirement"
         self.dockerPull = dockerPull
@@ -4312,7 +4313,7 @@ environment as defined by Docker.
             dockerOutputDirectory = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -4328,7 +4329,7 @@ environment as defined by Docker.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -4370,7 +4371,7 @@ the defined process.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "SoftwareRequirement"
         self.packages = packages
@@ -4395,7 +4396,7 @@ the defined process.
             errors.append(SourceLine(_doc, 'packages', str).makeError("the `packages` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -4411,7 +4412,7 @@ the defined process.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -4433,7 +4434,7 @@ class SoftwarePackage(Savable):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.package = package
         self.version = version
@@ -4471,7 +4472,7 @@ class SoftwarePackage(Savable):
             specs = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -4487,7 +4488,7 @@ class SoftwarePackage(Savable):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -4520,7 +4521,7 @@ template.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.entryname = entryname
         self.entry = entry
@@ -4558,7 +4559,7 @@ template.
             writable = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -4574,7 +4575,7 @@ template.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -4603,7 +4604,7 @@ Define a list of files and subdirectories that must be created by the workflow p
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "InitialWorkDirRequirement"
         self.listing = listing
@@ -4628,7 +4629,7 @@ Define a list of files and subdirectories that must be created by the workflow p
             errors.append(SourceLine(_doc, 'listing', str).makeError("the `listing` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -4644,7 +4645,7 @@ Define a list of files and subdirectories that must be created by the workflow p
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -4671,7 +4672,7 @@ execution environment of the tool.  See `EnvironmentDef` for details.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "EnvVarRequirement"
         self.envDef = envDef
@@ -4696,7 +4697,7 @@ execution environment of the tool.  See `EnvironmentDef` for details.
             errors.append(SourceLine(_doc, 'envDef', str).makeError("the `envDef` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -4712,7 +4713,7 @@ execution environment of the tool.  See `EnvironmentDef` for details.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -4744,7 +4745,7 @@ the use of shell metacharacters such as `|` for pipes.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "ShellCommandRequirement"
 
@@ -4763,7 +4764,7 @@ the use of shell metacharacters such as `|` for pipes.
             raise ValidationException("Not a ShellCommandRequirement")
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -4779,7 +4780,7 @@ the use of shell metacharacters such as `|` for pipes.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -4821,7 +4822,7 @@ If neither "min" nor "max" is specified for a resource, an implementation may pr
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "ResourceRequirement"
         self.coresMin = coresMin
@@ -4912,7 +4913,7 @@ If neither "min" nor "max" is specified for a resource, an implementation may pr
             outdirMax = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -4928,7 +4929,7 @@ If neither "min" nor "max" is specified for a resource, an implementation may pr
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -4971,7 +4972,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.label = label
         self.secondaryFiles = secondaryFiles
@@ -5064,7 +5065,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             type = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -5080,7 +5081,7 @@ class ExpressionToolOutputParameter(OutputParameter):
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -5129,7 +5130,7 @@ Execute an expression as a Workflow step.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.id = id
         self.inputs = inputs
@@ -5227,7 +5228,7 @@ Execute an expression as a Workflow step.
             errors.append(SourceLine(_doc, 'expression', str).makeError("the `expression` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -5243,7 +5244,7 @@ Execute an expression as a Workflow step.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -5299,7 +5300,7 @@ provide the value of the output parameter.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.label = label
         self.secondaryFiles = secondaryFiles
@@ -5410,7 +5411,7 @@ provide the value of the output parameter.
             type = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -5426,7 +5427,7 @@ provide the value of the output parameter.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -5524,7 +5525,7 @@ specified, the default method is "merge_nested".
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.source = source
         self.linkMerge = linkMerge
@@ -5590,7 +5591,7 @@ specified, the default method is "merge_nested".
             valueFrom = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -5606,7 +5607,7 @@ specified, the default method is "merge_nested".
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -5649,7 +5650,7 @@ with an output parameter of the process.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.id = id
 
@@ -5679,7 +5680,7 @@ with an output parameter of the process.
                 raise ValidationException("Missing id")
         baseuri = id
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -5695,7 +5696,7 @@ with an output parameter of the process.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -5775,7 +5776,7 @@ a subworkflow (recursive workflows are not allowed).
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.id = id
         self.in_ = in_
@@ -5877,7 +5878,7 @@ a subworkflow (recursive workflows are not allowed).
             scatterMethod = None
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -5893,7 +5894,7 @@ a subworkflow (recursive workflows are not allowed).
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -5998,7 +5999,7 @@ workflow semantics.
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.id = id
         self.inputs = inputs
@@ -6096,7 +6097,7 @@ workflow semantics.
             errors.append(SourceLine(_doc, 'steps', str).makeError("the `steps` field is not valid because:\n"+str(e)))
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -6112,7 +6113,7 @@ workflow semantics.
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -6167,7 +6168,7 @@ the `run` field of [WorkflowStep](#WorkflowStep).
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "SubworkflowFeatureRequirement"
 
@@ -6186,7 +6187,7 @@ the `run` field of [WorkflowStep](#WorkflowStep).
             raise ValidationException("Not a SubworkflowFeatureRequirement")
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -6202,7 +6203,7 @@ the `run` field of [WorkflowStep](#WorkflowStep).
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -6226,7 +6227,7 @@ Indicates that the workflow platform must support the `scatter` and
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "ScatterFeatureRequirement"
 
@@ -6245,7 +6246,7 @@ Indicates that the workflow platform must support the `scatter` and
             raise ValidationException("Not a ScatterFeatureRequirement")
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -6261,7 +6262,7 @@ Indicates that the workflow platform must support the `scatter` and
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -6285,7 +6286,7 @@ listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "MultipleInputFeatureRequirement"
 
@@ -6304,7 +6305,7 @@ listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
             raise ValidationException("Not a MultipleInputFeatureRequirement")
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -6320,7 +6321,7 @@ listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
@@ -6344,7 +6345,7 @@ of [WorkflowStepInput](#WorkflowStepInput).
         if extension_fields:
             self.extension_fields = extension_fields
         else:
-            self.extension_fields = {}
+            self.extension_fields = yaml.comments.CommentedMap()
         self.loadingOptions = loadingOptions
         self.class_ = "StepInputExpressionRequirement"
 
@@ -6363,7 +6364,7 @@ of [WorkflowStepInput](#WorkflowStepInput).
             raise ValidationException("Not a StepInputExpressionRequirement")
 
 
-        extension_fields = {}  # type: Dict[Text, Text]
+        extension_fields = yaml.comments.CommentedMap()
         for k in _doc.keys():
             if k not in cls.attrs:
                 if ":" in k:
@@ -6379,7 +6380,7 @@ of [WorkflowStepInput](#WorkflowStepInput).
 
     def save(self, top=False, base_url="", relative_uris=True):
         # type: (bool, Text, bool) -> Dict[Text, Any]
-        r = {}  # type: Dict[Text, Any]
+        r = yaml.comments.CommentedMap()  # type: Dict[Text, Any]
         for ef in self.extension_fields:
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
