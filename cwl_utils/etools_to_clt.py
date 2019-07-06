@@ -5,7 +5,7 @@ from ruamel import yaml
 
 def main():
     top = cwl.load_document(sys.argv[1])
-    result = traverse(top)
+    result = traverse(top, True)
     result_json = cwl.save(
         result,
         base_url=result.loadingOptions.fileuri)
@@ -21,7 +21,7 @@ def main():
 def escape_expression_field(contents: str) -> str:
     return contents.replace('${', '$/{')
 
-def replace_etool(etool: cwl.ExpressionTool) -> cwl.CommandLineTool:
+def etool_to_cltool(etool: cwl.ExpressionTool) -> cwl.CommandLineTool:
     inputs = yaml.comments.CommentedSeq()  # preserve the order
     for inp in etool.inputs:
         inputs.append(cwl.CommandInputParameter(
@@ -50,26 +50,75 @@ process.stdout.write(JSON.stringify(ret));""")
         etool.loadingOptions)
 
 
-def traverse(process: cwl.Process) -> cwl.Process:
-    if isinstance(process, cwl.ExpressionTool):
-        return replace_etool(process)
+def traverse(process: cwl.Process, replace_etool=False) -> cwl.Process:
+    if isinstance(process, cwl.ExpressionTool) and replace_etool:
+        return etool_to_cltool(process)
     if isinstance(process, cwl.Workflow):
-        return traverse_workflow(process)
+        return traverse_workflow(process, replace_etool)
     return process
 
 
 def load_step(step: cwl.WorkflowStep) -> cwl.WorkflowStep:
     if isinstance(step.run, str):
         step.run = traverse(cwl.load_document(step.run))
-    return step
 
+def generate_etool_from_expr(expr: str, target: cwl.CommandInputParameter ) -> cwl.ExpressionTool:
+    inputs = yaml.comments.CommentedSeq()
+    inputs.append(cwl.InputParameter(
+        target.label, target.secondaryFiles, target.streamable, target.doc, "self",
+        target.format, None, None, target.type, target.extension_fields, target.loadingOptions))
+    outputs = yaml.comments.CommentedSeq()
+    outputs.append(cwl.ExpressionToolOutputParameter(
+        target.label, target.secondaryFiles, target.streamable, target.doc,
+        "result", None, target.format, target.type))
+    expression = """${
+  var self=inputs.self;
+  return {"result": function(){"""+expr[2:-1]+"""}()};
+}"""
+    return cwl.ExpressionTool(
+        None, inputs, outputs, [cwl.InlineJavascriptRequirement(None)], None,
+        None, None, "v1.0", expression)
 
-def traverse_workflow(workflow: cwl.Workflow) -> cwl.Workflow:
+def get_input_for_id(name: str, tool: [cwl.CommandLineTool, cwl.Workflow]) -> cwl.CommandInputParameter:
+    #import ipdb; ipdb.set_trace()
+    name = name.split('/')[-1]
+    for inp in tool.inputs:
+        if inp.id.split('#')[-1] == name:
+            return inp
+    if isinstance(tool, cwl.Workflow) and '/' in name:
+        stepname, stem = name.split('/', 1)
+        for step in tool.steps:
+            if step.id == stepname:
+                result = get_input_for_id(stem, tool.run)
+                if result:
+                    return result
+
+def traverse_workflow(workflow: cwl.Workflow, replace_etool=False) -> cwl.Workflow:
     for index, step in enumerate(workflow.steps):
-        if isinstance(step, cwl.ExpressionTool):
-            workflow.steps[index] = replace_etool(step)
+        if isinstance(step.run, cwl.ExpressionTool) and replace_etool:
+            workflow.steps[index].run = etool_to_cltool(step.run)
         else:
-            workflow.steps[index] = load_step(step)
+            load_step(step)
+    for index, step in enumerate(workflow.steps):
+        for inp in step.in_:
+            if inp.valueFrom and inp.valueFrom.startswith('${'):
+                etool = generate_etool_from_expr(
+                    inp.valueFrom, get_input_for_id(inp.id, step.run))
+                if replace_etool:
+                    etool = etool_to_cltool(etool)
+                etool_id = "_expression_{}_{}".format(step.id.split('#')[-1], inp.id.split('/')[-1])
+                workflow.steps.append(cwl.WorkflowStep(
+                    etool_id,
+                    [cwl.WorkflowStepInput(inp.source.split('#')[-1], None, "self", None, None)],
+                    [cwl.WorkflowStepOutput("result")], None, None, None, None, etool, None, None))
+                inp.valueFrom = None
+                inp.source = "{}/result".format(etool_id)
+    workflow.requirements[:] = [
+        x for x  in workflow.requirements
+        if not isinstance(x, (cwl.InlineJavascriptRequirement,
+                              cwl.StepInputExpressionRequirement))]
+    if not workflow.requirements:
+        workflow.requirements = None
     return workflow
 
 
