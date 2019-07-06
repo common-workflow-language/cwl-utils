@@ -58,10 +58,10 @@ def traverse(process: cwl.Process) -> cwl.Process:
     return process
 
 
-def get_process_from_step(step: cwl.WorkflowStep) -> cwl.Process:
+def load_step(step: cwl.WorkflowStep) -> cwl.WorkflowStep:
     if isinstance(step.run, str):
-        return cwl.load_document(step.run)
-    return step.run
+        step.run = traverse(cwl.load_document(step.run))
+    return step
 
 
 def traverse_workflow(workflow: cwl.Workflow) -> cwl.Workflow:
@@ -69,7 +69,7 @@ def traverse_workflow(workflow: cwl.Workflow) -> cwl.Workflow:
         if isinstance(step, cwl.ExpressionTool):
             workflow.steps[index] = replace_etool(step)
         else:
-            workflow.steps[index] = traverse(get_process_from_step(step))
+            workflow.steps[index] = load_step(step)
     return workflow
 
 
