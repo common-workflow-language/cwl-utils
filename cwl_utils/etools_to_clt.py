@@ -14,8 +14,12 @@ def main():
     #      JSON/YAML are kept clean of the path to the input document
     yaml.scalarstring.walk_tree(result_json)
     # ^ converts multine line strings to nice multiline YAML
+    print("#!/usr/bin/env cwl-runner")  # todo, teach the codegen to do this?
     yaml.round_trip_dump(result_json, sys.stdout)
 
+
+def escape_expression_field(contents: str) -> str:
+    return contents.replace('${', '$/{')
 
 def replace_etool(etool: cwl.ExpressionTool) -> cwl.CommandLineTool:
     inputs = yaml.comments.CommentedSeq()  # preserve the order
@@ -30,17 +34,18 @@ def replace_etool(etool: cwl.ExpressionTool) -> cwl.CommandLineTool:
             outp.label, outp.secondaryFiles, outp.streamable, outp.doc,
             outp.id, None, outp.format, outp.type, outp.extension_fields,
             outp.loadingOptions))
-    listing = [cwl.Dirent("expression.js", """"use strict";
+    contents = escape_expression_field(""""use strict";
 var inputs=$(inputs);
 var runtime=$(runtime);
-var ret = """+etool.expression.strip()+""";
-process.stdout.write(JSON.stringify(ret));""", writable=None)]
+var ret = function(){"""+etool.expression.strip()[2:-1]+"""}();
+process.stdout.write(JSON.stringify(ret));""")
+    listing = [cwl.Dirent("expression.js", contents, writable=None)]
     iwdr = cwl.InitialWorkDirRequirement(listing)
     containerReq = cwl.DockerRequirement("node:slim", None, None, None, None, None)
     return cwl.CommandLineTool(
-        etool.id, inputs, outputs, [iwdr, cwl.InlineJavascriptRequirement(None)],
+        etool.id, inputs, outputs, [iwdr],
         [containerReq], etool.label, etool.doc,
-        "v1.0", ["nodejs", "expression.js"], None, None, None, 
+        etool.cwlVersion, ["nodejs", "expression.js"], None, None, None,
         "cwl.output.json", None, None, None, etool.extension_fields,
         etool.loadingOptions)
 
