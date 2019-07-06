@@ -2,6 +2,7 @@
 import sys
 import cwl_utils.parser_v1_0 as cwl
 from ruamel import yaml
+from typing import List, Optional
 
 def main():
     top = cwl.load_document(sys.argv[1])
@@ -21,7 +22,7 @@ def main():
 def escape_expression_field(contents: str) -> str:
     return contents.replace('${', '$/{')
 
-def etool_to_cltool(etool: cwl.ExpressionTool) -> cwl.CommandLineTool:
+def etool_to_cltool(etool: cwl.ExpressionTool, expressionLib: Optional[List[str]]=None) -> cwl.CommandLineTool:
     inputs = yaml.comments.CommentedSeq()  # preserve the order
     for inp in etool.inputs:
         inputs.append(cwl.CommandInputParameter(
@@ -34,11 +35,15 @@ def etool_to_cltool(etool: cwl.ExpressionTool) -> cwl.CommandLineTool:
             outp.label, outp.secondaryFiles, outp.streamable, outp.doc,
             outp.id, None, outp.format, outp.type, outp.extension_fields,
             outp.loadingOptions))
-    contents = escape_expression_field(""""use strict";
+    contents = """"use strict";
 var inputs=$(inputs);
-var runtime=$(runtime);
+var runtime=$(runtime);"""
+    if expressionLib:
+        contents += "\n" + "\n".join(expressionLib)
+    contents +="""
 var ret = function(){"""+etool.expression.strip()[2:-1]+"""}();
-process.stdout.write(JSON.stringify(ret));""")
+process.stdout.write(JSON.stringify(ret));"""
+    contest = escape_expression_field(contents)
     listing = [cwl.Dirent("expression.js", contents, writable=None)]
     iwdr = cwl.InitialWorkDirRequirement(listing)
     containerReq = cwl.DockerRequirement("node:slim", None, None, None, None, None)
@@ -93,6 +98,16 @@ def get_input_for_id(name: str, tool: [cwl.CommandLineTool, cwl.Workflow]) -> cw
                 if result:
                     return result
 
+def find_expressionLib(workflow: cwl.Workflow, step: cwl.WorkflowStep) -> Optional[List[str]]:
+    if step.requirements:
+        for req in step.requirements:
+            if isinstance(req, cwl.InlineJavascriptRequirement):
+                return req.expressionLib
+    if workflow.requirements:
+        for req in workflow.requirements:
+            if isinstance(req, cwl.InlineJavascriptRequirement):
+                return req.expressionLib
+
 def traverse_workflow(workflow: cwl.Workflow, replace_etool=False) -> cwl.Workflow:
     for index, step in enumerate(workflow.steps):
         if isinstance(step.run, cwl.ExpressionTool) and replace_etool:
@@ -105,7 +120,7 @@ def traverse_workflow(workflow: cwl.Workflow, replace_etool=False) -> cwl.Workfl
                 etool = generate_etool_from_expr(
                     inp.valueFrom, get_input_for_id(inp.id, step.run))
                 if replace_etool:
-                    etool = etool_to_cltool(etool)
+                    etool = etool_to_cltool(etool, find_expressionLib(workflow, step))
                 etool_id = "_expression_{}_{}".format(step.id.split('#')[-1], inp.id.split('/')[-1])
                 workflow.steps.append(cwl.WorkflowStep(
                     etool_id,
