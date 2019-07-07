@@ -191,11 +191,31 @@ def process_workflow_reqs_and_hints(workflow: cwl.Workflow, replace_etool=False)
     #       ^ By refactoring replace_expr_etool to allow multiple inputs, and connecting all workflow inputs to the generated step
     generated_res_reqs: List[Tuple[str, str]] = []
     generated_iwdr_reqs: List[Tuple[str, str]] = []
+    generated_envVar_reqs: List[Tuple[str, str]] = []
     prop_reqs: Tuple[cwl.ProcessRequirement] = ()
-    resourceReq: cwl.ResourceRequirement = None
-    iwdr: cwl.InitialWorkDirRequirement = None
+    resourceReq: Optional[cwl.ResourceRequirement] = None
+    envVarReq: Optional[cwl.EnvVarRequirement] = None
+    iwdr: Optional[cwl.InitialWorkDirRequirement] = None
     if workflow.requirements:
         for req in workflow.requirements:
+            if req and isinstance(req, cwl.EnvVarRequirement):
+                if req.envDef:
+                    for index, envDef in enumerate(req.envDef):
+                        if envDef.envValue and envDef.envValue.startswith("${"):
+                            target = cwl.InputParameter(None, None, None, None, None, None, None, None, "str")
+                            etool_id = "_expression_workflow_EnvVarRequirement_{}".format(index)
+                            replace_expr_with_etool(
+                                envDef.envValue,
+                                etool_id,
+                                workflow,
+                                target,
+                                None,
+                                replace_etool)
+                            if not envVarReq:
+                                envVarReq = copy.deepcopy(req)
+                                prop_reqs += (cwl.EnvVarRequirement, )
+                            envVarReq.envDef[index] = "$(inputs._envDef{})".format(index)
+                            generated_envVar_reqs.append((etool_id, index))
             if req and isinstance(req, cwl.ResourceRequirement):
                 for attr in cwl.ResourceRequirement.attrs:
                     this_attr = getattr(req, attr, None)
@@ -279,7 +299,21 @@ def process_workflow_reqs_and_hints(workflow: cwl.Workflow, replace_etool=False)
                             prop_reqs += (cwl.InitialWorkDirRequirement, )
                         else:
                             iwdr = None
- 
+    if envVarReq and workflow.steps:
+        for step in workflow.steps:
+            if step.id.split("#")[-1].startswith("_expression_"):
+                continue
+            if step.requirements:
+                for req in step.requirements:
+                    if isinstance(req, cwl.EnvVarRequirement):
+                        continue
+            else:
+                step.requirements = yaml.comments.CommentedSeq()
+            step.requirements.append(envVarReq)
+            for entry in generated_envVar_reqs:
+                step.in_.append(cwl.WorkflowStepInput("{}/result".format(entry[0]), None, "_envDef{}".format(entry[1]), None, None))
+
+
     if resourceReq and workflow.steps:
         for step in workflow.steps:
             if step.id.split("#")[-1].startswith("_expression_"):
@@ -307,7 +341,7 @@ def process_workflow_reqs_and_hints(workflow: cwl.Workflow, replace_etool=False)
             step.requirements.append(iwdr)
             if generated_iwdr_reqs:
                 for entry in generatetd_iwdr_reqs:
-                    step.in_.append(cwl.WorkflowStepInput(entry[0], None, "_iwdr_listing_{}".format(index), None, None))
+                    step.in_.append(cwl.WorkflowStepInput("{}/result".format(entry[0]), None, "_iwdr_listing_{}".format(index), None, None))
             else:
                 step.in_.append(cwl.WorkflowStepInput("_expression_workflow_InitialWorkDirRequirement/result", None, "_iwdr_listing", None, None))
 
