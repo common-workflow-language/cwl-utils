@@ -545,6 +545,10 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                     target,
                     step,
                     replace_etool)
+                inp_id = "_arguments_{}".format(index)
+                clt.arguments[index] = "$(inputs.{})".format(inp_id)
+                clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, "string"))
+                step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
             elif isinstance(arg, cwl.CommandLineBinding) and arg.valueFrom \
                     and is_expression(arg.valueFrom, inputs, None):
                 etool_id = "_expression_{}_arguments_{}".format(step_id, index)
@@ -556,7 +560,26 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                     target,
                     step,
                     replace_etool)
-
+                inp_id = "_arguments_{}".format(index)
+                arg.valueFrom = "$(inputs.{})".format(inp_id)
+                clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, "string"))
+                step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
+    for streamtype in 'stdout', 'stderr':  # add 'stdin' for v1.1 version
+        stream_value = getattr(clt, streamtype)
+        if stream_value and is_expression(stream_value, inputs, None):
+            etool_id = "_expression_{}_{}".format(step_id, streamtype)
+            target = cwl.InputParameter(None, None, None, None, None, None, None, None, "string")
+            replace_step_clt_expr_with_etool(
+                stream_value,
+                etool_id,
+                parent,
+                target,
+                step,
+                replace_etool)
+            inp_id = "_{}".format(streamtype)
+            setattr(clt, streamtype, "$(inputs.{})".format(inp_id))
+            clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, "string"))
+            step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
 
 def replace_step_clt_expr_with_etool(expr: str,
                                      name: str,
