@@ -28,13 +28,13 @@ def escape_expression_field(contents: str) -> str:
 
 def is_expression(string: str,
                   inputs: Dict[Text, Union[Dict, List, Text, None]],
-                  self: Any
+                  self: Optional[Any]
                  ) -> bool:
     if string.strip().startswith('${'):
         return True
     if '$(' in string:
         try:
-            do_eval(str, context=context)
+            do_eval(string, inputs, context=self)
         except WorkflowException:
             return True
     return False
@@ -567,7 +567,8 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
     for streamtype in 'stdout', 'stderr':  # add 'stdin' for v1.1 version
         stream_value = getattr(clt, streamtype)
         if stream_value and is_expression(stream_value, inputs, None):
-            etool_id = "_expression_{}_{}".format(step_id, streamtype)
+            inp_id = "_{}".format(streamtype)
+            etool_id = "_expression_{}{}".format(step_id, inp_id)
             target = cwl.InputParameter(None, None, None, None, None, None, None, None, "string")
             replace_step_clt_expr_with_etool(
                 stream_value,
@@ -576,26 +577,46 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                 target,
                 step,
                 replace_etool)
-            inp_id = "_{}".format(streamtype)
             setattr(clt, streamtype, "$(inputs.{})".format(inp_id))
             clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, "string"))
             step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
+    for inp in clt.inputs:
+        if inp.inputBinding and inp.inputBinding.valueFrom and is_expression(inp.inputBinding.valueFrom, inputs, example_input(inp.type)):
+            self_id = inp.id.split('#')[-1]
+            inp_id = "_{}_valueFrom".format(self_id)
+            etool_id = "_expression_{}{}".format(step_id, inp_id)
+            replace_step_clt_expr_with_etool(
+                inp.inputBinding.valueFrom,
+                etool_id,
+                parent,
+                inp,
+                step,
+                replace_etool,
+                self_id)
+            inp.inputBinding.valueFrom = "$(inputs.{})".format(inp_id)
+            clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, "string"))
+            step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
+
 
 def replace_step_clt_expr_with_etool(expr: str,
                                      name: str,
                                      workflow: cwl.Workflow,
                                      target: cwl.Parameter,
                                      step: cwl.WorkflowStep,
-                                     replace_etool=False) -> None:
+                                     replace_etool=False,
+                                     self_name: Optional[str]=None,
+                                    ) -> None:
     etool_inputs = cltool_inputs_to_etool_inputs(step.run)
-    etool = generate_etool_from_expr2(expr, target, etool_inputs)
+    etool = generate_etool_from_expr2(expr, target, etool_inputs, self_name)
     if replace_etool:
         processes = [workflow]
         etool = etool_to_cltool(etool, find_expressionLib(processes))
     wf_step_inputs = copy.deepcopy(step.in_)
     for wf_step_input in wf_step_inputs:
         wf_step_input.id = wf_step_input.id.split('/')[-1]
-    # wf_step_inputs.append(cwl.WorkflowStepInput(source, None, "self", None, None))
+    wf_step_inputs[:] = [
+        x for x  in wf_step_inputs
+        if not x.id.startswith('_')]
     workflow.steps.append(cwl.WorkflowStep(
         name,
         wf_step_inputs,
@@ -605,25 +626,27 @@ def cltool_inputs_to_etool_inputs(tool: cwl.CommandLineTool) -> List[cwl.InputPa
     inputs = yaml.comments.CommentedSeq()
     if tool.inputs:
         for clt_inp in tool.inputs:
-            inputs.append(cwl.InputParameter(
-                clt_inp.label, clt_inp.secondaryFiles, clt_inp.streamable,
-                clt_inp.doc, clt_inp.id.split('#')[-1].split('/')[-1], clt_inp.format, None, clt_inp.default,
-                clt_inp.type, clt_inp.extension_fields, clt_inp.loadingOptions))
+            clt_inp_id = clt_inp.id.split('#')[-1].split('/')[-1]
+            if not clt_inp_id.startswith('_'):
+                inputs.append(cwl.InputParameter(
+                    clt_inp.label, clt_inp.secondaryFiles, clt_inp.streamable,
+                    clt_inp.doc, clt_inp_id, clt_inp.format, None, clt_inp.default,
+                    clt_inp.type, clt_inp.extension_fields, clt_inp.loadingOptions))
     return inputs
 
 
-def generate_etool_from_expr2(expr: str, target: cwl.Parameter, inputs: List[cwl.Parameter], self: Optional[cwl.Parameter] = None) -> cwl.ExpressionTool:
-    if self:
-        inputs.append(cwl.InputParameter(
-            self.label, self.secondaryFiles, self.streamable, self.doc, "_self",
-            self.format, None, None, self.type, self.extension_fields, self.loadingOptions))
+def generate_etool_from_expr2(expr: str,
+                              target: cwl.Parameter,
+                              inputs: List[cwl.Parameter],
+                              self_name: Optional[str] = None
+                             ) -> cwl.ExpressionTool:
     outputs = yaml.comments.CommentedSeq()
     outputs.append(cwl.ExpressionToolOutputParameter(
         target.label, target.secondaryFiles, target.streamable, target.doc,
         "result", None, target.format, target.type))
     expression = "${"
-    if self:
-        expression += "\n  var self=inputs._self;"
+    if self_name:
+        expression += "\n  var self=inputs.{};".format(self_name)
     expression += """
   return {"result": function(){"""+expr[2:-1]+"""}()};
  }"""
