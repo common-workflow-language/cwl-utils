@@ -84,12 +84,18 @@ def load_step(step: cwl.WorkflowStep) -> cwl.WorkflowStep:
     if isinstance(step.run, str):
         step.run = traverse(cwl.load_document(step.run))
 
-def generate_etool_from_expr(expr: str, target: cwl.Parameter, no_inputs=False) -> cwl.ExpressionTool:
+def generate_etool_from_expr(expr: str,
+                             target: cwl.Parameter,
+                             no_inputs=False,
+                             self_type: Optional[cwl.Parameter] = None,  # if the "self" input should be a different type than the "result" output
+                            ) -> cwl.ExpressionTool:
     inputs = yaml.comments.CommentedSeq()
     if not no_inputs:
+        if not self_type:
+            self_type = target
         inputs.append(cwl.InputParameter(
-            target.label, target.secondaryFiles, target.streamable, target.doc, "self",
-            target.format, None, None, target.type, target.extension_fields, target.loadingOptions))
+            self_type.label, self_type.secondaryFiles, self_type.streamable, self_type.doc, "self",
+            self_type.format, None, None, self_type.type, self_type.extension_fields, self_type.loadingOptions))
     outputs = yaml.comments.CommentedSeq()
     outputs.append(cwl.ExpressionToolOutputParameter(
         target.label, target.secondaryFiles, target.streamable, target.doc,
@@ -174,7 +180,10 @@ def empty_inputs(process_or_step: Union[cwl.Process, cwl.WorkflowStep], parent: 
             result[param.id] = example_input(param.type)
     else:
         for param in process_or_step.in_:
-             result[param.id] = example_input(type_for_source(process_or_step.run, param.id.split('/')[-1], parent))
+            try:
+                result[param.id] = example_input(type_for_source(process_or_step.run, param.id.split('/')[-1], parent))
+            except WorkflowException:
+                pass
     return result
 
 def example_input(some_type: Any) -> Any:
@@ -600,23 +609,75 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
             clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, inp.type))
             step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
     for outp in clt.outputs:
-        if outp.outputBinding and outp.outputBinding.glob and is_expression(outp.outputBinding.glob, inputs, None):
-            inp_id = "_{}_glob".format(outp.id.split('#')[-1])
-            etool_id = "_expression_{}{}".format(step_id, inp_id)
-            target_type = ["string", cwl.ArraySchema("string", "array")]
-            target = cwl.InputParameter(None, None, None, None, None, None, None, None, target_type)
-            replace_step_clt_expr_with_etool(
-                outp.outputBinding.glob,
-                etool_id,
-                parent,
-                target,
-                step,
-                replace_etool)
-            outp.outputBinding.glob = "$(inputs.{})".format(inp_id)
-            clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, target_type))
-            step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
+        if outp.outputBinding:
+            if outp.outputBinding.glob and is_expression(outp.outputBinding.glob, inputs, None):
+                inp_id = "_{}_glob".format(outp.id.split('#')[-1])
+                etool_id = "_expression_{}{}".format(step_id, inp_id)
+                target_type = ["string", cwl.ArraySchema("string", "array")]
+                target = cwl.InputParameter(None, None, None, None, None, None, None, None, target_type)
+                replace_step_clt_expr_with_etool(
+                    outp.outputBinding.glob,
+                    etool_id,
+                    parent,
+                    target,
+                    step,
+                    replace_etool)
+                outp.outputBinding.glob = "$(inputs.{})".format(inp_id)
+                clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, target_type))
+                step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
+            if outp.outputBinding.outputEval:
+                self = [{"class": "File", "basename": "base.name", "nameroot": "base", "nameext": "name", "path": "/tmp/base.name", "dirname": "/tmp" }]
+                if outp.outputBinding.loadContents:
+                    self[0]["contents"] = "stuff"
+                if is_expression(outp.outputBinding.outputEval, inputs, self):
+                    outp_id = outp.id.split('#')[-1]
+                    inp_id = "_{}_outputEval".format(outp_id)
+                    etool_id = "_expression_{}{}".format(step_id, inp_id)
+                    self_type = cwl.InputParameter(
+                        None, None, None, None, None, None, None, None,
+                        cwl.ArraySchema("File", "array"))
+                    etool = generate_etool_from_expr(outp.outputBinding.outputEval, outp, False, self_type)
+                    etool.inputs.extend(cltool_inputs_to_etool_inputs(clt))
+                    outp.type = self_type.type
+                    if replace_etool:
+                        processes = [parent]
+                        etool = etool_to_cltool(etool, find_expressionLib(processes))
+                    wf_step_inputs = copy.deepcopy(step.in_)
+                    for wf_step_input in wf_step_inputs:
+                        wf_step_input.id = wf_step_input.id.split('/')[-1]
+                    wf_step_inputs[:] = [
+                        x for x  in wf_step_inputs
+                        if not x.id.startswith('_')]
+                    etool_step = cwl.WorkflowStep(
+                        etool_id,
+                        wf_step_inputs,
+                        [cwl.WorkflowStepOutput("result")], None, None, None, None, etool, None, None)
+                    parent.steps.append(etool_step)
+                    rename_step_source(parent, "{}/{}".format(step_id, outp_id), "{}/result".format(etool_id))
+                    wf_step_inputs.append(cwl.WorkflowStepInput("{}/{}".format(step_id, outp_id), None, "self", None, None))
+                    outp.outputBinding.outputEval = None
 
 
+def rename_step_source(workflow: cwl.Workflow, old: str, new: str) -> None:
+    def simplify_wf_id(uri: str) -> str:
+        return uri.split('#')[-1].split('/', 1)[1]
+    def simplify_step_id(uri: str) -> str:
+        return uri.split('#')[-1]
+    for wf_outp in workflow.outputs:
+        if wf_outp.outputSource and simplify_wf_id(wf_outp.outputSource) == old:
+            wf_outp.outputSource = new
+    for step in workflow.steps:
+        if step.in_:
+            for inp in step.in_:
+                if inp.source:
+                    if isinstance(inp.source, str):
+                        source_id = simplify_step_id(inp.source) if '#' in inp.source else inp.source
+                        if source_id == old:
+                            inp.source = new
+                    else:
+                        for index, source in enumerate(inp.source):
+                            if simplify_step_id(source) == old:
+                                inp.source[index] = new
 
 def replace_step_clt_expr_with_etool(expr: str,
                                      name: str,
