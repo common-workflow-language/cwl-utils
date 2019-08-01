@@ -1,3 +1,11 @@
+# cwl-utils
+
+A collection of scripts to demonstrate the use of the [new Python classes for loading and parsing CWL v1.0 documents](https://github.com/common-workflow-language/cwl-utils/blob/master/cwl_utils/parser_v1_0.py).
+
+
+`cwl_utils/parser_v1_0.py` was created via
+`schema-salad-tool --codegen python https://github.com/common-workflow-language/common-workflow-language/raw/master/v1.0/CommonWorkflowLanguage.yml`
+
 ## Install
 
 Requires Python 3.6.x or Python 3.7
