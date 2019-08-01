@@ -12,7 +12,7 @@ TRAVIS = environ.get('TRAVIS', 'false') == 'true'
 
 
 class TestDockerExtract(TestCase):
-    @skipIf(TRAVIS, reason="travis doesn't running docker in docker")
+    @skipIf(TRAVIS, reason="travis cannot run docker in docker")
     def test_traverse_workflow(self):
         loaded = parser.load_document(str(TEST_CWL.resolve()))
 
@@ -22,7 +22,7 @@ class TestDockerExtract(TestCase):
                 image_puller.save_docker_image()
                 _ = image_puller.generate_udocker_loading_command()
 
-    @skipIf(TRAVIS, reason="travis doesn't running docker in singularity")
+    @skipIf(TRAVIS, reason="travis cannot run singularity in docker")
     def test_traverse_workflow_singularity(self):
         loaded = parser.load_document(str(TEST_CWL.resolve()))
 
