@@ -1,6 +1,8 @@
 FROM kernsuite/base:5
-RUN docker-apt-install python3-pip
+ADD .travis/.singularity_key.txt /
+RUN docker-apt-install wget
+RUN wget -O/etc/apt/sources.list.d/neurodebian.sources.list http://neuro.debian.net/lists/bionic.us-nh.full && apt-key add /.singularity_key.txt
+RUN docker-apt-install python3-pip singularity-container docker.io
 ADD . /code
 WORKDIR /code
 RUN pip3 install .
-RUN python3 setup.py test

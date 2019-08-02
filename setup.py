@@ -18,4 +18,5 @@ setup(
     setup_requires=['pytest-runner'],
     tests_require=['pytest'],
     test_suite='tests',
+    scripts=['cwl_utils/docker_extract.py'],
 )

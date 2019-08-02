@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-import sys
-import os
-import cwl_utils.parser_v1_0 as cwl
-import subprocess
 import argparse
+import os
+import sys
+
+from cwl_utils.image_puller import DockerImagePuller, SingularityImagePuller
+import cwl_utils.parser_v1_0 as cwl
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Tool to save docker images from a cwl workflow \n '
-                    'and generate udocker loading commands.')
+        description='Tool to save docker images from a cwl workflow.')
     parser.add_argument('dir', help='Directory in which to save images')
     parser.add_argument('input', help='Input CWL workflow')
+    parser.add_argument('-s', '--singularity', help='Use singularity to pull the image', action='store_true')
     return parser.parse_args()
 
 
@@ -22,32 +23,11 @@ def main():
     top = cwl.load_document(args.input)
 
     for req in set(traverse(top)):
-        image_name = get_image_name(req)
-        save_docker_image(req, image_name, args.dir)
-
-        print(load_docker_image(image_name))
-
-
-def get_image_name(req):
-    return ''.join(req.split('/')) + '.tar'
-
-
-def load_docker_image(image_name):
-    return f'udocker load -i  {image_name}'
-
-
-def save_docker_image(req, image_name, image_dir):
-    cmd_pull = ['docker', 'pull', req]
-    try:
-        subprocess.run(cmd_pull, check=True, stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as err:
-        if err.output:
-            raise subprocess.SubprocessError(err.output)
-        raise err
-    cmd_save = ['docker', 'save', '-o', os.path.join(image_dir, image_name),
-                req]
-    subprocess.run(cmd_save, check=True)
+        if args.singularity:
+            image_puller = SingularityImagePuller(req, args.dir)
+        else:
+            image_puller = DockerImagePuller(req, args.dir)
+        image_puller.save_docker_image()
 
 
 def extract_docker_requirements(process: cwl.Process):

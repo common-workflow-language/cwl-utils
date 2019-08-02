@@ -13,4 +13,5 @@ services:
 install:
  - true
 script:
-- docker build . -f .travis/${TARGET}.docker
+- docker build --tag ${TARGET} . -f .travis/${TARGET}.docker
+- docker run -v /var/run/docker.sock:/var/run/docker.sock ${TARGET} /bin/bash -c "$(cat .travis/${TARGET}.run)"
