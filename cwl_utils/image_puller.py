@@ -85,7 +85,7 @@ class SingularityImagePuller(ImagePuller):
             suffix = ".sif"
         else:
             raise Exception("Don't know how to handle this version of singularity: {}.".format(self.version))
-        return f'{image_name}.{suffix}'
+        return f'{image_name}{suffix}'
 
     def save_docker_image(self):
         _LOGGER.info(f"Pulling {self.req} with Singularity...")
