@@ -59,8 +59,8 @@ class SingularityImagePuller(ImagePuller):
     """
     Pull docker image with Singularity
     """
-    CHARS_TO_REPLACE = ['/', ':']
-    NEW_CHAR = '-'
+    CHARS_TO_REPLACE = ['/']
+    NEW_CHAR = '_'
 
     def __init__(self, req, save_directory):
         super(SingularityImagePuller, self).__init__(req, save_directory)
