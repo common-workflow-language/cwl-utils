@@ -152,7 +152,7 @@ def replace_expr_with_etool(expr: str,
                             name: str,
                             workflow: cwl.Workflow,
                             target: Union[cwl.CommandInputParameter, cwl.InputParameter],
-                            source: Optional[str],
+                            source: Optional[Union[str, List[Any]]],
                             replace_etool=False,
                             extra_process: Union[cwl.Workflow, cwl.WorkflowStep, cwl.Process] = None) -> None:
     etool = generate_etool_from_expr(expr, target, source is None)  # type: Union[cwl.Process, cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
