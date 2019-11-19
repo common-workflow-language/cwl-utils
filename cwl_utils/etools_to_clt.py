@@ -72,7 +72,7 @@ var runtime=$(runtime);"""
     contents +="""
 var ret = function(){"""+etool.expression.strip()[2:-1]+"""}();
 process.stdout.write(JSON.stringify(ret));"""
-    contest = escape_expression_field(contents)
+    content = escape_expression_field(contents)
     listing = [cwl.Dirent("expression.js", contents, writable=None)]
     iwdr = cwl.InitialWorkDirRequirement(listing)
     containerReq = cwl.DockerRequirement("node:slim", None, None, None, None, None)
@@ -155,7 +155,7 @@ def replace_expr_with_etool(expr: str,
                             source: Optional[str],
                             replace_etool=False,
                             extra_process: Union[cwl.Workflow, cwl.WorkflowStep, cwl.Process] = None) -> None:
-    etool = generate_etool_from_expr(expr, target, source == None)  # type: Union[cwl.Process, cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
+    etool = generate_etool_from_expr(expr, target, source is None)  # type: Union[cwl.Process, cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
     if replace_etool:
         processes = [workflow]  # type: List[Union[cwl.Process, cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]]
         if extra_process:
@@ -222,7 +222,7 @@ def type_for_source(process: cwl.Process, sourcenames: Union[str, List[str]], pa
                         return type_for_source(step.run, sourcename.split('/', 1)[1])
                     except WorkflowException:
                         pass
-    raise WorkflowException("param {} not found in {} or ".format(sourcename, cwl.save(process), cwl.save(parent)))
+    raise WorkflowException("param {} not found in {} or {}.".format(sourcename, cwl.save(process), cwl.save(parent)))
 
 EMPTY_FILE = {"class": "File", "basename": "em.pty", "nameroot": "em", "nameext": "pty"}
 
@@ -506,7 +506,7 @@ def process_level_reqs(process: cwl.Process, step: cwl.WorkflowStep, parent: cwl
                         process)
                     req.listing = "$(inputs._iwdr_listing)",
                     step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, "_iwdr_listing", None, None))
-                    add_input_to_process(process, "_iwdr_listing", target_type)
+                    add_input_to_process(process, "_iwdr_listing", target_type, process.loadingOptions)
                 else:
                     for index, entry in enumerate(req.listing):
                         if is_expression(entry, inputs, None):
@@ -694,6 +694,9 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                     orig_step_inputs[:] = [
                         x for x  in orig_step_inputs
                         if not x.id.startswith('_')]
+                    if replace_etool:
+                        processes = [sub_workflow]
+                        etool = etool_to_cltool(etool, find_expressionLib(processes))
                     etool_step = cwl.WorkflowStep(
                         etool_id,
                         orig_step_inputs,
@@ -717,9 +720,6 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                         tool_out.id = tool_out.id.split('#')[-1]
                     sub_wf_steps = [new_clt_step, etool_step]
                     sub_workflow = cwl.Workflow(None, sub_wf_inputs, sub_wf_outputs, None, None, None, None, parent.cwlVersion, sub_wf_steps)
-                    if replace_etool:
-                        processes = [sub_workflow]
-                        etool = etool_to_cltool(etool, find_expressionLib(processes))
                     if step.scatter:
                         new_clt_step.scatter = None
                     step.run = sub_workflow 
