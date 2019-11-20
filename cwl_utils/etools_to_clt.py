@@ -10,7 +10,7 @@ from cwltool.errors import WorkflowException
 from schema_salad.sourceline import SourceLine
 
 SKIP_COMMAND_LINE = True  # don't process inputBinding and arguments sections
-# as Galaxy will use cwltool which can handle expression ther
+# as Galaxy will use cwltool which can handle expression which might appear there
 
 def main():
     top = cwl.load_document(sys.argv[1])
