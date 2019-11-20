@@ -238,16 +238,22 @@ def type_for_source(process: cwl.Process, sourcenames: Union[str, List[str]], pa
         sourcenames = [sourcenames]
     for sourcename in sourcenames:
         for param in process.inputs:
-            if param.id.split('#')[-1] == sourcename:
+            if param.id.split('#')[-1] == sourcename.split('#')[-1]:
                 return param.type
-        if isinstance(process, cwl.Workflow):
-            for step in process.steps:
-                if sourcename.split('/')[0] == step.id.split('#')[:-1]:
-                    try:
-                        return type_for_source(step.run, sourcename.split('/', 1)[1])
-                    except WorkflowException:
-                        pass
-    raise WorkflowException("param {} not found in {} or {}.".format(sourcename, cwl.save(process), cwl.save(parent)))
+        targets = [process]
+        if parent:
+            targets.append(parent)
+        for target in targets:
+            if isinstance(target, cwl.Workflow):
+                for step in target.steps:
+                    if sourcename.split('/')[0] == step.id.split('#')[-1] and step.out:
+                        for outp in step.out:
+                            if outp.split('/')[-1] == sourcename.split('/', 1)[1]:
+                                if step.run and step.run.outputs:
+                                    for output in step.run.outputs:
+                                        if output.id.split('#')[-1] == sourcename.split('/', 1)[1]:
+                                            return output.type
+    raise WorkflowException("param {} not found in {}\n or\n {}.".format(sourcename, yaml.round_trip_dump(cwl.save(process)), yaml.round_trip_dump(cwl.save(parent))))
 
 EMPTY_FILE = {"class": "File", "basename": "em.pty", "nameroot": "em", "nameext": "pty"}
 
