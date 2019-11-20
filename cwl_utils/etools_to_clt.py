@@ -9,6 +9,9 @@ from cwltool.expression import do_eval
 from cwltool.errors import WorkflowException
 from schema_salad.sourceline import SourceLine
 
+SKIP_COMMAND_LINE = True  # don't process inputBinding and arguments sections
+# as Galaxy will use cwltool which can handle expression ther
+
 def main():
     top = cwl.load_document(sys.argv[1])
     result, modified = traverse(top, False)  # 2nd parameter: True to make CommandLineTools, False for ExpressionTools
@@ -611,7 +614,7 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
     target_clt = step.run
     inputs = empty_inputs(clt)
     step_id = step.id.split('#')[-1]
-    if clt.arguments:
+    if clt.arguments and not SKIP_COMMAND_LINE:
         for index, arg in enumerate(clt.arguments):
             if isinstance(arg, str) and is_expression(arg, inputs, None):
                 modified = True
@@ -667,7 +670,7 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
             target_clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, target_type))
             step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
     for inp in clt.inputs:
-        if inp.inputBinding and inp.inputBinding.valueFrom and is_expression(inp.inputBinding.valueFrom, inputs, example_input(inp.type)):
+        if not SKIP_COMMAND_LINE and inp.inputBinding and inp.inputBinding.valueFrom and is_expression(inp.inputBinding.valueFrom, inputs, example_input(inp.type)):
             modified = True
             self_id = inp.id.split('#')[-1]
             inp_id = "_{}_valueFrom".format(self_id)
@@ -801,6 +804,8 @@ def rename_step_source(workflow: cwl.Workflow, old: str, new: str) -> None:
                                 inp.source[index] = new
 
 def remove_JSReq(process: Union[cwl.CommandLineTool, cwl.WorkflowStep, cwl.Workflow]) -> None:
+    if SKIP_COMMAND_LINE and isinstance(process, cwl.CommandLineTool):
+        return
     if process.hints:
         process.hints[:] = [hint for hint in process.hints if not isinstance(hint, cwl.InlineJavascriptRequirement)]
         if not process.hints:
