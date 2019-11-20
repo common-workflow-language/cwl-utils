@@ -84,8 +84,8 @@ process.stdout.write(JSON.stringify(ret));"""
         etool.loadingOptions)
 
 
-def traverse(process: Union[cwl.Process, cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], replace_etool=False) -> Tuple[Union[cwl.Process, cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], bool]:
-    if isinstance(process, cwl.CommandLineTool):
+def traverse(process: Union[cwl.Process, cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], replace_etool=False, inside=False) -> Tuple[Union[cwl.Process, cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], bool]:
+    if not inside and isinstance(process, cwl.CommandLineTool):
         wf_inputs = []
         wf_outputs = []
         step_inputs = []
@@ -116,10 +116,10 @@ def traverse(process: Union[cwl.Process, cwl.CommandLineTool, cwl.ExpressionTool
     return process, False
 
 
-def load_step(step: cwl.WorkflowStep) -> bool:
+def load_step(step: cwl.WorkflowStep, replace_etool=False) -> bool:
     modified = False
     if isinstance(step.run, str):
-        step.run, modified = traverse(cwl.load_document(step.run))
+        step.run, modified = traverse(cwl.load_document(step.run), replace_etool, True)
     return modified
 
 def generate_etool_from_expr(expr: str,
@@ -713,9 +713,10 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                     sub_wf_outputs = cltool_step_outputs_to_workflow_outputs(step, etool_id, outp_id)
                     self_type = cwl.InputParameter(
                         None, None, None, None, None, None, None, None,
-                        cwl.ArraySchema("File", "array"))
+                        cwl.InputArraySchema("File", "array", None, None))
                     etool = generate_etool_from_expr(outp.outputBinding.outputEval, outp, False, self_type)
-                    outp.type = self_type.type
+                    if outp.outputBinding.loadContents:
+                        etool.inputs[0].type.inputBinding = cwl.CommandLineBinding(True, None, None, None, None, None, None)
                     etool.inputs.extend(cltool_inputs_to_etool_inputs(clt))
                     sub_wf_inputs = cltool_inputs_to_etool_inputs(clt)
                     orig_step_inputs = copy.deepcopy(step.in_)
@@ -729,6 +730,9 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                     orig_step_inputs[:] = [
                         x for x  in orig_step_inputs
                         if not x.id.startswith('_')]
+                    for inp in orig_step_inputs:
+                        inp.source = inp.id
+                        inp.linkMerge = None
                     if replace_etool:
                         processes = [sub_workflow]
                         etool = etool_to_cltool(etool, find_expressionLib(processes))
@@ -743,13 +747,12 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                     for new_outp in new_clt_step.run.outputs:
                         if new_outp.id.split('#')[-1] == outp_id:
                             new_outp.outputBinding.outputEval = None
+                            new_outp.outputBinding.loadContents = None
+                            new_outp.type = cwl.CommandOutputArraySchema("File", "array", None, None) 
                     for inp in new_clt_step.in_:
                         inp.id = inp.id.split('/')[-1]
-                        if isinstance(inp.source, MutableSequence):
-                            for index, source in enumerate(inp.source):
-                                inp.source[index] = source.split('#')[-1]
-                        else:
-                            inp.source = inp.source.split('#')[-1]
+                        inp.source = inp.id
+                        inp.linkMerge = None
                     for index, out in enumerate(new_clt_step.out):
                         new_clt_step.out[index] = out.split('/')[-1]
                     for tool_inp in new_clt_step.run.inputs:
@@ -984,7 +987,9 @@ def traverse_workflow(workflow: cwl.Workflow, replace_etool=False) -> Tuple[cwl.
             workflow.steps[index].run = etool_to_cltool(step.run)
             modified = True
         else:
-            load_step(step)
+            step_modified = load_step(step, replace_etool)
+            if step_modified:
+                modified = True
     for step in workflow.steps:
         if not step.id.startswith('_expression'):
             step_modified = traverse_step(step, workflow)
