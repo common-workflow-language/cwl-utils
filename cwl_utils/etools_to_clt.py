@@ -47,11 +47,11 @@ def is_expression(string: str,
         return False
     if string.strip().startswith('${'):
         return True
-    # if '$(' in string:
-    #     try:
-    #         do_eval(string, inputs, context=self, requirements=[], outdir='', tmpdir='', resources={})
-    #     except WorkflowException:
-    #         return True
+    if '$(' in string:
+        try:
+            do_eval(string, inputs, context=self, requirements=[], outdir='', tmpdir='', resources={})
+        except WorkflowException:
+            return True
     return False
 
 def etool_to_cltool(etool: cwl.ExpressionTool, expressionLib: Optional[List[str]]=None) -> cwl.CommandLineTool:
@@ -154,7 +154,7 @@ def generate_etool_from_expr(expr: str,
 def get_input_for_id(name: str, tool: Union[cwl.CommandLineTool, cwl.Workflow]) -> Optional[cwl.CommandInputParameter]:
     name = name.split('/')[-1]
     for inp in tool.inputs:
-        if inp.id.split('#')[-1] == name:
+        if inp.id.split('#')[-1].split('/')[-1] == name:
             return inp
     if isinstance(tool, cwl.Workflow) and '/' in name:
         stepname, stem = name.split('/', 1)
@@ -388,7 +388,7 @@ def process_workflow_reqs_and_hints(workflow: cwl.Workflow, replace_etool=False)
                             elif isinstance(entry, cwl.Dirent):
                                 if entry.entry and is_expression(entry.entry, inputs, None):
                                     modified = True
-                                    target_type = [cwl.File, cwl.Dirent]
+                                    target_type = ["File", cwl.Dirent]
                                     target = cwl.InputParameter(None, None, None, None, None, None, None, None, target_type)
                                     etool_id = "_expression_workflow_InitialWorkDirRequirement_{}".format(index)
                                     replace_expr_with_etool(
@@ -561,7 +561,7 @@ def process_level_reqs(process: cwl.Process, step: cwl.WorkflowStep, parent: cwl
                         elif isinstance(entry, cwl.Dirent):
                             if entry.entry and is_expression(entry.entry, inputs, None):
                                 modified = True
-                                target_type = [cwl.File, cwl.Dirent]
+                                target_type = ["File", "Dirent"]
                                 target = cwl.InputParameter(None, None, None, None, None, None, None, None, target_type)
                                 etool_id = "_expression_{}_InitialWorkDirRequirement_{}".format(step_name, index)
                                 replace_expr_with_etool(
@@ -743,14 +743,15 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                         etool_id,
                         orig_step_inputs,
                         [cwl.WorkflowStepOutput("result")], None, None, None, None, etool, None, step.scatterMethod)
-                    new_clt_step = copy.deepcopy(step)
+                    new_clt_step = copy.copy(step)
                     new_clt_step.id = new_clt_step.id.split('#')[-1]
                     new_clt_step.run.id = None
                     remove_JSReq(new_clt_step.run)
                     for new_outp in new_clt_step.run.outputs:
                         if new_outp.id.split('#')[-1] == outp_id:
-                            new_outp.outputBinding.outputEval = None
-                            new_outp.outputBinding.loadContents = None
+                            if new_outp.outputBinding:
+                                new_outp.outputBinding.outputEval = None
+                                new_outp.outputBinding.loadContents = None
                             new_outp.type = cwl.CommandOutputArraySchema("File", "array", None, None) 
                     for inp in new_clt_step.in_:
                         inp.id = inp.id.split('/')[-1]
