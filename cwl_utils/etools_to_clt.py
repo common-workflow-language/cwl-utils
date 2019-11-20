@@ -84,7 +84,31 @@ process.stdout.write(JSON.stringify(ret));"""
         etool.loadingOptions)
 
 
-def traverse(process: cwl.Process, replace_etool=False) -> Tuple[cwl.Process, bool]:
+def traverse(process: Union[cwl.Process, cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], replace_etool=False) -> Tuple[Union[cwl.Process, cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], bool]:
+    if isinstance(process, cwl.CommandLineTool):
+        wf_inputs = []
+        wf_outputs = []
+        step_inputs = []
+        step_outputs = []
+        if process.inputs:
+            for inp in process.inputs:
+                inp_id = inp.id.split('#')[-1]
+                step_inputs.append(cwl.WorkflowStepInput(inp_id, None, inp_id, None, None, inp.extension_fields, inp.loadingOptions))
+                wf_inputs.append(cwl.InputParameter(inp.label, inp.secondaryFiles, inp.streamable,
+                    inp.doc, inp_id, inp.format, None, inp.default,
+                    inp.type, inp.extension_fields, inp.loadingOptions))
+        if process.outputs:
+            for outp in process.outputs:
+                outp_id = outp.id.split('#')[-1]
+                step_outputs.append(outp_id)
+                wf_outputs.append(cwl.WorkflowOutputParameter(outp.label, outp.secondaryFiles, outp.streamable, outp.doc, outp_id, None, outp.format, "main/{}".format(outp_id), None, outp.type, outp.extension_fields, outp.loadingOptions))
+        step = cwl.WorkflowStep("#main", step_inputs, step_outputs, None, None, None, None, copy.deepcopy(process), None, None)
+        workflow = cwl.Workflow(None, wf_inputs, wf_outputs, None, None, None, None, process.cwlVersion, [step])
+        result, modified = traverse_workflow(workflow, replace_etool)
+        if modified:
+            return result, True
+        else:
+            return process, False
     if isinstance(process, cwl.ExpressionTool) and replace_etool:
         return etool_to_cltool(process), True
     if isinstance(process, cwl.Workflow):
@@ -596,15 +620,16 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                     target,
                     step,
                     replace_etool)
-                target_clt.arguments[index] = "$(inputs.{})".format(inp_id)
+                target_clt.arguments[index].valueFrom = "$(inputs.{})".format(inp_id)
                 target_clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, target_type))
                 step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
+                remove_JSReq(target_clt)
             elif isinstance(arg, cwl.CommandLineBinding) and arg.valueFrom \
                     and is_expression(arg.valueFrom, inputs, None):
                 modified = True
                 inp_id = "_arguments_{}".format(index)
                 etool_id = "_expression_{}{}".format(step_id, inp_id)
-                target_type = "string"
+                target_type = "Any"
                 target = cwl.InputParameter(None, None, None, None, None, None, None, None, target_type)
                 replace_step_clt_expr_with_etool(
                     arg.valueFrom,
@@ -613,9 +638,10 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                     target,
                     step,
                     replace_etool)
-                arg.valueFrom = "$(inputs.{})".format(inp_id)
+                target_clt.arguments[index].valueFrom = "$(inputs.{})".format(inp_id)
                 target_clt.inputs.append(cwl.CommandInputParameter(None, None, None, None, inp_id, None, None, None, target_type))
                 step.in_.append(cwl.WorkflowStepInput("{}/result".format(etool_id), None, inp_id, None, None))
+                remove_JSReq(target_clt)
     for streamtype in 'stdout', 'stderr':  # add 'stdin' for v1.1 version
         stream_value = getattr(clt, streamtype)
         if stream_value and is_expression(stream_value, inputs, None):
@@ -704,10 +730,13 @@ def traverse_CommandLineTool(clt: cwl.CommandLineTool, parent: cwl.Workflow, ste
                         etool_id,
                         orig_step_inputs,
                         [cwl.WorkflowStepOutput("result")], None, None, None, None, etool, None, step.scatterMethod)
-                    outp.outputBinding.outputEval = None
                     new_clt_step = copy.deepcopy(step)
                     new_clt_step.id = new_clt_step.id.split('#')[-1]
                     new_clt_step.run.id = None
+                    remove_JSReq(new_clt_step.run)
+                    for new_outp in new_clt_step.run.outputs:
+                        if new_outp.id.split('#')[-1] == outp_id:
+                            new_outp.outputBinding.outputEval = None
                     for inp in new_clt_step.in_:
                         inp.id = inp.id.split('/')[-1]
                         if isinstance(inp.source, MutableSequence):
@@ -761,6 +790,16 @@ def rename_step_source(workflow: cwl.Workflow, old: str, new: str) -> None:
                         for index, source in enumerate(inp.source):
                             if simplify_step_id(source) == old:
                                 inp.source[index] = new
+
+def remove_JSReq(process: Union[cwl.CommandLineTool, cwl.WorkflowStep, cwl.Workflow]) -> None:
+    if process.hints:
+        process.hints[:] = [hint for hint in process.hints if not isinstance(hint, cwl.InlineJavascriptRequirement)]
+        if not process.hints:
+            process.hints = None
+    if process.requirements:
+        process.requirements[:] = [req for req in process.requirements if not isinstance(req, cwl.InlineJavascriptRequirement)]
+        if not process.requirements:
+            process.requirements = None
 
 def replace_step_clt_expr_with_etool(expr: str,
                                      name: str,
@@ -859,7 +898,7 @@ def generate_etool_from_expr2(expr: str,
     if self_name:
         expression += "\n  var self=inputs.{};".format(self_name)
     expression += """
-  return {"result": function(){return """+expr[2:-1]+"""}()};
+  return {"result": function(){"""+expr[2:-2]+"""}()};
  }"""
     hints = None
     reqs = [cwl.InlineJavascriptRequirement(None)]
