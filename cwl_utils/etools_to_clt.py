@@ -964,6 +964,21 @@ def traverse_step(step: cwl.WorkflowStep, parent: cwl.Workflow, replace_etool=Fa
                         source_type = cwl.InputParameter(None, None, None, None, None, None, None, None, cwl.ArraySchema(target.type, 'array'))
                     else:
                         input_source_id = inp.source.split('#')[-1]
+                if isinstance(step.run, cwl.ExpressionTool):
+                    found_JSReq = False
+                    reqs = []
+                    if step.run.hints:
+                        reqs.extend(step.run.hints)
+                    if step.run.requirements:
+                        reqs.extend(step.run.requirements)
+                    for req in reqs:
+                        if isinstance(req, cwl.InlineJavaScriptRequirement):
+                            found_JSReq = True
+                    if not found_JSReq:
+                        if not step.run.requirements:
+                            step.run.requirements = []
+                        expr_lib = find_expressionLib([parent])
+                        step.run.requirements.append(cwl.InlineJavascriptRequirement(expr_lib))
                 replace_expr_with_etool(
                     inp.valueFrom,
                     etool_id,
