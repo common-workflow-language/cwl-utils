@@ -279,9 +279,9 @@ def empty_inputs(process_or_step: Union[cwl.Process, cwl.WorkflowStep], parent: 
 
 def example_input(some_type: Any) -> Any:
     if some_type == 'Directory':
-        return {'class': 'Directory', 'basename': 'example', 'listing': []}
+        return {'class': 'Directory', 'location': 'https://www.example.com/example', 'basename': 'example', 'listing': []}
     if some_type == 'File':
-        return {'class': 'File', 'basename': 'example.txt', 'nameroot': 'example', 'nameext': 'txt'}
+        return {'class': 'File', 'location': 'https://www.example.com/example.txt', 'basename': 'example.txt', 'size': 23, 'contents': "hoopls", 'nameroot': 'example', 'nameext': 'txt'}
     return None
 
 def type_for_source(process: cwl.Process, sourcenames: Union[str, List[str]], parent: Optional[cwl.Workflow] = None) -> Any:
