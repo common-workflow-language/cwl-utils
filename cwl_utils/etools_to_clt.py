@@ -2,12 +2,14 @@
 import sys
 import copy
 import shutil
+import hashlib
 import cwl_utils.parser_v1_0 as cwl
 from ruamel import yaml
 from typing import Any, Dict, List, MutableSequence, Optional, Sequence, Text, Tuple, Type, Union
 from cwltool.expression import do_eval
 from cwltool.errors import WorkflowException
 from schema_salad.sourceline import SourceLine
+from schema_salad.utils import json_dumps
 
 SKIP_COMMAND_LINE = True  # don't process CommandLineTool.inputs...inputBinding and CommandLineTool.arguments sections
 SKIP_COMMAND_LINE2 = True  # don't process CommandLineTool.outputEval
@@ -36,6 +38,24 @@ def main():
     print("#!/usr/bin/env cwl-runner")  # TODO: teach the codegen to do this?
     yaml.round_trip_dump(result_json, sys.stdout)
 
+
+def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool:
+    if not process.outputs:
+        return process
+    result = None
+    for index, output in enumerate(process.outputs):
+        if output.type == 'stdout':
+            if not result:
+                result = copy.deepcopy(process)
+            stdout_path = process.stdout
+            if not stdout_path:
+                stdout_path = str(hashlib.sha1(json_dumps(cwl.save(process)).encode('utf-8')).hexdigest())
+                result.stdout = stdout_path
+            result.outputs[index].type = 'File'
+            output.outputBinding = cwl.CommandOutputBinding(stdout_path, None, None)
+    if result:
+        return result
+    return process
 
 def escape_expression_field(contents: str) -> str:
     return contents.replace('${', '$/{').replace('$(', '$/(')
@@ -109,6 +129,7 @@ process.stdout.write(JSON.stringify(ret));"""
 
 def traverse(process: Union[cwl.Process, cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], replace_etool=False, inside=False) -> Tuple[Union[cwl.Process, cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], bool]:
     if not inside and isinstance(process, cwl.CommandLineTool):
+        process = expand_stream_shortcuts(process)
         wf_inputs = []
         wf_outputs = []
         step_inputs = []
@@ -260,7 +281,7 @@ def example_input(some_type: Any) -> Any:
     if some_type == 'Directory':
         return {'class': 'Directory', 'basename': 'example', 'listing': []}
     if some_type == 'File':
-        return {'class': 'File', 'basename': 'example'}
+        return {'class': 'File', 'basename': 'example.txt', 'nameroot': 'example', 'nameext': 'txt'}
     return None
 
 def type_for_source(process: cwl.Process, sourcenames: Union[str, List[str]], parent: Optional[cwl.Workflow] = None) -> Any:
