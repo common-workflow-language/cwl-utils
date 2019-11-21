@@ -279,9 +279,9 @@ def empty_inputs(process_or_step: Union[cwl.Process, cwl.WorkflowStep], parent: 
 
 def example_input(some_type: Any) -> Any:
     if some_type == 'Directory':
-        return {'class': 'Directory', 'location': 'https://www.example.com/example', 'basename': 'example', 'listing': []}
+        return {'class': 'Directory', 'location': 'https://www.example.com/example', 'basename': 'example', 'listing': [{'class': 'File', 'basename':'example.txt', 'size': 23, 'contents':'hoopla', 'nameroot': 'example', 'nameext': 'txt'}]}
     if some_type == 'File':
-        return {'class': 'File', 'location': 'https://www.example.com/example.txt', 'basename': 'example.txt', 'size': 23, 'contents': "hoopls", 'nameroot': 'example', 'nameext': 'txt'}
+        return {'class': 'File', 'location': 'https://www.example.com/example.txt', 'basename': 'example.txt', 'size': 23, 'contents': "hoopla", 'nameroot': 'example', 'nameext': 'txt'}
     return None
 
 def type_for_source(process: cwl.Process, sourcenames: Union[str, List[str]], parent: Optional[cwl.Workflow] = None) -> Any:
@@ -1181,6 +1181,7 @@ def replace_step_valueFrom_expr_with_etool(expr: str,
             scatter[index] = entry.split('/')[-1]
     if scatter and step_inp_id in scatter:
         scatter = ['self']
+    # do we still need to scatter?
     else:
         scatter = None
     workflow.steps.append(cwl.WorkflowStep(
