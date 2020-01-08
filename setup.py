@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='cwl-utils',
-    version='0.1',
+    version='0.2',
     author='Common workflow language working group',
     author_email='common-workflow-language@googlegroups.com',
     packages=find_packages(),
