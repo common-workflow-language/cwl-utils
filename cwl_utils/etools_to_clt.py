@@ -115,7 +115,7 @@ var runtime=$(runtime);"""
     contents +="""
 var ret = function(){"""+etool.expression.strip()[2:-1]+"""}();
 process.stdout.write(JSON.stringify(ret));"""
-    content = escape_expression_field(contents)
+    contents = escape_expression_field(contents)
     listing = [cwl.Dirent("expression.js", contents, writable=None)]
     iwdr = cwl.InitialWorkDirRequirement(listing)
     containerReq = cwl.DockerRequirement("node:slim", None, None, None, None, None)
@@ -167,7 +167,7 @@ def load_step(step: cwl.WorkflowStep, replace_etool=False) -> bool:
     return modified
 
 def generate_etool_from_expr(expr: str,
-                             target: Union[cwl.Parameter, cwl.CommandInputParameter, cwl.InputParameter],
+                             target: Union[cwl.CommandInputParameter, cwl.InputParameter],
                              no_inputs=False,
                              self_type: Optional[Union[cwl.InputParameter, cwl.CommandInputParameter]] = None,  # if the "self" input should be a different type than the "result" output
                              extra_processes: Optional[Sequence[Union[cwl.Workflow, cwl.WorkflowStep, cwl.CommandLineTool]]] = None
