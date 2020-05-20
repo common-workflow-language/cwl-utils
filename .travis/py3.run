@@ -1,1 +1,1 @@
-service docker start && cd /code && python3 setup.py test
+cd /code && python3 setup.py test
