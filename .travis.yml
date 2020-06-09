@@ -8,9 +8,18 @@ matrix:
   - env: TARGET=pep8
   - env: TARGET=mypy
 services:
- - docker
+- docker
 install:
- - true
+- true
 script:
 - docker build --tag ${TARGET} . -f .travis/${TARGET}.docker
 - docker run -v /var/run/docker.sock:/var/run/docker.sock ${TARGET} /bin/bash -c "$(cat .travis/${TARGET}.run)"
+deploy:
+  provider: pypi
+  username: __token__
+  on:
+    tags: true
+    distributions: sdist bdist_wheel
+    repo: common-workflow-language/cwl-utils
+  password:
+    secure: AZ+PuKZGoc/xK81zvNekgsZ++7NIwgh3Kw9G173aPxxjwfS9KxqqQ/s1qu/hGgvl1nrGrv+hfMYWSoy8iHV0qJ411DWEfWij0p924HEN4iBvMcPOhvvDOQck2YSdPQAAK3Xkt9EYHC6oMNr8dmof366GPqNSEvlxGvAbo1CP//gPM4Awbd84lhLD/6nsp9A1tLL4dVXDw4doWN3Sa8q1obP6Qa7+vuaU+9bG8cfmmJatGYLRYcK7gaMHY4YS3pMZ+uVNlcCjVXC9ywfpR/WiTUnOO/uFPVO+nZtoE0qHUXbtPur91TeROhGAxDSte4NBbnUOOU2ISn3CLT/QDD7s3yBfB5nur+UIdJILH/9h9JZdv+xqa0P30sX878SN00VkrZUoNbSJWthenSy8CWTJrjo64a88Vr8Yl6grk2ctrSHNyN+erPOx6gKayWyJibpekuFKJM2MxvcqehBARcxy+2YRHedDjrfyS/lZPctwjTDKtCn4kJRulqxsbcBY1zYOc814nyEuPF3b3vldVeYV1k0YmLToZ4XxBHVZcJe7YxoWApCQphC2rKNU+snEGKNIOXx1DQkr8u3E/skiE5Fb1SzHLoKf3UsjMrz09jOTIxer3V4O3t3PyjLrGudIiV7nEaVa/4pDzwNNEN0pKJK0AbuPg0EDloRWY0HQxkJAf7M=
