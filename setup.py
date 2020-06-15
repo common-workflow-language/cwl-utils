@@ -14,7 +14,7 @@ setup(
         'ruamel.yaml',
         'six',
         'requests',
-        'schema_salad <7',
+        'schema_salad <8',
         'typing_extensions',
     ],
     setup_requires=['pytest-runner'],
