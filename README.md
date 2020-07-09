@@ -41,3 +41,7 @@ To regenerate install `schema_salad` package and run:
 schema-salad-tool --codegen python \
     https://raw.githubusercontent.com/common-workflow-language/common-workflow-language/master/v1.0/CommonWorkflowLanguage.yml
 ```
+
+## Release
+
+To release CWLUtils, bump the version in `cwl_utils/__meta__.py`, and tag that commit with the new version. TravisCI should release that tag.
