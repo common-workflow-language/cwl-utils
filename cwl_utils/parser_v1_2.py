@@ -49,6 +49,7 @@ class LoadingOptions(object):
         self,
         fetcher=None,  # type: Optional[Fetcher]
         namespaces=None,  # type: Optional[Dict[str, str]]
+        schemas=None,  # type: Optional[Dict[str, str]]
         fileuri=None,  # type: Optional[str]
         copyfrom=None,  # type: Optional[LoadingOptions]
         original_doc=None,  # type: Optional[Any]
@@ -56,6 +57,7 @@ class LoadingOptions(object):
         self.idx = {}  # type: Dict[str, Dict[str, Any]]
         self.fileuri = fileuri  # type: Optional[str]
         self.namespaces = namespaces
+        self.schemas = schemas
         self.original_doc = original_doc
         if copyfrom is not None:
             self.idx = copyfrom.idx
@@ -65,6 +67,8 @@ class LoadingOptions(object):
                 self.fileuri = copyfrom.fileuri
             if namespaces is None:
                 self.namespaces = copyfrom.namespaces
+            if schemas is None:
+                self.schemas = copyfrom.schemas
 
         if fetcher is None:
             import requests
@@ -471,11 +475,13 @@ def _document_load(loader, doc, baseuri, loadingOptions):
         )
 
     if isinstance(doc, MutableMapping):
-        if "$namespaces" in doc:
+        if "$namespaces" in doc or "$schemas" in doc:
             loadingOptions = LoadingOptions(
-                copyfrom=loadingOptions, namespaces=doc["$namespaces"]
+                copyfrom=loadingOptions,
+                namespaces=doc.get("$namespaces", None),
+                schemas=doc.get("$schemas", None),
             )
-            doc = {k: v for k, v in doc.items() if k != "$namespaces"}
+            doc = {k: v for k, v in doc.items() if k not in ["$namespaces", "$schemas"]}
 
         if "$base" in doc:
             baseuri = doc["$base"]
@@ -712,9 +718,12 @@ A field of a record.
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['doc', 'name', 'type'])
@@ -820,9 +829,12 @@ class RecordSchema(Savable):
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['fields', 'type'])
@@ -932,9 +944,12 @@ Define an enumerated type.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['symbols', 'type'])
@@ -1040,9 +1055,12 @@ class ArraySchema(Savable):
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['items', 'type'])
@@ -1443,9 +1461,12 @@ the same value for `location`.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'location', 'path', 'basename', 'dirname', 'nameroot', 'nameext', 'checksum', 'size', 'secondaryFiles', 'format', 'contents'])
@@ -1659,9 +1680,12 @@ or in any entry in `secondaryFiles` in the listing) is a fatal error.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'location', 'path', 'basename', 'listing'])
@@ -1779,9 +1803,12 @@ class InputBinding(Savable):
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['loadContents'])
@@ -2073,9 +2100,12 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['doc', 'name', 'type', 'label', 'secondaryFiles', 'streamable', 'format', 'loadContents', 'loadListing'])
@@ -2260,9 +2290,12 @@ class InputRecordSchema(RecordSchema, InputSchema):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['fields', 'type', 'label', 'doc', 'name'])
@@ -2447,9 +2480,12 @@ class InputEnumSchema(EnumSchema, InputSchema):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['symbols', 'type', 'label', 'doc', 'name'])
@@ -2634,9 +2670,12 @@ class InputArraySchema(ArraySchema, InputSchema):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['items', 'type', 'label', 'doc', 'name'])
@@ -2870,9 +2909,12 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
             if u:
                 r['format'] = u
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['doc', 'name', 'type', 'label', 'secondaryFiles', 'streamable', 'format'])
@@ -3057,9 +3099,12 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['fields', 'type', 'label', 'doc', 'name'])
@@ -3244,9 +3289,12 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['symbols', 'type', 'label', 'doc', 'name'])
@@ -3431,9 +3479,12 @@ class OutputArraySchema(ArraySchema, OutputSchema):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['items', 'type', 'label', 'doc', 'name'])
@@ -3564,9 +3615,12 @@ interpolatation.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'expressionLib'])
@@ -3675,9 +3729,12 @@ to earlier schema definitions.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'types'])
@@ -3799,9 +3856,12 @@ in the Schema Salad specification.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['pattern', 'required'])
@@ -3899,9 +3959,12 @@ a Directory object for use by expressions.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'loadListing'])
@@ -4010,9 +4073,12 @@ result of executing an expression, such as getting a parameter from input.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['envName', 'envValue'])
@@ -4274,9 +4340,12 @@ effective value.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['loadContents', 'position', 'prefix', 'separate', 'itemSeparator', 'valueFrom', 'shellQuote'])
@@ -4444,9 +4513,12 @@ following order:
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['loadContents', 'loadListing', 'glob', 'outputEval'])
@@ -4532,9 +4604,12 @@ class CommandLineBindable(Savable):
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['inputBinding'])
@@ -4837,9 +4912,12 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['doc', 'name', 'type', 'label', 'secondaryFiles', 'streamable', 'format', 'loadContents', 'loadListing', 'inputBinding'])
@@ -5047,9 +5125,12 @@ class CommandInputRecordSchema(InputRecordSchema, CommandInputSchema, CommandLin
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['fields', 'type', 'label', 'doc', 'name', 'inputBinding'])
@@ -5257,9 +5338,12 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['symbols', 'type', 'label', 'doc', 'name', 'inputBinding'])
@@ -5467,9 +5551,12 @@ class CommandInputArraySchema(InputArraySchema, CommandInputSchema, CommandLineB
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['items', 'type', 'label', 'doc', 'name', 'inputBinding'])
@@ -5726,9 +5813,12 @@ class CommandOutputRecordField(OutputRecordField):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['doc', 'name', 'type', 'label', 'secondaryFiles', 'streamable', 'format', 'outputBinding'])
@@ -5913,9 +6003,12 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['fields', 'type', 'label', 'doc', 'name'])
@@ -6100,9 +6193,12 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['symbols', 'type', 'label', 'doc', 'name'])
@@ -6287,9 +6383,12 @@ class CommandOutputArraySchema(OutputArraySchema):
                 base_url=self.name,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['items', 'type', 'label', 'doc', 'name'])
@@ -6618,9 +6717,12 @@ An input parameter for a CommandLineTool.
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['label', 'secondaryFiles', 'streamable', 'doc', 'id', 'format', 'loadContents', 'loadListing', 'default', 'type', 'inputBinding'])
@@ -6880,9 +6982,12 @@ An output parameter for a CommandLineTool.
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['label', 'secondaryFiles', 'streamable', 'doc', 'id', 'format', 'type', 'outputBinding'])
@@ -7357,9 +7462,12 @@ This defines the schema of the CWL Command Line Tool Description document.
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['id', 'label', 'doc', 'inputs', 'outputs', 'requirements', 'hints', 'cwlVersion', 'intent', 'class', 'baseCommand', 'arguments', 'stdin', 'stderr', 'stdout', 'successCodes', 'temporaryFailCodes', 'permanentFailCodes'])
@@ -7621,9 +7729,12 @@ environment as defined by Docker.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'dockerPull', 'dockerLoad', 'dockerFile', 'dockerImport', 'dockerImageId', 'dockerOutputDirectory'])
@@ -7718,9 +7829,12 @@ the defined process.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'packages'])
@@ -7852,9 +7966,12 @@ class SoftwarePackage(Savable):
             if u:
                 r['specs'] = u
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['package', 'version', 'specs'])
@@ -7994,9 +8111,12 @@ arbitrary locations, see discussion for `entryname`.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['entryname', 'entry', 'writable'])
@@ -8090,9 +8210,12 @@ Normally files are staged within the designated output directory. However, when 
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'listing'])
@@ -8187,9 +8310,12 @@ execution environment of the tool.  See `EnvironmentDef` for details.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'envDef'])
@@ -8269,9 +8395,12 @@ the use of shell metacharacters such as `|` for pipes.
 
         r['class'] = 'ShellCommandRequirement'
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class'])
@@ -8281,15 +8410,20 @@ class ResourceRequirement(ProcessRequirement):
     """
 Specify basic hardware resource requirements.
 
-"min" is the minimum amount of a resource that must be reserved to schedule
-a job. If "min" cannot be satisfied, the job should not be run.
+"min" is the minimum amount of a resource that must be reserved to
+schedule a job. If "min" cannot be satisfied, the job should not
+be run.
 
-"max" is the maximum amount of a resource that the job shall be permitted
-to use. If a node has sufficient resources, multiple jobs may be scheduled
-on a single node provided each job's "max" resource requirements are
-met. If a job attempts to exceed its "max" resource allocation, an
-implementation may deny additional resources, which may result in job
-failure.
+"max" is the maximum amount of a resource that the job shall be
+allocated. If a node has sufficient resources, multiple jobs may
+be scheduled on a single node provided each job's "max" resource
+requirements are met. If a job attempts to exceed its resource
+allocation, an implementation may deny additional resources, which
+may result in job failure.
+
+If both "min" and "max" are specified, an implementation may
+choose to allocate any amount between "min" and "max", with the
+actual allocation provided in the `runtime` object.
 
 If "min" is specified but "max" is not, then "max" == "min"
 If "max" is specified by "min" is not, then "min" == "max".
@@ -8377,7 +8511,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
         if 'ramMin' in _doc:
             try:
                 ramMin = load_field(_doc.get(
-                    'ramMin'), union_of_None_type_or_inttype_or_ExpressionLoader, baseuri, loadingOptions)
+                    'ramMin'), union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -8391,7 +8525,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
         if 'ramMax' in _doc:
             try:
                 ramMax = load_field(_doc.get(
-                    'ramMax'), union_of_None_type_or_inttype_or_ExpressionLoader, baseuri, loadingOptions)
+                    'ramMax'), union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -8405,7 +8539,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
         if 'tmpdirMin' in _doc:
             try:
                 tmpdirMin = load_field(_doc.get(
-                    'tmpdirMin'), union_of_None_type_or_inttype_or_ExpressionLoader, baseuri, loadingOptions)
+                    'tmpdirMin'), union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -8419,7 +8553,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
         if 'tmpdirMax' in _doc:
             try:
                 tmpdirMax = load_field(_doc.get(
-                    'tmpdirMax'), union_of_None_type_or_inttype_or_ExpressionLoader, baseuri, loadingOptions)
+                    'tmpdirMax'), union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -8433,7 +8567,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
         if 'outdirMin' in _doc:
             try:
                 outdirMin = load_field(_doc.get(
-                    'outdirMin'), union_of_None_type_or_inttype_or_ExpressionLoader, baseuri, loadingOptions)
+                    'outdirMin'), union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -8447,7 +8581,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
         if 'outdirMax' in _doc:
             try:
                 outdirMax = load_field(_doc.get(
-                    'outdirMax'), union_of_None_type_or_inttype_or_ExpressionLoader, baseuri, loadingOptions)
+                    'outdirMax'), union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -8548,9 +8682,12 @@ If neither "min" nor "max" is specified for a resource, use the default values b
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'coresMin', 'coresMax', 'ramMin', 'ramMax', 'tmpdirMin', 'tmpdirMax', 'outdirMin', 'outdirMax'])
@@ -8652,9 +8789,12 @@ is enabled by default.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'enableReuse'])
@@ -8762,9 +8902,12 @@ address or the ability to accept inbound connections.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'networkAccess'])
@@ -8887,9 +9030,12 @@ not be enabled.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'inplaceUpdate'])
@@ -8989,9 +9135,12 @@ wall-time for the execution of the command line itself.
                 base_url=base_url,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class', 'timelimit'])
@@ -9225,9 +9374,12 @@ class ExpressionToolOutputParameter(OutputParameter):
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['label', 'secondaryFiles', 'streamable', 'doc', 'id', 'format', 'type'])
@@ -9553,9 +9705,12 @@ class WorkflowInputParameter(InputParameter):
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['label', 'secondaryFiles', 'streamable', 'doc', 'id', 'format', 'loadContents', 'loadListing', 'default', 'type', 'inputBinding'])
@@ -9872,9 +10027,12 @@ or allowed.
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['id', 'label', 'doc', 'inputs', 'outputs', 'requirements', 'hints', 'cwlVersion', 'intent', 'class', 'expression'])
@@ -10190,9 +10348,12 @@ See [WorkflowStepInput](#WorkflowStepInput) for discussion of
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['label', 'secondaryFiles', 'streamable', 'doc', 'id', 'format', 'outputSource', 'linkMerge', 'pickValue', 'type'])
@@ -10590,9 +10751,12 @@ will be after `pickValue` is applied, just as they do currently for `linkMerge`.
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['id', 'source', 'linkMerge', 'pickValue', 'loadContents', 'loadListing', 'label', 'default', 'valueFrom'])
@@ -10699,9 +10863,12 @@ to connect the output value to downstream parameters.
             if u:
                 r['id'] = u
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['id'])
@@ -11112,9 +11279,12 @@ a subworkflow (recursive workflows are not allowed).
             if u:
                 r['scatterMethod'] = u
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['id', 'label', 'doc', 'in', 'out', 'requirements', 'hints', 'run', 'when', 'scatter', 'scatterMethod'])
@@ -11133,15 +11303,21 @@ are not directly or indirectly dependent, these steps are **independent**,
 and may execute in any order or execute concurrently.  A workflow is
 complete when all steps have been executed.
 
-Dependencies between parameters are expressed using the `source` field on
-[workflow step input parameters](#WorkflowStepInput) and [workflow output
+Dependencies between parameters are expressed using the `source`
+field on [workflow step input parameters](#WorkflowStepInput) and
+`outputSource` field on [workflow output
 parameters](#WorkflowOutputParameter).
 
-The `source` field expresses the dependency of one parameter on another
-such that when a value is associated with the parameter specified by
-`source`, that value is propagated to the destination parameter.  When all
-data links inbound to a given step are fufilled, the step is ready to
-execute.
+The `source` field on each workflow step input parameter expresses
+the data links that contribute to the value of the step input
+parameter (the "sink").  A workflow step can only begin execution
+when every data link connected to a step has been fulfilled.
+
+The `outputSource` field on each workflow step input parameter
+expresses the data links that contribute to the value of the
+workflow output parameter (the "sink").  Workflow execution cannot
+complete successfully until every data link connected to an output
+parameter has been fulfilled.
 
 ## Workflow success and failure
 
@@ -11469,9 +11645,12 @@ workflow semantics.
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['id', 'label', 'doc', 'inputs', 'outputs', 'requirements', 'hints', 'cwlVersion', 'intent', 'class', 'steps'])
@@ -11546,9 +11725,12 @@ the `run` field of [WorkflowStep](#WorkflowStep).
 
         r['class'] = 'SubworkflowFeatureRequirement'
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class'])
@@ -11623,9 +11805,12 @@ Indicates that the workflow platform must support the `scatter` and
 
         r['class'] = 'ScatterFeatureRequirement'
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class'])
@@ -11700,9 +11885,12 @@ listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
 
         r['class'] = 'MultipleInputFeatureRequirement'
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class'])
@@ -11777,9 +11965,12 @@ of [WorkflowStepInput](#WorkflowStepInput).
 
         r['class'] = 'StepInputExpressionRequirement'
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['class'])
@@ -12086,9 +12277,12 @@ Describe an input parameter of an operation.
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['label', 'secondaryFiles', 'streamable', 'doc', 'id', 'format', 'loadContents', 'loadListing', 'default', 'type'])
@@ -12326,9 +12520,12 @@ Describe an output parameter of an operation.
                 base_url=self.id,
                 relative_uris=relative_uris)
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['label', 'secondaryFiles', 'streamable', 'doc', 'id', 'format', 'type'])
@@ -12625,9 +12822,12 @@ CommandLineTool, or ExpressionTool) with a compatible signature.
             if u:
                 r['intent'] = u
 
-        if top and self.loadingOptions.namespaces:
-            r["$namespaces"] = self.loadingOptions.namespaces
-
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
         return r
 
     attrs = frozenset(['id', 'label', 'doc', 'inputs', 'outputs', 'requirements', 'hints', 'cwlVersion', 'intent', 'class'])
@@ -12760,10 +12960,12 @@ _vocab = {
     "v1.0.dev4": "https://w3id.org/cwl/cwl#v1.0.dev4",
     "v1.1": "https://w3id.org/cwl/cwl#v1.1",
     "v1.1.0-dev1": "https://w3id.org/cwl/cwl#v1.1.0-dev1",
+    "v1.2": "https://w3id.org/cwl/cwl#v1.2",
     "v1.2.0-dev1": "https://w3id.org/cwl/cwl#v1.2.0-dev1",
     "v1.2.0-dev2": "https://w3id.org/cwl/cwl#v1.2.0-dev2",
     "v1.2.0-dev3": "https://w3id.org/cwl/cwl#v1.2.0-dev3",
     "v1.2.0-dev4": "https://w3id.org/cwl/cwl#v1.2.0-dev4",
+    "v1.2.0-dev5": "https://w3id.org/cwl/cwl#v1.2.0-dev5",
 }
 _rvocab = {
     "https://w3id.org/cwl/salad#Any": "Any",
@@ -12892,10 +13094,12 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#v1.0.dev4": "v1.0.dev4",
     "https://w3id.org/cwl/cwl#v1.1": "v1.1",
     "https://w3id.org/cwl/cwl#v1.1.0-dev1": "v1.1.0-dev1",
+    "https://w3id.org/cwl/cwl#v1.2": "v1.2",
     "https://w3id.org/cwl/cwl#v1.2.0-dev1": "v1.2.0-dev1",
     "https://w3id.org/cwl/cwl#v1.2.0-dev2": "v1.2.0-dev2",
     "https://w3id.org/cwl/cwl#v1.2.0-dev3": "v1.2.0-dev3",
     "https://w3id.org/cwl/cwl#v1.2.0-dev4": "v1.2.0-dev4",
+    "https://w3id.org/cwl/cwl#v1.2.0-dev5": "v1.2.0-dev5",
 }
 
 strtype = _PrimitiveLoader((str, str))
@@ -12911,7 +13115,7 @@ RecordFieldLoader = _RecordLoader(RecordField)
 RecordSchemaLoader = _RecordLoader(RecordSchema)
 EnumSchemaLoader = _RecordLoader(EnumSchema)
 ArraySchemaLoader = _RecordLoader(ArraySchema)
-CWLVersionLoader = _EnumLoader(("draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4",))
+CWLVersionLoader = _EnumLoader(("draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2",))
 CWLTypeLoader = _EnumLoader(("File", "Directory",))
 FileLoader = _RecordLoader(File)
 DirectoryLoader = _RecordLoader(Directory)
