@@ -1,38 +1,51 @@
 #!/usr/bin/env python3
 import sys
 import cwl_utils.parser_v1_0 as cwl
+from typing import Generator, Union
+
+ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 
 
-def main():
+def main() -> int:
     top = cwl.load_document(sys.argv[1])
     traverse(top)
+    return 0
 
 
-def extract_software_packages(process: cwl.Process):
+def extract_software_packages(process: ProcessType):
     for req in extract_software_reqs(process):
         print(process.id)
         process_software_requirement(req)
 
 
-def extract_software_reqs(process: cwl.Process):
+def extract_software_reqs(
+    process: ProcessType,
+) -> Generator[cwl.SoftwareRequirement, None, None]:
     if process.requirements:
         for req in process.requirements:
             if isinstance(req, cwl.SoftwareRequirement):
                 yield req
     if process.hints:
         for req in process.hints:
-            if req['class'] == "SoftwareRequirement":
-                yield cwl.load_field(req, cwl.SoftwareRequirementLoader,
-                                     process.id, process.loadingOptions)
+            if req["class"] == "SoftwareRequirement":
+                yield cwl.load_field(
+                    req,
+                    cwl.SoftwareRequirementLoader,
+                    process.id if process.id else "",
+                    process.loadingOptions,
+                )
 
 
 def process_software_requirement(req: cwl.SoftwareRequirement):
     for package in req.packages:
-        print("Package: {}, version: {}, specs: {}".format(
-            package.package, package.version, package.specs))
+        print(
+            "Package: {}, version: {}, specs: {}".format(
+                package.package, package.version, package.specs
+            )
+        )
 
 
-def traverse(process: cwl.Process):
+def traverse(process: ProcessType):
     extract_software_packages(process)
     if isinstance(process, cwl.Workflow):
         traverse_workflow(process)
