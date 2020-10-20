@@ -18,7 +18,7 @@ class TestDockerExtract(TestCase):
 
         with TemporaryDirectory() as tmpdir:
             for req in set(traverse(loaded)):
-                image_puller = DockerImagePuller(req, tmpdir)
+                image_puller = DockerImagePuller(req.dockerPull, tmpdir)
                 image_puller.save_docker_image()
                 _ = image_puller.generate_udocker_loading_command()
 
@@ -28,5 +28,5 @@ class TestDockerExtract(TestCase):
 
         with TemporaryDirectory() as tmpdir:
             for req in set(traverse(loaded)):
-                image_puller = SingularityImagePuller(req, tmpdir)
+                image_puller = SingularityImagePuller(req.dockerPull, tmpdir)
                 image_puller.save_docker_image()
