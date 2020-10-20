@@ -319,7 +319,7 @@ TOPLEVEL_SF_EXPR_ERROR="Input '{}'. Sorry, CWL Expressions as part of a secondar
     "specification in a Workflow level input are not able to be refactored "\
     "into separate ExpressionTool/CommandLineTool steps."
 
-TOPLEVEL_FORMAT_EXPR_ERROR="Input '{}'. Sorry, CWL Expressions as part of a secondaryFiles "\
+TOPLEVEL_FORMAT_EXPR_ERROR="Input '{}'. Sorry, CWL Expressions as part of a format "\
     "specification in a Workflow level input are not able to be refactored "\
     "into separate ExpressionTool/CommandLineTool steps."
 
@@ -342,7 +342,7 @@ def process_workflow_inputs_and_outputs(workflow: cwl.Workflow, replace_etool) -
                 for index, entry in enumerate(param.secondaryFiles):
                     if get_expression(entry, inputs, EMPTY_FILE):
                         raise SourceLine(
-                            param.secondaryFiles[index].loadingOptions.original_doc,
+                            param.loadingOptions.original_doc,
                             index, raise_type=WorkflowException).makeError(
                                 "Entry {},".format(index)
                                 + TOPLEVEL_SF_EXPR_ERROR.format(
