@@ -3,11 +3,14 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from typing import cast, Iterator, Union
+from typing import Iterator, Union, cast
 
 import cwl_utils.parser_v1_0 as cwl
-from cwl_utils.image_puller import (DockerImagePuller, ImagePuller,
-                                    SingularityImagePuller)
+from cwl_utils.image_puller import (
+    DockerImagePuller,
+    ImagePuller,
+    SingularityImagePuller,
+)
 
 ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 

@@ -1,27 +1,32 @@
 #!/usr/bin/env python3
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 exec(open("cwl_utils/__meta__.py").read())
 
 setup(
-    name='cwl-utils',
+    name="cwl-utils",
     version=__version__,
-    author='Common workflow language working group',
-    author_email='common-workflow-language@googlegroups.com',
+    author="Common workflow language working group",
+    author_email="common-workflow-language@googlegroups.com",
     packages=find_packages(),
-    python_requires='>=3.6',
+    python_requires=">=3.6",
     install_requires=[
-        'ruamel.yaml',
-        'six',
-        'requests',
-        'schema-salad >= 7, < 8',
-        'typing_extensions',
+        "ruamel.yaml",
+        "six",
+        "requests",
+        "schema-salad >= 7, < 8",
+        "typing_extensions",
     ],
-    setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'cwltool', 'requests'],
-    test_suite='tests',
-    scripts=['cwl_utils/docker_extract.py', 'cwl_utils/etools_to_clt.py', 'cwl_utils/cite_extract.py', 'cwl_utils/graph_split.py'],
+    setup_requires=["pytest-runner"],
+    tests_require=["pytest", "cwltool", "requests"],
+    test_suite="tests",
+    scripts=[
+        "cwl_utils/docker_extract.py",
+        "cwl_utils/etools_to_clt.py",
+        "cwl_utils/cite_extract.py",
+        "cwl_utils/graph_split.py",
+    ],
     long_description=open("./README.md").read(),
     long_description_content_type="text/markdown",
-    url='https://github.com/common-workflow-language/cwl-utils',
+    url="https://github.com/common-workflow-language/cwl-utils",
 )

@@ -2,7 +2,6 @@ import logging
 import os
 import subprocess
 from abc import ABC, abstractmethod
-
 from typing import List
 
 logging.basicConfig(level=logging.INFO)

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import sys
+from typing import Generator, Union, cast
+
 import cwl_utils.parser_v1_0 as cwl
-from typing import cast, Generator, Union
 
 ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 
