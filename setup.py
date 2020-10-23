@@ -17,7 +17,7 @@ setup(
     packages=find_packages(),
     python_requires=">=3.6",
     install_requires=[
-        "ruamel.yaml",
+        "ruamel.yaml<=0.16.5,>=0.12.4",
         "six",
         "requests",
         "schema-salad >= 7, < 8",
