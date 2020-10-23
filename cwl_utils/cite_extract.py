@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import cwl_utils.parser_v1_0 as cwl
-from typing import Generator, Union
+from typing import cast, Generator, Union
 
 ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 
@@ -12,7 +12,7 @@ def main() -> int:
     return 0
 
 
-def extract_software_packages(process: ProcessType):
+def extract_software_packages(process: ProcessType) -> None:
     for req in extract_software_reqs(process):
         print(process.id)
         process_software_requirement(req)
@@ -36,7 +36,7 @@ def extract_software_reqs(
                 )
 
 
-def process_software_requirement(req: cwl.SoftwareRequirement):
+def process_software_requirement(req: cwl.SoftwareRequirement) -> None:
     for package in req.packages:
         print(
             "Package: {}, version: {}, specs: {}".format(
@@ -45,19 +45,19 @@ def process_software_requirement(req: cwl.SoftwareRequirement):
         )
 
 
-def traverse(process: ProcessType):
+def traverse(process: ProcessType) -> None:
     extract_software_packages(process)
     if isinstance(process, cwl.Workflow):
         traverse_workflow(process)
 
 
-def get_process_from_step(step: cwl.WorkflowStep):
+def get_process_from_step(step: cwl.WorkflowStep) -> ProcessType:
     if isinstance(step.run, str):
-        return cwl.load_document(step.run)
-    return step.run
+        return cast(ProcessType, cwl.load_document(step.run))
+    return cast(ProcessType, step.run)
 
 
-def traverse_workflow(workflow: cwl.Workflow):
+def traverse_workflow(workflow: cwl.Workflow) -> None:
     for step in workflow.steps:
         extract_software_packages(step)
         traverse(get_process_from_step(step))

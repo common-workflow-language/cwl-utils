@@ -3,7 +3,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from typing import Iterator, Union
+from typing import cast, Iterator, Union
 
 import cwl_utils.parser_v1_0 as cwl
 from cwl_utils.image_puller import (DockerImagePuller, ImagePuller,
@@ -74,8 +74,8 @@ def traverse(process: ProcessType) -> Iterator[cwl.DockerRequirement]:
 
 def get_process_from_step(step: cwl.WorkflowStep) -> ProcessType:
     if isinstance(step.run, str):
-        return cwl.load_document(step.run)
-    return step.run
+        return cast(ProcessType, cwl.load_document(step.run))
+    return cast(ProcessType, step.run)
 
 
 def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.DockerRequirement]:

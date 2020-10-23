@@ -3,17 +3,19 @@ import os
 import subprocess
 from abc import ABC, abstractmethod
 
+from typing import List
+
 logging.basicConfig(level=logging.INFO)
 _LOGGER = logging.getLogger(__name__)
 
 
 class ImagePuller(ABC):
-    def __init__(self, req, save_directory) -> None:
+    def __init__(self, req: str, save_directory: str) -> None:
         self.req = req
         self.save_directory = save_directory
 
     @abstractmethod
-    def get_image_name(self):
+    def get_image_name(self) -> str:
         pass
 
     @abstractmethod
@@ -21,7 +23,7 @@ class ImagePuller(ABC):
         pass
 
     @staticmethod
-    def _run_command_pull(cmd_pull) -> None:
+    def _run_command_pull(cmd_pull: List[str]) -> None:
         try:
             subprocess.run(
                 cmd_pull, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
@@ -37,13 +39,13 @@ class DockerImagePuller(ImagePuller):
     Pull docker image with Docker
     """
 
-    def get_image_name(self):
+    def get_image_name(self) -> str:
         return "".join(self.req.split("/")) + ".tar"
 
-    def generate_udocker_loading_command(self):
+    def generate_udocker_loading_command(self) -> str:
         return f"udocker load -i {self.get_image_name()}"
 
-    def save_docker_image(self):
+    def save_docker_image(self) -> None:
         _LOGGER.info(f"Pulling {self.req} with Docker...")
         cmd_pull = ["docker", "pull", self.req]
         ImagePuller._run_command_pull(cmd_pull)
@@ -69,7 +71,7 @@ class SingularityImagePuller(ImagePuller):
     CHARS_TO_REPLACE = ["/"]
     NEW_CHAR = "_"
 
-    def __init__(self, req, save_directory) -> None:
+    def __init__(self, req: str, save_directory: str) -> None:
         super(SingularityImagePuller, self).__init__(req, save_directory)
         version = subprocess.check_output(
             ["singularity", "--version"], universal_newlines=True

@@ -60,7 +60,7 @@ def run(sourceStr: str, source_uri: str) -> None:
             )
 
 
-def rewrite(document, doc_id) -> Set[str]:
+def rewrite(document: Any, doc_id: str) -> Set[str]:
     imports = set()
     if isinstance(document, list) and not isinstance(document, Text):
         for entry in document:
@@ -75,7 +75,7 @@ def rewrite(document, doc_id) -> Set[str]:
                     document[key] = value[len(doc_id) + 2 :]
                 elif key == "out":
 
-                    def rewrite_id(entry) -> Union[MutableMapping[Any, Any], str]:
+                    def rewrite_id(entry: Any) -> Union[MutableMapping[Any, Any], str]:
                         if isinstance(entry, MutableMapping):
                             if entry["id"].startswith(this_id):
                                 entry["id"] = cast(str, entry["id"])[len(this_id) + 1 :]
@@ -116,12 +116,12 @@ def rewrite(document, doc_id) -> Set[str]:
     return imports
 
 
-def rewrite_import(document) -> None:
+def rewrite_import(document: MutableMapping[str, Any]) -> None:
     external_file = document["$import"].split("/")[0][1:]
     document["$import"] = external_file
 
 
-def rewrite_types(field, entry_file, sameself) -> None:
+def rewrite_types(field: Any, entry_file: str, sameself: bool) -> None:
     if isinstance(field, list) and not isinstance(field, Text):
         for entry in field:
             rewrite_types(entry, entry_file, sameself)
@@ -144,7 +144,7 @@ def rewrite_types(field, entry_file, sameself) -> None:
                     rewrite_types(entry, entry_file, sameself)
 
 
-def rewrite_schemadef(document) -> Set[str]:
+def rewrite_schemadef(document: MutableMapping[str, Any]) -> Set[str]:
     for entry in document["types"]:
         if "$import" in entry:
             rewrite_import(entry)
@@ -161,7 +161,7 @@ def rewrite_schemadef(document) -> Set[str]:
             del entry["fields"]
     seen_imports = set()
 
-    def seen_import(entry) -> bool:
+    def seen_import(entry: MutableMapping[str, Any]) -> bool:
         if "$import" in entry:
             external_file = entry["$import"]
             if external_file not in seen_imports:
