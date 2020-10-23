@@ -1,3 +1,4 @@
+"""Test the CWL $graph document splitter tool."""
 import os
 from pathlib import Path
 from unittest import TestCase
@@ -10,5 +11,6 @@ URI = "https://gist.githubusercontent.com/altairwei/6a0097db95cad23de36f825ed3b9
 
 
 def test_graph_split(tmp_path: Path):
+    """Confirm that a user provided example produces no exception."""
     os.chdir(tmp_path)
     run(requests.get(URI).text, URI)

@@ -16,12 +16,14 @@ from schema_salad.sourceline import SourceLine, add_lc_filename
 
 
 def main(args: List[str]) -> None:
+    """Split the packed CWL at the path of the first argument."""
     with open(args[0], "r") as source_handle:
         sourceStr = str(source_handle.read())
     run(sourceStr, (Path.cwd() / args[0]).as_uri())
 
 
 def run(sourceStr: str, source_uri: str) -> None:
+    """Loop over the provided packed CWL document and split it up."""
     sourceIO = StringIO(sourceStr)
     sourceIO.name = source_uri
     source = yaml.main.round_trip_load(sourceIO, preserve_quotes=True)
@@ -61,6 +63,7 @@ def run(sourceStr: str, source_uri: str) -> None:
 
 
 def rewrite(document: Any, doc_id: str) -> Set[str]:
+    """Rewrite the given element from the CWL $graph."""
     imports = set()
     if isinstance(document, list) and not isinstance(document, Text):
         for entry in document:
@@ -117,11 +120,13 @@ def rewrite(document: Any, doc_id: str) -> Set[str]:
 
 
 def rewrite_import(document: MutableMapping[str, Any]) -> None:
+    """Adjust the $import directive."""
     external_file = document["$import"].split("/")[0][1:]
     document["$import"] = external_file
 
 
 def rewrite_types(field: Any, entry_file: str, sameself: bool) -> None:
+    """Clean up the names of the types."""
     if isinstance(field, list) and not isinstance(field, Text):
         for entry in field:
             rewrite_types(entry, entry_file, sameself)
@@ -145,6 +150,7 @@ def rewrite_types(field: Any, entry_file: str, sameself: bool) -> None:
 
 
 def rewrite_schemadef(document: MutableMapping[str, Any]) -> Set[str]:
+    """Dump the schemadefs to their own file."""
     for entry in document["types"]:
         if "$import" in entry:
             rewrite_import(entry)

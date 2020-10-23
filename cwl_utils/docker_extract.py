@@ -16,6 +16,7 @@ ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 
 
 def parse_args() -> argparse.Namespace:
+    """Argument parser."""
     parser = argparse.ArgumentParser(
         description="Tool to save docker images from a cwl workflow."
     )
@@ -30,8 +31,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
+def main(args: argparse.Namespace) -> None:
+    """Extract the docker reqs and download them using Singularity or docker."""
     os.makedirs(args.dir, exist_ok=True)
 
     top = cwl.load_document(args.input)
@@ -47,6 +48,7 @@ def main() -> None:
 def extract_docker_requirements(
     process: ProcessType,
 ) -> Iterator[cwl.DockerRequirement]:
+    """Yield an iterator of the docker reqs, normalizint the pull request."""
     for req in extract_docker_reqs(process):
         if isinstance(req.dockerPull, str) and ":" not in req.dockerPull:
             req.dockerPull += ":latest"
@@ -54,6 +56,7 @@ def extract_docker_requirements(
 
 
 def extract_docker_reqs(process: ProcessType) -> Iterator[cwl.DockerRequirement]:
+    """For the given process, extract the DockerRequirement(s)."""
     if process.requirements:
         for req in process.requirements:
             if isinstance(req, cwl.DockerRequirement):
@@ -70,18 +73,21 @@ def extract_docker_reqs(process: ProcessType) -> Iterator[cwl.DockerRequirement]
 
 
 def traverse(process: ProcessType) -> Iterator[cwl.DockerRequirement]:
+    """Yield the iterator for the docker reqs, including an workflow steps."""
     yield from extract_docker_requirements(process)
     if isinstance(process, cwl.Workflow):
         yield from traverse_workflow(process)
 
 
 def get_process_from_step(step: cwl.WorkflowStep) -> ProcessType:
+    """Return the process for this step, loading it if necessary."""
     if isinstance(step.run, str):
         return cast(ProcessType, cwl.load_document(step.run))
     return cast(ProcessType, step.run)
 
 
 def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.DockerRequirement]:
+    """Iterate over the steps of this workflow, yielding the docker reqs."""
     for step in workflow.steps:
         for req in extract_docker_reqs(step):
             yield req
@@ -89,5 +95,5 @@ def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.DockerRequirement]
 
 
 if __name__ == "__main__":
-    main()
+    main(parse_args())
     sys.exit(0)
