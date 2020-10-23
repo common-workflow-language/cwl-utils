@@ -684,8 +684,6 @@ A field of a record.
 
         if _errors__:
             raise ValidationException("Trying 'RecordField'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(doc=doc, name=name, type=type, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -805,8 +803,6 @@ class RecordSchema(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'RecordSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(fields=fields, type=type, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -917,8 +913,6 @@ Define an enumerated type.
 
         if _errors__:
             raise ValidationException("Trying 'EnumSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(symbols=symbols, type=type, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -1028,8 +1022,6 @@ class ArraySchema(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'ArraySchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(items=items, type=type, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -1363,8 +1355,6 @@ the same value for `location`.
 
         if _errors__:
             raise ValidationException("Trying 'File'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(location=location, path=path, basename=basename, dirname=dirname, nameroot=nameroot, nameext=nameext, checksum=checksum, size=size, secondaryFiles=secondaryFiles, format=format, contents=contents, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -1634,8 +1624,6 @@ or in any entry in `secondaryFiles` in the listing) is a fatal error.
 
         if _errors__:
             raise ValidationException("Trying 'Directory'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(location=location, path=path, basename=basename, listing=listing, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -1786,8 +1774,6 @@ class InputBinding(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'InputBinding'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(loadContents=loadContents, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -2021,8 +2007,6 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
 
         if _errors__:
             raise ValidationException("Trying 'InputRecordField'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(doc=doc, name=name, type=type, label=label, secondaryFiles=secondaryFiles, streamable=streamable, format=format, loadContents=loadContents, loadListing=loadListing, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -2242,8 +2226,6 @@ class InputRecordSchema(RecordSchema, InputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'InputRecordSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(fields=fields, type=type, label=label, doc=doc, name=name, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -2429,8 +2411,6 @@ class InputEnumSchema(EnumSchema, InputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'InputEnumSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(symbols=symbols, type=type, label=label, doc=doc, name=name, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -2619,8 +2599,6 @@ class InputArraySchema(ArraySchema, InputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'InputArraySchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(items=items, type=type, label=label, doc=doc, name=name, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -2844,8 +2822,6 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
 
         if _errors__:
             raise ValidationException("Trying 'OutputRecordField'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(doc=doc, name=name, type=type, label=label, secondaryFiles=secondaryFiles, streamable=streamable, format=format, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -3051,8 +3027,6 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'OutputRecordSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(fields=fields, type=type, label=label, doc=doc, name=name, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -3238,8 +3212,6 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'OutputEnumSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(symbols=symbols, type=type, label=label, doc=doc, name=name, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -3428,8 +3400,6 @@ class OutputArraySchema(ArraySchema, OutputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'OutputArraySchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(items=items, type=type, label=label, doc=doc, name=name, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -3596,8 +3566,6 @@ interpolatation.
 
         if _errors__:
             raise ValidationException("Trying 'InlineJavascriptRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(expressionLib=expressionLib, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -3705,8 +3673,6 @@ to earlier schema definitions.
 
         if _errors__:
             raise ValidationException("Trying 'SchemaDefRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(types=types, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -3811,8 +3777,6 @@ class SecondaryFileSchema(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'SecondaryFileSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(pattern=pattern, required=required, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -3919,8 +3883,6 @@ a Directory object for use by expressions.
 
         if _errors__:
             raise ValidationException("Trying 'LoadListingRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(loadListing=loadListing, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -4028,8 +3990,6 @@ result of executing an expression, such as getting a parameter from input.
 
         if _errors__:
             raise ValidationException("Trying 'EnvironmentDef'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(envName=envName, envValue=envValue, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -4260,8 +4220,6 @@ effective value.
 
         if _errors__:
             raise ValidationException("Trying 'CommandLineBinding'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(loadContents=loadContents, position=position, prefix=prefix, separate=separate, itemSeparator=itemSeparator, valueFrom=valueFrom, shellQuote=shellQuote, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -4454,8 +4412,6 @@ following order:
 
         if _errors__:
             raise ValidationException("Trying 'CommandOutputBinding'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(loadContents=loadContents, loadListing=loadListing, glob=glob, outputEval=outputEval, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -4566,8 +4522,6 @@ class CommandLineBindable(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'CommandLineBindable'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(inputBinding=inputBinding, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -4805,8 +4759,6 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
 
         if _errors__:
             raise ValidationException("Trying 'CommandInputRecordField'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(doc=doc, name=name, type=type, label=label, secondaryFiles=secondaryFiles, streamable=streamable, format=format, loadContents=loadContents, loadListing=loadListing, inputBinding=inputBinding, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -5049,8 +5001,6 @@ class CommandInputRecordSchema(InputRecordSchema, CommandInputSchema, CommandLin
 
         if _errors__:
             raise ValidationException("Trying 'CommandInputRecordSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(fields=fields, type=type, label=label, doc=doc, name=name, inputBinding=inputBinding, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -5259,8 +5209,6 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
 
         if _errors__:
             raise ValidationException("Trying 'CommandInputEnumSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(symbols=symbols, type=type, label=label, doc=doc, name=name, inputBinding=inputBinding, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -5472,8 +5420,6 @@ class CommandInputArraySchema(InputArraySchema, CommandInputSchema, CommandLineB
 
         if _errors__:
             raise ValidationException("Trying 'CommandInputArraySchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(items=items, type=type, label=label, doc=doc, name=name, inputBinding=inputBinding, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -5720,8 +5666,6 @@ class CommandOutputRecordField(OutputRecordField):
 
         if _errors__:
             raise ValidationException("Trying 'CommandOutputRecordField'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(doc=doc, name=name, type=type, label=label, secondaryFiles=secondaryFiles, streamable=streamable, format=format, outputBinding=outputBinding, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -5934,8 +5878,6 @@ class CommandOutputRecordSchema(OutputRecordSchema):
 
         if _errors__:
             raise ValidationException("Trying 'CommandOutputRecordSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(fields=fields, type=type, label=label, doc=doc, name=name, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -6121,8 +6063,6 @@ class CommandOutputEnumSchema(OutputEnumSchema):
 
         if _errors__:
             raise ValidationException("Trying 'CommandOutputEnumSchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(symbols=symbols, type=type, label=label, doc=doc, name=name, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -6311,8 +6251,6 @@ class CommandOutputArraySchema(OutputArraySchema):
 
         if _errors__:
             raise ValidationException("Trying 'CommandOutputArraySchema'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(items=items, type=type, label=label, doc=doc, name=name, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -6603,8 +6541,6 @@ An input parameter for a CommandLineTool.
 
         if _errors__:
             raise ValidationException("Trying 'CommandInputParameter'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(label=label, secondaryFiles=secondaryFiles, streamable=streamable, doc=doc, id=id, format=format, loadContents=loadContents, loadListing=loadListing, default=default, type=type, inputBinding=inputBinding, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -6889,8 +6825,6 @@ An output parameter for a CommandLineTool.
 
         if _errors__:
             raise ValidationException("Trying 'CommandOutputParameter'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(label=label, secondaryFiles=secondaryFiles, streamable=streamable, doc=doc, id=id, format=format, type=type, outputBinding=outputBinding, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -7285,8 +7219,6 @@ This defines the schema of the CWL Command Line Tool Description document.
 
         if _errors__:
             raise ValidationException("Trying 'CommandLineTool'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(id=id, label=label, doc=doc, inputs=inputs, outputs=outputs, requirements=requirements, hints=hints, cwlVersion=cwlVersion, baseCommand=baseCommand, arguments=arguments, stdin=stdin, stderr=stderr, stdout=stdout, successCodes=successCodes, temporaryFailCodes=temporaryFailCodes, permanentFailCodes=permanentFailCodes, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -7628,8 +7560,6 @@ environment as defined by Docker.
 
         if _errors__:
             raise ValidationException("Trying 'DockerRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(dockerPull=dockerPull, dockerLoad=dockerLoad, dockerFile=dockerFile, dockerImport=dockerImport, dockerImageId=dockerImageId, dockerOutputDirectory=dockerOutputDirectory, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -7763,8 +7693,6 @@ the defined process.
 
         if _errors__:
             raise ValidationException("Trying 'SoftwareRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(packages=packages, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -7885,8 +7813,6 @@ class SoftwarePackage(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'SoftwarePackage'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(package=package, version=version, specs=specs, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -8029,8 +7955,6 @@ template.
 
         if _errors__:
             raise ValidationException("Trying 'Dirent'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(entryname=entryname, entry=entry, writable=writable, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -8139,8 +8063,6 @@ Define a list of files and subdirectories that must be created by the workflow p
 
         if _errors__:
             raise ValidationException("Trying 'InitialWorkDirRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(listing=listing, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -8239,8 +8161,6 @@ execution environment of the tool.  See `EnvironmentDef` for details.
 
         if _errors__:
             raise ValidationException("Trying 'EnvVarRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(envDef=envDef, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -8331,8 +8251,6 @@ the use of shell metacharacters such as `|` for pipes.
 
         if _errors__:
             raise ValidationException("Trying 'ShellCommandRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -8557,8 +8475,6 @@ If neither "min" nor "max" is specified for a resource, use the default values b
 
         if _errors__:
             raise ValidationException("Trying 'ResourceRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(coresMin=coresMin, coresMax=coresMax, ramMin=ramMin, ramMax=ramMax, tmpdirMin=tmpdirMin, tmpdirMax=tmpdirMax, outdirMin=outdirMin, outdirMax=outdirMax, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -8713,8 +8629,6 @@ is enabled by default.
 
         if _errors__:
             raise ValidationException("Trying 'WorkReuse'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(enableReuse=enableReuse, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -8826,8 +8740,6 @@ address or the ability to accept inbound connections.
 
         if _errors__:
             raise ValidationException("Trying 'NetworkAccess'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(networkAccess=networkAccess, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -8954,8 +8866,6 @@ not be enabled.
 
         if _errors__:
             raise ValidationException("Trying 'InplaceUpdateRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(inplaceUpdate=inplaceUpdate, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -9059,8 +8969,6 @@ wall-time for the execution of the command line itself.
 
         if _errors__:
             raise ValidationException("Trying 'ToolTimeLimit'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(timelimit=timelimit, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -9252,8 +9160,6 @@ class ExpressionToolOutputParameter(OutputParameter):
 
         if _errors__:
             raise ValidationException("Trying 'ExpressionToolOutputParameter'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(label=label, secondaryFiles=secondaryFiles, streamable=streamable, doc=doc, id=id, format=format, type=type, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -9555,8 +9461,6 @@ class WorkflowInputParameter(InputParameter):
 
         if _errors__:
             raise ValidationException("Trying 'WorkflowInputParameter'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(label=label, secondaryFiles=secondaryFiles, streamable=streamable, doc=doc, id=id, format=format, loadContents=loadContents, loadListing=loadListing, default=default, type=type, inputBinding=inputBinding, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -9863,8 +9767,6 @@ or allowed.
 
         if _errors__:
             raise ValidationException("Trying 'ExpressionTool'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(id=id, label=label, doc=doc, inputs=inputs, outputs=outputs, requirements=requirements, hints=hints, cwlVersion=cwlVersion, expression=expression, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -10157,8 +10059,6 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
 
         if _errors__:
             raise ValidationException("Trying 'WorkflowOutputParameter'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(label=label, secondaryFiles=secondaryFiles, streamable=streamable, doc=doc, id=id, format=format, outputSource=outputSource, linkMerge=linkMerge, type=type, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -10482,8 +10382,6 @@ specified, the default method is "merge_nested".
 
         if _errors__:
             raise ValidationException("Trying 'WorkflowStepInput'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(id=id, source=source, linkMerge=linkMerge, loadContents=loadContents, loadListing=loadListing, label=label, default=default, valueFrom=valueFrom, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -10646,8 +10544,6 @@ to connect the output value to downstream parameters.
 
         if _errors__:
             raise ValidationException("Trying 'WorkflowStepOutput'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(id=id, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -10940,8 +10836,6 @@ a subworkflow (recursive workflows are not allowed).
 
         if _errors__:
             raise ValidationException("Trying 'WorkflowStep'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(id=id, label=label, doc=doc, in_=in_, out=out, requirements=requirements, hints=hints, run=run, scatter=scatter, scatterMethod=scatterMethod, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -11052,7 +10946,7 @@ A workflow describes a set of **steps** and the **dependencies** between
 those steps.  When a step produces output that will be consumed by a
 second step, the first step is a dependency of the second step.
 
-When there is a dependency, the workflow engine must execute the preceeding
+When there is a dependency, the workflow engine must execute the preceding
 step and wait for it to successfully produce output before executing the
 dependent step.  If two steps are defined in the workflow graph that
 are not directly or indirectly dependent, these steps are **independent**,
@@ -11288,8 +11182,6 @@ workflow semantics.
 
         if _errors__:
             raise ValidationException("Trying 'Workflow'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(id=id, label=label, doc=doc, inputs=inputs, outputs=outputs, requirements=requirements, hints=hints, cwlVersion=cwlVersion, steps=steps, extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -11437,8 +11329,6 @@ the `run` field of [WorkflowStep](#WorkflowStep).
 
         if _errors__:
             raise ValidationException("Trying 'SubworkflowFeatureRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -11517,8 +11407,6 @@ Indicates that the workflow platform must support the `scatter` and
 
         if _errors__:
             raise ValidationException("Trying 'ScatterFeatureRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -11597,8 +11485,6 @@ listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
 
         if _errors__:
             raise ValidationException("Trying 'MultipleInputFeatureRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
@@ -11677,8 +11563,6 @@ of [WorkflowStepInput](#WorkflowStepInput).
 
         if _errors__:
             raise ValidationException("Trying 'StepInputExpressionRequirement'", None, _errors__)
-        loadingOptions = copy.deepcopy(loadingOptions)
-        loadingOptions.original_doc = _doc
         return cls(extension_fields=extension_fields, loadingOptions=loadingOptions)
 
     def save(self, top=False, base_url="", relative_uris=True):
