@@ -24,9 +24,9 @@ MODULE=cwl_utils
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
-PYSOURCES=$(wildcard ${MODULE}/**.py tests/*.py) setup.py
+PYSOURCES=$(filter-out cwl_utils/parser_v%,$(wildcard ${MODULE}/**.py tests/*.py)) setup.py
 DEVPKGS=diff_cover black pylint coverage pep257 pydocstyle flake8 mypy\
-	pytest-xdist isort wheel -rtest-requirements.txt
+	isort wheel
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \
 	   python-flake8 python-mock shellcheck
 VERSION=$(shell awk '{print $3}' < cwl_utils/__meta__.py )
@@ -78,8 +78,8 @@ clean: FORCE
 
 # Linting and code style related targets
 ## sorting imports using isort: https://github.com/timothycrosley/isort
-sort_imports:
-	isort ${MODULE}/*.py tests/*.py setup.py
+sort_imports: $(PYSOURCES)
+	isort $^
 
 pep257: pydocstyle
 ## pydocstyle      : check Python code style
@@ -132,12 +132,12 @@ diff-cover.html: coverage.xml
 	diff-cover $^ --html-report $@
 
 ## test        : run the ${MODULE} test suite
-test: $(pysources)
-	python setup.py test --addopts "-n auto --dist=loadfile"
+test: FORCE
+	python setup.py test # --addopts "-n auto --dist=loadfile"
 
 ## testcov     : run the ${MODULE} test suite and collect coverage
 testcov: $(pysources)
-	python setup.py test --addopts "--cov ${MODULE} -n auto --dist=loadfile"
+	python setup.py test --addopts "--cov ${MODULE}" # -n auto --dist=loadfile"
 
 sloccount.sc: ${PYSOURCES} Makefile
 	sloccount --duplicates --wide --details $^ > $@
