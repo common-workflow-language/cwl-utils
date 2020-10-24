@@ -1,5 +1,4 @@
 """Test the CWL Expression refactoring tool."""
-from os import environ
 from pathlib import Path
 
 from cwltool.errors import WorkflowException

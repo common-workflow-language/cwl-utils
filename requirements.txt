@@ -1,2 +1,2 @@
 ruamel.yaml<=0.16.5,>=0.12.4
-schema_salad
+schema-salad

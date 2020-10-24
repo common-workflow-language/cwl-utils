@@ -7,9 +7,8 @@ Only tested with a single v1.0 workflow.
 
 import os
 import sys
-from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, List, MutableMapping, Set, Text, Union, cast
+from typing import IO, Any, Dict, List, MutableMapping, Set, Text, Union, cast
 
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine, add_lc_filename
@@ -18,16 +17,13 @@ from schema_salad.sourceline import SourceLine, add_lc_filename
 def main(args: List[str]) -> None:
     """Split the packed CWL at the path of the first argument."""
     with open(args[0], "r") as source_handle:
-        sourceStr = str(source_handle.read())
-    run(sourceStr, (Path.cwd() / args[0]).as_uri())
+        run(source_handle)
 
 
-def run(sourceStr: str, source_uri: str) -> None:
+def run(sourceIO: IO[str]) -> None:
     """Loop over the provided packed CWL document and split it up."""
-    sourceIO = StringIO(sourceStr)
-    sourceIO.name = source_uri
     source = yaml.main.round_trip_load(sourceIO, preserve_quotes=True)
-    add_lc_filename(source, source_uri)
+    add_lc_filename(source, sourceIO.name)
 
     if "$graph" not in source:
         print("No $graph, so not for us.")
@@ -51,8 +47,8 @@ def run(sourceStr: str, source_uri: str) -> None:
             for import_name in imports:
                 rewrite_types(entry, "#{}".format(import_name), False)
         if entry_id == "main":
-            entry_id = "unpacked_{}".format(os.path.basename(source_uri))
-        with open(entry_id, "w") as result_handle:
+            entry_id = "unpacked_{}".format(os.path.basename(sourceIO.name))
+        with open(entry_id, "w", encoding="utf-8") as result_handle:
             yaml.main.round_trip_dump(
                 entry,
                 result_handle,
@@ -159,7 +155,7 @@ def rewrite_schemadef(document: MutableMapping[str, Any]) -> Set[str]:
             for field in entry["fields"]:
                 field["name"] = field["name"].split("/")[2]
                 rewrite_types(field, entry_file, True)
-            with open(entry_file[1:], "a") as entry_handle:
+            with open(entry_file[1:], "a", encoding="utf-8") as entry_handle:
                 yaml.dump([entry], entry_handle, Dumper=yaml.RoundTripDumper)
             entry["$import"] = entry_file[1:]
             del entry["name"]
