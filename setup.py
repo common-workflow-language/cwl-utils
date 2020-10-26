@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 
-from setuptools import find_packages, setup
+from setuptools import setup
 
 exec(open("cwl_utils/__meta__.py").read())
 
@@ -13,17 +13,18 @@ setup(
     license="Apache 2.0",
     author="Common workflow language working group",
     author_email="common-workflow-language@googlegroups.com",
-    packages=find_packages(),
+    packages=["cwl_utils", "cwl_utils.tests"],
+    package_dir={"cwl_utils.tests": "tests"},
     python_requires=">=3.6",
     install_requires=[
         "ruamel.yaml<=0.16.5,>=0.12.4",
-        "six",
         "requests",
         "schema-salad >= 7, < 8",
         "typing_extensions",
+        "cwltool",
     ],
     setup_requires=[] + pytest_runner,
-    tests_require=["pytest<7", "cwltool", "requests"],
+    tests_require=["pytest<7", "cwltool"],
     test_suite="tests",
     scripts=[
         "cwl_utils/docker_extract.py",
