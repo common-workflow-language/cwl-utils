@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import copy
 import hashlib
 import shutil
@@ -20,47 +21,96 @@ from typing import (
 
 from cwltool.errors import WorkflowException
 from cwltool.expression import do_eval
+from cwltool.sandboxjs import JavascriptException
 from cwltool.utils import CWLObjectType, CWLOutputType
+from cwltool.loghandler import _logger as _cwltoollogger
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
-
+from pathlib import Path
 import cwl_utils.parser_v1_0 as cwl
 
-SKIP_COMMAND_LINE = True  # don't process CommandLineTool.inputs...inputBinding and CommandLineTool.arguments sections
-SKIP_COMMAND_LINE2 = True  # don't process CommandLineTool.outputEval or CommandLineTool.requirements...InitialWorkDirRequirement
-# as Galaxy will use cwltool which can handle expression which might appear there
+import logging
+
+_logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name
+defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
+_logger.addHandler(defaultStreamHandler)
+_logger.setLevel(logging.INFO)
+_cwltoollogger.setLevel(100)
 
 
-def main() -> None:
+def parse_args(args: List[str]) -> argparse.Namespace:
+    """Argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Tool to upgrade refactor CWL documents so that any CWL expression "
+        "are separate steps as either ExpressionTools or CommandLineTools."
+    )
+    parser.add_argument(
+        "--etools",
+        help="Output ExpressionTools, don't go all the way to CommandLineTools.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--skip-some1",
+        help="Don't process CommandLineTool.inputs.inputBinding and CommandLineTool.arguments sections.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--skip-some2",
+        help="Don't process CommandLineTool.outputEval or CommandLineTool.requirements.InitialWorkDirRequirement.",
+        action="store_true",
+    )
+    parser.add_argument("dir", help="Directory in which to save converted files")
+    parser.add_argument(
+        "inputs",
+        nargs="+",
+        help="One or more CWL documents.",
+    )
+    return parser.parse_args(args)
+
+
+def main(args: Optional[List[str]] = None) -> int:
+    """Collect the arguments and run."""
+    if not args:
+        args = sys.argv[1:]
+    return run(parse_args(args))
+
+
+def run(args: argparse.Namespace) -> int:
     """Load the first command line argument, print the results to stdout."""
-    top = cwl.load_document(sys.argv[1])
-    result, modified = traverse(
-        top, False
-    )  # 2nd parameter: True to make CommandLineTools, False for ExpressionTools
-    if not modified:
-        with open(sys.argv[1], "r") as f:
-            shutil.copyfileobj(f, sys.stdout)
-            return
-    if not isinstance(result, MutableSequence):
-        result_json = cwl.save(
-            result,
-            base_url=result.loadingOptions.fileuri
-            if result.loadingOptions.fileuri
-            else "",
+    for document in args.inputs:
+        _logger.info("Processing %s.", document)
+        top = cwl.load_document(document)
+        output = Path(args.dir) / Path(document).name
+        result, modified = traverse(
+            top, not args.etools, args.skip_some1, args.skip_some2
         )
-    #   ^^ Setting the base_url and keeping the default value
-    #      for relative_uris=True means that the IDs in the generated
-    #      JSON/YAML are kept clean of the path to the input document
-    else:
-        result_json = [
-            cwl.save(result_item, base_url=result_item.loadingOptions.fileuri)
-            for result_item in result
-        ]
-    yaml.scalarstring.walk_tree(result_json)
-    # ^ converts multine line strings to nice multiline YAML
-    print("#!/usr/bin/env cwl-runner")  # TODO: teach the codegen to do this?
-    yaml.round_trip_dump(result_json, sys.stdout)
+        if not modified:
+            shutil.copyfile(document, output)
+            continue
+        if not isinstance(result, MutableSequence):
+            result_json = cwl.save(
+                result,
+                base_url=result.loadingOptions.fileuri
+                if result.loadingOptions.fileuri
+                else "",
+            )
+        #   ^^ Setting the base_url and keeping the default value
+        #      for relative_uris=True means that the IDs in the generated
+        #      JSON/YAML are kept clean of the path to the input document
+        else:
+            result_json = [
+                cwl.save(result_item, base_url=result_item.loadingOptions.fileuri)
+                for result_item in result
+            ]
+        yaml.scalarstring.walk_tree(result_json)
+        # ^ converts multine line strings to nice multiline YAML
+        with open(output, "w", encoding="utf-8") as output_filehandle:
+            output_filehandle.write(
+                "#!/usr/bin/env cwl-runner\n"
+            )  # TODO: teach the codegen to do this?
+            yaml.round_trip_dump(result_json, output_filehandle)
+    return 0
 
 
 def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool:
@@ -137,7 +187,7 @@ def get_expression(
                 tmpdir="",
                 resources={},
             )
-        except WorkflowException:
+        except (WorkflowException, JavascriptException):
             # TODO: what if the $() expr is in the middle of the string?
             # TODO: what if there are multple $() expressions?
             return "${return " + string.strip()[2:-1] + ";}"
@@ -215,6 +265,8 @@ def traverse(
     process: Union[cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow],
     replace_etool: bool = False,
     inside: bool = False,
+    skip_command_line1: bool = False,
+    skip_command_line2: bool = False,
 ) -> Tuple[Union[cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], bool]:
     """Convert the given process and any subprocesess."""
     if not inside and isinstance(process, cwl.CommandLineTool):
@@ -278,7 +330,9 @@ def traverse(
             steps=[step],
             cwlVersion=process.cwlVersion,
         )
-        result, modified = traverse_workflow(workflow, replace_etool)
+        result, modified = traverse_workflow(
+            workflow, replace_etool, skip_command_line1, skip_command_line2
+        )
         if modified:
             return result, True
         else:
@@ -286,15 +340,28 @@ def traverse(
     if isinstance(process, cwl.ExpressionTool) and replace_etool:
         return etool_to_cltool(process), True
     if isinstance(process, cwl.Workflow):
-        return traverse_workflow(process, replace_etool)
+        return traverse_workflow(
+            process, replace_etool, skip_command_line1, skip_command_line2
+        )
     return process, False
 
 
-def load_step(step: cwl.WorkflowStep, replace_etool: bool = False) -> bool:
+def load_step(
+    step: cwl.WorkflowStep,
+    replace_etool: bool = False,
+    skip_command_line1: bool = False,
+    skip_command_line2: bool = False,
+) -> bool:
     """If the step's Process is not inline, load and process it."""
     modified = False
     if isinstance(step.run, str):
-        step.run, modified = traverse(cwl.load_document(step.run), replace_etool, True)
+        step.run, modified = traverse(
+            cwl.load_document(step.run),
+            replace_etool,
+            True,
+            skip_command_line1,
+            skip_command_line2,
+        )
     return modified
 
 
@@ -604,31 +671,32 @@ def process_workflow_inputs_and_outputs(
 ) -> None:
     """Do any needed conversions on the given Workflow's inputs and outputs."""
     inputs = empty_inputs(workflow)
-    for param in workflow.inputs:
-        if param.format and get_expression(param.format, inputs, None):
-            raise SourceLine(
-                param.loadingOptions.original_doc,
-                "format",
-                raise_type=WorkflowException,
-            ).makeError(TOPLEVEL_FORMAT_EXPR_ERROR.format(param.id.split("#")[-1]))
-        if param.secondaryFiles:
-            if get_expression(param.secondaryFiles, inputs, EMPTY_FILE):
+    for index, param in enumerate(workflow.inputs):
+        with SourceLine(workflow.inputs, index, WorkflowException):
+            if param.format and get_expression(param.format, inputs, None):
                 raise SourceLine(
                     param.loadingOptions.original_doc,
-                    "secondaryFiles",
+                    "format",
                     raise_type=WorkflowException,
-                ).makeError(TOPLEVEL_SF_EXPR_ERROR.format(param.id.split("#")[-1]))
-            elif isinstance(param.secondaryFiles, MutableSequence):
-                for index, entry in enumerate(param.secondaryFiles):
-                    if get_expression(entry, inputs, EMPTY_FILE):
-                        raise SourceLine(
-                            param.loadingOptions.original_doc,
-                            index,
-                            raise_type=WorkflowException,
-                        ).makeError(
-                            "Entry {},".format(index)
-                            + TOPLEVEL_SF_EXPR_ERROR.format(param.id.split("#")[-1])
-                        )
+                ).makeError(TOPLEVEL_FORMAT_EXPR_ERROR.format(param.id.split("#")[-1]))
+            if param.secondaryFiles:
+                if get_expression(param.secondaryFiles, inputs, EMPTY_FILE):
+                    raise SourceLine(
+                        param.loadingOptions.original_doc,
+                        "secondaryFiles",
+                        raise_type=WorkflowException,
+                    ).makeError(TOPLEVEL_SF_EXPR_ERROR.format(param.id.split("#")[-1]))
+                elif isinstance(param.secondaryFiles, MutableSequence):
+                    for index2, entry in enumerate(param.secondaryFiles):
+                        if get_expression(entry, inputs, EMPTY_FILE):
+                            raise SourceLine(
+                                param.loadingOptions.original_doc,
+                                index2,
+                                raise_type=WorkflowException,
+                            ).makeError(
+                                "Entry {},".format(index)
+                                + TOPLEVEL_SF_EXPR_ERROR.format(param.id.split("#")[-1])
+                            )
 
 
 def process_workflow_reqs_and_hints(
@@ -962,6 +1030,8 @@ def process_level_reqs(
     step: cwl.WorkflowStep,
     parent: cwl.Workflow,
     replace_etool: bool = False,
+    skip_command_line1: bool = False,
+    skip_command_line2: bool = False,
 ) -> bool:
     """Convert expressions inside a process into new adjacent steps."""
     # This is for reqs inside a Process (CommandLineTool, ExpressionTool)
@@ -1028,7 +1098,7 @@ def process_level_reqs(
                         generated_res_reqs.append((etool_id, attr))
 
         if (
-            not SKIP_COMMAND_LINE2
+            not skip_command_line2
             and req
             and isinstance(req, cwl.InitialWorkDirRequirement)
         ):
@@ -1232,6 +1302,8 @@ def traverse_CommandLineTool(
     parent: cwl.Workflow,
     step: cwl.WorkflowStep,
     replace_etool: bool = False,
+    skip_command_line1: bool = False,
+    skip_command_line2: bool = False,
 ) -> bool:
     """Extract any CWL Expressions within the given CommandLineTool into sibling steps."""
     modified = False
@@ -1239,7 +1311,7 @@ def traverse_CommandLineTool(
     target_clt = step.run
     inputs = empty_inputs(clt)
     step_id = step.id.split("#")[-1]
-    if clt.arguments and not SKIP_COMMAND_LINE:
+    if clt.arguments and not skip_command_line1:
         for index, arg in enumerate(clt.arguments):
             if isinstance(arg, str):
                 expression = get_expression(arg, inputs, None)
@@ -1266,7 +1338,7 @@ def traverse_CommandLineTool(
                             "{}/result".format(etool_id), None, inp_id, None, None
                         )
                     )
-                    remove_JSReq(target_clt)
+                    remove_JSReq(target_clt, skip_command_line1)
             elif isinstance(arg, cwl.CommandLineBinding) and arg.valueFrom:
                 expression = get_expression(arg.valueFrom, inputs, None)
                 if expression:
@@ -1292,7 +1364,7 @@ def traverse_CommandLineTool(
                             id=inp_id, source="{}/result".format(etool_id)
                         )
                     )
-                    remove_JSReq(target_clt)
+                    remove_JSReq(target_clt, skip_command_line1)
     for streamtype in "stdout", "stderr":  # add 'stdin' for v1.1 version
         stream_value = getattr(clt, streamtype)
         if stream_value:
@@ -1316,7 +1388,7 @@ def traverse_CommandLineTool(
                     )
                 )
     for inp in clt.inputs:
-        if not SKIP_COMMAND_LINE and inp.inputBinding and inp.inputBinding.valueFrom:
+        if not skip_command_line1 and inp.inputBinding and inp.inputBinding.valueFrom:
             expression = get_expression(
                 inp.inputBinding.valueFrom, inputs, example_input(inp.type)
             )
@@ -1362,7 +1434,7 @@ def traverse_CommandLineTool(
                             id=inp_id, source="{}/result".format(etool_id)
                         )
                     )
-            if outp.outputBinding.outputEval and not SKIP_COMMAND_LINE2:
+            if outp.outputBinding.outputEval and not skip_command_line2:
                 self: CWLOutputType = [
                     {
                         "class": "File",
@@ -1433,7 +1505,7 @@ def traverse_CommandLineTool(
                     new_clt_step.id = new_clt_step.id.split("#")[-1]
                     new_clt_step.run = copy.copy(step.run)
                     new_clt_step.run.id = None
-                    remove_JSReq(new_clt_step.run)
+                    remove_JSReq(new_clt_step.run, skip_command_line1)
                     for new_outp in new_clt_step.run.outputs:
                         if new_outp.id.split("#")[-1] == outp_id:
                             if new_outp.outputBinding:
@@ -1519,10 +1591,11 @@ def rename_step_source(workflow: cwl.Workflow, old: str, new: str) -> None:
 
 
 def remove_JSReq(
-    process: Union[cwl.CommandLineTool, cwl.WorkflowStep, cwl.Workflow]
+    process: Union[cwl.CommandLineTool, cwl.WorkflowStep, cwl.Workflow],
+    skip_command_line1: bool = False,
 ) -> None:
     """Since the InlineJavascriptRequiment is longer needed, remove it."""
-    if SKIP_COMMAND_LINE and isinstance(process, cwl.CommandLineTool):
+    if skip_command_line1 and isinstance(process, cwl.CommandLineTool):
         return
     if process.hints:
         process.hints[:] = [
@@ -1740,7 +1813,11 @@ def generate_etool_from_expr2(
 
 
 def traverse_step(
-    step: cwl.WorkflowStep, parent: cwl.Workflow, replace_etool: bool = False
+    step: cwl.WorkflowStep,
+    parent: cwl.Workflow,
+    replace_etool: bool = False,
+    skip_command_line1: bool = False,
+    skip_command_line2: bool = False,
 ) -> bool:
     """Process the given WorkflowStep."""
     modified = False
@@ -1779,7 +1856,7 @@ def traverse_step(
                 etool_id = "_expression_{}_{}".format(step_id, inp.id.split("/")[-1])
                 target = get_input_for_id(inp.id, original_process)
                 if not target:
-                    raise Exception("target not found")
+                    raise WorkflowException("target not found")
                 input_source_id = None
                 source_type = None
                 if inp.source:
@@ -1837,12 +1914,19 @@ def traverse_step(
                 inp.valueFrom = None
                 inp.source = "{}/result".format(etool_id)
     # TODO: skip or special process for sub workflows?
-    process_modified = process_level_reqs(original_process, step, parent, replace_etool)
+    process_modified = process_level_reqs(
+        original_process, step, parent, replace_etool, skip_command_line1
+    )
     if process_modified:
         modified = True
     if isinstance(original_process, cwl.CommandLineTool):
         clt_modified = traverse_CommandLineTool(
-            original_process, parent, step, replace_etool
+            original_process,
+            parent,
+            step,
+            replace_etool,
+            skip_command_line1,
+            skip_command_line2,
         )
         if clt_modified:
             modified = True
@@ -1945,7 +2029,10 @@ def replace_step_valueFrom_expr_with_etool(
 
 
 def traverse_workflow(
-    workflow: cwl.Workflow, replace_etool: bool = False
+    workflow: cwl.Workflow,
+    replace_etool: bool = False,
+    skip_command_line1: bool = False,
+    skip_command_line2: bool = False,
 ) -> Tuple[cwl.Workflow, bool]:
     """Traverse a workflow, processing each step."""
     modified = False
@@ -1954,12 +2041,16 @@ def traverse_workflow(
             workflow.steps[index].run = etool_to_cltool(step.run)
             modified = True
         else:
-            step_modified = load_step(step, replace_etool)
+            step_modified = load_step(
+                step, replace_etool, skip_command_line1, skip_command_line2
+            )
             if step_modified:
                 modified = True
     for step in workflow.steps:
         if not step.id.startswith("_expression"):
-            step_modified = traverse_step(step, workflow)
+            step_modified = traverse_step(
+                step, workflow, skip_command_line1, skip_command_line2
+            )
             if step_modified:
                 modified = True
     process_workflow_inputs_and_outputs(workflow, replace_etool)

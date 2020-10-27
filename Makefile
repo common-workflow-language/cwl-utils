@@ -151,7 +151,7 @@ list-author-emails:
 	@git log --format='%aN,%aE' | sort -u | grep -v 'root'
 
 mypy3: mypy
-mypy: ${PYSOURCES}
+mypy: $(filter-out setup.py,${PYSOURCES})
 	if ! test -f $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))')/py.typed ; \
 	then \
 		rm -Rf typeshed/ruamel/yaml ; \
@@ -160,7 +160,7 @@ mypy: ${PYSOURCES}
 	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
 	MYPYPATH=$$MYPYPATH:typeshed/ mypy --disallow-untyped-calls \
 		 --warn-redundant-casts \
-		 ${MODULE}
+		 $^
 
 mypyc: ${PYSOURCES}
 	MYPYPATH=typeshed/ CWLTOOL_USE_MYPYC=1 pip install --verbose -e . && pytest --basetemp ./tmp

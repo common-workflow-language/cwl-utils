@@ -30,7 +30,7 @@ setup(
     test_suite="tests",
     scripts=[
         "cwl_utils/docker_extract.py",
-        "cwl_utils/etools_to_clt.py",
+        "cwl_utils/cwl_expression_refactor.py",
         "cwl_utils/cite_extract.py",
         "cwl_utils/graph_split.py",
     ],
