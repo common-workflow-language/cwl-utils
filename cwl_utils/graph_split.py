@@ -7,20 +7,40 @@ Only tested with a single v1.0 workflow.
 
 import os
 import sys
+import json
+import argparse
 from pathlib import Path
 from typing import IO, Any, Dict, List, MutableMapping, Set, Text, Union, cast
 
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine, add_lc_filename
+from cwlformat.formatter import stringify_dict
 
 
-def main(args: List[str]) -> None:
+def main() -> None:
     """Split the packed CWL at the path of the first argument."""
-    with open(args[0], "r") as source_handle:
-        run(source_handle)
+    parser = argparse.ArgumentParser(
+        description="Split the packed CWL.")
+    parser.add_argument("cwlfile")
+    parser.add_argument("-m", "--mainfile", default=None,
+        type=str, help="Specify the name of the main document.")
+    parser.add_argument("-f", "--output-format", choices=["json", "yaml"],
+        type=str, default="json", help="Specify the format of the output CWL files.")
+    parser.add_argument("-C", "--outdir", type=str, default=os.getcwd(),
+        help="Output folder for the unpacked CWL files.")
+    options = parser.parse_args()
+
+    with open(options.cwlfile, "r") as source_handle:
+        run(source_handle, options.outdir,
+            options.output_format, options.mainfile)
 
 
-def run(sourceIO: IO[str]) -> None:
+def run(
+    sourceIO: IO[str],
+    output_dir: str,
+    output_format: str,
+    mainfile: str
+) -> None:
     """Loop over the provided packed CWL document and split it up."""
     source = yaml.main.round_trip_load(sourceIO, preserve_quotes=True)
     add_lc_filename(source, sourceIO.name)
@@ -47,15 +67,16 @@ def run(sourceIO: IO[str]) -> None:
             for import_name in imports:
                 rewrite_types(entry, "#{}".format(import_name), False)
         if entry_id == "main":
-            entry_id = "unpacked_{}".format(os.path.basename(sourceIO.name))
-        with open(entry_id, "w", encoding="utf-8") as result_handle:
-            yaml.main.round_trip_dump(
-                entry,
-                result_handle,
-                default_flow_style=False,
-                indent=4,
-                block_seq_indent=2,
-            )
+            if mainfile is None:
+                entry_id = "unpacked_{}".format(os.path.basename(sourceIO.name))
+            else:
+                entry_id = mainfile
+
+        output_file = os.path.join(output_dir, entry_id)
+        if output_format == "json":
+            json_dump(entry, output_file)
+        elif output_format == "yaml":
+            yaml_dump(entry, output_file)
 
 
 def rewrite(document: Any, doc_id: str) -> Set[str]:
@@ -71,17 +92,17 @@ def rewrite(document: Any, doc_id: str) -> Set[str]:
                 if key == "run" and isinstance(value, str) and value[0] == "#":
                     document[key] = value[1:]
                 elif key in ("id", "outputSource") and value.startswith("#" + doc_id):
-                    document[key] = value[len(doc_id) + 2 :]
+                    document[key] = value[len(doc_id) + 2:]
                 elif key == "out":
 
                     def rewrite_id(entry: Any) -> Union[MutableMapping[Any, Any], str]:
                         if isinstance(entry, MutableMapping):
                             if entry["id"].startswith(this_id):
-                                entry["id"] = cast(str, entry["id"])[len(this_id) + 1 :]
+                                entry["id"] = cast(str, entry["id"])[len(this_id) + 1:]
                             return entry
                         elif isinstance(entry, str):
                             if entry.startswith(this_id):
-                                return entry[len(this_id) + 1 :]
+                                return entry[len(this_id) + 1:]
                         raise Exception(
                             "{} is neither a dictionary nor string.".format(entry)
                         )
@@ -102,7 +123,7 @@ def rewrite(document: Any, doc_id: str) -> Set[str]:
                         new_sources = list()
                         for entry in value:
                             if entry.startswith("#" + doc_id):
-                                new_sources.append(entry[len(doc_id) + 2 :])
+                                new_sources.append(entry[len(doc_id) + 2:])
                             else:
                                 new_sources.append(entry)
                         document[key] = new_sources
@@ -133,7 +154,7 @@ def rewrite_types(field: Any, entry_file: str, sameself: bool) -> None:
                 if key == name:
                     if isinstance(value, Text) and value.startswith(entry_file):
                         if sameself:
-                            field[key] = value[len(entry_file) + 1 :]
+                            field[key] = value[len(entry_file) + 1:]
                         else:
                             field[key] = "{d[0]}#{d[1]}".format(
                                 d=value[1:].split("/", 1)
@@ -177,5 +198,17 @@ def rewrite_schemadef(document: MutableMapping[str, Any]) -> Set[str]:
     return seen_imports
 
 
+def json_dump(entry: Any, output_file: str):
+    with open(output_file, "w", encoding="utf-8") as result_handle:
+        json.dump(entry, result_handle, indent=4)
+
+
+def yaml_dump(entry: Any, output_file: str):
+    with open(output_file, "w", encoding="utf-8") as result_handle:
+        result_handle.write(
+            stringify_dict(entry)
+        )
+
+
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
