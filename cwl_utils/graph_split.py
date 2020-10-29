@@ -207,12 +207,12 @@ def rewrite_schemadef(document: MutableMapping[str, Any]) -> Set[str]:
     return seen_imports
 
 
-def json_dump(entry: Any, output_file: str):
+def json_dump(entry: Any, output_file: str) -> None:
     with open(output_file, "w", encoding="utf-8") as result_handle:
         json.dump(entry, result_handle, indent=4)
 
 
-def yaml_dump(entry: Any, output_file: str):
+def yaml_dump(entry: Any, output_file: str) -> None:
     with open(output_file, "w", encoding="utf-8") as result_handle:
         result_handle.write(stringify_dict(entry))
 
