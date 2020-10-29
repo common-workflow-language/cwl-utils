@@ -22,7 +22,7 @@ setup(
         "schema-salad >= 7, < 8",
         "typing_extensions",
         "cwltool",
-        "cwlformat"
+        "cwlformat",
     ],
     setup_requires=[] + pytest_runner,
     tests_require=["pytest<7", "cwltool"],
