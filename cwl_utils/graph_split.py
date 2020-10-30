@@ -37,6 +37,13 @@ def main() -> None:
         help="Specify the format of the output CWL files.",
     )
     parser.add_argument(
+        "-p",
+        "--pretty",
+        action="store_true",
+        default=False,
+        help="Beautify the output CWL document, only works with yaml format.",
+    )
+    parser.add_argument(
         "-C",
         "--outdir",
         type=str,
@@ -46,10 +53,18 @@ def main() -> None:
     options = parser.parse_args()
 
     with open(options.cwlfile, "r") as source_handle:
-        run(source_handle, options.outdir, options.output_format, options.mainfile)
+        run(
+            source_handle,
+            options.outdir,
+            options.output_format,
+            options.mainfile,
+            options.pretty,
+        )
 
 
-def run(sourceIO: IO[str], output_dir: str, output_format: str, mainfile: str) -> None:
+def run(
+    sourceIO: IO[str], output_dir: str, output_format: str, mainfile: str, pretty: bool
+) -> None:
     """Loop over the provided packed CWL document and split it up."""
     source = yaml.main.round_trip_load(sourceIO, preserve_quotes=True)
     add_lc_filename(source, sourceIO.name)
@@ -85,7 +100,7 @@ def run(sourceIO: IO[str], output_dir: str, output_format: str, mainfile: str) -
         if output_format == "json":
             json_dump(entry, output_file)
         elif output_format == "yaml":
-            yaml_dump(entry, output_file)
+            yaml_dump(entry, output_file, pretty)
 
 
 def rewrite(document: Any, doc_id: str) -> Set[str]:
@@ -212,9 +227,18 @@ def json_dump(entry: Any, output_file: str) -> None:
         json.dump(entry, result_handle, indent=4)
 
 
-def yaml_dump(entry: Any, output_file: str) -> None:
+def yaml_dump(entry: Any, output_file: str, pretty: bool) -> None:
     with open(output_file, "w", encoding="utf-8") as result_handle:
-        result_handle.write(stringify_dict(entry))
+        if pretty:
+            result_handle.write(stringify_dict(entry))
+        else:
+            yaml.main.round_trip_dump(
+                entry,
+                result_handle,
+                default_flow_style=False,
+                indent=4,
+                block_seq_indent=2,
+            )
 
 
 if __name__ == "__main__":
