@@ -7,20 +7,64 @@ Only tested with a single v1.0 workflow.
 
 import os
 import sys
+import json
+import argparse
 from pathlib import Path
 from typing import IO, Any, Dict, List, MutableMapping, Set, Text, Union, cast
 
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine, add_lc_filename
+from cwlformat.formatter import stringify_dict
 
 
-def main(args: List[str]) -> None:
+def main() -> None:
     """Split the packed CWL at the path of the first argument."""
-    with open(args[0], "r") as source_handle:
-        run(source_handle)
+    parser = argparse.ArgumentParser(description="Split the packed CWL.")
+    parser.add_argument("cwlfile")
+    parser.add_argument(
+        "-m",
+        "--mainfile",
+        default=None,
+        type=str,
+        help="Specify the name of the main document.",
+    )
+    parser.add_argument(
+        "-f",
+        "--output-format",
+        choices=["json", "yaml"],
+        type=str,
+        default="json",
+        help="Specify the format of the output CWL files.",
+    )
+    parser.add_argument(
+        "-p",
+        "--pretty",
+        action="store_true",
+        default=False,
+        help="Beautify the output CWL document, only works with yaml format.",
+    )
+    parser.add_argument(
+        "-C",
+        "--outdir",
+        type=str,
+        default=os.getcwd(),
+        help="Output folder for the unpacked CWL files.",
+    )
+    options = parser.parse_args()
+
+    with open(options.cwlfile, "r") as source_handle:
+        run(
+            source_handle,
+            options.outdir,
+            options.output_format,
+            options.mainfile,
+            options.pretty,
+        )
 
 
-def run(sourceIO: IO[str]) -> None:
+def run(
+    sourceIO: IO[str], output_dir: str, output_format: str, mainfile: str, pretty: bool
+) -> None:
     """Loop over the provided packed CWL document and split it up."""
     source = yaml.main.round_trip_load(sourceIO, preserve_quotes=True)
     add_lc_filename(source, sourceIO.name)
@@ -47,15 +91,16 @@ def run(sourceIO: IO[str]) -> None:
             for import_name in imports:
                 rewrite_types(entry, "#{}".format(import_name), False)
         if entry_id == "main":
-            entry_id = "unpacked_{}".format(os.path.basename(sourceIO.name))
-        with open(entry_id, "w", encoding="utf-8") as result_handle:
-            yaml.main.round_trip_dump(
-                entry,
-                result_handle,
-                default_flow_style=False,
-                indent=4,
-                block_seq_indent=2,
-            )
+            if mainfile is None:
+                entry_id = "unpacked_{}".format(os.path.basename(sourceIO.name))
+            else:
+                entry_id = mainfile
+
+        output_file = os.path.join(output_dir, entry_id)
+        if output_format == "json":
+            json_dump(entry, output_file)
+        elif output_format == "yaml":
+            yaml_dump(entry, output_file, pretty)
 
 
 def rewrite(document: Any, doc_id: str) -> Set[str]:
@@ -177,5 +222,26 @@ def rewrite_schemadef(document: MutableMapping[str, Any]) -> Set[str]:
     return seen_imports
 
 
+def json_dump(entry: Any, output_file: str) -> None:
+    """Output object as JSON."""
+    with open(output_file, "w", encoding="utf-8") as result_handle:
+        json.dump(entry, result_handle, indent=4)
+
+
+def yaml_dump(entry: Any, output_file: str, pretty: bool) -> None:
+    """Output object as YAML."""
+    with open(output_file, "w", encoding="utf-8") as result_handle:
+        if pretty:
+            result_handle.write(stringify_dict(entry))
+        else:
+            yaml.main.round_trip_dump(
+                entry,
+                result_handle,
+                default_flow_style=False,
+                indent=4,
+                block_seq_indent=2,
+            )
+
+
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()

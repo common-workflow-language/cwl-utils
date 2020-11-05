@@ -1,0 +1,10 @@
+include README.rst
+include Makefile
+include MANIFEST.in
+include LICENSE.txt
+include *requirements.txt
+include testdata/*.cwl
+include testdata/*.yaml
+include testdata/*.input
+global-exclude *~
+global-exclude *.pyc

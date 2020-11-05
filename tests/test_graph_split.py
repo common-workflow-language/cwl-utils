@@ -16,4 +16,4 @@ def test_graph_split(tmp_path: Path):
     os.chdir(tmp_path)
     sourceIO = StringIO(requests.get(URI).text)
     sourceIO.name = URI
-    run(sourceIO)
+    run(sourceIO, ".", "yaml", "main.cwl", True)
