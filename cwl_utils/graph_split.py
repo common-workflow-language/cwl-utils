@@ -223,11 +223,13 @@ def rewrite_schemadef(document: MutableMapping[str, Any]) -> Set[str]:
 
 
 def json_dump(entry: Any, output_file: str) -> None:
+    """Output object as JSON."""
     with open(output_file, "w", encoding="utf-8") as result_handle:
         json.dump(entry, result_handle, indent=4)
 
 
 def yaml_dump(entry: Any, output_file: str, pretty: bool) -> None:
+    """Output object as YAML."""
     with open(output_file, "w", encoding="utf-8") as result_handle:
         if pretty:
             result_handle.write(stringify_dict(entry))
