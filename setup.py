@@ -13,8 +13,9 @@ setup(
     license="Apache 2.0",
     author="Common workflow language working group",
     author_email="common-workflow-language@googlegroups.com",
-    packages=["cwl_utils", "cwl_utils.tests"],
-    package_dir={"cwl_utils.tests": "tests"},
+    packages=["cwl_utils", "cwl_utils.tests", "cwl_utils.testdata"],
+    package_dir={"cwl_utils.tests": "tests", "cwl_utils.testdata": "testdata"},
+    include_package_data=True,
     python_requires=">=3.6",
     install_requires=[
         "ruamel.yaml<=0.16.5,>=0.12.4",
