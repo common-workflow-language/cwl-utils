@@ -245,12 +245,13 @@ process.stdout.write(JSON.stringify(ret));"""
     listing = [cwl.Dirent("expression.js", contents, writable=None)]
     iwdr = cwl.InitialWorkDirRequirement(listing)
     containerReq = cwl.DockerRequirement(dockerPull="node:slim")
+    softwareHint = cwl.SoftwareRequirement(packages=[cwl.SoftwarePackage(package="nodejs")])
     return cwl.CommandLineTool(
         inputs=inputs,
         outputs=outputs,
         id=etool.id,
         requirements=[iwdr],
-        hints=[containerReq],
+        hints=[containerReq,softwareHint],
         label=etool.label,
         doc=etool.doc,
         cwlVersion=etool.cwlVersion,
