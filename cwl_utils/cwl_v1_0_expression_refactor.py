@@ -2052,7 +2052,7 @@ def traverse_workflow(
     for step in workflow.steps:
         if not step.id.startswith("_expression"):
             step_modified = traverse_step(
-                step, workflow, skip_command_line1, skip_command_line2
+                step, workflow, replace_etool, skip_command_line1, skip_command_line2
             )
             if step_modified:
                 modified = True
