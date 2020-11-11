@@ -176,7 +176,10 @@ def expand_url(
         if prefix in loadingOptions.vocab:
             url = loadingOptions.vocab[prefix] + url[len(prefix) + 1 :]
 
-    split = urlsplit(url)
+    try:
+        split = urlsplit(url)
+    except AttributeError as e:
+        raise ValidationException(str(e))
 
     if (
         (bool(split.scheme) and split.scheme in ["http", "https", "file"])

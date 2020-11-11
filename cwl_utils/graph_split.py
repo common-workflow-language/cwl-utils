@@ -5,16 +5,16 @@ Unpacks the result of `cwltool --unpack`.
 Only tested with a single v1.0 workflow.
 """
 
+import argparse
+import json
 import os
 import sys
-import json
-import argparse
 from pathlib import Path
 from typing import IO, Any, Dict, List, MutableMapping, Set, Text, Union, cast
 
+from cwlformat.formatter import stringify_dict
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine, add_lc_filename
-from cwlformat.formatter import stringify_dict
 
 
 def main() -> None:

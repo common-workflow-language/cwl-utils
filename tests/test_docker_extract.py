@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 from unittest import skipIf
 
 import pytest
+
 import cwl_utils.parser_v1_0 as parser
 from cwl_utils.docker_extract import traverse
 from cwl_utils.image_puller import DockerImagePuller, SingularityImagePuller
