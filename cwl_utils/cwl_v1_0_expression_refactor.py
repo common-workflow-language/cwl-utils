@@ -42,8 +42,9 @@ _cwltoollogger.setLevel(100)
 def parse_args(args: List[str]) -> argparse.Namespace:
     """Argument parser."""
     parser = argparse.ArgumentParser(
-        description="Tool to upgrade refactor CWL documents so that any CWL expression "
-        "are separate steps as either ExpressionTools or CommandLineTools."
+        description="Tool to upgrade refactor CWL v1.0 documents so that any CWL expression "
+        "are separate steps as either ExpressionTools or CommandLineTools. Exit code 7 "
+        "means a single CWL document was provided but it did not need modification."
     )
     parser.add_argument(
         "--etools",
@@ -86,8 +87,11 @@ def run(args: argparse.Namespace) -> int:
             top, not args.etools, False, args.skip_some1, args.skip_some2
         )
         if not modified:
-            shutil.copyfile(document, output)
-            continue
+            if len(args.inputs) > 1:
+                shutil.copyfile(document, output)
+                continue
+            else:
+                return 7
         if not isinstance(result, MutableSequence):
             result_json = cwl.save(
                 result,
