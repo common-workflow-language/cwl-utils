@@ -25,6 +25,7 @@ from urllib.request import pathname2url
 
 from ruamel import yaml
 from ruamel.yaml.comments import CommentedMap
+
 from schema_salad.exceptions import SchemaSaladException, ValidationException
 from schema_salad.fetcher import DefaultFetcher, Fetcher
 from schema_salad.sourceline import SourceLine, add_lc_filename
@@ -72,8 +73,8 @@ class LoadingOptions(object):
 
         if fetcher is None:
             import requests
-            from cachecontrol.wrapper import CacheControl
             from cachecontrol.caches import FileCache
+            from cachecontrol.wrapper import CacheControl
 
             if "HOME" in os.environ:
                 session = CacheControl(
@@ -337,8 +338,7 @@ class _RecordLoader(_Loader):
 
 
 class _ExpressionLoader(_Loader):
-    def __init__(self, items):
-        # type: (_Loader) -> None
+    def __init__(self, items: Type[str]) -> None:
         self.items = items
 
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
