@@ -83,7 +83,7 @@ def run(args: argparse.Namespace) -> int:
         top = cwl.load_document(document)
         output = Path(args.dir) / Path(document).name
         result, modified = traverse(
-            top, not args.etools, args.skip_some1, args.skip_some2
+            top, not args.etools, False, args.skip_some1, args.skip_some2
         )
         if not modified:
             shutil.copyfile(document, output)
@@ -266,10 +266,10 @@ process.stdout.write(JSON.stringify(ret));"""
 
 def traverse(
     process: Union[cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow],
-    replace_etool: bool = False,
-    inside: bool = False,
-    skip_command_line1: bool = False,
-    skip_command_line2: bool = False,
+    replace_etool: bool,
+    inside: bool,
+    skip_command_line1: bool,
+    skip_command_line2: bool,
 ) -> Tuple[Union[cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], bool]:
     """Convert the given process and any subprocesess."""
     if not inside and isinstance(process, cwl.CommandLineTool):
@@ -351,9 +351,9 @@ def traverse(
 
 def load_step(
     step: cwl.WorkflowStep,
-    replace_etool: bool = False,
-    skip_command_line1: bool = False,
-    skip_command_line2: bool = False,
+    replace_etool: bool,
+    skip_command_line1: bool,
+    skip_command_line2: bool,
 ) -> bool:
     """If the step's Process is not inline, load and process it."""
     modified = False
@@ -703,7 +703,7 @@ def process_workflow_inputs_and_outputs(
 
 
 def process_workflow_reqs_and_hints(
-    workflow: cwl.Workflow, replace_etool: bool = False
+    workflow: cwl.Workflow, replace_etool: bool
 ) -> bool:
     """
     Convert any expressions in a workflow's reqs and hints.
@@ -1032,9 +1032,9 @@ def process_level_reqs(
     process: cwl.CommandLineTool,
     step: cwl.WorkflowStep,
     parent: cwl.Workflow,
-    replace_etool: bool = False,
-    skip_command_line1: bool = False,
-    skip_command_line2: bool = False,
+    replace_etool: bool,
+    skip_command_line1: bool,
+    skip_command_line2: bool,
 ) -> bool:
     """Convert expressions inside a process into new adjacent steps."""
     # This is for reqs inside a Process (CommandLineTool, ExpressionTool)
@@ -1304,9 +1304,9 @@ def traverse_CommandLineTool(
     clt: cwl.CommandLineTool,
     parent: cwl.Workflow,
     step: cwl.WorkflowStep,
-    replace_etool: bool = False,
-    skip_command_line1: bool = False,
-    skip_command_line2: bool = False,
+    replace_etool: bool,
+    skip_command_line1: bool,
+    skip_command_line2: bool,
 ) -> bool:
     """Extract any CWL Expressions within the given CommandLineTool into sibling steps."""
     modified = False
@@ -1595,7 +1595,7 @@ def rename_step_source(workflow: cwl.Workflow, old: str, new: str) -> None:
 
 def remove_JSReq(
     process: Union[cwl.CommandLineTool, cwl.WorkflowStep, cwl.Workflow],
-    skip_command_line1: bool = False,
+    skip_command_line1: bool,
 ) -> None:
     """Since the InlineJavascriptRequiment is longer needed, remove it."""
     if skip_command_line1 and isinstance(process, cwl.CommandLineTool):
@@ -1624,7 +1624,7 @@ def replace_step_clt_expr_with_etool(
     workflow: cwl.Workflow,
     target: cwl.WorkflowInputParameter,
     step: cwl.WorkflowStep,
-    replace_etool: bool = False,
+    replace_etool: bool,
     self_name: Optional[str] = None,
 ) -> None:
     """Convert a step level CWL Expression to a sibling expression step."""
@@ -1659,7 +1659,7 @@ def replace_clt_hintreq_expr_with_etool(
     workflow: cwl.Workflow,
     target: cwl.WorkflowInputParameter,
     step: cwl.WorkflowStep,
-    replace_etool: bool = False,
+    replace_etool: bool,
     self_name: Optional[str] = None,
 ) -> Union[cwl.CommandLineTool, cwl.ExpressionTool]:
     """Factor out an expression inside a CommandLineTool req or hint into a sibling step."""
@@ -1818,9 +1818,9 @@ def generate_etool_from_expr2(
 def traverse_step(
     step: cwl.WorkflowStep,
     parent: cwl.Workflow,
-    replace_etool: bool = False,
-    skip_command_line1: bool = False,
-    skip_command_line2: bool = False,
+    replace_etool: bool,
+    skip_command_line1: bool,
+    skip_command_line2: bool,
 ) -> bool:
     """Process the given WorkflowStep."""
     modified = False
@@ -1918,7 +1918,12 @@ def traverse_step(
                 inp.source = "{}/result".format(etool_id)
     # TODO: skip or special process for sub workflows?
     process_modified = process_level_reqs(
-        original_process, step, parent, replace_etool, skip_command_line1
+        original_process,
+        step,
+        parent,
+        replace_etool,
+        skip_command_line1,
+        skip_command_line2,
     )
     if process_modified:
         modified = True
@@ -1961,7 +1966,7 @@ def replace_step_valueFrom_expr_with_etool(
     original_process: Union[cwl.CommandLineTool, cwl.ExpressionTool],
     original_step_ins: List[cwl.WorkflowStepInput],
     source: Union[str, List[Any]],
-    replace_etool: bool = False,
+    replace_etool: bool,
     source_type: Optional[
         Union[cwl.WorkflowInputParameter, cwl.CommandInputParameter]
     ] = None,
@@ -2035,9 +2040,9 @@ def replace_step_valueFrom_expr_with_etool(
 
 def traverse_workflow(
     workflow: cwl.Workflow,
-    replace_etool: bool = False,
-    skip_command_line1: bool = False,
-    skip_command_line2: bool = False,
+    replace_etool: bool,
+    skip_command_line1: bool,
+    skip_command_line2: bool,
 ) -> Tuple[cwl.Workflow, bool]:
     """Traverse a workflow, processing each step."""
     modified = False
@@ -2054,7 +2059,7 @@ def traverse_workflow(
     for step in workflow.steps:
         if not step.id.startswith("_expression"):
             step_modified = traverse_step(
-                step, workflow, skip_command_line1, skip_command_line2
+                step, workflow, replace_etool, skip_command_line1, skip_command_line2
             )
             if step_modified:
                 modified = True

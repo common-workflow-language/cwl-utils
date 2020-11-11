@@ -19,7 +19,11 @@ def test_v1_0_workflow_top_level_format_expr() -> None:
         result, modified = traverse0(
             parser.load_document(
                 str(HERE / "../testdata/workflow_input_format_expr.cwl")
-            )
+            ),
+            False,
+            False,
+            False,
+            False,
         )
 
 
@@ -27,7 +31,11 @@ def test_v1_0_workflow_top_level_sf_expr() -> None:
     """Test for the correct error when converting a secondaryFiles expression in a workflow level input."""
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
         result, modified = traverse0(
-            parser.load_document(str(HERE / "../testdata/workflow_input_sf_expr.cwl"))
+            parser.load_document(str(HERE / "../testdata/workflow_input_sf_expr.cwl")),
+            False,
+            False,
+            False,
+            False,
         )
 
 
@@ -37,7 +45,11 @@ def test_v1_0_workflow_top_level_sf_expr_array() -> None:
         result, modified = traverse0(
             parser.load_document(
                 str(HERE / "../testdata/workflow_input_sf_expr_array.cwl")
-            )
+            ),
+            False,
+            False,
+            False,
+            False,
         )
 
 
@@ -48,7 +60,11 @@ def test_v1_1_workflow_top_level_format_expr() -> None:
         result, modified = traverse1(
             parser1.load_document(
                 str(HERE / "../testdata/workflow_input_format_expr_v1_1.cwl")
-            )
+            ),
+            False,
+            False,
+            False,
+            False,
         )
 
 
@@ -58,7 +74,11 @@ def test_v1_1_workflow_top_level_sf_expr() -> None:
         result, modified = traverse1(
             parser1.load_document(
                 str(HERE / "../testdata/workflow_input_sf_expr_v1_1.cwl")
-            )
+            ),
+            False,
+            False,
+            False,
+            False,
         )
 
 
@@ -68,7 +88,11 @@ def test_v1_1_workflow_top_level_sf_expr_array() -> None:
         result, modified = traverse1(
             parser1.load_document(
                 str(HERE / "../testdata/workflow_input_sf_expr_array_v1_1.cwl")
-            )
+            ),
+            False,
+            False,
+            False,
+            False,
         )
 
 
@@ -78,7 +102,11 @@ def test_v1_2_workflow_top_level_format_expr() -> None:
         result, modified = traverse2(
             parser2.load_document(
                 str(HERE / "../testdata/workflow_input_format_expr_v1_2.cwl")
-            )
+            ),
+            False,
+            False,
+            False,
+            False,
         )
 
 
@@ -88,7 +116,11 @@ def test_v1_2_workflow_top_level_sf_expr() -> None:
         result, modified = traverse2(
             parser2.load_document(
                 str(HERE / "../testdata/workflow_input_sf_expr_v1_2.cwl")
-            )
+            ),
+            False,
+            False,
+            False,
+            False,
         )
 
 
@@ -98,5 +130,9 @@ def test_v1_2_workflow_top_level_sf_expr_array() -> None:
         result, modified = traverse2(
             parser2.load_document(
                 str(HERE / "../testdata/workflow_input_sf_expr_array_v1_2.cwl")
-            )
+            ),
+            False,
+            False,
+            False,
+            False,
         )
