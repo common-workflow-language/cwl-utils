@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""CWL Expression refactoring tool for CWL v1.1 ."""
 import argparse
 import copy
 import hashlib
@@ -42,7 +43,7 @@ _cwltoollogger.setLevel(100)
 def parse_args(args: List[str]) -> argparse.Namespace:
     """Argument parser."""
     parser = argparse.ArgumentParser(
-        description="Tool to upgrade refactor CWL v1.1 documents so that any CWL expression "
+        description="Tool to refactor CWL v1.1 documents so that any CWL expression "
         "are separate steps as either ExpressionTools or CommandLineTools. Exit code 7 "
         "means a single CWL document was provided but it did not need modification."
     )
