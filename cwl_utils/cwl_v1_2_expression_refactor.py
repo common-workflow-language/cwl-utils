@@ -242,7 +242,7 @@ var ret = function(){"""
 process.stdout.write(JSON.stringify(ret));"""
     )
     contents = escape_expression_field(contents)
-    listing = [cwl.Dirent("expression.js", contents, writable=None)]
+    listing = [cwl.Dirent(entryname="expression.js", entry=contents, writable=None)]
     iwdr = cwl.InitialWorkDirRequirement(listing)
     containerReq = cwl.DockerRequirement(dockerPull="node:slim")
     softwareHint = cwl.SoftwareRequirement(
