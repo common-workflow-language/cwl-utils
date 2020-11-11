@@ -24,6 +24,7 @@ def test_traverse_workflow() -> None:
             image_puller.save_docker_image()
             _ = image_puller.generate_udocker_loading_command()
 
+
 @pytest.mark.skipif(TRAVIS, reason="travis cannot run singularity in docker")
 def test_traverse_workflow_singularity() -> None:
     """Test container extraction tool using Singularity."""

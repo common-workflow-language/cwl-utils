@@ -1,38 +1,138 @@
 """Test the CWL Expression refactoring tool."""
-from pathlib import Path
-
 from cwltool.errors import WorkflowException
 from pytest import raises
+from pathlib import Path
 
 import cwl_utils.parser_v1_0 as parser
-from cwl_utils.cwl_expression_refactor import traverse
+import cwl_utils.parser_v1_1 as parser1
+import cwl_utils.parser_v1_2 as parser2
+from cwl_utils.cwl_v1_0_expression_refactor import traverse as traverse0
+from cwl_utils.cwl_v1_1_expression_refactor import traverse as traverse1
+from cwl_utils.cwl_v1_2_expression_refactor import traverse as traverse2
 
 HERE = Path(__file__).resolve().parent
 
 
-def test_workflow_top_level_format_expr(tmp_path: Path) -> None:
+def test_v1_0_workflow_top_level_format_expr() -> None:
     """Test for the correct error when converting a format expression in a workflow level input."""
     with raises(WorkflowException, match=r".*format specification.*"):
-        result, modified = traverse(
+        result, modified = traverse0(
             parser.load_document(
                 str(HERE / "../testdata/workflow_input_format_expr.cwl")
-            )
+            ),
+            False,
+            False,
+            False,
+            False,
         )
 
 
-def test_workflow_top_level_sf_expr(tmp_path: Path) -> None:
+def test_v1_0_workflow_top_level_sf_expr() -> None:
     """Test for the correct error when converting a secondaryFiles expression in a workflow level input."""
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
-        result, modified = traverse(
-            parser.load_document(str(HERE / "../testdata/workflow_input_sf_expr.cwl"))
+        result, modified = traverse0(
+            parser.load_document(str(HERE / "../testdata/workflow_input_sf_expr.cwl")),
+            False,
+            False,
+            False,
+            False,
         )
 
 
-def test_workflow_top_level_sf_expr_array(tmp_path: Path) -> None:
+def test_v1_0_workflow_top_level_sf_expr_array() -> None:
     """Test for the correct error when converting a secondaryFiles expression (array form) in a workflow level input."""
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
-        result, modified = traverse(
+        result, modified = traverse0(
             parser.load_document(
                 str(HERE / "../testdata/workflow_input_sf_expr_array.cwl")
-            )
+            ),
+            False,
+            False,
+            False,
+            False,
+        )
+
+
+def test_v1_1_workflow_top_level_format_expr() -> None:
+    """Test for the correct error when converting a format expression in a workflow level input."""
+    # import ipdb; ipdb.set_trace()
+    with raises(WorkflowException, match=r".*format specification.*"):
+        result, modified = traverse1(
+            parser1.load_document(
+                str(HERE / "../testdata/workflow_input_format_expr_v1_1.cwl")
+            ),
+            False,
+            False,
+            False,
+            False,
+        )
+
+
+def test_v1_1_workflow_top_level_sf_expr() -> None:
+    """Test for the correct error when converting a secondaryFiles expression in a workflow level input."""
+    with raises(WorkflowException, match=r".*secondaryFiles.*"):
+        result, modified = traverse1(
+            parser1.load_document(
+                str(HERE / "../testdata/workflow_input_sf_expr_v1_1.cwl")
+            ),
+            False,
+            False,
+            False,
+            False,
+        )
+
+
+def test_v1_1_workflow_top_level_sf_expr_array() -> None:
+    """Test for the correct error when converting a secondaryFiles expression (array form) in a workflow level input."""
+    with raises(WorkflowException, match=r".*secondaryFiles.*"):
+        result, modified = traverse1(
+            parser1.load_document(
+                str(HERE / "../testdata/workflow_input_sf_expr_array_v1_1.cwl")
+            ),
+            False,
+            False,
+            False,
+            False,
+        )
+
+
+def test_v1_2_workflow_top_level_format_expr() -> None:
+    """Test for the correct error when converting a format expression in a workflow level input."""
+    with raises(WorkflowException, match=r".*format specification.*"):
+        result, modified = traverse2(
+            parser2.load_document(
+                str(HERE / "../testdata/workflow_input_format_expr_v1_2.cwl")
+            ),
+            False,
+            False,
+            False,
+            False,
+        )
+
+
+def test_v1_2_workflow_top_level_sf_expr() -> None:
+    """Test for the correct error when converting a secondaryFiles expression in a workflow level input."""
+    with raises(WorkflowException, match=r".*secondaryFiles.*"):
+        result, modified = traverse2(
+            parser2.load_document(
+                str(HERE / "../testdata/workflow_input_sf_expr_v1_2.cwl")
+            ),
+            False,
+            False,
+            False,
+            False,
+        )
+
+
+def test_v1_2_workflow_top_level_sf_expr_array() -> None:
+    """Test for the correct error when converting a secondaryFiles expression (array form) in a workflow level input."""
+    with raises(WorkflowException, match=r".*secondaryFiles.*"):
+        result, modified = traverse2(
+            parser2.load_document(
+                str(HERE / "../testdata/workflow_input_sf_expr_array_v1_2.cwl")
+            ),
+            False,
+            False,
+            False,
+            False,
         )

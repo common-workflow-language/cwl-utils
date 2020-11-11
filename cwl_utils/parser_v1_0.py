@@ -25,6 +25,7 @@ from urllib.request import pathname2url
 
 from ruamel import yaml
 from ruamel.yaml.comments import CommentedMap
+
 from schema_salad.exceptions import SchemaSaladException, ValidationException
 from schema_salad.fetcher import DefaultFetcher, Fetcher
 from schema_salad.sourceline import SourceLine, add_lc_filename
@@ -72,8 +73,8 @@ class LoadingOptions(object):
 
         if fetcher is None:
             import requests
-            from cachecontrol.wrapper import CacheControl
             from cachecontrol.caches import FileCache
+            from cachecontrol.wrapper import CacheControl
 
             if "HOME" in os.environ:
                 session = CacheControl(
@@ -299,6 +300,28 @@ class _EnumLoader(_Loader):
             raise ValidationException("Expected one of {}".format(self.symbols))
 
 
+class _SecondaryDSLLoader(_Loader):
+    def __init__(self, items):
+        # type: (_Loader) -> None
+        self.items = items
+
+    def load(self, doc, baseuri, loadingOptions, docRoot=None):
+        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+        if isinstance(doc, MutableSequence):
+            r = []  # type: List[Any]
+            for d in doc:
+                if isinstance(d, str):
+                    r.append(d)
+                else:
+                    raise ValidationException("Expected str or sequence of str")
+            doc = r
+        elif isinstance(doc, str):
+            pass
+        else:
+            raise ValidationException("Expected str or sequence of str")
+        return doc
+
+
 class _RecordLoader(_Loader):
     def __init__(self, classtype):
         # type: (Type[Savable]) -> None
@@ -312,6 +335,17 @@ class _RecordLoader(_Loader):
 
     def __repr__(self):  # type: () -> str
         return str(self.classtype)
+
+
+class _ExpressionLoader(_Loader):
+    def __init__(self, items: Type[str]) -> None:
+        self.items = items
+
+    def load(self, doc, baseuri, loadingOptions, docRoot=None):
+        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+        if not isinstance(doc, str):
+            raise ValidationException("Expected a str")
+        return doc
 
 
 class _UnionLoader(_Loader):
@@ -9390,7 +9424,7 @@ A workflow describes a set of **steps** and the **dependencies** between
 those steps.  When a step produces output that will be consumed by a
 second step, the first step is a dependency of the second step.
 
-When there is a dependency, the workflow engine must execute the preceeding
+When there is a dependency, the workflow engine must execute the preceding
 step and wait for it to successfully produce output before executing the
 dependent step.  If two steps are defined in the workflow graph that
 are not directly or indirectly dependent, these steps are **independent**,
@@ -10245,7 +10279,7 @@ FileLoader = _RecordLoader(File)
 DirectoryLoader = _RecordLoader(Directory)
 SchemaBaseLoader = _RecordLoader(SchemaBase)
 ParameterLoader = _RecordLoader(Parameter)
-ExpressionLoader = _EnumLoader(("ExpressionPlaceholder",))
+ExpressionLoader = _ExpressionLoader(str)
 InputBindingLoader = _RecordLoader(InputBinding)
 OutputBindingLoader = _RecordLoader(OutputBinding)
 InputSchemaLoader = _RecordLoader(InputSchema)

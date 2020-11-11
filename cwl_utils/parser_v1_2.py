@@ -25,6 +25,7 @@ from urllib.request import pathname2url
 
 from ruamel import yaml
 from ruamel.yaml.comments import CommentedMap
+
 from schema_salad.exceptions import SchemaSaladException, ValidationException
 from schema_salad.fetcher import DefaultFetcher, Fetcher
 from schema_salad.sourceline import SourceLine, add_lc_filename
@@ -72,8 +73,8 @@ class LoadingOptions(object):
 
         if fetcher is None:
             import requests
-            from cachecontrol.wrapper import CacheControl
             from cachecontrol.caches import FileCache
+            from cachecontrol.wrapper import CacheControl
 
             if "HOME" in os.environ:
                 session = CacheControl(
@@ -299,6 +300,28 @@ class _EnumLoader(_Loader):
             raise ValidationException("Expected one of {}".format(self.symbols))
 
 
+class _SecondaryDSLLoader(_Loader):
+    def __init__(self, items):
+        # type: (_Loader) -> None
+        self.items = items
+
+    def load(self, doc, baseuri, loadingOptions, docRoot=None):
+        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+        if isinstance(doc, MutableSequence):
+            r = []  # type: List[Any]
+            for d in doc:
+                if isinstance(d, str):
+                    r.append(d)
+                else:
+                    raise ValidationException("Expected str or sequence of str")
+            doc = r
+        elif isinstance(doc, str):
+            pass
+        else:
+            raise ValidationException("Expected str or sequence of str")
+        return doc
+
+
 class _RecordLoader(_Loader):
     def __init__(self, classtype):
         # type: (Type[Savable]) -> None
@@ -312,6 +335,17 @@ class _RecordLoader(_Loader):
 
     def __repr__(self):  # type: () -> str
         return str(self.classtype)
+
+
+class _ExpressionLoader(_Loader):
+    def __init__(self, items: Type[str]) -> None:
+        self.items = items
+
+    def load(self, doc, baseuri, loadingOptions, docRoot=None):
+        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+        if not isinstance(doc, str):
+            raise ValidationException("Expected a str")
+        return doc
 
 
 class _UnionLoader(_Loader):
@@ -1294,7 +1328,7 @@ the same value for `location`.
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -1918,7 +1952,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -2761,7 +2795,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -4677,7 +4711,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -5612,7 +5646,7 @@ class CommandOutputRecordField(OutputRecordField):
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -6420,7 +6454,7 @@ An input parameter for a CommandLineTool.
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -6746,7 +6780,7 @@ An output parameter for a CommandLineTool.
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -9131,7 +9165,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -9376,7 +9410,7 @@ class WorkflowInputParameter(InputParameter):
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -10033,7 +10067,7 @@ See [WorkflowStepInput](#WorkflowStepInput) for discussion of
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -11000,7 +11034,7 @@ a subworkflow (recursive workflows are not allowed).
             hints = None
         try:
             run = load_field(_doc.get(
-                'run'), uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_False_False_None, baseuri, loadingOptions)
+                'run'), union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader, baseuri, loadingOptions)
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
@@ -11137,14 +11171,11 @@ a subworkflow (recursive workflows are not allowed).
                 relative_uris=relative_uris)
 
         if self.run is not None:
-            u = save_relative_uri(
+            r['run'] = save(
                 self.run,
-                self.id,
-                False,
-                None,
-                relative_uris)
-            if u:
-                r['run'] = u
+                top=False,
+                base_url=self.id,
+                relative_uris=relative_uris)
 
         if self.when is not None:
             r['when'] = save(
@@ -11947,7 +11978,7 @@ Describe an input parameter of an operation.
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -12251,7 +12282,7 @@ Describe an output parameter of an operation.
         if 'secondaryFiles' in _doc:
             try:
                 secondaryFiles = load_field(_doc.get(
-                    'secondaryFiles'), union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
+                    'secondaryFiles'), secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader, baseuri, loadingOptions)
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
@@ -13005,7 +13036,7 @@ FieldBaseLoader = _RecordLoader(FieldBase)
 InputFormatLoader = _RecordLoader(InputFormat)
 OutputFormatLoader = _RecordLoader(OutputFormat)
 ParameterLoader = _RecordLoader(Parameter)
-ExpressionLoader = _EnumLoader(("ExpressionPlaceholder",))
+ExpressionLoader = _ExpressionLoader(str)
 InputBindingLoader = _RecordLoader(InputBinding)
 IOSchemaLoader = _RecordLoader(IOSchema)
 InputSchemaLoader = _RecordLoader(InputSchema)
@@ -13102,6 +13133,7 @@ union_of_None_type_or_inttype = _UnionLoader((None_type, inttype,))
 union_of_FileLoader_or_DirectoryLoader = _UnionLoader((FileLoader, DirectoryLoader,))
 array_of_union_of_FileLoader_or_DirectoryLoader = _ArrayLoader(union_of_FileLoader_or_DirectoryLoader)
 union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader = _UnionLoader((None_type, array_of_union_of_FileLoader_or_DirectoryLoader,))
+secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader = _SecondaryDSLLoader(union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader)
 uri_union_of_None_type_or_strtype_True_False_None = _URILoader(union_of_None_type_or_strtype, True, False, None)
 Directory_classLoader = _EnumLoader(("Directory",))
 uri_Directory_classLoader_False_True_None = _URILoader(Directory_classLoader, False, True, None)
@@ -13109,6 +13141,7 @@ union_of_None_type_or_booltype = _UnionLoader((None_type, booltype,))
 union_of_None_type_or_LoadListingEnumLoader = _UnionLoader((None_type, LoadListingEnumLoader,))
 array_of_SecondaryFileSchemaLoader = _ArrayLoader(SecondaryFileSchemaLoader)
 union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader = _UnionLoader((None_type, SecondaryFileSchemaLoader, array_of_SecondaryFileSchemaLoader,))
+secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader = _SecondaryDSLLoader(union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader)
 union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader = _UnionLoader((None_type, strtype, array_of_strtype, ExpressionLoader,))
 uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None = _URILoader(union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader, True, False, None)
 union_of_None_type_or_strtype_or_ExpressionLoader = _UnionLoader((None_type, strtype, ExpressionLoader,))
@@ -13213,7 +13246,6 @@ array_of_union_of_strtype_or_WorkflowStepOutputLoader = _ArrayLoader(union_of_st
 union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader = _UnionLoader((array_of_union_of_strtype_or_WorkflowStepOutputLoader,))
 uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None = _URILoader(union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader, True, False, None)
 union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader = _UnionLoader((strtype, CommandLineToolLoader, ExpressionToolLoader, WorkflowLoader, OperationLoader,))
-uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_False_False_None = _URILoader(union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader, False, False, None)
 union_of_None_type_or_ScatterMethodLoader = _UnionLoader((None_type, ScatterMethodLoader,))
 uri_union_of_None_type_or_ScatterMethodLoader_False_True_None = _URILoader(union_of_None_type_or_ScatterMethodLoader, False, True, None)
 array_of_WorkflowOutputParameterLoader = _ArrayLoader(WorkflowOutputParameterLoader)
