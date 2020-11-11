@@ -31,6 +31,8 @@ setup(
     scripts=[
         "cwl_utils/docker_extract.py",
         "cwl_utils/cwl_v1_0_expression_refactor.py",
+        "cwl_utils/cwl_v1_1_expression_refactor.py",
+        "cwl_utils/cwl_v1_2_expression_refactor.py",
         "cwl_utils/cite_extract.py",
         "cwl_utils/graph_split.py",
     ],
