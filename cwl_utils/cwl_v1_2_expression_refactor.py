@@ -706,8 +706,9 @@ EMPTY_FILE: CWLOutputType = {
 
 TOPLEVEL_SF_EXPR_ERROR = (
     "Input '{}'. Sorry, CWL Expressions as part of a secondaryFiles "
-    "specification in a Workflow level input are not able to be refactored "
-    "into separate ExpressionTool/CommandLineTool steps."
+    "specification in a Workflow level input or standalone CommandLine Tool "
+    "are not able to be refactored into separate ExpressionTool or "
+    "CommandLineTool steps."
 )
 
 TOPLEVEL_FORMAT_EXPR_ERROR = (
