@@ -1324,37 +1324,21 @@ def process_level_reqs(
                                 expression = get_expression(entry.entry, inputs, None)
                                 if expression:
                                     modified = True
-                                    if entry.entryname is None:
-                                        raise SourceLine(
-                                            req.listing,
-                                            listing_index,
-                                            raise_type=WorkflowException,
-                                        ).makeError(
-                                            "`entryname` is required: {}".format(entry)
+                                    if entry.entryname is not None:
+                                        entryname_expr = get_expression(
+                                            entry.entryname, inputs, None
                                         )
-                                    entryname_expr = get_expression(
-                                        entry.entryname, inputs, None
-                                    )
-                                    entryname = (
-                                        entry.entryname
-                                        if entryname_expr
-                                        else '"{}"'.format(entry.entryname)
-                                    )
-                                    d_target_type = ["File", "Directory"]
-                                    target = cwl.WorkflowInputParameter(
-                                        id=None,
-                                        type=d_target_type,
-                                    )
-                                    etool_id = "_expression_{}_InitialWorkDirRequirement_{}".format(
-                                        step_name, listing_index
-                                    )
-
-                                    new_expression = (
-                                        "${var result; var entryname = "
-                                        + entryname
-                                        + "; var entry = "
-                                        + entry.entry[2:-1]
-                                        + """;
+                                        entryname = (
+                                            entry.entryname
+                                            if entryname_expr
+                                            else '"{}"'.format(entry.entryname)
+                                        )
+                                        new_expression = (
+                                            "${var result; var entryname = "
+                                            + entryname
+                                            + "; var entry = "
+                                            + entry.entry[2:-1]
+                                            + """;
 if (typeof entry === 'string' || entry instanceof String) {
 result = {"class": "File", "basename": entryname, "contents": entry} ;
 if (typeof entryname === 'string' || entryname instanceof String) {
@@ -1364,7 +1348,18 @@ result.basename = entryname ;
 result = entry ;
 }
 return result; }"""
+                                        )
+                                    else:
+                                        new_expression = expression
+                                    d_target_type = ["File", "Directory"]
+                                    target = cwl.WorkflowInputParameter(
+                                        id=None,
+                                        type=d_target_type,
                                     )
+                                    etool_id = "_expression_{}_InitialWorkDirRequirement_{}".format(
+                                        step_name, listing_index
+                                    )
+
                                     replace_clt_hintreq_expr_with_etool(
                                         new_expression,
                                         etool_id,
