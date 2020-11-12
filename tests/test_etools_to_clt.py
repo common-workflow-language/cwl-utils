@@ -1,7 +1,15 @@
 """Test the CWL Expression refactoring tool."""
+import os
+import shutil
+import tarfile
+from pathlib import Path
+from typing import Generator
+
+import pytest
+import requests
+from _pytest.tmpdir import TempPathFactory
 from cwltool.errors import WorkflowException
 from pytest import raises
-from pathlib import Path
 
 import cwl_utils.parser_v1_0 as parser
 import cwl_utils.parser_v1_1 as parser1
@@ -136,3 +144,19 @@ def test_v1_2_workflow_top_level_sf_expr_array() -> None:
             False,
             False,
         )
+
+
+@pytest.fixture(scope="session")
+def cwl_v1_0_dir(
+    tmp_path_factory: TempPathFactory,
+) -> Generator[str, None, None]:
+    """Download the CWL 1.0.2 specs and return a path to the directory."""
+    tmp_path = tmp_path_factory.mktemp("cwl_v1_0_dir")
+    with requests.get(
+        "https://github.com/common-workflow-language/common-workflow-language/archive/v1.0.2.tar.gz",
+        stream=True,
+    ).raw as specfileobj:
+        tf = tarfile.open(fileobj=specfileobj)
+        tf.extractall(path=tmp_path)
+    yield str(tmp_path / "common-workflow-language-1.0.2")
+    shutil.rmtree(os.path.join(tmp_path))
