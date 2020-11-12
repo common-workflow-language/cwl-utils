@@ -823,7 +823,10 @@ def process_workflow_inputs_and_outputs(
                     ]
                 source_type_items = type_for_source(workflow, sources)
                 if "null" not in source_type_items:
-                    source_type_items.append("null")
+                    if isinstance(source_type_items, list):
+                        source_type_items.append("null")
+                    else:
+                        source_type_items = ["null", source_type_items]
                 source_type = cwl.CommandInputParameter(
                     type=cwl.ArraySchema(type="array", items=source_type_items)
                 )
@@ -1468,9 +1471,9 @@ def traverse_CommandLineTool(
                     replace_step_clt_expr_with_etool(
                         expression, etool_id, parent, target, step, replace_etool
                     )
-                    target_clt.arguments[index] = cwl.CommandLineBinding(valueFrom = "$(inputs.{})".format(
-                        inp_id
-                    ))
+                    target_clt.arguments[index] = cwl.CommandLineBinding(
+                        valueFrom="$(inputs.{})".format(inp_id)
+                    )
                     target_clt.inputs.append(
                         cwl.CommandInputParameter(
                             id=inp_id,
@@ -2263,9 +2266,7 @@ def replace_step_when_expr_with_etool(
     )
     step.when = "$(inputs._when)"
     step.in_.append(
-        cwl.WorkflowStepInput(
-            id="_when", source="{}/result".format(etool_id)
-        )
+        cwl.WorkflowStepInput(id="_when", source="{}/result".format(etool_id))
     )
 
 
