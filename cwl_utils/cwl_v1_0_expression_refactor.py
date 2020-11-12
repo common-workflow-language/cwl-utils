@@ -580,10 +580,8 @@ def empty_inputs(
     else:
         for param in process_or_step.in_:
             try:
-                result[param.id.split("#")[-1]] = example_input(
-                    type_for_source(
-                        process_or_step.run, param.id.split("/")[-1], parent
-                    )
+                result[param.id.split("/")[-1]] = example_input(
+                    type_for_source(process_or_step.run, param.source, parent)
                 )
             except WorkflowException:
                 pass
@@ -619,6 +617,12 @@ def example_input(some_type: Any) -> Any:
             "nameroot": "example",
             "nameext": "txt",
         }
+    if some_type == "int":
+        return 23
+    if some_type == "string":
+        return "hoopla!"
+    if some_type == "boolean":
+        return True
     return None
 
 
@@ -650,9 +654,10 @@ def param_for_source_id(
         sourcenames = [sourcenames]
     params: List[cwl.InputParameter] = []
     for sourcename in sourcenames:
-        for param in process.inputs:
-            if param.id.split("#")[-1] == sourcename.split("#")[-1]:
-                params.append(param)
+        if not isinstance(process, cwl.Workflow):
+            for param in process.inputs:
+                if param.id.split("#")[-1] == sourcename.split("#")[-1]:
+                    params.append(param)
         targets = [process]
         if parent:
             targets.append(parent)
@@ -1078,7 +1083,7 @@ def process_level_reqs(
     """Convert expressions inside a process into new adjacent steps."""
     # This is for reqs inside a Process (CommandLineTool, ExpressionTool)
     # differences from process_workflow_reqs_and_hints() are:
-    # - the name of the generated ETools/CTools contain the name of the step, not "workflow"
+    # - the name of the generated ETools/CTools contains the name of the step, not "workflow"
     # - Generated ETools/CTools are adjacent steps
     # - Replace the CWL Expression inplace with a CWL parameter reference
     # - Don't create a new Requirement, nor delete the existing Requirement
@@ -1092,7 +1097,7 @@ def process_level_reqs(
     generated_res_reqs: List[Tuple[str, str]] = []
     generated_iwdr_reqs: List[Tuple[str, Union[int, str], Any]] = []
     generated_envVar_reqs: List[Tuple[str, Union[int, str]]] = []
-    step_name = step.id.split("#", 1)[1]
+    step_name = step.id.split("#", 1)[-1]
     for req_index, req in enumerate(process.requirements):
         if req and isinstance(req, cwl.EnvVarRequirement):
             if req.envDef:
