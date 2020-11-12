@@ -582,6 +582,8 @@ def empty_inputs(
             param_id = param.id.split("/")[-1]
             if param.source is None and param.valueFrom:
                 result[param_id] = example_input("string")
+            elif param.source is None and param.default:
+                result[param_id] = param.default
             else:
                 try:
                     result[param_id] = example_input(
@@ -1655,13 +1657,29 @@ def traverse_CommandLineTool(
                     remove_JSReq(new_clt_step.run, skip_command_line1)
                     for new_outp in new_clt_step.run.outputs:
                         if new_outp.id.split("#")[-1] == outp_id:
-                            if new_outp.outputBinding:
-                                new_outp.outputBinding.outputEval = None
-                                new_outp.outputBinding.loadContents = None
-                            new_outp.type = cwl.CommandOutputArraySchema(
-                                items="File",
-                                type="array",
-                            )
+                            if isinstance(
+                                new_outp,
+                                (
+                                    cwl.WorkflowOutputParameter,
+                                    cwl.ExpressionToolOutputParameter,
+                                ),
+                            ):
+                                new_outp.type = cwl.OutputArraySchema(
+                                    items="File", type="array"
+                                )
+                            elif isinstance(new_outp, cwl.CommandOutputParameter):
+                                if new_outp.outputBinding:
+                                    new_outp.outputBinding.outputEval = None
+                                    new_outp.outputBinding.loadContents = None
+                                new_outp.type = cwl.CommandOutputArraySchema(
+                                    items="File",
+                                    type="array",
+                                )
+                            else:
+                                raise Exception(
+                                    "Unimplemented OutputParamter type: %s",
+                                    type(new_outp),
+                                )
                     new_clt_step.in_ = copy.deepcopy(step.in_)
                     for inp in new_clt_step.in_:
                         inp.id = inp.id.split("/")[-1]
