@@ -579,12 +579,16 @@ def empty_inputs(
             result[param.id.split("#")[-1]] = example_input(param.type)
     else:
         for param in process_or_step.in_:
-            try:
-                result[param.id.split("/")[-1]] = example_input(
-                    type_for_source(process_or_step.run, param.source, parent)
-                )
-            except WorkflowException:
-                pass
+            param_id = param.id.split("/")[-1]
+            if param.source is None and param.valueFrom:
+                result[param_id] = example_input("string")
+            else:
+                try:
+                    result[param_id] = example_input(
+                        type_for_source(process_or_step.run, param.source, parent)
+                    )
+                except WorkflowException:
+                    pass
     return result
 
 
