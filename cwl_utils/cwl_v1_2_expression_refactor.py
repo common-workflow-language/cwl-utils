@@ -1464,9 +1464,9 @@ def traverse_CommandLineTool(
                     replace_step_clt_expr_with_etool(
                         expression, etool_id, parent, target, step, replace_etool
                     )
-                    target_clt.arguments[index].valueFrom = "$(inputs.{})".format(
+                    target_clt.arguments[index] = cwl.CommandLineBinding(valueFrom = "$(inputs.{})".format(
                         inp_id
-                    )
+                    ))
                     target_clt.inputs.append(
                         cwl.CommandInputParameter(
                             id=inp_id,
