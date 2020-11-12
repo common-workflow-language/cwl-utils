@@ -579,12 +579,18 @@ def empty_inputs(
             result[param.id.split("#")[-1]] = example_input(param.type)
     else:
         for param in process_or_step.in_:
-            try:
-                result[param.id.split("/")[-1]] = example_input(
-                    type_for_source(process_or_step.run, param.source, parent)
-                )
-            except WorkflowException:
-                pass
+            param_id = param.id.split("/")[-1]
+            if param.source is None and param.valueFrom:
+                result[param_id] = example_input("string")
+            elif param.source is None and param.default:
+                result[param_id] = param.default
+            else:
+                try:
+                    result[param_id] = example_input(
+                        type_for_source(process_or_step.run, param.source, parent)
+                    )
+                except WorkflowException:
+                    pass
     return result
 
 
@@ -726,7 +732,9 @@ def process_workflow_inputs_and_outputs(
                     raise_type=WorkflowException,
                 ).makeError(TOPLEVEL_FORMAT_EXPR_ERROR.format(param.id.split("#")[-1]))
             if param.secondaryFiles:
-                if get_expression(param.secondaryFiles, inputs, EMPTY_FILE):
+                if hasattr(param.secondaryFiles, "pattern") and get_expression(
+                    param.secondaryFiles.pattern, inputs, EMPTY_FILE
+                ):
                     raise SourceLine(
                         param.loadingOptions.original_doc,
                         "secondaryFiles",
@@ -734,7 +742,7 @@ def process_workflow_inputs_and_outputs(
                     ).makeError(TOPLEVEL_SF_EXPR_ERROR.format(param.id.split("#")[-1]))
                 elif isinstance(param.secondaryFiles, MutableSequence):
                     for index2, entry in enumerate(param.secondaryFiles):
-                        if get_expression(entry, inputs, EMPTY_FILE):
+                        if get_expression(entry.pattern, inputs, EMPTY_FILE):
                             raise SourceLine(
                                 param.loadingOptions.original_doc,
                                 index2,
@@ -1222,37 +1230,21 @@ def process_level_reqs(
                                 expression = get_expression(entry.entry, inputs, None)
                                 if expression:
                                     modified = True
-                                    if entry.entryname is None:
-                                        raise SourceLine(
-                                            req.listing,
-                                            listing_index,
-                                            raise_type=WorkflowException,
-                                        ).makeError(
-                                            "`entryname` is required: {}".format(entry)
+                                    if entry.entryname is not None:
+                                        entryname_expr = get_expression(
+                                            entry.entryname, inputs, None
                                         )
-                                    entryname_expr = get_expression(
-                                        entry.entryname, inputs, None
-                                    )
-                                    entryname = (
-                                        entry.entryname
-                                        if entryname_expr
-                                        else '"{}"'.format(entry.entryname)
-                                    )
-                                    d_target_type = ["File", "Directory"]
-                                    target = cwl.WorkflowInputParameter(
-                                        id=None,
-                                        type=d_target_type,
-                                    )
-                                    etool_id = "_expression_{}_InitialWorkDirRequirement_{}".format(
-                                        step_name, listing_index
-                                    )
-
-                                    new_expression = (
-                                        "${var result; var entryname = "
-                                        + entryname
-                                        + "; var entry = "
-                                        + entry.entry[2:-1]
-                                        + """;
+                                        entryname = (
+                                            entry.entryname
+                                            if entryname_expr
+                                            else '"{}"'.format(entry.entryname)
+                                        )
+                                        new_expression = (
+                                            "${var result; var entryname = "
+                                            + entryname
+                                            + "; var entry = "
+                                            + entry.entry[2:-1]
+                                            + """;
 if (typeof entry === 'string' || entry instanceof String) {
 result = {"class": "File", "basename": entryname, "contents": entry} ;
 if (typeof entryname === 'string' || entryname instanceof String) {
@@ -1262,7 +1254,18 @@ result.basename = entryname ;
 result = entry ;
 }
 return result; }"""
+                                        )
+                                    else:
+                                        new_expression = expression
+                                    d_target_type = ["File", "Directory"]
+                                    target = cwl.WorkflowInputParameter(
+                                        id=None,
+                                        type=d_target_type,
                                     )
+                                    etool_id = "_expression_{}_InitialWorkDirRequirement_{}".format(
+                                        step_name, listing_index
+                                    )
+
                                     replace_clt_hintreq_expr_with_etool(
                                         new_expression,
                                         etool_id,
@@ -1371,8 +1374,8 @@ def traverse_CommandLineTool(
                     replace_step_clt_expr_with_etool(
                         expression, etool_id, parent, target, step, replace_etool
                     )
-                    target_clt.arguments[index].valueFrom = "$(inputs.{})".format(
-                        inp_id
+                    target_clt.arguments[index] = cwl.CommandLineBinding(
+                        valueFrom="$(inputs.{})".format(inp_id)
                     )
                     target_clt.inputs.append(
                         cwl.CommandInputParameter(
@@ -1555,13 +1558,29 @@ def traverse_CommandLineTool(
                     remove_JSReq(new_clt_step.run, skip_command_line1)
                     for new_outp in new_clt_step.run.outputs:
                         if new_outp.id.split("#")[-1] == outp_id:
-                            if new_outp.outputBinding:
-                                new_outp.outputBinding.outputEval = None
-                                new_outp.outputBinding.loadContents = None
-                            new_outp.type = cwl.CommandOutputArraySchema(
-                                items="File",
-                                type="array",
-                            )
+                            if isinstance(
+                                new_outp,
+                                (
+                                    cwl.WorkflowOutputParameter,
+                                    cwl.ExpressionToolOutputParameter,
+                                ),
+                            ):
+                                new_outp.type = cwl.OutputArraySchema(
+                                    items="File", type="array"
+                                )
+                            elif isinstance(new_outp, cwl.CommandOutputParameter):
+                                if new_outp.outputBinding:
+                                    new_outp.outputBinding.outputEval = None
+                                    new_outp.outputBinding.loadContents = None
+                                new_outp.type = cwl.CommandOutputArraySchema(
+                                    items="File",
+                                    type="array",
+                                )
+                            else:
+                                raise Exception(
+                                    "Unimplemented OutputParamter type: %s",
+                                    type(new_outp),
+                                )
                     new_clt_step.in_ = copy.deepcopy(step.in_)
                     for inp in new_clt_step.in_:
                         inp.id = inp.id.split("/")[-1]

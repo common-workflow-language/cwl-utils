@@ -777,7 +777,9 @@ def process_workflow_inputs_and_outputs(
                     raise_type=WorkflowException,
                 ).makeError(TOPLEVEL_FORMAT_EXPR_ERROR.format(param.id.split("#")[-1]))
             if param.secondaryFiles:
-                if get_expression(param.secondaryFiles, inputs, EMPTY_FILE):
+                if hasattr(param.secondaryFiles, "pattern") and get_expression(
+                    param.secondaryFiles.pattern, inputs, EMPTY_FILE
+                ):
                     raise SourceLine(
                         param.loadingOptions.original_doc,
                         "secondaryFiles",
@@ -785,7 +787,7 @@ def process_workflow_inputs_and_outputs(
                     ).makeError(TOPLEVEL_SF_EXPR_ERROR.format(param.id.split("#")[-1]))
                 elif isinstance(param.secondaryFiles, MutableSequence):
                     for index2, entry in enumerate(param.secondaryFiles):
-                        if get_expression(entry, inputs, EMPTY_FILE):
+                        if get_expression(entry.pattern, inputs, EMPTY_FILE):
                             raise SourceLine(
                                 param.loadingOptions.original_doc,
                                 index2,
