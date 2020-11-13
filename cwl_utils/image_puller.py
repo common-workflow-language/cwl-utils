@@ -17,12 +17,10 @@ class ImagePuller(ABC):
     @abstractmethod
     def get_image_name(self) -> str:
         """Get the engine-specific image name."""
-        pass
 
     @abstractmethod
     def save_docker_image(self) -> None:
         """Download and save the image to disk."""
-        pass
 
     @staticmethod
     def _run_command_pull(cmd_pull: List[str]) -> None:

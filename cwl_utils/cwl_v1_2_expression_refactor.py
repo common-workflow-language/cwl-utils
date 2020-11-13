@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """CWL Expression refactoring tool for CWL v1.2 ."""
-import argparse
 import copy
 import hashlib
 import logging
-import shutil
-import sys
 from collections.abc import Mapping
-from pathlib import Path
 from typing import (
     Any,
     Dict,

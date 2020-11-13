@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """CWL Expression refactoring tool for CWL."""
 import argparse
-import copy
-import hashlib
 import logging
 import shutil
 import sys
-from collections.abc import Mapping
 from pathlib import Path
 from typing import (
     Any,
@@ -15,23 +12,13 @@ from typing import (
     List,
     MutableSequence,
     Optional,
-    Sequence,
-    Text,
     Tuple,
-    Type,
     Union,
-    cast,
 )
 from typing_extensions import Protocol
 
-from cwltool.errors import WorkflowException
-from cwltool.expression import do_eval
 from cwltool.loghandler import _logger as _cwltoollogger
-from cwltool.sandboxjs import JavascriptException
-from cwltool.utils import CWLObjectType, CWLOutputType
 from ruamel import yaml
-from schema_salad.sourceline import SourceLine
-from schema_salad.utils import json_dumps
 
 from . import (
     cwl_v1_0_expression_refactor,
