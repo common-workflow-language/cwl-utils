@@ -40,84 +40,6 @@ _logger.setLevel(logging.INFO)
 _cwltoollogger.setLevel(100)
 
 
-def parse_args(args: List[str]) -> argparse.Namespace:
-    """Argument parser."""
-    parser = argparse.ArgumentParser(
-        description="Tool to refactor CWL v1.1 documents so that any CWL expression "
-        "are separate steps as either ExpressionTools or CommandLineTools. Exit code 7 "
-        "means a single CWL document was provided but it did not need modification."
-    )
-    parser.add_argument(
-        "--etools",
-        help="Output ExpressionTools, don't go all the way to CommandLineTools.",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--skip-some1",
-        help="Don't process CommandLineTool.inputs.inputBinding and CommandLineTool.arguments sections.",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--skip-some2",
-        help="Don't process CommandLineTool.outputEval or CommandLineTool.requirements.InitialWorkDirRequirement.",
-        action="store_true",
-    )
-    parser.add_argument("dir", help="Directory in which to save converted files")
-    parser.add_argument(
-        "inputs",
-        nargs="+",
-        help="One or more CWL documents.",
-    )
-    return parser.parse_args(args)
-
-
-def main(args: Optional[List[str]] = None) -> int:
-    """Collect the arguments and run."""
-    if not args:
-        args = sys.argv[1:]
-    return run(parse_args(args))
-
-
-def run(args: argparse.Namespace) -> int:
-    """Load the first command line argument, print the results to stdout."""
-    for document in args.inputs:
-        _logger.info("Processing %s.", document)
-        top = cwl.load_document(document)
-        output = Path(args.dir) / Path(document).name
-        result, modified = traverse(
-            top, not args.etools, False, args.skip_some1, args.skip_some2
-        )
-        if not modified:
-            if len(args.inputs) > 1:
-                shutil.copyfile(document, output)
-                continue
-            else:
-                return 7
-        if not isinstance(result, MutableSequence):
-            result_json = cwl.save(
-                result,
-                base_url=result.loadingOptions.fileuri
-                if result.loadingOptions.fileuri
-                else "",
-            )
-        #   ^^ Setting the base_url and keeping the default value
-        #      for relative_uris=True means that the IDs in the generated
-        #      JSON/YAML are kept clean of the path to the input document
-        else:
-            result_json = [
-                cwl.save(result_item, base_url=result_item.loadingOptions.fileuri)
-                for result_item in result
-            ]
-        yaml.scalarstring.walk_tree(result_json)
-        # ^ converts multine line strings to nice multiline YAML
-        with open(output, "w", encoding="utf-8") as output_filehandle:
-            output_filehandle.write(
-                "#!/usr/bin/env cwl-runner\n"
-            )  # TODO: teach the codegen to do this?
-            yaml.round_trip_dump(result_json, output_filehandle)
-    return 0
-
-
 def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool:
     """Rewrite the "type: stdout" shortcut to use an explicit random filename."""
     if not process.outputs:
@@ -184,7 +106,7 @@ def get_expression(
     if string.strip().startswith("${"):
         return string
     if "$(" in string:
-        runtime = {
+        runtime: CWLObjectType = {
             "cores": 0,
             "ram": 0,
             "outdir": "/root",
@@ -204,14 +126,14 @@ def get_expression(
             )
         except (WorkflowException, JavascriptException):
             return cast(
+                str,
                 interpolate(
                     scan=string,
                     rootvars={"inputs": inputs, "context": self, "runtime": runtime},
                     fullJS=True,
                     escaping_behavior=2,
                     convert_to_expression=True,
-                ),
-                str,
+                )
             )
     return None
 
@@ -2184,8 +2106,3 @@ def traverse_workflow(
     else:
         workflow.requirements = None
     return workflow, modified
-
-
-if __name__ == "__main__":
-    main()
-    sys.exit(0)

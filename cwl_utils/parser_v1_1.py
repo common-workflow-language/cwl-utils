@@ -12145,3 +12145,17 @@ def load_document_by_string(string, uri, loadingOptions=None):
     loadingOptions.idx[uri] = result
 
     return _document_load(union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader, result, uri, loadingOptions)
+
+
+def load_document_by_yaml(yaml, uri, loadingOptions=None):
+    # type: (Any, str, Optional[LoadingOptions]) -> Any
+    '''Shortcut to load via a YAML object.
+    yaml: must be from ruamel.yaml.main.round_trip_load with preserve_quotes=True
+    '''
+    add_lc_filename(yaml, uri)
+
+    if loadingOptions is None:
+        loadingOptions = LoadingOptions(fileuri=uri)
+    loadingOptions.idx[uri] = yaml
+
+    return _document_load(union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader, yaml, uri, loadingOptions)
