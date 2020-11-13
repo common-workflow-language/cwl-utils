@@ -2,7 +2,6 @@
 """CWL Expression refactoring tool for CWL v1.0 ."""
 import copy
 import hashlib
-import logging
 from collections.abc import Mapping
 from typing import (
     Any,
@@ -114,16 +113,29 @@ def get_expression(
                 resources={},
             )
         except (WorkflowException, JavascriptException):
-            return cast(
-                str,
-                interpolate(
-                    scan=string,
-                    rootvars={"inputs": inputs, "context": self, "runtime": runtime},
-                    fullJS=True,
-                    escaping_behavior=2,
-                    convert_to_expression=True,
-                ),
-            )
+            if (
+                string[0:2] != "$("
+                or not string.endswith(")")
+                or len(string.split("$(")) > 2
+            ):
+                # then it is a string interpolation
+                return cast(
+                    str,
+                    interpolate(
+                        scan=string,
+                        rootvars={
+                            "inputs": inputs,
+                            "context": self,
+                            "runtime": runtime,
+                        },
+                        fullJS=True,
+                        escaping_behavior=2,
+                        convert_to_expression=True,
+                    ),
+                )
+            else:
+                # it is a CWL Expression in $() with no string interpolation
+                return "${return " + string.strip()[2:-1] + ";}"
     return None
 
 
