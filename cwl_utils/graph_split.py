@@ -8,9 +8,7 @@ Only tested with a single v1.0 workflow.
 import argparse
 import json
 import os
-import sys
-from pathlib import Path
-from typing import IO, Any, Dict, List, MutableMapping, Set, Text, Union, cast
+from typing import Any, IO, MutableMapping, Set, Text, Union, cast
 
 from cwlformat.formatter import stringify_dict
 from ruamel import yaml

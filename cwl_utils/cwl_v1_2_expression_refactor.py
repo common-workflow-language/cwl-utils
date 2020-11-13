@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 """CWL Expression refactoring tool for CWL v1.2 ."""
-import argparse
 import copy
 import hashlib
-import logging
-import shutil
-import sys
 from collections.abc import Mapping
-from pathlib import Path
 from typing import (
     Any,
     Dict,
@@ -23,8 +18,7 @@ from typing import (
 )
 
 from cwltool.errors import WorkflowException
-from cwltool.expression import do_eval
-from cwltool.loghandler import _logger as _cwltoollogger
+from cwltool.expression import do_eval, interpolate
 from cwltool.sandboxjs import JavascriptException
 from cwltool.utils import CWLObjectType, CWLOutputType
 from ruamel import yaml
@@ -32,90 +26,6 @@ from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
 
 import cwl_utils.parser_v1_2 as cwl
-
-_logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name
-defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
-_logger.addHandler(defaultStreamHandler)
-_logger.setLevel(logging.INFO)
-_cwltoollogger.setLevel(100)
-
-
-def parse_args(args: List[str]) -> argparse.Namespace:
-    """Argument parser."""
-    parser = argparse.ArgumentParser(
-        description="Tool to refactor CWL v1.2 documents so that any CWL expression "
-        "are separate steps as either ExpressionTools or CommandLineTools. Exit code 7 "
-        "means a single CWL document was provided but it did not need modification."
-    )
-    parser.add_argument(
-        "--etools",
-        help="Output ExpressionTools, don't go all the way to CommandLineTools.",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--skip-some1",
-        help="Don't process CommandLineTool.inputs.inputBinding and CommandLineTool.arguments sections.",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--skip-some2",
-        help="Don't process CommandLineTool.outputEval or CommandLineTool.requirements.InitialWorkDirRequirement.",
-        action="store_true",
-    )
-    parser.add_argument("dir", help="Directory in which to save converted files")
-    parser.add_argument(
-        "inputs",
-        nargs="+",
-        help="One or more CWL documents.",
-    )
-    return parser.parse_args(args)
-
-
-def main(args: Optional[List[str]] = None) -> int:
-    """Collect the arguments and run."""
-    if not args:
-        args = sys.argv[1:]
-    return run(parse_args(args))
-
-
-def run(args: argparse.Namespace) -> int:
-    """Load the first command line argument, print the results to stdout."""
-    for document in args.inputs:
-        _logger.info("Processing %s.", document)
-        top = cwl.load_document(document)
-        output = Path(args.dir) / Path(document).name
-        result, modified = traverse(
-            top, not args.etools, False, args.skip_some1, args.skip_some2
-        )
-        if not modified:
-            if len(args.inputs) > 1:
-                shutil.copyfile(document, output)
-                continue
-            else:
-                return 7
-        if not isinstance(result, MutableSequence):
-            result_json = cwl.save(
-                result,
-                base_url=result.loadingOptions.fileuri
-                if result.loadingOptions.fileuri
-                else "",
-            )
-        #   ^^ Setting the base_url and keeping the default value
-        #      for relative_uris=True means that the IDs in the generated
-        #      JSON/YAML are kept clean of the path to the input document
-        else:
-            result_json = [
-                cwl.save(result_item, base_url=result_item.loadingOptions.fileuri)
-                for result_item in result
-            ]
-        yaml.scalarstring.walk_tree(result_json)
-        # ^ converts multine line strings to nice multiline YAML
-        with open(output, "w", encoding="utf-8") as output_filehandle:
-            output_filehandle.write(
-                "#!/usr/bin/env cwl-runner\n"
-            )  # TODO: teach the codegen to do this?
-            yaml.round_trip_dump(result_json, output_filehandle)
-    return 0
 
 
 def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool:
@@ -184,6 +94,14 @@ def get_expression(
     if string.strip().startswith("${"):
         return string
     if "$(" in string:
+        runtime: CWLObjectType = {
+            "cores": 0,
+            "ram": 0,
+            "outdir": "/root",
+            "tmpdir": "/tmp",
+            "outdirSize": 0,
+            "tmpdirSize": 0,
+        }
         try:
             do_eval(
                 string,
@@ -195,9 +113,29 @@ def get_expression(
                 resources={},
             )
         except (WorkflowException, JavascriptException):
-            # TODO: what if the $() expr is in the middle of the string?
-            # TODO: what if there are multple $() expressions?
-            return "${return " + string.strip()[2:-1] + ";}"
+            if (
+                string[0:2] != "$("
+                or not string.endswith(")")
+                or len(string.split("$(")) > 2
+            ):
+                # then it is a string interpolation
+                return cast(
+                    str,
+                    interpolate(
+                        scan=string,
+                        rootvars={
+                            "inputs": inputs,
+                            "context": self,
+                            "runtime": runtime,
+                        },
+                        fullJS=True,
+                        escaping_behavior=2,
+                        convert_to_expression=True,
+                    ),
+                )
+            else:
+                # it is a CWL Expression in $() with no string interpolation
+                return "${return " + string.strip()[2:-1] + ";}"
     return None
 
 
@@ -244,11 +182,10 @@ var runtime=$(runtime);"""
     contents += (
         """
 var ret = function(){"""
-        + etool.expression.strip()[2:-1]
+        + escape_expression_field(etool.expression.strip()[2:-1])
         + """}();
 process.stdout.write(JSON.stringify(ret));"""
     )
-    contents = escape_expression_field(contents)
     listing = [cwl.Dirent(entryname="expression.js", entry=contents, writable=None)]
     iwdr = cwl.InitialWorkDirRequirement(listing)
     containerReq = cwl.DockerRequirement(dockerPull="node:slim")
@@ -348,7 +285,15 @@ def traverse(
         else:
             return process, False
     if isinstance(process, cwl.ExpressionTool) and replace_etool:
-        return etool_to_cltool(process), True
+        expression = get_expression(process.expression, empty_inputs(process), None)
+        # Why call get_expression on an ExpressionTool?
+        # It normalizes the form of $() CWL expressions into the ${} style
+        if expression:
+            process2 = copy.deepcopy(process)
+            process2.expression = expression
+        else:
+            process2 = process
+        return etool_to_cltool(process2), True
     if isinstance(process, cwl.Workflow):
         return traverse_workflow(
             process, replace_etool, skip_command_line1, skip_command_line2
@@ -569,7 +514,9 @@ def replace_wf_input_ref_with_step_output(
 
 
 def empty_inputs(
-    process_or_step: Union[cwl.CommandLineTool, cwl.WorkflowStep, cwl.Workflow],
+    process_or_step: Union[
+        cwl.CommandLineTool, cwl.WorkflowStep, cwl.ExpressionTool, cwl.Workflow
+    ],
     parent: Optional[cwl.Workflow] = None,
 ) -> Dict[str, Any]:
     """Produce a mock input object for the given inputs."""
@@ -2326,8 +2273,3 @@ def traverse_workflow(
     else:
         workflow.requirements = None
     return workflow, modified
-
-
-if __name__ == "__main__":
-    main()
-    sys.exit(0)

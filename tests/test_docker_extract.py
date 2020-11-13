@@ -1,7 +1,6 @@
 from os import environ
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest import skipIf
 
 import pytest
 

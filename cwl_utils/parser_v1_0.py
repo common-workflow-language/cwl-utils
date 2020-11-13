@@ -176,10 +176,7 @@ def expand_url(
         if prefix in loadingOptions.vocab:
             url = loadingOptions.vocab[prefix] + url[len(prefix) + 1 :]
 
-    try:
-        split = urlsplit(url)
-    except AttributeError as e:
-        raise ValidationException(str(e))
+    split = urlsplit(url)
 
     if (
         (bool(split.scheme) and split.scheme in ["http", "https", "file"])
@@ -304,25 +301,53 @@ class _EnumLoader(_Loader):
 
 
 class _SecondaryDSLLoader(_Loader):
-    def __init__(self, items):
+    def __init__(self, inner):
         # type: (_Loader) -> None
-        self.items = items
+        self.inner = inner
 
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+        r: List[Dict[str, Any]] = []
         if isinstance(doc, MutableSequence):
-            r = []  # type: List[Any]
             for d in doc:
                 if isinstance(d, str):
-                    r.append(d)
+                    if d.endswith("?"):
+                        r.append({"pattern": d[:-1], "required": False})
+                    else:
+                        r.append({"pattern": d})
+                elif isinstance(d, dict):
+                    new_dict: Dict[str, Any] = {}
+                    if "pattern" in d:
+                        new_dict["pattern"] = d.pop("pattern")
+                    else:
+                        raise ValidationException(
+                            "Missing pattern in secondaryFiles specification entry: {}".format(
+                                d
+                            )
+                        )
+                    new_dict["required"] = (
+                        d.pop("required") if "required" in d else None
+                    )
+
+                    if len(d):
+                        raise ValidationException(
+                            "Unallowed values in secondaryFiles specification entry: {}".format(
+                                d
+                            )
+                        )
+
                 else:
-                    raise ValidationException("Expected str or sequence of str")
-            doc = r
+                    raise ValidationException(
+                        "Expected a string or sequence of (strings or mappings)."
+                    )
         elif isinstance(doc, str):
-            pass
+            if doc.endswith("?"):
+                r.append({"pattern": doc[:-1], "required": False})
+            else:
+                r.append({"pattern": doc})
         else:
             raise ValidationException("Expected str or sequence of str")
-        return doc
+        return self.inner.load(r, baseuri, loadingOptions, docRoot)
 
 
 class _RecordLoader(_Loader):
@@ -10498,3 +10523,17 @@ def load_document_by_string(string, uri, loadingOptions=None):
     loadingOptions.idx[uri] = result
 
     return _document_load(union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader, result, uri, loadingOptions)
+
+
+def load_document_by_yaml(yaml, uri, loadingOptions=None):
+    # type: (Any, str, Optional[LoadingOptions]) -> Any
+    '''Shortcut to load via a YAML object.
+    yaml: must be from ruamel.yaml.main.round_trip_load with preserve_quotes=True
+    '''
+    add_lc_filename(yaml, uri)
+
+    if loadingOptions is None:
+        loadingOptions = LoadingOptions(fileuri=uri)
+    loadingOptions.idx[uri] = yaml
+
+    return _document_load(union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader, yaml, uri, loadingOptions)
