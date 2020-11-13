@@ -23,7 +23,7 @@ from typing import (
 )
 
 from cwltool.errors import WorkflowException
-from cwltool.expression import do_eval
+from cwltool.expression import do_eval, interpolate
 from cwltool.loghandler import _logger as _cwltoollogger
 from cwltool.sandboxjs import JavascriptException
 from cwltool.utils import CWLObjectType, CWLOutputType
@@ -184,6 +184,14 @@ def get_expression(
     if string.strip().startswith("${"):
         return string
     if "$(" in string:
+        runtime = {
+            "cores": 0,
+            "ram": 0,
+            "outdir": "/root",
+            "tmpdir": "/tmp",
+            "outdirSize": 0,
+            "tmpdirSize": 0,
+        }
         try:
             do_eval(
                 string,
@@ -195,9 +203,16 @@ def get_expression(
                 resources={},
             )
         except (WorkflowException, JavascriptException):
-            # TODO: what if the $() expr is in the middle of the string?
-            # TODO: what if there are multple $() expressions?
-            return "${return " + string.strip()[2:-1] + ";}"
+            return cast(
+                interpolate(
+                    scan=string,
+                    rootvars={"inputs": inputs, "context": self, "runtime": runtime},
+                    fullJS=True,
+                    escaping_behavior=2,
+                    convert_to_expression=True,
+                ),
+                str,
+            )
     return None
 
 
@@ -244,11 +259,10 @@ var runtime=$(runtime);"""
     contents += (
         """
 var ret = function(){"""
-        + etool.expression.strip()[2:-1]
+        + escape_expression_field(etool.expression.strip()[2:-1])
         + """}();
 process.stdout.write(JSON.stringify(ret));"""
     )
-    contents = escape_expression_field(contents)
     listing = [cwl.Dirent(entryname="expression.js", entry=contents, writable=None)]
     iwdr = cwl.InitialWorkDirRequirement(listing)
     containerReq = cwl.DockerRequirement(dockerPull="node:slim")
@@ -348,7 +362,15 @@ def traverse(
         else:
             return process, False
     if isinstance(process, cwl.ExpressionTool) and replace_etool:
-        return etool_to_cltool(process), True
+        expression = get_expression(process.expression, empty_inputs(process), None)
+        # Why call get_expression on an ExpressionTool?
+        # It normalizes the form of $() CWL expressions into the ${} style
+        if expression:
+            process2 = copy.deepcopy(process)
+            process2.expression = expression
+        else:
+            process2 = process
+        return etool_to_cltool(process2), True
     if isinstance(process, cwl.Workflow):
         return traverse_workflow(
             process, replace_etool, skip_command_line1, skip_command_line2
@@ -569,7 +591,9 @@ def replace_wf_input_ref_with_step_output(
 
 
 def empty_inputs(
-    process_or_step: Union[cwl.CommandLineTool, cwl.WorkflowStep, cwl.Workflow],
+    process_or_step: Union[
+        cwl.CommandLineTool, cwl.WorkflowStep, cwl.ExpressionTool, cwl.Workflow
+    ],
     parent: Optional[cwl.Workflow] = None,
 ) -> Dict[str, Any]:
     """Produce a mock input object for the given inputs."""
@@ -706,8 +730,9 @@ EMPTY_FILE: CWLOutputType = {
 
 TOPLEVEL_SF_EXPR_ERROR = (
     "Input '{}'. Sorry, CWL Expressions as part of a secondaryFiles "
-    "specification in a Workflow level input are not able to be refactored "
-    "into separate ExpressionTool/CommandLineTool steps."
+    "specification in a Workflow level input or standalone CommandLine Tool "
+    "are not able to be refactored into separate ExpressionTool or "
+    "CommandLineTool steps."
 )
 
 TOPLEVEL_FORMAT_EXPR_ERROR = (
