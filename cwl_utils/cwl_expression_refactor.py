@@ -5,22 +5,19 @@ import logging
 import shutil
 import sys
 from pathlib import Path
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    List,
-    MutableSequence,
-    Optional,
-    Tuple,
-    Union,
-)
-from typing_extensions import Protocol
+from typing import Any, Callable, Dict, List, MutableSequence, Optional, Tuple, Union
 
 from cwltool.loghandler import _logger as _cwltoollogger
 from ruamel import yaml
+from typing_extensions import Protocol
 
-from . import (
+_logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name
+defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
+_logger.addHandler(defaultStreamHandler)
+_logger.setLevel(logging.INFO)
+_cwltoollogger.setLevel(100)
+
+from cwl_utils import (
     cwl_v1_0_expression_refactor,
     cwl_v1_1_expression_refactor,
     cwl_v1_2_expression_refactor,
@@ -28,12 +25,6 @@ from . import (
     parser_v1_1,
     parser_v1_2,
 )
-
-_logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name
-defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
-_logger.addHandler(defaultStreamHandler)
-_logger.setLevel(logging.INFO)
-_cwltoollogger.setLevel(100)
 
 save_type = Union[Dict[str, str], List[Union[Dict[str, str], List[Any], None]], None]
 
@@ -97,18 +88,19 @@ def run(args: argparse.Namespace) -> int:
         with open(document, "r") as doc_handle:
             result = yaml.main.round_trip_load(doc_handle, preserve_quotes=True)
         version = result["cwlVersion"]
+        uri = Path(document).as_uri()
         if version == "v1.0":
-            top = parser_v1_0.load_document_by_yaml(result, document)
+            top = parser_v1_0.load_document_by_yaml(result, uri)
             traverse: Callable[
                 [Any, bool, bool, bool, bool], Tuple[Any, bool]
             ] = cwl_v1_0_expression_refactor.traverse
             save: saveCWL = parser_v1_0.save
         elif version == "v1.1":
-            top = parser_v1_1.load_document_by_yaml(result, document)
+            top = parser_v1_1.load_document_by_yaml(result, uri)
             traverse = cwl_v1_1_expression_refactor.traverse
             save = parser_v1_1.save
         elif version == "v1.2":
-            top = parser_v1_2.load_document_by_yaml(result, document)
+            top = parser_v1_2.load_document_by_yaml(result, uri)
             traverse = cwl_v1_2_expression_refactor.traverse
             save = parser_v1_2.save
         else:

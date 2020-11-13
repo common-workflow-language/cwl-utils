@@ -20,7 +20,6 @@ from typing import (
 
 from cwltool.errors import WorkflowException
 from cwltool.expression import do_eval, interpolate
-from cwltool.loghandler import _logger as _cwltoollogger
 from cwltool.sandboxjs import JavascriptException
 from cwltool.utils import CWLObjectType, CWLOutputType
 from ruamel import yaml
@@ -28,12 +27,6 @@ from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
 
 import cwl_utils.parser_v1_0 as cwl
-
-_logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name
-defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
-_logger.addHandler(defaultStreamHandler)
-_logger.setLevel(logging.INFO)
-_cwltoollogger.setLevel(100)
 
 
 def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool:
@@ -129,7 +122,7 @@ def get_expression(
                     fullJS=True,
                     escaping_behavior=2,
                     convert_to_expression=True,
-                )
+                ),
             )
     return None
 
