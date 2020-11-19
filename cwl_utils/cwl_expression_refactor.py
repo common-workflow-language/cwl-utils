@@ -88,7 +88,7 @@ def run(args: argparse.Namespace) -> int:
         with open(document, "r") as doc_handle:
             result = yaml.main.round_trip_load(doc_handle, preserve_quotes=True)
         version = result["cwlVersion"]
-        uri = Path(document).as_uri()
+        uri = Path(document).resolve().as_uri()
         if version == "v1.0":
             top = parser_v1_0.load_document_by_yaml(result, uri)
             traverse: Callable[
