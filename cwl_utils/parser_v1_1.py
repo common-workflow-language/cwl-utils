@@ -34,7 +34,7 @@ _vocab = {}  # type: Dict[str, str]
 _rvocab = {}  # type: Dict[str, str]
 
 
-class Savable(object):
+class Savable:
     @classmethod
     def fromDoc(cls, _doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Savable
@@ -45,7 +45,7 @@ class Savable(object):
         pass
 
 
-class LoadingOptions(object):
+class LoadingOptions:
     def __init__(
         self,
         fetcher=None,  # type: Optional[Fetcher]
@@ -219,12 +219,12 @@ def expand_url(
             if url in loadingOptions.rvocab:
                 return loadingOptions.rvocab[url]
         else:
-            raise ValidationException("Term '{}' not in vocabulary".format(url))
+            raise ValidationException(f"Term '{url}' not in vocabulary")
 
     return url
 
 
-class _Loader(object):
+class _Loader:
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
         pass
@@ -284,7 +284,7 @@ class _ArrayLoader(_Loader):
         return r
 
     def __repr__(self):  # type: () -> str
-        return "array<{}>".format(self.items)
+        return f"array<{self.items}>"
 
 
 class _EnumLoader(_Loader):
@@ -297,7 +297,7 @@ class _EnumLoader(_Loader):
         if doc in self.symbols:
             return doc
         else:
-            raise ValidationException("Expected one of {}".format(self.symbols))
+            raise ValidationException(f"Expected one of {self.symbols}")
 
 
 class _SecondaryDSLLoader(_Loader):
@@ -389,9 +389,7 @@ class _UnionLoader(_Loader):
                 return t.load(doc, baseuri, loadingOptions, docRoot=docRoot)
             except ValidationException as e:
                 errors.append(
-                    ValidationException(
-                        "tried {} but".format(t.__class__.__name__), None, [e]
-                    )
+                    ValidationException(f"tried {t.__class__.__name__} but", None, [e])
                 )
         raise ValidationException("", None, errors, "-")
 
@@ -410,17 +408,22 @@ class _URILoader(_Loader):
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
         if isinstance(doc, MutableSequence):
-            doc = [
-                expand_url(
-                    i,
-                    baseuri,
-                    loadingOptions,
-                    self.scoped_id,
-                    self.vocab_term,
-                    self.scoped_ref,
+            doc = []
+            for i in doc:
+                if not isinstance(i, str):
+                    raise ValidationException(
+                        f"Expected a list of strings, but item was {type(i)}"
+                    )
+                doc.append(
+                    expand_url(
+                        i,
+                        baseuri,
+                        loadingOptions,
+                        self.scoped_id,
+                        self.vocab_term,
+                        self.scoped_ref,
+                    )
                 )
-                for i in doc
-            ]
         if isinstance(doc, str):
             doc = expand_url(
                 doc,
@@ -591,9 +594,9 @@ def file_uri(path, split_frag=False):  # type: (str, bool) -> str
         urlpath = pathname2url(path)
         frag = ""
     if urlpath.startswith("//"):
-        return "file:{}{}".format(urlpath, frag)
+        return f"file:{urlpath}{frag}"
     else:
-        return "file://{}{}".format(urlpath, frag)
+        return f"file://{urlpath}{frag}"
 
 
 def prefix_url(url, namespaces):  # type: (str, Dict[str, str]) -> str
@@ -738,7 +741,7 @@ A field of a record.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `doc`, `name`, `type`" % (k),
+                            "invalid field `{}`, expected one of: `doc`, `name`, `type`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -857,7 +860,7 @@ class RecordSchema(Savable):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `fields`, `type`" % (k),
+                            "invalid field `{}`, expected one of: `fields`, `type`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -967,7 +970,7 @@ Define an enumerated type.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `symbols`, `type`" % (k),
+                            "invalid field `{}`, expected one of: `symbols`, `type`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -1076,7 +1079,7 @@ class ArraySchema(Savable):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `items`, `type`" % (k),
+                            "invalid field `{}`, expected one of: `items`, `type`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -1409,7 +1412,7 @@ the same value for `location`.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `location`, `path`, `basename`, `dirname`, `nameroot`, `nameext`, `checksum`, `size`, `secondaryFiles`, `format`, `contents`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `location`, `path`, `basename`, `dirname`, `nameroot`, `nameext`, `checksum`, `size`, `secondaryFiles`, `format`, `contents`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -1678,7 +1681,7 @@ or in any entry in `secondaryFiles` in the listing) is a fatal error.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `location`, `path`, `basename`, `listing`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `location`, `path`, `basename`, `listing`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -1828,7 +1831,7 @@ class InputBinding(Savable):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `loadContents`" % (k),
+                            "invalid field `{}`, expected one of: `loadContents`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -2061,7 +2064,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`, `loadContents`, `loadListing`" % (k),
+                            "invalid field `{}`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`, `loadContents`, `loadListing`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -2280,7 +2283,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `doc`, `name`" % (k),
+                            "invalid field `{}`, expected one of: `fields`, `type`, `label`, `doc`, `name`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -2465,7 +2468,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `doc`, `name`" % (k),
+                            "invalid field `{}`, expected one of: `symbols`, `type`, `label`, `doc`, `name`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -2653,7 +2656,7 @@ class InputArraySchema(ArraySchema, InputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `doc`, `name`" % (k),
+                            "invalid field `{}`, expected one of: `items`, `type`, `label`, `doc`, `name`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -2876,7 +2879,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`" % (k),
+                            "invalid field `{}`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -3081,7 +3084,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `doc`, `name`" % (k),
+                            "invalid field `{}`, expected one of: `fields`, `type`, `label`, `doc`, `name`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -3266,7 +3269,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `doc`, `name`" % (k),
+                            "invalid field `{}`, expected one of: `symbols`, `type`, `label`, `doc`, `name`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -3454,7 +3457,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `doc`, `name`" % (k),
+                            "invalid field `{}`, expected one of: `items`, `type`, `label`, `doc`, `name`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -3620,7 +3623,7 @@ interpolatation.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `expressionLib`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `expressionLib`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -3727,7 +3730,7 @@ to earlier schema definitions.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `types`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `types`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -3831,7 +3834,7 @@ class SecondaryFileSchema(Savable):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `pattern`, `required`" % (k),
+                            "invalid field `{}`, expected one of: `pattern`, `required`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -3937,7 +3940,7 @@ a Directory object for use by expressions.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `loadListing`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `loadListing`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -4044,7 +4047,7 @@ result of executing an expression, such as getting a parameter from input.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `envName`, `envValue`" % (k),
+                            "invalid field `{}`, expected one of: `envName`, `envValue`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -4274,7 +4277,7 @@ effective value.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `loadContents`, `position`, `prefix`, `separate`, `itemSeparator`, `valueFrom`, `shellQuote`" % (k),
+                            "invalid field `{}`, expected one of: `loadContents`, `position`, `prefix`, `separate`, `itemSeparator`, `valueFrom`, `shellQuote`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -4466,7 +4469,7 @@ following order:
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `loadContents`, `loadListing`, `glob`, `outputEval`" % (k),
+                            "invalid field `{}`, expected one of: `loadContents`, `loadListing`, `glob`, `outputEval`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -4576,7 +4579,7 @@ class CommandLineBindable(Savable):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `inputBinding`" % (k),
+                            "invalid field `{}`, expected one of: `inputBinding`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -4813,7 +4816,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`, `loadContents`, `loadListing`, `inputBinding`" % (k),
+                            "invalid field `{}`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`, `loadContents`, `loadListing`, `inputBinding`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -5055,7 +5058,7 @@ class CommandInputRecordSchema(InputRecordSchema, CommandInputSchema, CommandLin
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `doc`, `name`, `inputBinding`" % (k),
+                            "invalid field `{}`, expected one of: `fields`, `type`, `label`, `doc`, `name`, `inputBinding`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -5263,7 +5266,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `doc`, `name`, `inputBinding`" % (k),
+                            "invalid field `{}`, expected one of: `symbols`, `type`, `label`, `doc`, `name`, `inputBinding`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -5474,7 +5477,7 @@ class CommandInputArraySchema(InputArraySchema, CommandInputSchema, CommandLineB
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `doc`, `name`, `inputBinding`" % (k),
+                            "invalid field `{}`, expected one of: `items`, `type`, `label`, `doc`, `name`, `inputBinding`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -5720,7 +5723,7 @@ class CommandOutputRecordField(OutputRecordField):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`, `outputBinding`" % (k),
+                            "invalid field `{}`, expected one of: `doc`, `name`, `type`, `label`, `secondaryFiles`, `streamable`, `format`, `outputBinding`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -5932,7 +5935,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `fields`, `type`, `label`, `doc`, `name`" % (k),
+                            "invalid field `{}`, expected one of: `fields`, `type`, `label`, `doc`, `name`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -6117,7 +6120,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `symbols`, `type`, `label`, `doc`, `name`" % (k),
+                            "invalid field `{}`, expected one of: `symbols`, `type`, `label`, `doc`, `name`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -6305,7 +6308,7 @@ class CommandOutputArraySchema(OutputArraySchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `items`, `type`, `label`, `doc`, `name`" % (k),
+                            "invalid field `{}`, expected one of: `items`, `type`, `label`, `doc`, `name`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -6595,7 +6598,7 @@ An input parameter for a CommandLineTool.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `loadContents`, `loadListing`, `default`, `type`, `inputBinding`" % (k),
+                            "invalid field `{}`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `loadContents`, `loadListing`, `default`, `type`, `inputBinding`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -6879,7 +6882,7 @@ An output parameter for a CommandLineTool.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `type`, `outputBinding`" % (k),
+                            "invalid field `{}`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `type`, `outputBinding`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -7273,7 +7276,7 @@ This defines the schema of the CWL Command Line Tool Description document.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`, `label`, `doc`, `inputs`, `outputs`, `requirements`, `hints`, `cwlVersion`, `class`, `baseCommand`, `arguments`, `stdin`, `stderr`, `stdout`, `successCodes`, `temporaryFailCodes`, `permanentFailCodes`" % (k),
+                            "invalid field `{}`, expected one of: `id`, `label`, `doc`, `inputs`, `outputs`, `requirements`, `hints`, `cwlVersion`, `class`, `baseCommand`, `arguments`, `stdin`, `stderr`, `stdout`, `successCodes`, `temporaryFailCodes`, `permanentFailCodes`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -7614,7 +7617,7 @@ environment as defined by Docker.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `dockerPull`, `dockerLoad`, `dockerFile`, `dockerImport`, `dockerImageId`, `dockerOutputDirectory`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `dockerPull`, `dockerLoad`, `dockerFile`, `dockerImport`, `dockerImageId`, `dockerOutputDirectory`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -7747,7 +7750,7 @@ the defined process.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `packages`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `packages`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -7867,7 +7870,7 @@ class SoftwarePackage(Savable):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `package`, `version`, `specs`" % (k),
+                            "invalid field `{}`, expected one of: `package`, `version`, `specs`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -8009,7 +8012,7 @@ template.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `entryname`, `entry`, `writable`" % (k),
+                            "invalid field `{}`, expected one of: `entryname`, `entry`, `writable`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -8117,7 +8120,7 @@ Define a list of files and subdirectories that must be created by the workflow p
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `listing`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `listing`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -8215,7 +8218,7 @@ execution environment of the tool.  See `EnvironmentDef` for details.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `envDef`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `envDef`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -8305,7 +8308,7 @@ the use of shell metacharacters such as `|` for pipes.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`" % (k),
+                            "invalid field `{}`, expected one of: `class`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -8529,7 +8532,7 @@ If neither "min" nor "max" is specified for a resource, use the default values b
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `coresMin`, `coresMax`, `ramMin`, `ramMax`, `tmpdirMin`, `tmpdirMax`, `outdirMin`, `outdirMax`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `coresMin`, `coresMax`, `ramMin`, `ramMax`, `tmpdirMin`, `tmpdirMax`, `outdirMin`, `outdirMax`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -8683,7 +8686,7 @@ is enabled by default.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `enableReuse`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `enableReuse`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -8794,7 +8797,7 @@ address or the ability to accept inbound connections.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `networkAccess`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `networkAccess`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -8920,7 +8923,7 @@ not be enabled.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `inplaceUpdate`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `inplaceUpdate`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -9023,7 +9026,7 @@ wall-time for the execution of the command line itself.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`, `timelimit`" % (k),
+                            "invalid field `{}`, expected one of: `class`, `timelimit`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -9214,7 +9217,7 @@ class ExpressionToolOutputParameter(OutputParameter):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `type`" % (k),
+                            "invalid field `{}`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `type`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -9515,7 +9518,7 @@ class WorkflowInputParameter(InputParameter):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `loadContents`, `loadListing`, `default`, `type`, `inputBinding`" % (k),
+                            "invalid field `{}`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `loadContents`, `loadListing`, `default`, `type`, `inputBinding`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -9821,7 +9824,7 @@ or allowed.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`, `label`, `doc`, `inputs`, `outputs`, `requirements`, `hints`, `cwlVersion`, `class`, `expression`" % (k),
+                            "invalid field `{}`, expected one of: `id`, `label`, `doc`, `inputs`, `outputs`, `requirements`, `hints`, `cwlVersion`, `class`, `expression`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -10113,7 +10116,7 @@ connect a WorkflowInputParameter to a WorkflowOutputParameter.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `outputSource`, `linkMerge`, `type`" % (k),
+                            "invalid field `{}`, expected one of: `label`, `secondaryFiles`, `streamable`, `doc`, `id`, `format`, `outputSource`, `linkMerge`, `type`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -10436,7 +10439,7 @@ specified, the default method is "merge_nested".
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`, `source`, `linkMerge`, `loadContents`, `loadListing`, `label`, `default`, `valueFrom`" % (k),
+                            "invalid field `{}`, expected one of: `id`, `source`, `linkMerge`, `loadContents`, `loadListing`, `label`, `default`, `valueFrom`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -10598,7 +10601,7 @@ to connect the output value to downstream parameters.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`" % (k),
+                            "invalid field `{}`, expected one of: `id`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -10890,7 +10893,7 @@ a subworkflow (recursive workflows are not allowed).
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`, `label`, `doc`, `in`, `out`, `requirements`, `hints`, `run`, `scatter`, `scatterMethod`" % (k),
+                            "invalid field `{}`, expected one of: `id`, `label`, `doc`, `in`, `out`, `requirements`, `hints`, `run`, `scatter`, `scatterMethod`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -11233,7 +11236,7 @@ workflow semantics.
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `id`, `label`, `doc`, `inputs`, `outputs`, `requirements`, `hints`, `cwlVersion`, `class`, `steps`" % (k),
+                            "invalid field `{}`, expected one of: `id`, `label`, `doc`, `inputs`, `outputs`, `requirements`, `hints`, `cwlVersion`, `class`, `steps`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -11380,7 +11383,7 @@ the `run` field of [WorkflowStep](#WorkflowStep).
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`" % (k),
+                            "invalid field `{}`, expected one of: `class`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -11458,7 +11461,7 @@ Indicates that the workflow platform must support the `scatter` and
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`" % (k),
+                            "invalid field `{}`, expected one of: `class`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -11536,7 +11539,7 @@ listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`" % (k),
+                            "invalid field `{}`, expected one of: `class`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
@@ -11614,7 +11617,7 @@ of [WorkflowStepInput](#WorkflowStepInput).
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `%s`, expected one of: `class`" % (k),
+                            "invalid field `{}`, expected one of: `class`".format(k),
                             SourceLine(_doc, k, str)
                         )
                     )
