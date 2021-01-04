@@ -130,6 +130,35 @@ def rewrite(document: Any, doc_id: str) -> Set[str]:
                         )
 
                     document[key][:] = [rewrite_id(entry) for entry in value]
+                elif key == "in":
+
+                    def rewrite_step_input(
+                        entry: MutableMapping[Any, Any]
+                    ) -> MutableMapping[Any, Any]:
+                        if "id" in entry:
+                            if entry["id"].startswith(this_id):
+                                entry["id"] = cast(str, entry["id"])[len(this_id) + 1 :]
+                        if "source" in entry:
+                            if isinstance(entry["source"], Text):
+                                if entry["source"].startswith("#" + doc_id):
+                                    entry["source"] = entry["source"][len(doc_id) + 2 :]
+                            elif isinstance(entry["source"], list):
+                                new_sources = list()
+                                for source in entry["source"]:
+                                    if source.startswith("#" + doc_id):
+                                        new_sources.append(source[len(doc_id) + 2 :])
+                                    else:
+                                        new_sources.append(source)
+                                entry["source"] = new_sources
+                        return entry
+
+                    if isinstance(value, list):
+                        document[key][:] = [
+                            rewrite_step_input(entry) for entry in value
+                        ]
+                    elif isinstance(value, MutableMapping):
+                        for in_key in value:
+                            value[in_key] = rewrite_step_input(value[in_key])
                 elif key in ("source", "scatter", "items", "format"):
                     if (
                         isinstance(value, Text)
