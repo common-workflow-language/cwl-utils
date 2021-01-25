@@ -638,8 +638,8 @@ def param_for_source_id(
     raise WorkflowException(
         "param {} not found in {}\n or\n {}.".format(
             sourcename,
-            yaml.round_trip_dump(cwl.save(process)),
-            yaml.round_trip_dump(cwl.save(parent)),
+            yaml.main.round_trip_dump(cwl.save(process)),
+            yaml.main.round_trip_dump(cwl.save(parent)),
         )
     )
 

@@ -199,7 +199,7 @@ def rewrite_schemadef(document: MutableMapping[str, Any]) -> Set[str]:
                 field["name"] = field["name"].split("/")[2]
                 rewrite_types(field, entry_file, True)
             with open(entry_file[1:], "a", encoding="utf-8") as entry_handle:
-                yaml.dump([entry], entry_handle, Dumper=yaml.RoundTripDumper)
+                yaml.main.dump([entry], entry_handle, Dumper=yaml.dumper.RoundTripDumper)
             entry["$import"] = entry_file[1:]
             del entry["name"]
             del entry["type"]
