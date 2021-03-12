@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+"""Classes for docker-extract."""
 import logging
 import os
 import subprocess
