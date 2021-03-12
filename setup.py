@@ -24,6 +24,7 @@ setup(
         "typing_extensions",
         "cwltool >= 3.0.20201113183607",
         "cwlformat",
+        "cwl-upgrader"
     ],
     setup_requires=[] + pytest_runner,
     tests_require=["pytest<7", "cwltool"],
@@ -33,6 +34,7 @@ setup(
         "cwl_utils/cwl_expression_refactor.py",
         "cwl_utils/cite_extract.py",
         "cwl_utils/graph_split.py",
+        "cwl_utils/cwl_normalizer.py",
     ],
     long_description=open("./README.md").read(),
     long_description_content_type="text/markdown",

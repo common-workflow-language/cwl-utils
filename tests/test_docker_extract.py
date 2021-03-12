@@ -1,7 +1,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-
 import cwl_utils.parser_v1_0 as parser
 from cwl_utils.docker_extract import traverse
 from cwl_utils.image_puller import DockerImagePuller, SingularityImagePuller
