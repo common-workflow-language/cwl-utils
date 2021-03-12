@@ -3,28 +3,35 @@
 set -e
 set -x
 
+export LC_ALL=C
+
 package=cwl-utils
 module=cwl_utils
-slug=${TRAVIS_PULL_REQUEST_SLUG:=common-workflow-language/cwl-utils}
-repo=https://github.com/${slug}.git
+
+if [ "$GITHUB_ACTIONS" = "true" ]; then
+    # We are running as a GH Action
+    repo=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git
+    HEAD=${GITHUB_REF}
+else
+    repo=https://github.com/common-workflow-language/cwl-utils.git
+    HEAD=$(git rev-parse HEAD)
+fi
 run_tests="bin/py.test --pyargs ${module}"
-pipver=18 # minimum required version of pip
-setupver=40.3 # minimum required version of setuptools
+pipver=20.3b1 # minimum required version of pip for Python 3.9
+setuptoolsver=41.1.0 # required for Python 3.9
 PYVER=${PYVER:=3}
 
 rm -Rf "testenv${PYVER}_"? || /bin/true
 
-export HEAD=${TRAVIS_PULL_REQUEST_SHA:-$(git rev-parse HEAD)}
-
 if [ "${RELEASE_SKIP}" != "head" ]
 then
-	virtualenv "testenv${PYVER}_1" -p "python${PYVER}"
+	"python${PYVER}" -m venv "testenv${PYVER}_1"
 	# First we test the head
 	# shellcheck source=/dev/null
 	source "testenv${PYVER}_1/bin/activate"
 	rm -f "testenv${PYVER}_1/lib/python-wheels/setuptools"*
 	pip install --force-reinstall -U pip==${pipver}
-	pip install setuptools==${setupver} wheel
+	pip install setuptools==${setuptoolsver} wheel
 	pip install pytest\<7 pytest-xdist -rrequirements.txt
 	make test
 	pip uninstall -y ${package} || true; pip uninstall -y ${package} \
@@ -39,10 +46,10 @@ then
 fi
 
 
-virtualenv "testenv${PYVER}_2" -p "python${PYVER}"
-virtualenv "testenv${PYVER}_3" -p "python${PYVER}"
-virtualenv "testenv${PYVER}_4" -p "python${PYVER}"
-virtualenv "testenv${PYVER}_5" -p "python${PYVER}"
+"python${PYVER}" -m venv "testenv${PYVER}_2"
+"python${PYVER}" -m venv "testenv${PYVER}_3"
+"python${PYVER}" -m venv "testenv${PYVER}_4"
+"python${PYVER}" -m venv "testenv${PYVER}_5"
 
 
 # Secondly we test via pip
@@ -50,9 +57,9 @@ virtualenv "testenv${PYVER}_5" -p "python${PYVER}"
 pushd "testenv${PYVER}_2"
 # shellcheck source=/dev/null
 source bin/activate
-rm lib/python-wheels/setuptools* \
+rm -f lib/python-wheels/setuptools* \
 	&& pip install --force-reinstall -U pip==${pipver} \
-        && pip install setuptools==${setupver} wheel
+        && pip install setuptools==${setuptoolsver} wheel
 # The following can fail if you haven't pushed your commits to ${repo}
 pip install -e "git+${repo}@${HEAD}#egg=${package}"
 pushd src/${package}
@@ -73,9 +80,9 @@ popd
 pushd "testenv${PYVER}_3/"
 # shellcheck source=/dev/null
 source bin/activate
-rm lib/python-wheels/setuptools* \
+rm -f lib/python-wheels/setuptools* \
 	&& pip install --force-reinstall -U pip==${pipver} \
-        && pip install setuptools==${setupver} wheel
+        && pip install setuptools==${setuptoolsver} wheel
 pip install ${package}*tar.gz
 pip install pytest\<7 pytest-xdist
 mkdir out
@@ -96,9 +103,9 @@ popd
 pushd "testenv${PYVER}_4/"
 # shellcheck source=/dev/null
 source bin/activate
-rm lib/python-wheels/setuptools* \
+rm -f lib/python-wheels/setuptools* \
 	&& pip install --force-reinstall -U pip==${pipver} \
-        && pip install setuptools==${setupver} wheel
+        && pip install setuptools==${setuptoolsver} wheel
 pip install ${module}*.whl
 pip install pytest\<7 pytest-xdist
 mkdir not-${module}

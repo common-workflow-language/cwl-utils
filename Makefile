@@ -69,6 +69,10 @@ dist: dist/${MODULE}-$(VERSION).tar.gz
 dist/${MODULE}-$(VERSION).tar.gz: $(SOURCES)
 	./setup.py sdist bdist_wheel
 
+## docs	       : make the docs
+docs: FORCE
+	cd docs && $(MAKE) html
+
 ## clean       : clean up all temporary / machine-generated files
 clean: FORCE
 	rm -f ${MODILE}/*.pyc tests/*.pyc
@@ -161,12 +165,7 @@ mypy: $(filter-out setup.py,${PYSOURCES})
 		ln -s $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
 			typeshed/ruamel/ ; \
 	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
-	MYPYPATH=$$MYPYPATH:typeshed/ mypy --disallow-untyped-calls \
-		 --warn-redundant-casts \
-		 $^
-
-mypyc: ${PYSOURCES}
-	MYPYPATH=typeshed/ CWLTOOL_USE_MYPYC=1 pip install --verbose -e . && pytest --basetemp ./tmp
+	MYPYPATH=$$MYPYPATH:typeshed mypy $^
 
 release-test: FORCE
 	git diff-index --quiet HEAD -- || ( echo You have uncommited changes, please commit them and try again; false )
