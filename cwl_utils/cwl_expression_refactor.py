@@ -139,7 +139,7 @@ def run(args: argparse.Namespace) -> int:
             output_filehandle.write(
                 "#!/usr/bin/env cwl-runner\n"
             )  # TODO: teach the codegen to do this?
-            yaml.round_trip_dump(result_json, output_filehandle)
+            yaml.main.round_trip_dump(result_json, output_filehandle)
     return 0
 
 
