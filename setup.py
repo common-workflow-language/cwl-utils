@@ -24,7 +24,7 @@ setup(
         "typing_extensions",
         "cwltool >= 3.0.20201113183607",
         "cwlformat",
-        "cwl-upgrader"
+        "cwl-upgrader",
     ],
     setup_requires=[] + pytest_runner,
     tests_require=["pytest<7", "cwltool"],

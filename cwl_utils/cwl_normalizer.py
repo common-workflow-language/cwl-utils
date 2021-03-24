@@ -122,31 +122,34 @@ def run(args: argparse.Namespace) -> int:
                     save(result_item, base_url=result_item.loadingOptions.fileuri)
                     for result_item in refactored
                 ]
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            path = Path(tmpdirname) / Path(document).name
-            with open(path, "w") as handle:
-                yaml.main.round_trip_dump(result, handle)
-            # TODO replace the cwltool based packing with a parser_v1_2 based packer
-            runtimeContext = RuntimeContext()
-            loadingContext = LoadingContext()
-            use_standard_schema("v1.2")
-            # loadingContext.construct_tool_object = workflow.default_make_tool
-            # loadingContext.resolver = tool_resolver
-            loadingContext.do_update = False
-            uri, tool_file_uri = resolve_tool_uri(
-                str(path),
-                resolver=loadingContext.resolver,
-                fetcher_constructor=loadingContext.fetcher_constructor,
-            )
-            loadingContext, workflowobj, uri = fetch_document(uri, loadingContext)
-            loadingContext, uri = resolve_and_validate_document(
-                loadingContext,
-                workflowobj,
-                uri,
-                preprocess_only=True,
-                skip_schemas=True,
-            )
-            packed = print_pack(loadingContext, uri)
+        if "$graph" in result:
+            packed = result
+        else:
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                path = Path(tmpdirname) / Path(document).name
+                with open(path, "w") as handle:
+                    yaml.main.round_trip_dump(result, handle)
+                # TODO replace the cwltool based packing with a parser_v1_2 based packer
+                runtimeContext = RuntimeContext()
+                loadingContext = LoadingContext()
+                use_standard_schema("v1.2")
+                # loadingContext.construct_tool_object = workflow.default_make_tool
+                # loadingContext.resolver = tool_resolver
+                loadingContext.do_update = False
+                uri, tool_file_uri = resolve_tool_uri(
+                    str(path),
+                    resolver=loadingContext.resolver,
+                    fetcher_constructor=loadingContext.fetcher_constructor,
+                )
+                loadingContext, workflowobj, uri = fetch_document(uri, loadingContext)
+                loadingContext, uri = resolve_and_validate_document(
+                    loadingContext,
+                    workflowobj,
+                    uri,
+                    preprocess_only=True,
+                    skip_schemas=True,
+                )
+                packed = print_pack(loadingContext, uri)
         output = Path(args.dir) / Path(document).name
         with open(output, "w", encoding="utf-8") as output_filehandle:
             output_filehandle.write(packed)
