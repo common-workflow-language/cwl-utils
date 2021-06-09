@@ -48,7 +48,7 @@ install-dep: install-dependencies
 
 install-dependencies:
 	pip install --upgrade $(DEVPKGS)
-	pip install -r requirements.txt
+	pip install -r requirements.txt -r mypy_requirements.txt
 
 ## install-deb-dep: install most of the dev dependencies via apt-get
 install-deb-dep:
