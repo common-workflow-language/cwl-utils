@@ -48,7 +48,7 @@ install-dep: install-dependencies
 
 install-dependencies:
 	pip install --upgrade $(DEVPKGS)
-	pip install -r requirements.txt
+	pip install -r requirements.txt -r mypy_requirements.txt
 
 ## install-deb-dep: install most of the dev dependencies via apt-get
 install-deb-dep:
@@ -139,12 +139,12 @@ diff-cover.html: coverage.xml
 	diff-cover $^ --html-report $@
 
 ## test        : run the ${MODULE} test suite
-test: FORCE
-	python setup.py test # --addopts "-n auto --dist=loadfile"
+test: dev
+	pytest # --addopts "-n auto --dist=loadfile"
 
 ## testcov     : run the ${MODULE} test suite and collect coverage
 testcov: $(pysources)
-	python setup.py test --addopts "--cov ${MODULE}" # -n auto --dist=loadfile"
+	pytest --cov ${MODULE} # -n auto --dist=loadfile"
 
 sloccount.sc: ${PYSOURCES} Makefile
 	sloccount --duplicates --wide --details $^ > $@
