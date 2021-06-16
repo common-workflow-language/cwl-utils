@@ -139,12 +139,12 @@ diff-cover.html: coverage.xml
 	diff-cover $^ --html-report $@
 
 ## test        : run the ${MODULE} test suite
-test: FORCE
-	python setup.py test # --addopts "-n auto --dist=loadfile"
+test: dev
+	pytest # --addopts "-n auto --dist=loadfile"
 
 ## testcov     : run the ${MODULE} test suite and collect coverage
 testcov: $(pysources)
-	python setup.py test --addopts "--cov ${MODULE}" # -n auto --dist=loadfile"
+	pytest --cov ${MODULE} # -n auto --dist=loadfile"
 
 sloccount.sc: ${PYSOURCES} Makefile
 	sloccount --duplicates --wide --details $^ > $@
