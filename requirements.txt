@@ -1,4 +1,4 @@
 requests
-schema-salad >= 7, < 8
+schema-salad >= 7, < 9
 typing_extensions
 cwltool
