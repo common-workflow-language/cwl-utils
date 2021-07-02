@@ -107,7 +107,7 @@ def run(args: argparse.Namespace) -> int:
                 args.skip_some1,
                 args.skip_some2,
             )
-            if not isinstance(result, MutableSequence):
+            if not isinstance(refactored, MutableSequence):
                 result = save(
                     refactored,
                     base_url=refactored.loadingOptions.fileuri
