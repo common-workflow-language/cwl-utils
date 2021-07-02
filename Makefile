@@ -48,7 +48,7 @@ install-dep: install-dependencies
 
 install-dependencies:
 	pip install --upgrade $(DEVPKGS)
-	pip install -r requirements.txt
+	pip install -r requirements.txt -r mypy_requirements.txt
 
 ## install-deb-dep: install most of the dev dependencies via apt-get
 install-deb-dep:
@@ -67,12 +67,16 @@ dev: install-dep
 dist: dist/${MODULE}-$(VERSION).tar.gz
 
 dist/${MODULE}-$(VERSION).tar.gz: $(SOURCES)
-	./setup.py sdist bdist_wheel
+	python setup.py sdist bdist_wheel
+
+## docs	       : make the docs
+docs: FORCE
+	cd docs && $(MAKE) html
 
 ## clean       : clean up all temporary / machine-generated files
 clean: FORCE
 	rm -f ${MODILE}/*.pyc tests/*.pyc
-	./setup.py clean --all || true
+	python setup.py clean --all || true
 	rm -Rf .coverage
 	rm -f diff-cover.html
 
@@ -135,12 +139,12 @@ diff-cover.html: coverage.xml
 	diff-cover $^ --html-report $@
 
 ## test        : run the ${MODULE} test suite
-test: FORCE
-	python setup.py test # --addopts "-n auto --dist=loadfile"
+test: dev
+	pytest # --addopts "-n auto --dist=loadfile"
 
 ## testcov     : run the ${MODULE} test suite and collect coverage
 testcov: $(pysources)
-	python setup.py test --addopts "--cov ${MODULE}" # -n auto --dist=loadfile"
+	pytest --cov ${MODULE} # -n auto --dist=loadfile"
 
 sloccount.sc: ${PYSOURCES} Makefile
 	sloccount --duplicates --wide --details $^ > $@
@@ -161,12 +165,7 @@ mypy: $(filter-out setup.py,${PYSOURCES})
 		ln -s $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
 			typeshed/ruamel/ ; \
 	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
-	MYPYPATH=$$MYPYPATH:typeshed/ mypy --disallow-untyped-calls \
-		 --warn-redundant-casts \
-		 $^
-
-mypyc: ${PYSOURCES}
-	MYPYPATH=typeshed/ CWLTOOL_USE_MYPYC=1 pip install --verbose -e . && pytest --basetemp ./tmp
+	MYPYPATH=$$MYPYPATH:typeshed mypy $^
 
 release-test: FORCE
 	git diff-index --quiet HEAD -- || ( echo You have uncommited changes, please commit them and try again; false )
@@ -174,7 +173,7 @@ release-test: FORCE
 
 release: release-test
 	. testenv2/bin/activate && \
-		testenv2/src/${MODULE}/setup.py sdist bdist_wheel && \
+		python testenv2/src/${MODULE}/setup.py sdist bdist_wheel && \
 		pip install twine && \
 		twine upload testenv2/src/${MODULE}/dist/* && \
 		git tag ${VERSION} && git push --tags

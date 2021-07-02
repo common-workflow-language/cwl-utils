@@ -1,5 +1,5 @@
-ruamel.yaml<=0.16.5,>=0.12.4
 requests
-schema-salad >= 7, < 8
+schema-salad >= 7, < 9
 typing_extensions
 cwltool
+cwl-upgrader >= 1.2

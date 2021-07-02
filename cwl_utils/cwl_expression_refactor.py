@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2018-2021 Michael R. Crusoe
 """CWL Expression refactoring tool for CWL."""
 import argparse
 import logging
@@ -139,7 +141,7 @@ def run(args: argparse.Namespace) -> int:
             output_filehandle.write(
                 "#!/usr/bin/env cwl-runner\n"
             )  # TODO: teach the codegen to do this?
-            yaml.round_trip_dump(result_json, output_filehandle)
+            yaml.main.round_trip_dump(result_json, output_filehandle)
     return 0
 
 

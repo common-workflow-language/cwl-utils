@@ -6,5 +6,6 @@ include *requirements.txt
 include testdata/*.cwl
 include testdata/*.yaml
 include testdata/*.input
+include cwl_utils/py.typed
 global-exclude *~
 global-exclude *.pyc

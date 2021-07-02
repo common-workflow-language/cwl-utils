@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 import sys
 from typing import Iterator, Union, cast
 
@@ -41,7 +42,7 @@ def extract_software_reqs(
 
 
 def process_software_requirement(req: cwl.SoftwareRequirement) -> None:
-    """Pretty print the sofware package information."""
+    """Pretty print the software package information."""
     for package in req.packages:
         print(
             "Package: {}, version: {}, specs: {}".format(
