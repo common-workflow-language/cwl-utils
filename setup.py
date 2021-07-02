@@ -19,7 +19,7 @@ setup(
     python_requires=">=3.6",
     install_requires=[
         "requests",
-        "schema-salad >= 7, < 8",
+        "schema-salad >= 7, < 9",
         "typing_extensions",
         "cwltool >= 3.0.20201113183607",
         "cwlformat",

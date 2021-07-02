@@ -1,2 +1,2 @@
-mypy==0.901
+mypy==0.910
 types-requests
