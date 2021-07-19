@@ -1,100 +1,112 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2021 Michael R. Crusoe
 import argparse
+import logging
 import os
 import sys
 from pathlib import Path
-from typing import Iterator, Union, cast
+from typing import Any, Callable, Iterator, Union
 
-import cwl_utils.parser_v1_0 as cwl
+from ruamel import yaml
+
+from cwl_utils import (
+    cwl_v1_0_container_extract,
+    cwl_v1_1_container_extract,
+    cwl_v1_2_container_extract,
+    parser_v1_0,
+    parser_v1_1,
+    parser_v1_2,
+)
 from cwl_utils.image_puller import (
     DockerImagePuller,
     ImagePuller,
     SingularityImagePuller,
 )
 
-ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
+_logger = logging.getLogger("cwl-container-extractor")  # pylint: disable=invalid-name
+defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
+_logger.addHandler(defaultStreamHandler)
+_logger.setLevel(logging.INFO)
 
 
 def parse_args() -> argparse.Namespace:
     """Argument parser."""
     parser = argparse.ArgumentParser(
-        description="Tool to save docker images from a cwl workflow."
+        description="Tool to save all the software container "
+        "images referenced from one or more CWL workflows/tools. The images can "
+        "be saved in either Docker or Singularity format."
     )
-    parser.add_argument("dir", help="Directory in which to save images")
-    parser.add_argument("input", help="Input CWL workflow")
+    parser.add_argument("dir", help="Directory in which to save container images")
+    parser.add_argument(
+        "inputs",
+        nargs="+",
+        help="One or more CWL documents "
+        "(Workflows or CommandLineTools) to search for software container "
+        "references ('DockerRequirement's)",
+    )
     parser.add_argument(
         "-s",
         "--singularity",
         help="Use singularity to pull the image",
         action="store_true",
     )
+    parser.add_argument(
+        "--force-pull",
+        help="Pull the image from the registry, "
+        "even if we have a local copy. (Not applicable for Singularity mode)",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        help="Don't overwrite existing image files.",
+        action="store_true",
+    )
     return parser.parse_args()
 
 
-def main(args: argparse.Namespace) -> None:
+def main(args: argparse.Namespace) -> int:
     """Extract the docker reqs and download them using Singularity or docker."""
     os.makedirs(args.dir, exist_ok=True)
-
-    top = cwl.load_document(args.input)
+    for document in args.inputs:
+        _logger.info("Processing %s.", document)
+        with open(document, "r") as doc_handle:
+            result = yaml.main.round_trip_load(doc_handle, preserve_quotes=True)
+        version = result["cwlVersion"]
+        uri = Path(document).resolve().as_uri()
+        if version == "v1.0":
+            top = parser_v1_0.load_document_by_yaml(result, uri)
+            traverse: Callable[
+                [Any],
+                Iterator[
+                    Union[
+                        parser_v1_0.DockerRequirement,
+                        parser_v1_1.DockerRequirement,
+                        parser_v1_2.DockerRequirement,
+                    ]
+                ],
+            ] = cwl_v1_0_container_extract.traverse
+        elif version == "v1.1":
+            top = parser_v1_1.load_document_by_yaml(result, uri)
+            traverse = cwl_v1_1_container_extract.traverse
+        elif version == "v1.2":
+            top = parser_v1_2.load_document_by_yaml(result, uri)
+            traverse = cwl_v1_2_container_extract.traverse
+        else:
+            _logger.error(
+                "Sorry, %s is not a supported CWL version by this tool.", version
+            )
+            return -1
 
     for req in traverse(top):
         if args.singularity:
-            image_puller: ImagePuller = SingularityImagePuller(req.dockerPull, args.dir)
+            image_puller: ImagePuller = SingularityImagePuller(req.dockerPull, Path(args.dir))
         else:
-            image_puller = DockerImagePuller(req.dockerPull, args.dir)
-        image_puller.save_docker_image()
+            image_puller = DockerImagePuller(req.dockerPull, Path(args.dir))
+        image_puller.save_docker_image(args.skip_existing, args.force_pull)
 
-
-def extract_docker_requirements(
-    process: ProcessType,
-) -> Iterator[cwl.DockerRequirement]:
-    """Yield an iterator of the docker reqs, normalizint the pull request."""
-    for req in extract_docker_reqs(process):
-        if isinstance(req.dockerPull, str) and ":" not in req.dockerPull:
-            req.dockerPull += ":latest"
-        yield req
-
-
-def extract_docker_reqs(process: ProcessType) -> Iterator[cwl.DockerRequirement]:
-    """For the given process, extract the DockerRequirement(s)."""
-    if process.requirements:
-        for req in process.requirements:
-            if isinstance(req, cwl.DockerRequirement):
-                yield req
-    if process.hints:
-        for req in process.hints:
-            if req["class"] == "DockerRequirement":
-                yield cwl.load_field(
-                    req,
-                    cwl.DockerRequirementLoader,
-                    Path.cwd().as_uri(),
-                    process.loadingOptions,
-                )
-
-
-def traverse(process: ProcessType) -> Iterator[cwl.DockerRequirement]:
-    """Yield the iterator for the docker reqs, including an workflow steps."""
-    yield from extract_docker_requirements(process)
-    if isinstance(process, cwl.Workflow):
-        yield from traverse_workflow(process)
-
-
-def get_process_from_step(step: cwl.WorkflowStep) -> ProcessType:
-    """Return the process for this step, loading it if necessary."""
-    if isinstance(step.run, str):
-        return cast(ProcessType, cwl.load_document(step.run))
-    return cast(ProcessType, step.run)
-
-
-def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.DockerRequirement]:
-    """Iterate over the steps of this workflow, yielding the docker reqs."""
-    for step in workflow.steps:
-        for req in extract_docker_reqs(step):
-            yield req
-        yield from traverse(get_process_from_step(step))
+    return 0
 
 
 if __name__ == "__main__":
-    main(parse_args())
-    sys.exit(0)
+    sys.exit(main(parse_args()))

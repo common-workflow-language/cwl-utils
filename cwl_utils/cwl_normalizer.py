@@ -7,12 +7,7 @@ import logging
 import sys
 import tempfile
 from pathlib import Path
-from typing import (
-    List,
-    MutableSequence,
-    Optional,
-    Set,
-)
+from typing import List, MutableSequence, Optional, Set
 
 from cwltool.context import LoadingContext, RuntimeContext
 from cwltool.load_tool import (
