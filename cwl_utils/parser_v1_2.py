@@ -704,12 +704,14 @@ A field of a record.
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 raise ValidationException("Missing name")
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         if 'doc' in _doc:
             try:
                 doc = load_field(_doc.get(
@@ -1943,12 +1945,14 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 raise ValidationException("Missing name")
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         if 'doc' in _doc:
             try:
                 doc = load_field(_doc.get(
@@ -2218,12 +2222,14 @@ class InputRecordSchema(RecordSchema, InputSchema):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         if 'fields' in _doc:
             try:
                 fields = load_field(_doc.get(
@@ -2406,12 +2412,14 @@ class InputEnumSchema(EnumSchema, InputSchema):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         try:
             symbols = load_field(_doc.get(
                 'symbols'), uri_array_of_strtype_True_False_None, baseuri, loadingOptions)
@@ -2594,12 +2602,14 @@ class InputArraySchema(ArraySchema, InputSchema):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         try:
             items = load_field(_doc.get(
                 'items'), uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2, baseuri, loadingOptions)
@@ -2786,12 +2796,14 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 raise ValidationException("Missing name")
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         if 'doc' in _doc:
             try:
                 doc = load_field(_doc.get(
@@ -3019,12 +3031,14 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         if 'fields' in _doc:
             try:
                 fields = load_field(_doc.get(
@@ -3207,12 +3221,14 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         try:
             symbols = load_field(_doc.get(
                 'symbols'), uri_array_of_strtype_True_False_None, baseuri, loadingOptions)
@@ -3395,12 +3411,14 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         try:
             items = load_field(_doc.get(
                 'items'), uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2, baseuri, loadingOptions)
@@ -4702,12 +4720,14 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 raise ValidationException("Missing name")
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         if 'doc' in _doc:
             try:
                 doc = load_field(_doc.get(
@@ -5000,12 +5020,14 @@ class CommandInputRecordSchema(InputRecordSchema, CommandInputSchema, CommandLin
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         if 'fields' in _doc:
             try:
                 fields = load_field(_doc.get(
@@ -5211,12 +5233,14 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         try:
             symbols = load_field(_doc.get(
                 'symbols'), uri_array_of_strtype_True_False_None, baseuri, loadingOptions)
@@ -5422,12 +5446,14 @@ class CommandInputArraySchema(InputArraySchema, CommandInputSchema, CommandLineB
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         try:
             items = load_field(_doc.get(
                 'items'), uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2, baseuri, loadingOptions)
@@ -5637,12 +5663,14 @@ class CommandOutputRecordField(OutputRecordField):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 raise ValidationException("Missing name")
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         if 'doc' in _doc:
             try:
                 doc = load_field(_doc.get(
@@ -5891,12 +5919,14 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         if 'fields' in _doc:
             try:
                 fields = load_field(_doc.get(
@@ -6079,12 +6109,14 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         try:
             symbols = load_field(_doc.get(
                 'symbols'), uri_array_of_strtype_True_False_None, baseuri, loadingOptions)
@@ -6267,12 +6299,14 @@ class CommandOutputArraySchema(OutputArraySchema):
         else:
             name = None
 
+        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        baseuri = name
+        if not __original_name_is_none:
+            baseuri = name
         try:
             items = load_field(_doc.get(
                 'items'), uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2, baseuri, loadingOptions)
@@ -6470,12 +6504,14 @@ An input parameter for a CommandLineTool.
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -6796,12 +6832,14 @@ An output parameter for a CommandLineTool.
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -7083,12 +7121,14 @@ This defines the schema of the CWL Command Line Tool Description document.
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -9181,12 +9221,14 @@ class ExpressionToolOutputParameter(OutputParameter):
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -9426,12 +9468,14 @@ class WorkflowInputParameter(InputParameter):
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -9768,12 +9812,14 @@ or allowed.
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -10083,12 +10129,14 @@ See [WorkflowStepInput](#WorkflowStepInput) for discussion of
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -10505,12 +10553,14 @@ will be after `pickValue` is applied, just as they do currently for `linkMerge`.
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'source' in _doc:
             try:
                 source = load_field(_doc.get(
@@ -10786,12 +10836,14 @@ to connect the output value to downstream parameters.
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
 
         extension_fields = CommentedMap()
         for k in _doc.keys():
@@ -10987,12 +11039,14 @@ a subworkflow (recursive workflows are not allowed).
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -11373,12 +11427,14 @@ workflow semantics.
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -11994,12 +12050,14 @@ Describe an input parameter of an operation.
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -12298,12 +12356,14 @@ Describe an output parameter of an operation.
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
@@ -12554,12 +12614,14 @@ CommandLineTool, or ExpressionTool) with a compatible signature.
         else:
             id = None
 
+        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        baseuri = id
+        if not __original_id_is_none:
+            baseuri = id
         if 'label' in _doc:
             try:
                 label = load_field(_doc.get(
