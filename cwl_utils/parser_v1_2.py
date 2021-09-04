@@ -1055,7 +1055,7 @@ class ArraySchema(Savable):
         _errors__ = []
         try:
             items = load_field(_doc.get(
-                'items'), uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_False_True_2, baseuri, loadingOptions)
+                'items'), typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_2, baseuri, loadingOptions)
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
@@ -1106,14 +1106,11 @@ class ArraySchema(Savable):
             r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
 
         if self.items is not None:
-            u = save_relative_uri(
+            r['items'] = save(
                 self.items,
-                base_url,
-                False,
-                2,
-                relative_uris)
-            if u:
-                r['items'] = u
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris)
 
         if self.type is not None:
             r['type'] = save(
@@ -2612,7 +2609,7 @@ class InputArraySchema(ArraySchema, InputSchema):
             baseuri = name
         try:
             items = load_field(_doc.get(
-                'items'), uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2, baseuri, loadingOptions)
+                'items'), typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2, baseuri, loadingOptions)
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
@@ -2701,14 +2698,11 @@ class InputArraySchema(ArraySchema, InputSchema):
                 r['name'] = u
 
         if self.items is not None:
-            u = save_relative_uri(
+            r['items'] = save(
                 self.items,
-                self.name,
-                False,
-                2,
-                relative_uris)
-            if u:
-                r['items'] = u
+                top=False,
+                base_url=self.name,
+                relative_uris=relative_uris)
 
         if self.type is not None:
             r['type'] = save(
@@ -3421,7 +3415,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
             baseuri = name
         try:
             items = load_field(_doc.get(
-                'items'), uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2, baseuri, loadingOptions)
+                'items'), typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2, baseuri, loadingOptions)
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
@@ -3510,14 +3504,11 @@ class OutputArraySchema(ArraySchema, OutputSchema):
                 r['name'] = u
 
         if self.items is not None:
-            u = save_relative_uri(
+            r['items'] = save(
                 self.items,
-                self.name,
-                False,
-                2,
-                relative_uris)
-            if u:
-                r['items'] = u
+                top=False,
+                base_url=self.name,
+                relative_uris=relative_uris)
 
         if self.type is not None:
             r['type'] = save(
@@ -5456,7 +5447,7 @@ class CommandInputArraySchema(InputArraySchema, CommandInputSchema, CommandLineB
             baseuri = name
         try:
             items = load_field(_doc.get(
-                'items'), uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2, baseuri, loadingOptions)
+                'items'), typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2, baseuri, loadingOptions)
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
@@ -5559,14 +5550,11 @@ class CommandInputArraySchema(InputArraySchema, CommandInputSchema, CommandLineB
                 r['name'] = u
 
         if self.items is not None:
-            u = save_relative_uri(
+            r['items'] = save(
                 self.items,
-                self.name,
-                False,
-                2,
-                relative_uris)
-            if u:
-                r['items'] = u
+                top=False,
+                base_url=self.name,
+                relative_uris=relative_uris)
 
         if self.type is not None:
             r['type'] = save(
@@ -6309,7 +6297,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             baseuri = name
         try:
             items = load_field(_doc.get(
-                'items'), uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2, baseuri, loadingOptions)
+                'items'), typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2, baseuri, loadingOptions)
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
@@ -6398,14 +6386,11 @@ class CommandOutputArraySchema(OutputArraySchema):
                 r['name'] = u
 
         if self.items is not None:
-            u = save_relative_uri(
+            r['items'] = save(
                 self.items,
-                self.name,
-                False,
-                2,
-                relative_uris)
-            if u:
-                r['items'] = u
+                top=False,
+                base_url=self.name,
+                relative_uris=relative_uris)
 
         if self.type is not None:
             r['type'] = save(
@@ -13223,7 +13208,6 @@ typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2 = _TypeDSLLoader(e
 uri_array_of_strtype_True_False_None = _URILoader(array_of_strtype, True, False, None)
 enum_d961d79c225752b9fadb617367615ab176b47d77Loader = _EnumLoader(("enum",))
 typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2 = _TypeDSLLoader(enum_d961d79c225752b9fadb617367615ab176b47d77Loader, 2)
-uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_False_True_2 = _URILoader(union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype, False, True, 2)
 enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader = _EnumLoader(("array",))
 typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2 = _TypeDSLLoader(enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader, 2)
 File_classLoader = _EnumLoader(("File",))
@@ -13254,7 +13238,6 @@ typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoad
 array_of_InputRecordFieldLoader = _ArrayLoader(InputRecordFieldLoader)
 union_of_None_type_or_array_of_InputRecordFieldLoader = _UnionLoader((None_type, array_of_InputRecordFieldLoader,))
 idmap_fields_union_of_None_type_or_array_of_InputRecordFieldLoader = _IdMapLoader(union_of_None_type_or_array_of_InputRecordFieldLoader, 'name', 'type')
-uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2 = _URILoader(union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype, False, True, 2)
 union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype = _UnionLoader((CWLTypeLoader, OutputRecordSchemaLoader, OutputEnumSchemaLoader, OutputArraySchemaLoader, strtype,))
 array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype = _ArrayLoader(union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype)
 union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype = _UnionLoader((CWLTypeLoader, OutputRecordSchemaLoader, OutputEnumSchemaLoader, OutputArraySchemaLoader, strtype, array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,))
@@ -13262,7 +13245,6 @@ typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLo
 array_of_OutputRecordFieldLoader = _ArrayLoader(OutputRecordFieldLoader)
 union_of_None_type_or_array_of_OutputRecordFieldLoader = _UnionLoader((None_type, array_of_OutputRecordFieldLoader,))
 idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader = _IdMapLoader(union_of_None_type_or_array_of_OutputRecordFieldLoader, 'name', 'type')
-uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2 = _URILoader(union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype, False, True, 2)
 union_of_None_type_or_Any_type = _UnionLoader((None_type, Any_type,))
 union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader = _UnionLoader((CommandInputParameterLoader, WorkflowInputParameterLoader, OperationInputParameterLoader,))
 array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader = _ArrayLoader(union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader)
@@ -13297,7 +13279,6 @@ typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInput
 array_of_CommandInputRecordFieldLoader = _ArrayLoader(CommandInputRecordFieldLoader)
 union_of_None_type_or_array_of_CommandInputRecordFieldLoader = _UnionLoader((None_type, array_of_CommandInputRecordFieldLoader,))
 idmap_fields_union_of_None_type_or_array_of_CommandInputRecordFieldLoader = _IdMapLoader(union_of_None_type_or_array_of_CommandInputRecordFieldLoader, 'name', 'type')
-uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2 = _URILoader(union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype, False, True, 2)
 union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader((CWLTypeLoader, CommandOutputRecordSchemaLoader, CommandOutputEnumSchemaLoader, CommandOutputArraySchemaLoader, strtype,))
 array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _ArrayLoader(union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype)
 union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader((CWLTypeLoader, CommandOutputRecordSchemaLoader, CommandOutputEnumSchemaLoader, CommandOutputArraySchemaLoader, strtype, array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,))
@@ -13306,7 +13287,6 @@ union_of_None_type_or_CommandOutputBindingLoader = _UnionLoader((None_type, Comm
 array_of_CommandOutputRecordFieldLoader = _ArrayLoader(CommandOutputRecordFieldLoader)
 union_of_None_type_or_array_of_CommandOutputRecordFieldLoader = _UnionLoader((None_type, array_of_CommandOutputRecordFieldLoader,))
 idmap_fields_union_of_None_type_or_array_of_CommandOutputRecordFieldLoader = _IdMapLoader(union_of_None_type_or_array_of_CommandOutputRecordFieldLoader, 'name', 'type')
-uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2 = _URILoader(union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype, False, True, 2)
 union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _UnionLoader((CWLTypeLoader, stdinLoader, CommandInputRecordSchemaLoader, CommandInputEnumSchemaLoader, CommandInputArraySchemaLoader, strtype, array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,))
 typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype, 2)
 union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader((CWLTypeLoader, stdoutLoader, stderrLoader, CommandOutputRecordSchemaLoader, CommandOutputEnumSchemaLoader, CommandOutputArraySchemaLoader, strtype, array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,))
