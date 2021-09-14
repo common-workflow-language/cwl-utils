@@ -76,7 +76,7 @@ elif yaml_obj['cwlVersion'] == 'v1.1':
 elif yaml_obj['cwlVersion'] == 'v1.2':
     from cwl_utils import parser_v1_2 as parser
 else:
-    print("Version error. Did not recognise {} as a CWL version".format(yaml_obj["CWLVersion"]))
+    print("Version error. Did not recognise {} as a CWL version".format(yaml_obj["cwlVersion"]))
     sys.exit(1)
 
 # Import CWL Object
