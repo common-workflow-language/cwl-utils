@@ -15,6 +15,7 @@ def test_traverse_workflow() -> None:
 
     with TemporaryDirectory() as tmpdir:
         for req in set(traverse(loaded)):
+            assert req.dockerPull
             image_puller = DockerImagePuller(req.dockerPull, tmpdir)
             image_puller.save_docker_image()
             _ = image_puller.generate_udocker_loading_command()
@@ -26,5 +27,6 @@ def test_traverse_workflow_singularity() -> None:
 
     with TemporaryDirectory() as tmpdir:
         for req in set(traverse(loaded)):
+            assert req.dockerPull
             image_puller = SingularityImagePuller(req.dockerPull, tmpdir)
             image_puller.save_docker_image()

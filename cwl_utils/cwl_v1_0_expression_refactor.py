@@ -76,7 +76,8 @@ def clean_type_ids(
                 for field in result.items.fields:
                     field.name = field.name.split("/")[-1]
     elif isinstance(result, cwl.InputRecordSchema):
-        result.name = result.name.split("/")[-1]
+        if result.name:
+            result.name = result.name.split("/")[-1]
         if result.fields:
             for field in result.fields:
                 field.name = field.name.split("/")[-1]
@@ -346,9 +347,11 @@ def generate_etool_from_expr(
             new_type: Union[
                 List[Union[cwl.ArraySchema, cwl.InputRecordSchema]],
                 Union[cwl.ArraySchema, cwl.InputRecordSchema],
-            ] = [clean_type_ids(t.type) for t in self_type]
-        else:
+            ] = [clean_type_ids(t.type) for t in self_type if t.type]
+        elif self_type.type:
             new_type = clean_type_ids(self_type.type)
+        else:
+            raise WorkflowException(f"Don't know how to make type from '{self_type}'.")
         inputs.append(
             cwl.InputParameter(
                 id="self",
@@ -413,7 +416,7 @@ def get_input_for_id(
     name = name.split("/")[-1]
 
     for inp in cast(List[cwl.CommandInputParameter], tool.inputs):
-        if inp.id.split("#")[-1].split("/")[-1] == name:
+        if inp.id and inp.id.split("#")[-1].split("/")[-1] == name:
             return inp
     if isinstance(tool, cwl.Workflow) and "/" in name:
         stepname, stem = name.split("/", 1)
@@ -1053,6 +1056,8 @@ def process_level_reqs(
     generated_res_reqs: List[Tuple[str, str]] = []
     generated_iwdr_reqs: List[Tuple[str, Union[int, str], Any]] = []
     generated_envVar_reqs: List[Tuple[str, Union[int, str]]] = []
+    if not step.id:
+        return False
     step_name = step.id.split("#", 1)[-1]
     for req_index, req in enumerate(process.requirements):
         if req and isinstance(req, cwl.EnvVarRequirement):
@@ -1308,6 +1313,8 @@ def traverse_CommandLineTool(
     # don't modifiy clt, modify step.run
     target_clt = step.run
     inputs = empty_inputs(clt)
+    if not step.id:
+        return False
     step_id = step.id.split("#")[-1]
     if clt.arguments and not skip_command_line1:
         for index, arg in enumerate(clt.arguments):
@@ -1500,7 +1507,7 @@ def traverse_CommandLineTool(
                     new_clt_step = copy.copy(
                         step
                     )  # a deepcopy would be convienant, but params2.cwl gives it problems
-                    new_clt_step.id = new_clt_step.id.split("#")[-1]
+                    new_clt_step.id = cast(str, new_clt_step.id).split("#")[-1]
                     new_clt_step.run = copy.copy(step.run)
                     new_clt_step.run.id = None
                     remove_JSReq(new_clt_step.run, skip_command_line1)
@@ -1737,6 +1744,8 @@ def cltool_step_outputs_to_workflow_outputs(
     they came from.
     """
     outputs = yaml.comments.CommentedSeq()
+    if not cltool_step.id:
+        raise WorkflowException(f"Missing step id from {cltool_step}.")
     default_step_id = cltool_step.id.split("#")[-1]
     if cltool_step.run.outputs:
         for clt_out in cltool_step.run.outputs:
@@ -1836,6 +1845,8 @@ def traverse_step(
     """Process the given WorkflowStep."""
     modified = False
     inputs = empty_inputs(step, parent)
+    if not step.id:
+        return False
     step_id = step.id.split("#")[-1]
     original_process = copy.deepcopy(step.run)
     original_step_ins = copy.deepcopy(step.in_)
@@ -1970,15 +1981,25 @@ def workflow_step_to_InputParameters(
     """Create InputParametes to match the given WorkflowStep inputs."""
     params = []
     for inp in step_ins:
+        if not inp.id:
+            continue
         inp_id = inp.id.split("#")[-1].split("/")[-1]
         if inp.source and inp_id != except_in_id:
             param = copy.deepcopy(param_for_source_id(parent, sourcenames=inp.source))
             if isinstance(param, list):
                 for p in param:
+                    if not p.type:
+                        raise WorkflowException(
+                            f"Don't know how to get type id for '{p}'."
+                        )
                     p.id = inp_id
                     p.type = clean_type_ids(p.type)
                     params.append(p)
             else:
+                if not param.type:
+                    raise WorkflowException(
+                        f"Don't know how to get type id for '{param}'."
+                    )
                 param.id = inp_id
                 param.type = clean_type_ids(param.type)
                 params.append(param)
@@ -1999,6 +2020,8 @@ def replace_step_valueFrom_expr_with_etool(
     source_type: Optional[Union[cwl.InputParameter, List[cwl.InputParameter]]] = None,
 ) -> None:
     """Replace a WorkflowStep level 'valueFrom' expression with a sibling ExpressionTool step."""
+    if not step_inp.id:
+        raise WorkflowException(f"Missing id in {step_inp}.")
     step_inp_id = step_inp.id.split("/")[-1]
     etool_inputs = workflow_step_to_InputParameters(
         original_step_ins, workflow, step_inp_id
@@ -2040,7 +2063,7 @@ def replace_step_valueFrom_expr_with_etool(
     wf_step_inputs[:] = [
         x
         for x in wf_step_inputs
-        if not (x.id.startswith("_") or x.id.endswith(step_inp_id))
+        if x.id and not (x.id.startswith("_") or x.id.endswith(step_inp_id))
     ]
     scatter = copy.deepcopy(step.scatter)
     if isinstance(scatter, str):
