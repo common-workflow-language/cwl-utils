@@ -23,6 +23,9 @@ from cwl_utils import (
     cwl_v1_0_expression_refactor,
     cwl_v1_1_expression_refactor,
     cwl_v1_2_expression_refactor,
+)
+
+from cwl_utils.parser import (
     parser_v1_0,
     parser_v1_1,
     parser_v1_2,
