@@ -2,9 +2,9 @@
 
 from schema_salad.exceptions import ValidationException
 from schema_salad.utils import yaml_no_ts
-import cwl_utils.parser.parser_v1_0 as cwl_v1_0
-import cwl_utils.parser.parser_v1_1 as cwl_v1_1
-import cwl_utils.parser.parser_v1_2 as cwl_v1_2
+from . import parser_v1_0 as cwl_v1_0
+from . import parser_v1_1 as cwl_v1_1
+from . import parser_v1_2 as cwl_v1_2
 
 import os
 from typing import cast, Any, MutableMapping, MutableSequence, Union, Optional
