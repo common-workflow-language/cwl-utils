@@ -76,7 +76,8 @@ def clean_type_ids(
                 for field in result.items.fields:
                     field.name = field.name.split("/")[-1]
     elif isinstance(result, cwl.InputRecordSchema):
-        result.name = result.name.split("/")[-1]
+        if result.name:
+            result.name = result.name.split("/")[-1]
         if result.fields:
             for field in result.fields:
                 field.name = field.name.split("/")[-1]
@@ -413,7 +414,7 @@ def get_input_for_id(
     name = name.split("/")[-1]
 
     for inp in cast(List[cwl.CommandInputParameter], tool.inputs):
-        if inp.id.split("#")[-1].split("/")[-1] == name:
+        if inp.id and inp.id.split("#")[-1].split("/")[-1] == name:
             return inp
     if isinstance(tool, cwl.Workflow) and "/" in name:
         stepname, stem = name.split("/", 1)
@@ -1055,6 +1056,8 @@ def process_level_reqs(
     generated_res_reqs: List[Tuple[str, str]] = []
     generated_iwdr_reqs: List[Tuple[str, Union[int, str], Any]] = []
     generated_envVar_reqs: List[Tuple[str, Union[int, str]]] = []
+    if not step.id:
+        return False
     step_name = step.id.split("#", 1)[-1]
     for req_index, req in enumerate(process.requirements):
         if req and isinstance(req, cwl.EnvVarRequirement):
@@ -1310,6 +1313,8 @@ def traverse_CommandLineTool(
     # don't modifiy clt, modify step.run
     target_clt = step.run
     inputs = empty_inputs(clt)
+    if not step.id:
+        return False
     step_id = step.id.split("#")[-1]
     if clt.arguments and not skip_command_line1:
         for index, arg in enumerate(clt.arguments):
@@ -1502,7 +1507,7 @@ def traverse_CommandLineTool(
                     new_clt_step = copy.copy(
                         step
                     )  # a deepcopy would be convienant, but params2.cwl gives it problems
-                    new_clt_step.id = new_clt_step.id.split("#")[-1]
+                    new_clt_step.id = cast(str, new_clt_step.id).split("#")[-1]
                     new_clt_step.run = copy.copy(step.run)
                     new_clt_step.run.id = None
                     remove_JSReq(new_clt_step.run, skip_command_line1)
@@ -1739,6 +1744,8 @@ def cltool_step_outputs_to_workflow_outputs(
     they came from.
     """
     outputs = yaml.comments.CommentedSeq()
+    if not cltool_step.id:
+        raise WorkflowException(f"Missing step id from {cltool_step}.")
     default_step_id = cltool_step.id.split("#")[-1]
     if cltool_step.run.outputs:
         for clt_out in cltool_step.run.outputs:
@@ -1838,6 +1845,8 @@ def traverse_step(
     """Process the given WorkflowStep."""
     modified = False
     inputs = empty_inputs(step, parent)
+    if not step.id:
+        return False
     step_id = step.id.split("#")[-1]
     original_process = copy.deepcopy(step.run)
     original_step_ins = copy.deepcopy(step.in_)
@@ -1972,6 +1981,8 @@ def workflow_step_to_WorkflowInputParameters(
     """Create WorkflowInputParametes to match the given WorkflowStep inputs."""
     params = []
     for inp in step_ins:
+        if not inp.id:
+            continue
         inp_id = inp.id.split("#")[-1].split("/")[-1]
         if inp.source and inp_id != except_in_id:
             param = copy.deepcopy(param_for_source_id(parent, sourcenames=inp.source))
@@ -2003,6 +2014,8 @@ def replace_step_valueFrom_expr_with_etool(
     ] = None,
 ) -> None:
     """Replace a WorkflowStep level 'valueFrom' expression with a sibling ExpressionTool step."""
+    if not step_inp.id:
+        raise WorkflowException(f"Missing id in {step_inp}.")
     step_inp_id = step_inp.id.split("/")[-1]
     etool_inputs = workflow_step_to_WorkflowInputParameters(
         original_step_ins, workflow, step_inp_id
@@ -2032,6 +2045,8 @@ def replace_step_valueFrom_expr_with_etool(
     if source:
         wf_step_inputs.append(cwl.WorkflowStepInput(id="self", source=step_inp.source))
     for wf_step_input in wf_step_inputs:
+        if not wf_step_input.id:
+            continue
         wf_step_input.id = wf_step_input.id.split("/")[-1]
         if wf_step_input.valueFrom:
             wf_step_input.valueFrom = None
@@ -2044,7 +2059,7 @@ def replace_step_valueFrom_expr_with_etool(
     wf_step_inputs[:] = [
         x
         for x in wf_step_inputs
-        if not (x.id.startswith("_") or x.id.endswith(step_inp_id))
+        if x.id and not (x.id.startswith("_") or x.id.endswith(step_inp_id))
     ]
     scatter = copy.deepcopy(step.scatter)
     if isinstance(scatter, str):
