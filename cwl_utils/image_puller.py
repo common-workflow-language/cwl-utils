@@ -16,11 +16,14 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class ImagePuller(ABC):
-    def __init__(self, req: str, save_directory: Union[str, Path], cmd: str) -> None:
+    def __init__(
+        self, req: str, save_directory: Union[str, Path], cmd: str, force_pull: bool
+    ) -> None:
         """Create an ImagePuller."""
         self.req = req
         self.save_directory = save_directory
         self.cmd = cmd
+        self.force_pull = force_pull
 
     @abstractmethod
     def get_image_name(self) -> str:
@@ -62,17 +65,18 @@ class DockerImagePuller(ImagePuller):
         _LOGGER.info(f"Pulling {self.req} with Docker...")
         cmd_pull = [self.cmd, "pull", self.req]
         ImagePuller._run_command_pull(cmd_pull)
+        dest = os.path.join(self.save_directory, self.get_image_name())
+        if self.force_pull:
+            os.remove(dest)
         cmd_save = [
             self.cmd,
             "save",
             "-o",
-            os.path.join(self.save_directory, self.get_image_name()),
+            dest,
             self.req,
         ]
         subprocess.run(cmd_save, check=True)  # nosec
-        _LOGGER.info(
-            f"Image successfully pulled: {self.save_directory}/{self.get_image_name()}"
-        )
+        _LOGGER.info(f"Image successfully pulled: {dest!r}.")
         print(self.generate_udocker_loading_command())
 
 
@@ -98,15 +102,27 @@ class SingularityImagePuller(ImagePuller):
         return f"{image_name}{suffix}"
 
     def save_docker_image(self) -> None:
-        """Pull down the Docker container image in the Singularity image format."""
+        """Pull down the Docker software container image and save it in the Singularity image format."""
+        if (
+            os.path.exists(os.path.join(self.save_directory, self.get_image_name()))
+            and not self.force_pull
+        ):
+            _LOGGER.info(f"Already cached {self.req} with Singularity.")
+            return
         _LOGGER.info(f"Pulling {self.req} with Singularity...")
         cmd_pull = [
             self.cmd,
             "pull",
-            "--name",
-            os.path.join(self.save_directory, self.get_image_name()),
-            f"docker://{self.req}",
         ]
+        if self.force_pull:
+            cmd_pull.append("--force")
+        cmd_pull.extend(
+            [
+                "--name",
+                os.path.join(self.save_directory, self.get_image_name()),
+                f"docker://{self.req}",
+            ]
+        )
         ImagePuller._run_command_pull(cmd_pull)
         _LOGGER.info(
             f"Image successfully pulled: {self.save_directory}/{self.get_image_name()}"

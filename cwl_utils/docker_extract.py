@@ -37,6 +37,9 @@ def arg_parser() -> argparse.ArgumentParser:
         help="Specify which command to use to run OCI containers. "
         "Defaults to 'docker' (or 'singularity' if --singularity/-s is passed).",
     )
+    parser.add_argument(
+        "--force-download", help="Force pulling a newer container.", action="store_true"
+    )
     return parser
 
 
@@ -64,6 +67,7 @@ def run(args: argparse.Namespace) -> List[cwl.DockerRequirement]:
                 args.container_engine
                 if args.container_engine is not None
                 else "singularity",
+                args.force_download,
             )
         else:
             image_puller = DockerImagePuller(
@@ -72,6 +76,7 @@ def run(args: argparse.Namespace) -> List[cwl.DockerRequirement]:
                 args.container_engine
                 if args.container_engine is not None
                 else "docker",
+                args.force_download,
             )
         image_puller.save_docker_image()
     return reqs
