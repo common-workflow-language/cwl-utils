@@ -4,7 +4,6 @@ import logging
 from collections import namedtuple
 from typing import IO, Any, Dict, List, MutableSequence, Optional, Tuple, Union, cast
 
-from ruamel import yaml
 from schema_salad.exceptions import ValidationException
 from schema_salad.sourceline import SourceLine
 from schema_salad.utils import aslist, json_dumps
@@ -13,6 +12,7 @@ import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_0 as cwl
 import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
+from cwl_utils.utils import yaml_dumps
 
 CONTENT_LIMIT: int = 64 * 1024
 
@@ -297,7 +297,7 @@ def type_for_step_output(
     raise ValidationException(
         "param {} not found in {}.".format(
             sourcename,
-            yaml.main.round_trip_dump(cwl.save(step_run)),
+            yaml_dumps(cwl.save(step_run)),
         )
     )
 
@@ -428,9 +428,7 @@ def param_for_source_id(
     raise WorkflowException(
         "param {} not found in {}\n{}.".format(
             sourcename,
-            yaml.main.round_trip_dump(cwl.save(process)),
-            f" or\n {yaml.main.round_trip_dump(cwl.save(parent))}"
-            if parent is not None
-            else "",
+            yaml_dumps(cwl.save(process)),
+            f" or\n {yaml_dumps(cwl.save(parent))}" if parent is not None else "",
         )
     )

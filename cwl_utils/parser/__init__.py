@@ -85,6 +85,28 @@ DockerRequirementTypes = (
 """Type union for a CWL v1.x DockerRequirement object."""
 Process = Union[Workflow, CommandLineTool, ExpressionTool, cwl_v1_2.Operation]
 """Type Union for a CWL v1.x Process object."""
+ProcessRequirement = Union[
+    cwl_v1_0.ProcessRequirement,
+    cwl_v1_1.ProcessRequirement,
+    cwl_v1_2.ProcessRequirement,
+]
+"""Type Union for a CWL v1.x ProcessRequirement object."""
+ProcessRequirementTypes = (
+    cwl_v1_0.ProcessRequirement,
+    cwl_v1_1.ProcessRequirement,
+    cwl_v1_2.ProcessRequirement,
+)
+SoftwareRequirement = Union[
+    cwl_v1_0.SoftwareRequirement,
+    cwl_v1_1.SoftwareRequirement,
+    cwl_v1_2.SoftwareRequirement,
+]
+SoftwareRequirementTypes = (
+    cwl_v1_0.SoftwareRequirement,
+    cwl_v1_1.SoftwareRequirement,
+    cwl_v1_2.SoftwareRequirement,
+)
+"""Type union for a CWL v1.x SoftwareRequirement object."""
 ArraySchema = Union[cwl_v1_0.ArraySchema, cwl_v1_1.ArraySchema, cwl_v1_2.ArraySchema]
 """Type Union for a CWL v1.x ArraySchema object."""
 EnumSchema = Union[cwl_v1_0.EnumSchema, cwl_v1_1.EnumSchema, cwl_v1_2.EnumSchema]
@@ -103,6 +125,7 @@ Dirent = Union[cwl_v1_0.Dirent, cwl_v1_1.Dirent, cwl_v1_2.Dirent]
 """Type Union for a CWL v1.x Dirent object."""
 
 _Loader = Union[cwl_v1_0._Loader, cwl_v1_1._Loader, cwl_v1_2._Loader]
+"""Type union for a CWL v1.x _Loader."""
 
 
 def _get_id_from_graph(yaml: MutableMapping[str, Any], id_: Optional[str]) -> Any:

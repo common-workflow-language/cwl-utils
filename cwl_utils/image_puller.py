@@ -4,7 +4,8 @@ import logging
 import os
 import subprocess  # nosec
 from abc import ABC, abstractmethod
-from typing import List
+from pathlib import Path
+from typing import List, Union
 
 from .singularity import get_version as get_singularity_version
 from .singularity import is_version_2_6 as is_singularity_version_2_6
@@ -15,7 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class ImagePuller(ABC):
-    def __init__(self, req: str, save_directory: str, cmd: str) -> None:
+    def __init__(self, req: str, save_directory: Union[str, Path], cmd: str) -> None:
         """Create an ImagePuller."""
         self.req = req
         self.save_directory = save_directory
@@ -80,10 +81,6 @@ class SingularityImagePuller(ImagePuller):
 
     CHARS_TO_REPLACE = ["/"]
     NEW_CHAR = "_"
-
-    def __init__(self, req: str, save_directory: str, cmd: str) -> None:
-        """Create a Singularity-based software container image downloader."""
-        super().__init__(req, save_directory, cmd)
 
     def get_image_name(self) -> str:
         """Determine the file name appropriate to the installed version of Singularity."""

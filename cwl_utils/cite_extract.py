@@ -2,11 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 import argparse
 import sys
-from typing import Iterator, List, Union, cast
+from typing import Iterator, cast
 
-import cwl_utils.parser.cwl_v1_0 as cwl
-
-ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
+import cwl_utils.parser as cwl
 
 
 def arg_parser() -> argparse.ArgumentParser:
@@ -21,50 +19,30 @@ def arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args(args: List[str]) -> argparse.Namespace:
-    """Parse the command line arguments."""
-    return arg_parser().parse_args(args)
-
-
 def run(args: argparse.Namespace) -> int:
     """Extract the software requirements."""
-    top = cwl.load_document(args.input)
-    traverse(top)
+    for req in traverse(cwl.load_document_by_uri(args.input)):
+        process_software_requirement(req)
     return 0
 
 
-def main() -> None:
+def main() -> int:
     """Console entry point."""
-    sys.exit(run(parse_args(sys.argv[1:])))
-
-
-def extract_software_packages(process: ProcessType) -> None:
-    """Print software packages found in the given process."""
-    for req in extract_software_reqs(process):
-        print(process.id)
-        process_software_requirement(req)
+    return run(arg_parser().parse_args(sys.argv[1:]))
 
 
 def extract_software_reqs(
-    process: ProcessType,
+    process: cwl.Process,
 ) -> Iterator[cwl.SoftwareRequirement]:
     """Return an iterator over any SoftwareRequirements found in the given process."""
     if process.requirements:
         for req in process.requirements:
-            if isinstance(req, cwl.SoftwareRequirement):
+            if isinstance(req, cwl.SoftwareRequirementTypes):
                 yield req
     if process.hints:
         for req in process.hints:
-            if isinstance(req, cwl.ProcessRequirement):
-                if isinstance(req, cwl.SoftwareRequirement):
-                    yield req
-            elif req["class"] == "SoftwareRequirement":
-                yield cwl.load_field(
-                    req,
-                    cwl.SoftwareRequirementLoader,
-                    process.id if process.id else "",
-                    process.loadingOptions,
-                )
+            if isinstance(req, cwl.SoftwareRequirementTypes):
+                yield req
 
 
 def process_software_requirement(req: cwl.SoftwareRequirement) -> None:
@@ -77,26 +55,26 @@ def process_software_requirement(req: cwl.SoftwareRequirement) -> None:
         )
 
 
-def traverse(process: ProcessType) -> None:
+def traverse(process: cwl.Process) -> Iterator[cwl.SoftwareRequirement]:
     """Extract the software packages for this process, and any steps."""
-    extract_software_packages(process)
-    if isinstance(process, cwl.Workflow):
-        traverse_workflow(process)
+    yield from extract_software_reqs(process)
+    if isinstance(process, cwl.WorkflowTypes):
+        yield from traverse_workflow(process)
 
 
-def get_process_from_step(step: cwl.WorkflowStep) -> ProcessType:
+def get_process_from_step(step: cwl.WorkflowStep) -> cwl.Process:
     """Return the process for this step, loading it if needed."""
     if isinstance(step.run, str):
-        return cast(ProcessType, cwl.load_document(step.run))
-    return cast(ProcessType, step.run)
+        return cast(cwl.Process, cwl.load_document_by_uri(step.run))
+    return cast(cwl.Process, step.run)
 
 
-def traverse_workflow(workflow: cwl.Workflow) -> None:
+def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.SoftwareRequirement]:
     """Iterate over the given workflow, extracting the software packages."""
     for step in workflow.steps:
-        extract_software_packages(step)
-        traverse(get_process_from_step(step))
+        yield from extract_software_reqs(step)
+        yield from traverse(get_process_from_step(step))
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-from ruamel import yaml
+import sys
+
+import ruamel.yaml
 
 from cwl_utils.parser import cwl_v1_2 as cwl
 
@@ -23,7 +25,8 @@ def main() -> None:
         stdin="$(inputs.file1.path)",
         stdout="output",
     )
-    print(yaml.main.round_trip_dump(cat_tool.save()))
+    yaml = ruamel.yaml.YAML()
+    yaml.dump(cat_tool.save(), sys.stdout)
 
 
 if __name__ == "__main__":
