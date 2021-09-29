@@ -2,14 +2,15 @@
 import sys
 
 from setuptools import setup
+from typing import List
 
 exec(open("cwl_utils/__meta__.py").read())
 
 needs_pytest = {"pytest", "test", "ptr"}.intersection(sys.argv)
-pytest_runner = ["pytest < 7", "pytest-runner"] if needs_pytest else []
+pytest_runner: List[str] = ["pytest < 7", "pytest-runner"] if needs_pytest else []
 setup(
     name="cwl-utils",
-    version=__version__,
+    version=__version__,  # type: ignore
     license="Apache 2.0",
     author="Common workflow language working group",
     author_email="common-workflow-language@googlegroups.com",
@@ -29,7 +30,7 @@ setup(
         "cwlformat",
         "cwl-upgrader >= 1.2",
     ],
-    setup_requires=[] + pytest_runner,
+    setup_requires=pytest_runner,
     tests_require=["pytest<7", "cwltool"],
     test_suite="tests",
     scripts=[

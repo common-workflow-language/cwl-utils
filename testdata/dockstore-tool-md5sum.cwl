@@ -21,16 +21,17 @@ doc: |
 #  foaf:mbox: briandoconnor@gmail.com
 
 requirements:
-- class: DockerRequirement
-  dockerPull: quay.io/briandoconnor/dockstore-tool-md5sum:1.0.4
 - class: InlineJavascriptRequirement
 
 hints:
-- class: ResourceRequirement
-  # The command really requires very little resources.
-  coresMin: 1
-  ramMin: 1024
-  outdirMin: 512
+ DockerRequirement:
+   dockerPull: quay.io/briandoconnor/dockstore-tool-md5sum:1.0.4
+
+ ResourceRequirement:
+   # The command really requires very little resources.
+   coresMin: 1
+   ramMin: 1024
+   outdirMin: 512
 
 inputs:
   input_file:
@@ -47,5 +48,5 @@ outputs:
       glob: md5sum.txt
     doc: A text file that contains a single line that is the md5sum of the input file.
 
-baseCommand: [/bin/my_md5sum]
+baseCommand: my_md5sum
 

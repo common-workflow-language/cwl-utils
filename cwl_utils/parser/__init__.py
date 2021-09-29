@@ -7,12 +7,43 @@ from . import cwl_v1_1 as cwl_v1_1
 from . import cwl_v1_2 as cwl_v1_2
 
 import os
-from typing import cast, Any, MutableMapping, MutableSequence, Union, Optional
+from pathlib import Path
+from urllib.parse import unquote_plus, urlparse
+from typing import (
+    cast,
+    Any,
+    Dict,
+    MutableMapping,
+    MutableSequence,
+    Tuple,
+    Union,
+    Optional,
+)
 
 LoadingOptions = Union[
     cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions
 ]
 Savable = Union[cwl_v1_0.Savable, cwl_v1_1.Savable, cwl_v1_2.Savable]
+Workflow = Union[cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow]
+WorkflowTypes = (cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow)
+WorkflowStep = Union[
+    cwl_v1_0.WorkflowStep, cwl_v1_1.WorkflowStep, cwl_v1_2.WorkflowStep
+]
+CommandLineTool = Union[
+    cwl_v1_0.CommandLineTool, cwl_v1_1.CommandLineTool, cwl_v1_2.CommandLineTool
+]
+ExpressionTool = Union[
+    cwl_v1_0.ExpressionTool, cwl_v1_1.ExpressionTool, cwl_v1_2.ExpressionTool
+]
+DockerRequirement = Union[
+    cwl_v1_0.DockerRequirement, cwl_v1_1.DockerRequirement, cwl_v1_2.DockerRequirement
+]
+DockerRequirementTypes = (
+    cwl_v1_0.DockerRequirement,
+    cwl_v1_1.DockerRequirement,
+    cwl_v1_2.DockerRequirement,
+)
+_Loader = Union[cwl_v1_0._Loader, cwl_v1_1._Loader, cwl_v1_2._Loader]
 
 
 def cwl_version(yaml: Any) -> Any:
@@ -32,6 +63,19 @@ def cwl_version(yaml: Any) -> Any:
     if "cwlVersion" not in list(yaml.keys()):
         return None
     return yaml["cwlVersion"]
+
+
+def load_document_by_path(
+    path: str,
+    loadingOptions: Optional[LoadingOptions] = None,
+) -> Any:
+    """Load a CWL object from a path."""
+    if path.startswith("file:/"):
+        path = unquote_plus(urlparse(path).path)
+    baseuri = Path(path).resolve().as_uri()
+    with open(path) as handle:
+        doc = yaml_no_ts().load(handle)
+    return load_document_by_yaml(doc, baseuri, loadingOptions)
 
 
 def load_document(
