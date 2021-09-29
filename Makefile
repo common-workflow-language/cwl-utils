@@ -79,7 +79,7 @@ docs: FORCE
 
 ## clean                  : clean up all temporary / machine-generated files
 clean: FORCE
-	rm -f ${MODILE}/*.pyc tests/*.pyc
+	rm -f ${MODULE}/*.pyc tests/*.pyc
 	python setup.py clean --all || true
 	rm -Rf .coverage
 	rm -f diff-cover.html

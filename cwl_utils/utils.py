@@ -8,6 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from copy import deepcopy
+from io import StringIO
 from typing import (
     Any,
     Dict,
@@ -230,3 +231,15 @@ def singularity_supports_userns() -> bool:
         except subprocess.TimeoutExpired:
             _USERNS = False
     return _USERNS
+
+
+def yaml_dumps(obj: Any) -> str:
+    """
+    Shortcut.
+
+    Don't use if you have a file descriptor (like sys.stdout) available.
+    """
+    yaml = YAML()
+    stream = StringIO()
+    yaml.dump(obj, stream)
+    return stream.getvalue()

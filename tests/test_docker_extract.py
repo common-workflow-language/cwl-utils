@@ -1,58 +1,89 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for cwl-docker-extract."""
-from shutil import which
-from tempfile import TemporaryDirectory
+from pathlib import Path
 
-from pytest import mark
+import pytest
 
-import cwl_utils.parser.cwl_v1_0 as parser
-from cwl_utils.docker_extract import traverse
-from cwl_utils.image_puller import DockerImagePuller, SingularityImagePuller
+from cwl_utils.docker_extract import arg_parser, run
 
-from .util import get_data
-
-TEST_CWL = get_data("testdata/md5sum.cwl")
+from .util import get_data, needs_docker, needs_podman, needs_singularity
 
 
-@mark.skipif(which("docker") is None, reason="docker is not available")
-def test_traverse_workflow() -> None:
-    """Test container extraction tool using Docker."""
-    loaded = parser.load_document(TEST_CWL)
+@pytest.mark.parametrize(
+    ("target", "engine"),
+    [
+        pytest.param("testdata/md5sum.cwl", "docker", marks=needs_docker),
+        pytest.param("testdata/md5sum_v11.cwl", "docker", marks=needs_docker),
+        pytest.param("testdata/md5sum.cwl", "podman", marks=needs_podman),
+        pytest.param("testdata/md5sum_v11.cwl", "podman", marks=needs_podman),
+        pytest.param("testdata/md5sum.cwl", "singularity", marks=needs_singularity),
+        pytest.param("testdata/md5sum_v11.cwl", "singularity", marks=needs_singularity),
+    ],
+)
+def test_container_extraction(target: str, engine: str, tmp_path: Path) -> None:
+    """Test container extraction tool."""
 
-    with TemporaryDirectory() as tmpdir:
-        reqs = set(traverse(loaded))
-        assert len(reqs) == 1
-        for req in reqs:
-            assert req.dockerPull
-            image_puller = DockerImagePuller(req.dockerPull, tmpdir, "docker")
-            image_puller.save_docker_image()
-            _ = image_puller.generate_udocker_loading_command()
-
-
-@mark.skipif(which("podman") is None, reason="podman is not available")
-def test_traverse_workflow_podman() -> None:
-    """Test container extraction tool using Podman."""
-    loaded = parser.load_document(TEST_CWL)
-
-    with TemporaryDirectory() as tmpdir:
-        reqs = set(traverse(loaded))
-        assert len(reqs) == 1
-        for req in reqs:
-            assert req.dockerPull
-            image_puller = DockerImagePuller(req.dockerPull, tmpdir, "podman")
-            image_puller.save_docker_image()
-            _ = image_puller.generate_udocker_loading_command()
+    args = [str(tmp_path), get_data(target), "--container-engine", engine]
+    if engine == "singularity":
+        args.append("--singularity")
+    reqs = run(arg_parser().parse_args(args))
+    assert len(reqs) == 1
+    assert len(list(tmp_path.iterdir())) == 1
 
 
-@mark.skipif(which("singularity") is None, reason="singularity is not available")
-def test_traverse_workflow_singularity() -> None:
-    """Test container extraction tool using Singularity."""
-    loaded = parser.load_document(TEST_CWL)
+@pytest.mark.parametrize(
+    ("engine"),
+    [
+        pytest.param("docker", marks=needs_docker),
+        pytest.param("podman", marks=needs_podman),
+        pytest.param("singularity", marks=needs_singularity),
+    ],
+)
+def test_container_extraction_no_dockerPull(
+    engine: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test container extraction tool when dockerPull is missing."""
 
-    with TemporaryDirectory() as tmpdir:
-        reqs = set(traverse(loaded))
-        assert len(reqs) == 1
-        for req in reqs:
-            assert req.dockerPull
-            image_puller = SingularityImagePuller(req.dockerPull, tmpdir, "singularity")
-            image_puller.save_docker_image()
+    args = [
+        str(tmp_path),
+        get_data("testdata/debian_image_id.cwl"),
+        "--container-engine",
+        engine,
+    ]
+    if engine == "singularity":
+        args.append("--singularity")
+    reqs = run(arg_parser().parse_args(args))
+    assert len(reqs) == 1
+    assert len(list(tmp_path.iterdir())) == 0
+    captured = capsys.readouterr()
+    assert (
+        captured.err
+        == """Unable to save image from due to lack of 'dockerPull':
+class: DockerRequirement
+dockerImageId: 'debian:stable-slim.img'
+"""
+    )
+
+
+@pytest.mark.parametrize(
+    ("engine"),
+    [
+        pytest.param("docker", marks=needs_docker),
+        pytest.param("podman", marks=needs_podman),
+        pytest.param("singularity", marks=needs_singularity),
+    ],
+)
+def test_container_extraction_embedded_step(engine: str, tmp_path: Path) -> None:
+    """Test container extraction tool."""
+
+    args = [
+        str(tmp_path),
+        get_data("testdata/workflows/count-lines16-wf.cwl"),
+        "--container-engine",
+        engine,
+    ]
+    if engine == "singularity":
+        args.append("--singularity")
+    reqs = run(arg_parser().parse_args(args))
+    assert len(reqs) == 1
+    assert len(list(tmp_path.iterdir())) == 1

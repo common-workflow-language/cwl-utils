@@ -3,17 +3,16 @@
 import argparse
 import os
 import sys
-from pathlib import Path
-from typing import Iterator, List, Union, cast
+from typing import Iterator, List, cast
 
-import cwl_utils.parser.cwl_v1_0 as cwl
+import ruamel.yaml
+
+import cwl_utils.parser as cwl
 from cwl_utils.image_puller import (
     DockerImagePuller,
     ImagePuller,
     SingularityImagePuller,
 )
-
-ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 
 
 def arg_parser() -> argparse.ArgumentParser:
@@ -35,41 +34,51 @@ def arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--container-engine",
         dest="container_engine",
-        default="docker",
-        help="Specify which command to use to run OCI containers.",
+        help="Specify which command to use to run OCI containers. "
+        "Defaults to 'docker' (or 'singularity' if --singularity/-s is passed).",
     )
     return parser
 
 
-def parse_args(args: List[str]) -> argparse.Namespace:
-    """Parse the command line arguments."""
-    return arg_parser().parse_args(args)
-
-
-def run(args: argparse.Namespace) -> int:
-    """Extract the docker reqs and download them using Singularity or docker."""
+def run(args: argparse.Namespace) -> List[cwl.DockerRequirement]:
+    """Extract the docker reqs and download them using Singularity or Docker."""
     os.makedirs(args.dir, exist_ok=True)
 
-    top = cwl.load_document(args.input)
+    top = cwl.load_document_by_uri(args.input)
+    reqs: List[cwl.DockerRequirement] = []
 
     for req in traverse(top):
+        reqs.append(req)
         if not req.dockerPull:
-            print(f"Unable to save image from {req} due to lack of 'dockerPull'.")
+            print(
+                "Unable to save image from due to lack of 'dockerPull':",
+                file=sys.stderr,
+            )
+            yaml = ruamel.yaml.YAML()
+            yaml.dump(req.save(), sys.stderr)
             continue
         if args.singularity:
             image_puller: ImagePuller = SingularityImagePuller(
-                req.dockerPull, args.dir, "singularity"
+                req.dockerPull,
+                args.dir,
+                args.container_engine
+                if args.container_engine is not None
+                else "singularity",
             )
         else:
             image_puller = DockerImagePuller(
-                req.dockerPull, args.dir, args.container_engine
+                req.dockerPull,
+                args.dir,
+                args.container_engine
+                if args.container_engine is not None
+                else "docker",
             )
         image_puller.save_docker_image()
-    return 0
+    return reqs
 
 
 def extract_docker_requirements(
-    process: ProcessType,
+    process: cwl.Process,
 ) -> Iterator[cwl.DockerRequirement]:
     """Yield an iterator of the docker reqs, normalizing the pull request."""
     for req in extract_docker_reqs(process):
@@ -78,38 +87,30 @@ def extract_docker_requirements(
         yield req
 
 
-def extract_docker_reqs(process: ProcessType) -> Iterator[cwl.DockerRequirement]:
+def extract_docker_reqs(process: cwl.Process) -> Iterator[cwl.DockerRequirement]:
     """For the given process, extract the DockerRequirement(s)."""
     if process.requirements:
         for req in process.requirements:
-            if isinstance(req, cwl.DockerRequirement):
+            if isinstance(req, cwl.DockerRequirementTypes):
                 yield req
     if process.hints:
         for req in process.hints:
-            if isinstance(req, cwl.ProcessRequirement):
-                if isinstance(req, cwl.DockerRequirement):
-                    yield req
-            elif req["class"] == "DockerRequirement":
-                yield cwl.load_field(
-                    req,
-                    cwl.DockerRequirementLoader,
-                    Path.cwd().as_uri(),
-                    process.loadingOptions,
-                )
+            if isinstance(req, cwl.DockerRequirementTypes):
+                yield req
 
 
-def traverse(process: ProcessType) -> Iterator[cwl.DockerRequirement]:
+def traverse(process: cwl.Process) -> Iterator[cwl.DockerRequirement]:
     """Yield the iterator for the docker reqs, including an workflow steps."""
     yield from extract_docker_requirements(process)
-    if isinstance(process, cwl.Workflow):
+    if isinstance(process, cwl.WorkflowTypes):
         yield from traverse_workflow(process)
 
 
-def get_process_from_step(step: cwl.WorkflowStep) -> ProcessType:
+def get_process_from_step(step: cwl.WorkflowStep) -> cwl.Process:
     """Return the process for this step, loading it if necessary."""
     if isinstance(step.run, str):
-        return cast(ProcessType, cwl.load_document(step.run))
-    return cast(ProcessType, step.run)
+        return cast(cwl.Process, cwl.load_document_by_uri(step.run))
+    return cast(cwl.Process, step.run)
 
 
 def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.DockerRequirement]:
@@ -119,10 +120,11 @@ def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.DockerRequirement]
         yield from traverse(get_process_from_step(step))
 
 
-def main() -> None:
+def main() -> int:
     """Command line entry point."""
-    sys.exit(run(parse_args(sys.argv[1:])))
+    run(arg_parser().parse_args(sys.argv[1:]))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
