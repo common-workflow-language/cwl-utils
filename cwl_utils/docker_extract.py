@@ -87,6 +87,7 @@ def traverse(process: ProcessType) -> Iterator[cwl.DockerRequirement]:
 
 def get_process_from_step(step: cwl.WorkflowStep) -> ProcessType:
     """Return the process for this step, loading it if necessary."""
+    global WorkflowDir
     if isinstance(step.run, str):
         return cast(ProcessType, cwl.load_document(WorkflowDir+step.run))
     return cast(ProcessType, step.run)
