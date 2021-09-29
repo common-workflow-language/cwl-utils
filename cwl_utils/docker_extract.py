@@ -14,7 +14,7 @@ from cwl_utils.image_puller import (
 )
 
 ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
-
+WorkflowDir = ""
 
 def parse_args() -> argparse.Namespace:
     """Argument parser."""
@@ -34,9 +34,11 @@ def parse_args() -> argparse.Namespace:
 
 def main(args: argparse.Namespace) -> None:
     """Extract the docker reqs and download them using Singularity or docker."""
+    global WorkflowDir
     os.makedirs(args.dir, exist_ok=True)
 
     top = cwl.load_document(args.input)
+    WorkflowDir = str(Path(args.input).parent)+"/"
 
     for req in traverse(top):
         if not req.dockerPull:
@@ -86,7 +88,7 @@ def traverse(process: ProcessType) -> Iterator[cwl.DockerRequirement]:
 def get_process_from_step(step: cwl.WorkflowStep) -> ProcessType:
     """Return the process for this step, loading it if necessary."""
     if isinstance(step.run, str):
-        return cast(ProcessType, cwl.load_document(step.run))
+        return cast(ProcessType, cwl.load_document(WorkflowDir+step.run))
     return cast(ProcessType, step.run)
 
 
