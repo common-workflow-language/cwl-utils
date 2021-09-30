@@ -104,7 +104,9 @@ def save(
             for v in val
         ]
         if top and all((is_process(v) for v in val)):
-            vers = (e.get("cwlVersion") for e in lst if is_process(e))
+            vers = [
+                e.get("cwlVersion") for i, e in enumerate(lst) if is_process(val[i])
+            ]
             latest = max(
                 (v for v in vers if v is not None), key=cast(Any, version_split)
             )
