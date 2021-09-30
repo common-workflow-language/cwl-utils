@@ -27,7 +27,7 @@ from ruamel import yaml
 from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
 
-import cwl_utils.parser_v1_0 as cwl
+import cwl_utils.parser.cwl_v1_0 as cwl
 
 
 def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool:

@@ -24,7 +24,7 @@ MODULE=cwl_utils
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
-PYSOURCES=$(filter-out cwl_utils/parser_v%,$(wildcard ${MODULE}/**.py tests/*.py)) setup.py
+PYSOURCES=$(filter-out cwl_utils/parser/cwl_v%,$(wildcard ${MODULE}/**.py tests/*.py)) setup.py
 DEVPKGS=diff_cover black pylint coverage pep257 pydocstyle flake8 mypy\
 	isort wheel autoflake
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \

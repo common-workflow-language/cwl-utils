@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-import cwl_utils.parser_v1_2 as cwl
+import cwl_utils.parser.parser_v1_2 as cwl
 
 from ruamel import yaml
 

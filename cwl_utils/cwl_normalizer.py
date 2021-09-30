@@ -34,7 +34,7 @@ _logger.setLevel(logging.INFO)
 _cwltoollogger.setLevel(100)
 
 from cwl_utils import cwl_v1_2_expression_refactor
-from cwl_utils.parser_v1_2 import load_document_by_yaml, save
+from cwl_utils.parser.cwl_v1_2 import load_document_by_yaml, save
 
 
 def parse_args(args: List[str]) -> argparse.Namespace:

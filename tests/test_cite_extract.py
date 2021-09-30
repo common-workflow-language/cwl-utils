@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import cwl_utils.parser_v1_0 as parser
+import cwl_utils.parser.cwl_v1_0 as parser
 from cwl_utils.cite_extract import traverse_workflow
 
 HERE = Path(__file__).resolve().parent

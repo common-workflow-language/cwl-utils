@@ -23,9 +23,12 @@ from cwl_utils import (
     cwl_v1_0_expression_refactor,
     cwl_v1_1_expression_refactor,
     cwl_v1_2_expression_refactor,
-    parser_v1_0,
-    parser_v1_1,
-    parser_v1_2,
+)
+
+from cwl_utils.parser import (
+    cwl_v1_0,
+    cwl_v1_1,
+    cwl_v1_2,
 )
 
 save_type = Union[Dict[str, str], List[Union[Dict[str, str], List[Any], None]], None]
@@ -92,19 +95,19 @@ def run(args: argparse.Namespace) -> int:
         version = result["cwlVersion"]
         uri = Path(document).resolve().as_uri()
         if version == "v1.0":
-            top = parser_v1_0.load_document_by_yaml(result, uri)
+            top = cwl_v1_0.load_document_by_yaml(result, uri)
             traverse: Callable[
                 [Any, bool, bool, bool, bool], Tuple[Any, bool]
             ] = cwl_v1_0_expression_refactor.traverse
-            save: saveCWL = parser_v1_0.save
+            save: saveCWL = cwl_v1_0.save
         elif version == "v1.1":
-            top = parser_v1_1.load_document_by_yaml(result, uri)
+            top = cwl_v1_1.load_document_by_yaml(result, uri)
             traverse = cwl_v1_1_expression_refactor.traverse
-            save = parser_v1_1.save
+            save = cwl_v1_1.save
         elif version == "v1.2":
-            top = parser_v1_2.load_document_by_yaml(result, uri)
+            top = cwl_v1_2.load_document_by_yaml(result, uri)
             traverse = cwl_v1_2_expression_refactor.traverse
-            save = parser_v1_2.save
+            save = cwl_v1_2.save
         else:
             _logger.error(
                 "Sorry, %s is not a supported CWL version by this tool.", version

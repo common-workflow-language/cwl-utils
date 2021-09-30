@@ -3,7 +3,7 @@
 import sys
 from typing import Iterator, Union, cast
 
-import cwl_utils.parser_v1_0 as cwl
+import cwl_utils.parser.cwl_v1_0 as cwl
 
 ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 
