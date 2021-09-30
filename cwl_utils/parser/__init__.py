@@ -104,8 +104,10 @@ def save(
             for v in val
         ]
         if top and all((is_process(v) for v in val)):
-            vers = (l.get("cwlVersion") for l in lst if is_process(l))
-            latest = max((v for v in vers if v is not None), key=cast(Any, version_split))
+            vers = (e.get("cwlVersion") for e in lst if is_process(e))
+            latest = max(
+                (v for v in vers if v is not None), key=cast(Any, version_split)
+            )
             return {"cwlVersion": latest, "$graph": lst}
         return lst
     if isinstance(val, MutableMapping):
