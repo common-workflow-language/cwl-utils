@@ -19,6 +19,7 @@ def test_load_document() -> None:
         yaml_obj = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     cwl_obj = load_document(yaml_obj)
     assert cwl_obj.cwlVersion == "v1.0"
+    assert cwl_obj.inputs[0].id.endswith("input_file")
 
 
 def test_save() -> None:
