@@ -17,6 +17,14 @@ save_type = Union[cwl_v1_0.save_type, cwl_v1_1.save_type, cwl_v1_2.save_type]
 
 
 def cwl_version(yaml: Any) -> Any:
+    """Return the cwlVersion of a YAML object.
+
+    Args:
+        yaml: A YAML object
+
+    Returns:
+        Any: The value of `cwlVersion`. Its type is Optional[str] when a given YAML object is a valid CWL object.
+    """
     if "cwlVersion" not in list(yaml.keys()):
         return None
     return yaml["cwlVersion"]
@@ -27,6 +35,7 @@ def load_document(
     baseuri: Optional[str] = None,
     loadingOptions: Optional[LoadingOptions] = None,
 ) -> Any:
+    """Load a CWL object from a serialized YAML string or a YAML object."""
     if baseuri is None:
         baseuri = cwl_v1_0.file_uri(os.getcwd()) + "/"
     if isinstance(doc, str):
@@ -37,6 +46,7 @@ def load_document(
 def load_document_by_string(
     string: str, uri: str, loadingOptions: Optional[LoadingOptions] = None
 ) -> Any:
+    """Load a CWL object from a serialized YAML string."""
     yaml = yaml_no_ts()
     result = yaml.load(string)
     return load_document_by_yaml(result, uri, loadingOptions)
@@ -45,6 +55,7 @@ def load_document_by_string(
 def load_document_by_yaml(
     yaml: Any, uri: str, loadingOptions: Optional[LoadingOptions] = None
 ) -> Any:
+    """Load a CWL object from a YAML object."""
     version = cwl_version(yaml)
     if version == "v1.0":
         result = cwl_v1_0.load_document_by_yaml(
@@ -81,6 +92,7 @@ def save(
     base_url: str = "",
     relative_uris: bool = True,
 ) -> Any:
+    """Convert a given CWL object into a build-in typed object."""
     if (
         isinstance(val, cwl_v1_0.Savable)
         or isinstance(val, cwl_v1_1.Savable)
