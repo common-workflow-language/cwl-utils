@@ -56,34 +56,33 @@ from pathlib import Path
 from ruamel import yaml
 import sys
 
+from cwl_utils.parser import cwl_version, load_document, save
+
 # File Input - This is the only thing you will need to adjust or take in as an input to your function:
 cwl_file = Path("/path/to/wf.cwl")
 
 # Read in the cwl file from a yaml
 with open(cwl_file, "r") as cwl_h:
- yaml_obj = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
+    yaml_obj = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     
 # Check CWLVersion
-if 'cwlVersion' not in list(yaml_obj.keys()):
-    print("Error - could not get the cwlVersion")
-    sys.exit(1)
-
-# Import parser based on CWL Version    
-if yaml_obj['cwlVersion'] == 'v1.0':
-    from cwl_utils import parser_v1_0 as parser
-elif yaml_obj['cwlVersion'] == 'v1.1':
-    from cwl_utils import parser_v1_1 as parser
-elif yaml_obj['cwlVersion'] == 'v1.2':
-    from cwl_utils import parser_v1_2 as parser
-else:
-    print("Version error. Did not recognise {} as a CWL version".format(yaml_obj["cwlVersion"]))
+try:
+    ver = cwl_version(yaml_obj)
+    if ver is None:
+        print("Error - could not get the cwlVersion")
+        sys.exit(1)
+except ValidationException as e:
+    print("Error - yaml_obj is not a mapping")
     sys.exit(1)
 
 # Import CWL Object
-cwl_obj = parser.load_document_by_yaml(yaml_obj, cwl_file.as_uri())
+cwl_obj = load_document(yaml_obj, cwl_file.as_uri())
 
 # View CWL Object
 print("List of object attributes:\n{}".format("\n".join(map(str, dir(cwl_obj)))))
+
+# Export CWL Object into a built-in typed object
+saved_obj = save(cwl_obj)
 ```
 
 ## Development
