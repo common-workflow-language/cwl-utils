@@ -23,7 +23,12 @@ def cwl_version(yaml: Any) -> Any:
 
     Returns:
         Any: The value of `cwlVersion`. Its type is Optional[str] when a given YAML object is a valid CWL object.
+
+    Raises:
+        ValidationException: If `yaml` is not a MutableMapping.
     """
+    if not isinstance(yaml, MutableMapping):
+        raise ValidationException("MutableMapping is required")
     if "cwlVersion" not in list(yaml.keys()):
         return None
     return yaml["cwlVersion"]
