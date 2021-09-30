@@ -91,13 +91,13 @@ saved_obj = save(cwl_obj)
 
 To regenerate install the `schema_salad` package and run:
 
-`cwl_utils/parser_v1_0.py` was created via
+`cwl_utils/parser/cwl_v1_0.py` was created via
 `schema-salad-tool --codegen python https://github.com/common-workflow-language/common-workflow-language/raw/main/v1.0/CommonWorkflowLanguage.yml`
 
-`cwl_utils/parser_v1_1.py` was created via
+`cwl_utils/parser/cwl_v1_1.py` was created via
 `schema-salad-tool --codegen python https://github.com/common-workflow-language/cwl-v1.1/raw/main/CommonWorkflowLanguage.yml`
 
-`cwl_utils/parser_v1_2.py` was created via
+`cwl_utils/parser/cwl_v1_2.py` was created via
 `schema-salad-tool --codegen python https://github.com/common-workflow-language/cwl-v1.2/raw/main/CommonWorkflowLanguage.yml`
 
 
