@@ -92,15 +92,10 @@ def save(
             save(v, top=top, base_url=base_url, relative_uris=relative_uris)
             for v in val
         ]
-        if top and all(
-            (
-                isinstance(v, cwl_v1_0.Process)
-                or isinstance(v, cwl_v1_1.Process)
-                or isinstance(v, cwl_v1_2.Process)
-                for v in val
-            )
-        ):
-            return {"cwlVersion": lst[0]["cwlVersion"], "$graph": lst}
+        if top and all((is_process(v) for v in val)):
+            vers = (l.get("cwlVersion") for l in lst if is_process(l))
+            latest = max((v for v in vers if v is not None), key=cast(Any, version_split))
+            return {"cwlVersion": latest, "$graph": lst}
         return lst
     if isinstance(val, MutableMapping):
         newdict = {}
@@ -110,3 +105,15 @@ def save(
             )
         return newdict
     return val
+
+
+def is_process(v: Any) -> bool:
+    return (
+        isinstance(v, cwl_v1_0.Process)
+        or isinstance(v, cwl_v1_1.Process)
+        or isinstance(v, cwl_v1_2.Process)
+    )
+
+
+def version_split(version: str) -> MutableSequence[int]:
+    return [int(v) for v in version[1:].split(".")]
