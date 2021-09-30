@@ -8,6 +8,7 @@ TEST_v1_2_CWL = HERE / "../testdata/workflow_input_format_expr_v1_2.cwl"
 
 
 def test_cwl_version() -> None:
+    """Test cwl_version for a CommandLineTool."""
     with open(TEST_v1_0_CWL, "r") as cwl_h:
         yaml_obj = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     ver = cwl_version(yaml_obj)
@@ -15,6 +16,7 @@ def test_cwl_version() -> None:
 
 
 def test_load_document() -> None:
+    """Test load_document for a CommandLineTool."""
     with open(TEST_v1_0_CWL, "r") as cwl_h:
         yaml_obj = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     cwl_obj = load_document(yaml_obj)
@@ -23,6 +25,7 @@ def test_load_document() -> None:
 
 
 def test_save() -> None:
+    """Test save for a list of Process objects with different cwlVersions."""
     with open(TEST_v1_0_CWL, "r") as cwl_h:
         yaml_obj10 = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     cwl_obj10 = load_document(yaml_obj10)
