@@ -13,7 +13,6 @@ LoadingOptions = Union[
     cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions
 ]
 Savable = Union[cwl_v1_0.Savable, cwl_v1_1.Savable, cwl_v1_2.Savable]
-save_type = Union[cwl_v1_0.save_type, cwl_v1_1.save_type, cwl_v1_2.save_type]
 
 
 def cwl_version(yaml: Any) -> Any:
