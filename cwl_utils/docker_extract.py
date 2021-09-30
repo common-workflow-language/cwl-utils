@@ -39,6 +39,9 @@ def main(args: argparse.Namespace) -> None:
     top = cwl.load_document(args.input)
 
     for req in traverse(top):
+        if not req.dockerPull:
+            print(f"Unable to save image from {req} due to lack of 'dockerPull'.")
+            continue
         if args.singularity:
             image_puller: ImagePuller = SingularityImagePuller(req.dockerPull, args.dir)
         else:
