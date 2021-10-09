@@ -28,6 +28,7 @@ setup(
         "cwltool >= 3.0.20201113183607",
         "cwlformat",
         "cwl-upgrader >= 1.2",
+        "ruamel.yaml==0.16.12",
     ],
     setup_requires=[] + pytest_runner,
     tests_require=["pytest<7", "cwltool"],
