@@ -52,16 +52,16 @@ docker_extract.py --singularity DIRECTORY path_to_my_workflow.cwl
 
 ### Using the CWL Parsers
 
+[//]: # "Please keep the below synchronized with load_cwl_by_path.py"
 ```python
-# Imports
 from pathlib import Path
 from ruamel import yaml
 import sys
 
-from cwl_utils.parser load_document_by_path, save
+from cwl_utils.parser import load_document_by_path, save
 
 # File Input - This is the only thing you will need to adjust or take in as an input to your function:
-cwl_file = Path("/path/to/wf.cwl")  # or a plain string works as well
+cwl_file = Path("testdata/md5sum.cwl")  # or a plain string works as well
 
 # Import CWL Object
 cwl_obj = load_document_by_path(cwl_file)
@@ -71,6 +71,7 @@ print("List of object attributes:\n{}".format("\n".join(map(str, dir(cwl_obj))))
 
 # Export CWL Object into a built-in typed object
 saved_obj = save(cwl_obj)
+print(f"Export of the loaded CWL object: {saved_obj}.")
 ```
 
 ## Development
