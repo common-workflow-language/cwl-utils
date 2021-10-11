@@ -24,6 +24,8 @@ virtualenv -p python3.6 venv3.6  # Python 3.7, 3.8, or 3.9 would also work
 source venv3.6/bin/activate
 pip install .
 ```
+(If you want to edit the sources from the development version, then run
+`pip install -e .`)
 
 ## Usage
 
@@ -37,7 +39,7 @@ The default behaviour is to use the Docker engine to download and save the softw
 container images in Docker format.
 
 ```bash
-python docker_extract.py DIRECTORY path_to_my_workflow.cwl
+docker_extract.py DIRECTORY path_to_my_workflow.cwl
 ```
 
 Or you can use the Singularity software container engine to download and save the
@@ -45,7 +47,7 @@ software container images and convert them to the Singularity format at the same
 time.
 
 ```bash
-python docker_extract.py --singularity DIRECTORY path_to_my_workflow.cwl
+docker_extract.py --singularity DIRECTORY path_to_my_workflow.cwl
 ```
 
 ### Using the CWL Parsers
@@ -56,27 +58,13 @@ from pathlib import Path
 from ruamel import yaml
 import sys
 
-from cwl_utils.parser import cwl_version, load_document, save
+from cwl_utils.parser load_document_by_path, save
 
 # File Input - This is the only thing you will need to adjust or take in as an input to your function:
-cwl_file = Path("/path/to/wf.cwl")
-
-# Read in the cwl file from a yaml
-with open(cwl_file, "r") as cwl_h:
-    yaml_obj = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
-    
-# Check CWLVersion
-try:
-    ver = cwl_version(yaml_obj)
-    if ver is None:
-        print("Error - could not get the cwlVersion")
-        sys.exit(1)
-except ValidationException as e:
-    print("Error - yaml_obj is not a mapping")
-    sys.exit(1)
+cwl_file = Path("/path/to/wf.cwl")  # or a plain string works as well
 
 # Import CWL Object
-cwl_obj = load_document(yaml_obj, cwl_file.as_uri())
+cwl_obj = load_document_by_path(cwl_file)
 
 # View CWL Object
 print("List of object attributes:\n{}".format("\n".join(map(str, dir(cwl_obj)))))
@@ -98,7 +86,7 @@ To regenerate install the `schema_salad` package and run:
 `schema-salad-tool --codegen python https://github.com/common-workflow-language/cwl-v1.1/raw/main/CommonWorkflowLanguage.yml`
 
 `cwl_utils/parser/cwl_v1_2.py` was created via
-`schema-salad-tool --codegen python https://github.com/common-workflow-language/cwl-v1.2/raw/main/CommonWorkflowLanguage.yml`
+`schema-salad-tool --codegen python https://github.com/common-workflow-language/cwl-v1.2/raw/1.2.1_proposed/CommonWorkflowLanguage.yml`
 
 
 ### Release
