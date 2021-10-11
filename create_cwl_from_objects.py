@@ -4,6 +4,7 @@ import cwl_utils.parser.parser_v1_2 as cwl
 
 from ruamel import yaml
 
+
 def main() -> None:
     """Generate a CWL object to match "cat-tool.cwl"."""
     inputs = [cwl.CommandInputParameter(id="file1", type="File")]
