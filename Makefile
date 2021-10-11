@@ -24,14 +24,12 @@ MODULE=cwl_utils
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
-PYSOURCES=$(filter-out cwl_utils/parser/cwl_v%,$(wildcard ${MODULE}/**.py tests/*.py)) setup.py
+PYSOURCES=$(filter-out parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) $(wildcard tests/*.py) *.py
 DEVPKGS=diff_cover black pylint coverage pep257 pydocstyle flake8 mypy\
 	isort wheel autoflake
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \
 	   python-flake8 python-mock shellcheck
 VERSION=$(shell awk '{print $3}' < cwl_utils/__meta__.py )
-# VERSION=3.0.$(shell TZ=UTC git log --first-parent --max-count=1 \
-# 	--format=format:%cd --date=format-local:%Y%m%d%H%M%S)
 mkfile_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 UNAME_S=$(shell uname -s)
 
