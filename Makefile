@@ -146,7 +146,7 @@ test: $(PYSOURCES)
 
 ## testcov     : run the ${MODULE} test suite and collect coverage
 testcov: $(PYSOURCES)
-	python setup.py test --addopts "--cov" ${PYTEST_EXTRA}
+	pytest --cov ${PYTEST_EXTRA}
 
 sloccount.sc: $(PYSOURCES) Makefile
 	sloccount --duplicates --wide --details $^ > $@
