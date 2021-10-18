@@ -2,7 +2,7 @@
 """Classes for docker-extract."""
 import logging
 import os
-import subprocess
+import subprocess  # nosec
 from abc import ABC, abstractmethod
 from typing import List
 
@@ -27,7 +27,7 @@ class ImagePuller(ABC):
     @staticmethod
     def _run_command_pull(cmd_pull: List[str]) -> None:
         try:
-            subprocess.run(
+            subprocess.run(  # nosec
                 cmd_pull, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
             )
         except subprocess.CalledProcessError as err:
@@ -61,7 +61,7 @@ class DockerImagePuller(ImagePuller):
             os.path.join(self.save_directory, self.get_image_name()),
             self.req,
         ]
-        subprocess.run(cmd_save, check=True)
+        subprocess.run(cmd_save, check=True)  # nosec
         _LOGGER.info(
             f"Image successfully pulled: {self.save_directory}/{self.get_image_name()}"
         )
@@ -79,7 +79,7 @@ class SingularityImagePuller(ImagePuller):
     def __init__(self, req: str, save_directory: str) -> None:
         """Create a Singularity-based software container image downloader."""
         super(SingularityImagePuller, self).__init__(req, save_directory)
-        version = subprocess.check_output(
+        version = subprocess.check_output(  # nosec
             ["singularity", "--version"], universal_newlines=True
         )
         if version.startswith("singularity version "):

@@ -5,7 +5,10 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   singularity_version: 3.6.4
@@ -20,8 +23,8 @@ jobs:
     strategy:
       matrix:
         py-ver-major: [3]
-        py-ver-minor: [6, 7, 8, 9]
-        step: [lint, unit, mypy]
+        py-ver-minor: [6, 7, 8, 9, 10]
+        step: [lint, unit, bandit, mypy]
 
     env:
       py-semver: ${{ format('{0}.{1}', matrix.py-ver-major, matrix.py-ver-minor) }}
@@ -37,10 +40,6 @@ jobs:
         uses: eWaterCycle/setup-singularity@v6
         with:
           singularity-version: ${{ env.singularity_version }}
-
-      - name: Give the test runner user a name to make provenance happy.
-        if: ${{ matrix.step == 'unit' || matrix.step == 'mypy' }}
-        run: sudo usermod -c 'CI Runner' $(whoami)
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -70,7 +69,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.step == 'unit' }}
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v2.1.0
         with:
           fail_ci_if_error: true
 
@@ -84,8 +83,8 @@ jobs:
         step: [lint-readme, pydocstyle]
 
     env:
-      py-semver: 3.9
-      TOXENV: ${{ format('py39-{0}', matrix.step) }}
+      py-semver: "3.10"
+      TOXENV: ${{ format('py310-{0}', matrix.step) }}
 
     steps:
       - uses: actions/checkout@v2
@@ -115,7 +114,6 @@ jobs:
       - name: Test with tox
         run: tox
 
-
   release_test:
     name: cwl-utils release test
 
@@ -132,10 +130,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9
-
-      - name: Give the test runner user a name to make provenance happy.
-        run: sudo usermod -c 'CI Runner' $(whoami)
+          python-version: "3.10"  # quoted, otherwise that turns into the number 3.1
 
       - name: Cache for pip
         uses: actions/cache@v2

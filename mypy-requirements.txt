@@ -1,3 +1,4 @@
 mypy==0.910
+typing_extensions
 types-requests
 types-setuptools>==57.4.0
