@@ -142,7 +142,7 @@ diff-cover.html: coverage.xml
 
 ## test        : run the ${MODULE} test suite
 test: $(PYSOURCES)
-	python setup.py test ${PYTEST_EXTRA}
+	pytest ${PYTEST_EXTRA}
 
 ## testcov     : run the ${MODULE} test suite and collect coverage
 testcov: $(PYSOURCES)
