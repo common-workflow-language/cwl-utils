@@ -18,8 +18,8 @@ from ruamel import yaml
 from schema_salad.sourceline import SourceLine, add_lc_filename
 
 
-def main() -> None:
-    """Split the packed CWL at the path of the first argument."""
+def arg_parser() -> argparse.ArgumentParser:
+    """Build the argument parser."""
     parser = argparse.ArgumentParser(description="Split the packed CWL.")
     parser.add_argument("cwlfile")
     parser.add_argument(
@@ -51,7 +51,12 @@ def main() -> None:
         default=os.getcwd(),
         help="Output folder for the unpacked CWL files.",
     )
-    options = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    """Split the packed CWL at the path of the first argument."""
+    options = arg_parser().parse_args()
 
     with open(options.cwlfile, "r") as source_handle:
         run(

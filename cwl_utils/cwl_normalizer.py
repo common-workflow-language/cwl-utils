@@ -37,8 +37,8 @@ from cwl_utils import cwl_v1_2_expression_refactor
 from cwl_utils.parser.cwl_v1_2 import load_document_by_yaml, save
 
 
-def parse_args(args: List[str]) -> argparse.Namespace:
-    """Argument parser."""
+def arg_parser() -> argparse.ArgumentParser:
+    """Build the argument parser."""
     parser = argparse.ArgumentParser(
         description="Tool to normalize CWL documents. Will upgrade to CWL v1.2, "
         "and pack the result. Can optionally refactor out CWL expressions."
@@ -69,7 +69,12 @@ def parse_args(args: List[str]) -> argparse.Namespace:
         nargs="+",
         help="One or more CWL documents.",
     )
-    return parser.parse_args(args)
+    return parser
+
+
+def parse_args(args: List[str]) -> argparse.Namespace:
+    """Parse the command line arguments."""
+    return arg_parser().parse_args(args)
 
 
 def main(args: Optional[List[str]] = None) -> int:

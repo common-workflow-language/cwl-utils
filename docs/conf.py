@@ -29,7 +29,12 @@ author = 'CWL Commmunity'
 # ones.
 extensions = [
         "sphinx.ext.autodoc",
-#        "recommonmark"
+        "sphinx.ext.autosummary",
+        "sphinx.ext.inheritance_diagram",
+        "autoapi.extension",
+        "sphinx_autodoc_typehints",
+        "sphinx_rtd_theme",
+        "sphinxcontrib.autoprogram"
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -46,9 +51,24 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = "sphinx_rtd_theme"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+from pkg_resources import get_distribution
+release = get_distribution('cwl-utils').version
+version = '.'.join(release.split('.')[:2])
+
+autoapi_dirs = ['../cwl_utils']
+autodoc_typehints = 'description'
+autoapi_keep_files = True
+autoapi_ignore = ['*migrations*', '*.pyi']
+autoapi_options = [ 'members', 'undoc-members', 'show-inheritance', 'show-inheritance-diagram', 'show-module-summary', 'imported-members', 'special-members' ]
+#sphinx-autodoc-typehints
+always_document_param_types = True
+# If False, do not add type info for undocumented parameters.
+# If True, add stub documentation for undocumented parameters to be able to add type info.
+

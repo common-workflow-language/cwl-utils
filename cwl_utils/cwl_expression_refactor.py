@@ -48,8 +48,8 @@ class saveCWL(Protocol):
         ...
 
 
-def parse_args(args: List[str]) -> argparse.Namespace:
-    """Argument parser."""
+def arg_parser() -> argparse.ArgumentParser:
+    """Build the arrgument parser."""
     parser = argparse.ArgumentParser(
         description="Tool to refactor CWL documents so that any CWL expression "
         "are separate steps as either ExpressionTools or CommandLineTools. Exit code 7 "
@@ -76,7 +76,12 @@ def parse_args(args: List[str]) -> argparse.Namespace:
         nargs="+",
         help="One or more CWL documents.",
     )
-    return parser.parse_args(args)
+    return parser
+
+
+def parse_args(args: List[str]) -> argparse.Namespace:
+    """Parse the command line options."""
+    return arg_parser().parse_args(args)
 
 
 def main(args: Optional[List[str]] = None) -> int:
