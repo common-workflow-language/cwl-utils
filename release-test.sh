@@ -7,6 +7,7 @@ export LC_ALL=C
 
 package=cwl-utils
 module=cwl_utils
+extras=""
 
 if [ "$GITHUB_ACTIONS" = "true" ]; then
     # We are running as a GH Action
@@ -17,8 +18,8 @@ else
     HEAD=$(git rev-parse HEAD)
 fi
 run_tests="bin/py.test --pyargs ${module}"
-pipver=20.3b1 # minimum required version of pip for Python 3.9
-setuptoolsver=41.1.0 # required for Python 3.9
+pipver=20.3 # minimum required version of pip for Python 3.10
+setuptoolsver=50.0.0 # required for Python 3.10
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 
 rm -Rf testenv? || /bin/true
@@ -34,7 +35,7 @@ then
 	rm -f testenv1/lib/python-wheels/setuptools* \
 		&& pip install --force-reinstall -U pip==${pipver} \
 		&& pip install setuptools==${setuptoolsver} wheel
-	pip install -rtest-requirements.txt
+	pip install -rtest-requirements.txt ".${extras}"
 	make test
 	pip uninstall -y ${package} || true; pip uninstall -y ${package} || true; make install
 	mkdir testenv1/not-${module}
@@ -60,7 +61,7 @@ rm -f lib/python-wheels/setuptools* \
 	&& pip install --force-reinstall -U pip==${pipver} \
         && pip install setuptools==${setuptoolsver} wheel
 # The following can fail if you haven't pushed your commits to ${repo}
-pip install -e "git+${repo}@${HEAD}#egg=${package}"
+pip install -e "git+${repo}@${HEAD}#egg=${package}${extras}"
 pushd src/${package}
 pip install -rtest-requirements.txt
 make dist
@@ -84,7 +85,7 @@ rm -f lib/python-wheels/setuptools* \
         && pip install setuptools==${setuptoolsver} wheel
 package_tar=$(find . -name "${package}*tar.gz")
 pip install "-r${DIR}/test-requirements.txt"
-pip install "${package_tar}"
+pip install "${package_tar}${extras}"
 mkdir out
 tar --extract --directory=out -z -f ${package}*.tar.gz
 pushd out/${package}*
@@ -106,7 +107,7 @@ source bin/activate
 rm -f lib/python-wheels/setuptools* \
 	&& pip install --force-reinstall -U pip==${pipver} \
         && pip install setuptools==${setuptoolsver} wheel
-pip install ${module}*.whl
+pip install "$(ls ${module}*.whl)${extras}"
 pip install "-r${DIR}/test-requirements.txt"
 mkdir not-${module}
 pushd not-${module}
