@@ -127,6 +127,9 @@ jobs:
         with:
           singularity-version: ${{ env.singularity_version }}
 
+      - name: install lxml dev packages (due to lack of Python 3.10 wheels)
+        run: sudo apt-get install -y libxml2-dev libxslt-dev
+
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
