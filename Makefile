@@ -21,12 +21,15 @@
 # make coverage-report to check coverage of the python scripts by the tests
 
 MODULE=cwl_utils
+PACKAGE=cwl-utils
+EXTRAS=
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
 PYSOURCES=$(filter-out parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) $(wildcard tests/*.py) *.py
-DEVPKGS=diff_cover black pylint coverage pep257 pydocstyle flake8 mypy\
-	isort wheel autoflake
+DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox tox-pyenv \
+	isort wheel autoflake flake8-bugbear pyupgrade bandit \
+	-rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \
 	   python-flake8 python-mock shellcheck
 VERSION=$(shell awk '{print $3}' < cwl_utils/__meta__.py )
@@ -34,8 +37,7 @@ mkfile_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 UNAME_S=$(shell uname -s)
 
 ## all         : default task
-all:
-	pip install -e .
+all: dev
 
 ## help        : print this help message and exit
 help: Makefile
@@ -46,20 +48,19 @@ install-dep: install-dependencies
 
 install-dependencies:
 	pip install --upgrade $(DEVPKGS)
-	pip install -r requirements.txt -r mypy_requirements.txt -r docs/requirements.txt
+	pip install -r requirements.txt -r mypy-requirements.txt -r docs/requirements.txt
 
 ## install-deb-dep: install most of the dev dependencies via apt-get
 install-deb-dep:
 	sudo apt-get install $(DEBDEVPKGS)
 
-## install     : install the ${MODULE} module and schema-salad-tool
+## install     : install the ${MODULE} module and scripts
 install: FORCE
-	pip install .[deps]
+	pip install .$(EXTRAS)
 
 ## dev     : install the ${MODULE} module in dev mode
 dev: install-dep
-	pip install -e .[deps]
-
+	pip install -e .$(EXTRAS)
 
 ## dist        : create a module package for distribution
 dist: dist/${MODULE}-$(VERSION).tar.gz
@@ -101,12 +102,15 @@ diff_pydocstyle_report: pydocstyle_report.txt
 format: $(PYSOURCES)
 	black $^
 
+format-check: $(PYSOURCES)
+	black --diff --check $^
+
 ## pylint      : run static code analysis on Python code
 pylint: $(PYSOURCES)
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
                 $^ -j0|| true
 
-pylint_report.txt: ${PYSOURCES}
+pylint_report.txt: $(PYSOURCES)
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
 		$^ -j0> $@ || true
 
@@ -138,17 +142,17 @@ diff-cover.html: coverage.xml
 
 ## test        : run the ${MODULE} test suite
 test: $(PYSOURCES)
-	pytest # --addopts "-n auto --dist=loadfile"
+	python setup.py test ${PYTEST_EXTRA}
 
 ## testcov     : run the ${MODULE} test suite and collect coverage
 testcov: $(PYSOURCES)
-	pytest --cov ${MODULE} # -n auto --dist=loadfile"
+	python setup.py test --addopts "--cov" ${PYTEST_EXTRA}
 
-sloccount.sc: ${PYSOURCES} Makefile
+sloccount.sc: $(PYSOURCES) Makefile
 	sloccount --duplicates --wide --details $^ > $@
 
 ## sloccount   : count lines of code
-sloccount: ${PYSOURCES} Makefile
+sloccount: $(PYSOURCES) Makefile
 	sloccount $^
 
 list-author-emails:
@@ -165,16 +169,23 @@ mypy: $(filter-out setup.py,${PYSOURCES})
 	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
 	MYPYPATH=$$MYPYPATH:typeshed mypy $^
 
+pyupgrade: $(PYSOURCES)
+	pyupgrade --exit-zero-even-if-changed --py36-plus $^
+
 release-test: FORCE
 	git diff-index --quiet HEAD -- || ( echo You have uncommited changes, please commit them and try again; false )
 	./release-test.sh
 
 release: release-test
 	. testenv2/bin/activate && \
-		python testenv2/src/${MODULE}/setup.py sdist bdist_wheel && \
+		python testenv2/src/${PACKAGE}/setup.py sdist bdist_wheel
+	. testenv2/bin/activate && \
 		pip install twine && \
-		twine upload testenv2/src/${MODULE}/dist/* && \
+		twine upload testenv2/src/${PACKAGE}/dist/* && \
 		git tag ${VERSION} && git push --tags
+
+flake8: $(PYSOURCES)
+	flake8 $^
 
 FORCE:
 

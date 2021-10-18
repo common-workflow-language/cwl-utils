@@ -42,7 +42,7 @@ def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool
             stdout_path = process.stdout
             if not stdout_path:
                 stdout_path = str(
-                    hashlib.sha1(
+                    hashlib.sha1(  # nosec
                         json_dumps(cwl.save(process)).encode("utf-8")
                     ).hexdigest()
                 )
@@ -101,7 +101,7 @@ def get_expression(
             "cores": 0,
             "ram": 0,
             "outdir": "/root",
-            "tmpdir": "/tmp",
+            "tmpdir": "/tmp",  # nosec
             "outdirSize": 0,
             "tmpdirSize": 0,
         }
@@ -1542,8 +1542,8 @@ def traverse_CommandLineTool(
                         "basename": "base.name",
                         "nameroot": "base",
                         "nameext": "name",
-                        "path": "/tmp/base.name",
-                        "dirname": "/tmp",
+                        "path": "/tmp/base.name",  # nosec
+                        "dirname": "/tmp",  # nosec
                     }
                 ]
                 if outp.outputBinding.loadContents:

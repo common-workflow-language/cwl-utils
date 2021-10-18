@@ -7,11 +7,25 @@ import logging
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, MutableSequence, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    MutableSequence,
+    Optional,
+    Tuple,
+    Union,
+    TYPE_CHECKING,
+)
 
 from cwltool.loghandler import _logger as _cwltoollogger
 from ruamel import yaml
-from typing_extensions import Protocol
+
+if TYPE_CHECKING:
+    from typing_extensions import Protocol
+else:
+    Protocol = object
 
 _logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
