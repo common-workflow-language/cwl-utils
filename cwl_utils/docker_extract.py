@@ -16,7 +16,7 @@ from cwl_utils.image_puller import (
 ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 
 
-def parse_args() -> argparse.Namespace:
+def arg_parser() -> argparse.ArgumentParser:
     """Argument parser."""
     parser = argparse.ArgumentParser(
         description="Tool to save docker images from a cwl workflow."
@@ -29,7 +29,12 @@ def parse_args() -> argparse.Namespace:
         help="Use singularity to pull the image",
         action="store_true",
     )
-    return parser.parse_args()
+    return parser
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse the command line arguments."""
+    return arg_parser().parse_args()
 
 
 def main(args: argparse.Namespace) -> None:
