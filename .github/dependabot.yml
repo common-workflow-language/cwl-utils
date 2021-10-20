@@ -1,20 +1,9 @@
 version: 2
 updates:
-- package-ecosystem: pip
-  directory: "/"
-  schedule:
-    interval: daily
-  open-pull-requests-limit: 10
-  ignore:
-  - dependency-name: ruamel-yaml
-    versions:
-    - 0.16.12
-    - 0.16.13
-    - 0.17.0
-    - 0.17.2
-  - dependency-name: mypy
-    versions:
-    - "0.800"
+  - package-ecosystem: "pip"
+    directory: "/" # Location of package manifests
+    schedule:
+      interval: "daily"
   # Maintain dependencies for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
