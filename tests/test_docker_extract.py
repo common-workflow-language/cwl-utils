@@ -1,4 +1,6 @@
 from pathlib import Path
+from pytest import mark
+from shutil import which
 from tempfile import TemporaryDirectory
 
 import cwl_utils.parser.cwl_v1_0 as parser
@@ -9,6 +11,7 @@ HERE = Path(__file__).resolve().parent
 TEST_CWL = HERE / "../testdata/md5sum.cwl"
 
 
+@mark.skipif(which("docker") is None, reason="docker is not available")
 def test_traverse_workflow() -> None:
     """Test container extraction tool using Docker."""
     loaded = parser.load_document(str(TEST_CWL.resolve()))
@@ -21,6 +24,7 @@ def test_traverse_workflow() -> None:
             _ = image_puller.generate_udocker_loading_command()
 
 
+@mark.skipif(which("singularity") is None, reason="singularity is not available")
 def test_traverse_workflow_singularity() -> None:
     """Test container extraction tool using Singularity."""
     loaded = parser.load_document(str(TEST_CWL.resolve()))
