@@ -71,15 +71,21 @@ def load_document_by_path(
 ) -> Any:
     """Load a CWL object from a path."""
     if isinstance(path, str):
-        if path.startswith("file:/"):
-            path = unquote_plus(urlparse(path).path)
-        real_path = Path(path)
+        uri = urlparse(path)
+        if not uri.scheme or uri.scheme == "file":
+            real_path = Path(unquote_plus(uri.path)).resolve().as_uri()
+        else:
+            real_path = path
     else:
-        real_path = path
-    baseuri = real_path.resolve().as_uri()
-    with open(path) as handle:
-        doc = yaml_no_ts().load(handle)
-    return load_document_by_yaml(doc, baseuri, loadingOptions)
+        real_path = path.resolve().as_uri()
+
+    baseuri = str(real_path)
+
+    if loadingOptions is None:
+        loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
+
+    doc = loadingOptions.fetcher.fetch_text(real_path)
+    return load_document_by_string(doc, baseuri, loadingOptions)
 
 
 def load_document(
