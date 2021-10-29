@@ -1,5 +1,5 @@
 """Test the load and save functions for CWL."""
-from cwl_utils.parser import cwl_version, load_document, load_document_by_path, save
+from cwl_utils.parser import cwl_version, load_document, load_document_by_uri, save
 from pathlib import Path
 from ruamel import yaml
 
@@ -28,7 +28,7 @@ def test_load_document() -> None:
 
 def test_load_document_with_uri() -> None:
     """Test load_document for a CommandLineTool in a remote URI."""
-    cwl_obj = load_document_by_path(TEST_v1_0_CWL_REMOTE)
+    cwl_obj = load_document_by_uri(TEST_v1_0_CWL_REMOTE)
     assert cwl_obj.cwlVersion == "v1.0"
     assert cwl_obj.inputs[0].id.endswith("input_file")
 
