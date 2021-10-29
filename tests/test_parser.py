@@ -26,7 +26,16 @@ def test_load_document() -> None:
     assert cwl_obj.inputs[0].id.endswith("input_file")
 
 
-def test_load_document_with_uri() -> None:
+def test_load_document_with_local_uri() -> None:
+    """Test load_document for a CommandLineTool in a local URI."""
+    uri = Path(TEST_v1_0_CWL).resolve().as_uri()
+    assert uri.startswith("file://")
+    cwl_obj = load_document_by_uri(uri)
+    assert cwl_obj.cwlVersion == "v1.0"
+    assert cwl_obj.inputs[0].id.endswith("input_file")
+
+
+def test_load_document_with_remote_uri() -> None:
     """Test load_document for a CommandLineTool in a remote URI."""
     cwl_obj = load_document_by_uri(TEST_v1_0_CWL_REMOTE)
     assert cwl_obj.cwlVersion == "v1.0"
