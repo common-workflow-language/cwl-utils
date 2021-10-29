@@ -65,11 +65,11 @@ def cwl_version(yaml: Any) -> Any:
     return yaml["cwlVersion"]
 
 
-def load_document_by_path(
+def load_document_by_uri(
     path: Union[str, Path],
     loadingOptions: Optional[LoadingOptions] = None,
 ) -> Any:
-    """Load a CWL object from a path."""
+    """Load a CWL object from a URI or a path."""
     if isinstance(path, str):
         uri = urlparse(path)
         if not uri.scheme or uri.scheme == "file":
