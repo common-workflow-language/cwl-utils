@@ -1,10 +1,11 @@
 """Test the load and save functions for CWL."""
-from cwl_utils.parser import cwl_version, load_document, save
+from cwl_utils.parser import cwl_version, load_document, load_document_by_uri, save
 from pathlib import Path
 from ruamel import yaml
 
 HERE = Path(__file__).resolve().parent
 TEST_v1_0_CWL = HERE / "../testdata/md5sum.cwl"
+TEST_v1_0_CWL_REMOTE = "https://raw.githubusercontent.com/common-workflow-language/cwl-utils/main/testdata/md5sum.cwl"
 TEST_v1_2_CWL = HERE / "../testdata/workflow_input_format_expr_v1_2.cwl"
 
 
@@ -21,6 +22,22 @@ def test_load_document() -> None:
     with open(TEST_v1_0_CWL, "r") as cwl_h:
         yaml_obj = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     cwl_obj = load_document(yaml_obj)
+    assert cwl_obj.cwlVersion == "v1.0"
+    assert cwl_obj.inputs[0].id.endswith("input_file")
+
+
+def test_load_document_with_local_uri() -> None:
+    """Test load_document for a CommandLineTool in a local URI."""
+    uri = Path(TEST_v1_0_CWL).resolve().as_uri()
+    assert uri.startswith("file://")
+    cwl_obj = load_document_by_uri(uri)
+    assert cwl_obj.cwlVersion == "v1.0"
+    assert cwl_obj.inputs[0].id.endswith("input_file")
+
+
+def test_load_document_with_remote_uri() -> None:
+    """Test load_document for a CommandLineTool in a remote URI."""
+    cwl_obj = load_document_by_uri(TEST_v1_0_CWL_REMOTE)
     assert cwl_obj.cwlVersion == "v1.0"
     assert cwl_obj.inputs[0].id.endswith("input_file")
 
