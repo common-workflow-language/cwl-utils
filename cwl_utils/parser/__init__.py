@@ -85,7 +85,7 @@ def load_document_by_uri(
         loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
 
     doc = loadingOptions.fetcher.fetch_text(real_path)
-    if doc is not None:
+    if doc is None:
         raise AssertionError("fetch_text returns None")
     return load_document_by_string(doc, baseuri, loadingOptions)
 
@@ -109,7 +109,7 @@ def load_document_by_string(
     """Load a CWL object from a serialized YAML string."""
     yaml = yaml_no_ts()
     result = yaml.load(string)
-    if result is not None:
+    if result is None:
         raise AssertionError("yaml.load returns None")
     return load_document_by_yaml(result, uri, loadingOptions)
 
