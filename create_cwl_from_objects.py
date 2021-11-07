@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-from cwl_utils.parser import cwl_v1_2 as cwl
-
 from ruamel import yaml
+
+from cwl_utils.parser import cwl_v1_2 as cwl
 
 
 def main() -> None:

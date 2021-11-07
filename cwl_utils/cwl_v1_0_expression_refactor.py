@@ -86,13 +86,13 @@ def clean_type_ids(
 
 def get_expression(
     string: str, inputs: CWLObjectType, self: Optional[CWLOutputType]
-) -> Optional[Text]:
+) -> Optional[str]:
     """
     Find and return a normalized CWL expression, if any.
 
     CWL expressions in the $() form are converted to the ${} form.
     """
-    if not isinstance(string, Text):
+    if not isinstance(string, str):
         return None
     if string.strip().startswith("${"):
         return string
@@ -262,7 +262,7 @@ def traverse(
                         streamable=outp.streamable,
                         doc=outp.doc,
                         format=outp.format,
-                        outputSource="main/{}".format(outp_id),
+                        outputSource=f"main/{outp_id}",
                         type=outp.type,
                         extension_fields=outp.extension_fields,
                         loadingOptions=outp.loadingOptions,
@@ -699,7 +699,7 @@ def process_workflow_inputs_and_outputs(
                                 index2,
                                 raise_type=WorkflowException,
                             ).makeError(
-                                "Entry {},".format(index)
+                                f"Entry {index},"
                                 + TOPLEVEL_SF_EXPR_ERROR.format(param.id.split("#")[-1])
                             )
     return modified
@@ -765,7 +765,7 @@ def process_workflow_reqs_and_hints(
                                     envVarReq = copy.deepcopy(req)
                                     prop_reqs += (cwl.EnvVarRequirement,)
                                 newEnvDef = copy.deepcopy(envDef)
-                                newEnvDef.envValue = "$(inputs._envDef{})".format(index)
+                                newEnvDef.envValue = f"$(inputs._envDef{index})"
                                 envVarReq.envDef[index] = newEnvDef
                                 generated_envVar_reqs.append((etool_id, index))
             if req and isinstance(req, cwl.ResourceRequirement):
@@ -794,7 +794,7 @@ def process_workflow_reqs_and_hints(
                                     loadingOptions=workflow.loadingOptions,
                                 )
                                 prop_reqs += (cwl.ResourceRequirement,)
-                            setattr(resourceReq, attr, "$(inputs._{})".format(attr))
+                            setattr(resourceReq, attr, f"$(inputs._{attr})")
                             generated_res_reqs.append((etool_id, attr))
             if req and isinstance(req, cwl.InitialWorkDirRequirement):
                 if req.listing:
@@ -845,9 +845,7 @@ def process_workflow_reqs_and_hints(
                                     None,
                                     replace_etool,
                                 )
-                                iwdr.listing[
-                                    index
-                                ] = "$(inputs._iwdr_listing_{}".format(index)
+                                iwdr.listing[index] = f"$(inputs._iwdr_listing_{index}"
                                 generated_iwdr_reqs.append((etool_id, index))
                             elif isinstance(entry, cwl.Dirent):
                                 if entry.entry:
@@ -904,7 +902,7 @@ def process_workflow_reqs_and_hints(
                                                     index,
                                                     raise_type=WorkflowException,
                                                 ).makeError(
-                                                    "Entry {},".format(index)
+                                                    f"Entry {index},"
                                                     + "Invalid CWL, if 'entry' is a string, then entryName must be specified."
                                                 )
                                             expr = (
@@ -927,7 +925,7 @@ def process_workflow_reqs_and_hints(
                                         )
                                         iwdr.listing[
                                             index
-                                        ] = "$(inputs._iwdr_listing_{}".format(index)
+                                        ] = f"$(inputs._iwdr_listing_{index}"
                                         generated_iwdr_reqs.append((etool_id, index))
 
                                 elif entry.entryname:
@@ -953,7 +951,7 @@ def process_workflow_reqs_and_hints(
                                         )
                                         iwdr.listing[
                                             index
-                                        ] = "$(inputs._iwdr_listing_{}".format(index)
+                                        ] = f"$(inputs._iwdr_listing_{index}"
                                         generated_iwdr_reqs.append((etool_id, index))
                         if generated_iwdr_reqs:
                             prop_reqs += (cwl.InitialWorkDirRequirement,)
@@ -973,8 +971,8 @@ def process_workflow_reqs_and_hints(
             for entry in generated_envVar_reqs:
                 step.in_.append(
                     cwl.WorkflowStepInput(
-                        id="_envDef{}".format(entry[1]),
-                        source="{}/result".format(entry[0]),
+                        id=f"_envDef{entry[1]}",
+                        source=f"{entry[0]}/result",
                     )
                 )
 
@@ -992,8 +990,8 @@ def process_workflow_reqs_and_hints(
             for entry in generated_res_reqs:
                 step.in_.append(
                     cwl.WorkflowStepInput(
-                        id="_{}".format(entry[1]),
-                        source="{}/result".format(entry[0]),
+                        id=f"_{entry[1]}",
+                        source=f"{entry[0]}/result",
                     )
                 )
 
@@ -1012,8 +1010,8 @@ def process_workflow_reqs_and_hints(
                 for entry in generated_iwdr_reqs:
                     step.in_.append(
                         cwl.WorkflowStepInput(
-                            id="_iwdr_listing_{}".format(index),
-                            source="{}/result".format(entry[0]),
+                            id=f"_iwdr_listing_{index}",
+                            source=f"{entry[0]}/result",
                         )
                     )
             else:
@@ -1082,7 +1080,7 @@ def process_level_reqs(
                             )
                             target_process.requirements[req_index][
                                 env_index
-                            ].envValue = "$(inputs._envDef{})".format(env_index)
+                            ].envValue = f"$(inputs._envDef{env_index})"
                             generated_envVar_reqs.append((etool_id, env_index))
         if req and isinstance(req, cwl.ResourceRequirement):
             for attr in cwl.ResourceRequirement.attrs:
@@ -1101,7 +1099,7 @@ def process_level_reqs(
                         setattr(
                             target_process.requirements[req_index],
                             attr,
-                            "$(inputs._{})".format(attr),
+                            f"$(inputs._{attr})",
                         )
                         generated_res_reqs.append((etool_id, attr))
 
@@ -1137,7 +1135,7 @@ def process_level_reqs(
                         step.in_.append(
                             cwl.WorkflowStepInput(
                                 id="_iwdr_listing",
-                                source="{}/result".format(etool_id),
+                                source=f"{etool_id}/result",
                             )
                         )
                         add_input_to_process(
@@ -1174,7 +1172,7 @@ def process_level_reqs(
                             )
                             target_process.requirements[req_index].listing[
                                 listing_index
-                            ] = "$(inputs._iwdr_listing_{}".format(listing_index)
+                            ] = f"$(inputs._iwdr_listing_{listing_index}"
                             generated_iwdr_reqs.append(
                                 (etool_id, listing_index, target_type)
                             )
@@ -1190,7 +1188,7 @@ def process_level_reqs(
                                         entryname = (
                                             entry.entryname
                                             if entryname_expr
-                                            else '"{}"'.format(entry.entryname)
+                                            else f'"{entry.entryname}"'
                                         )
                                         new_expression = (
                                             "${var result; var entryname = "
@@ -1266,22 +1264,16 @@ return result; }"""
                                         (etool_id, listing_index, "string")
                                     )
     for entry in generated_envVar_reqs:
-        name = "_envDef{}".format(entry[1])
-        step.in_.append(
-            cwl.WorkflowStepInput(id=name, source="{}/result".format(entry[0]))
-        )
+        name = f"_envDef{entry[1]}"
+        step.in_.append(cwl.WorkflowStepInput(id=name, source=f"{entry[0]}/result"))
         add_input_to_process(target_process, name, "string", process.loadingOptions)
     for entry in generated_res_reqs:
-        name = "_{}".format(entry[1])
-        step.in_.append(
-            cwl.WorkflowStepInput(id=name, source="{}/result".format(entry[0]))
-        )
+        name = f"_{entry[1]}"
+        step.in_.append(cwl.WorkflowStepInput(id=name, source=f"{entry[0]}/result"))
         add_input_to_process(target_process, name, "long", process.loadingOptions)
     for entry in generated_iwdr_reqs:
-        name = "_iwdr_listing_{}".format(entry[1])
-        step.in_.append(
-            cwl.WorkflowStepInput(id=name, source="{}/result".format(entry[0]))
-        )
+        name = f"_iwdr_listing_{entry[1]}"
+        step.in_.append(cwl.WorkflowStepInput(id=name, source=f"{entry[0]}/result"))
         add_input_to_process(target_process, name, entry[2], process.loadingOptions)
     return modified
 
@@ -1322,15 +1314,15 @@ def traverse_CommandLineTool(
                 expression = get_expression(arg, inputs, None)
                 if expression:
                     modified = True
-                    inp_id = "_arguments_{}".format(index)
-                    etool_id = "_expression_{}{}".format(step_id, inp_id)
+                    inp_id = f"_arguments_{index}"
+                    etool_id = f"_expression_{step_id}{inp_id}"
                     target_type = "Any"
                     target = cwl.InputParameter(id=None, type=target_type)
                     replace_step_clt_expr_with_etool(
                         expression, etool_id, parent, target, step, replace_etool
                     )
                     target_clt.arguments[index] = cwl.CommandLineBinding(
-                        valueFrom="$(inputs.{})".format(inp_id)
+                        valueFrom=f"$(inputs.{inp_id})"
                     )
                     target_clt.inputs.append(
                         cwl.CommandInputParameter(
@@ -1340,7 +1332,7 @@ def traverse_CommandLineTool(
                     )
                     step.in_.append(
                         cwl.WorkflowStepInput(
-                            "{}/result".format(etool_id), None, inp_id, None, None
+                            f"{etool_id}/result", None, inp_id, None, None
                         )
                     )
                     remove_JSReq(target_clt, skip_command_line1)
@@ -1348,8 +1340,8 @@ def traverse_CommandLineTool(
                 expression = get_expression(arg.valueFrom, inputs, None)
                 if expression:
                     modified = True
-                    inp_id = "_arguments_{}".format(index)
-                    etool_id = "_expression_{}{}".format(step_id, inp_id)
+                    inp_id = f"_arguments_{index}"
+                    etool_id = f"_expression_{step_id}{inp_id}"
                     target_type = "Any"
                     target = cwl.InputParameter(id=None, type=target_type)
                     replace_step_clt_expr_with_etool(
@@ -1365,9 +1357,7 @@ def traverse_CommandLineTool(
                         )
                     )
                     step.in_.append(
-                        cwl.WorkflowStepInput(
-                            id=inp_id, source="{}/result".format(etool_id)
-                        )
+                        cwl.WorkflowStepInput(id=inp_id, source=f"{etool_id}/result")
                     )
                     remove_JSReq(target_clt, skip_command_line1)
     for streamtype in "stdout", "stderr":  # add 'stdin' for v1.1 version
@@ -1376,21 +1366,19 @@ def traverse_CommandLineTool(
             expression = get_expression(stream_value, inputs, None)
             if expression:
                 modified = True
-                inp_id = "_{}".format(streamtype)
-                etool_id = "_expression_{}{}".format(step_id, inp_id)
+                inp_id = f"_{streamtype}"
+                etool_id = f"_expression_{step_id}{inp_id}"
                 target_type = "string"
                 target = cwl.InputParameter(id=None, type=target_type)
                 replace_step_clt_expr_with_etool(
                     expression, etool_id, parent, target, step, replace_etool
                 )
-                setattr(target_clt, streamtype, "$(inputs.{})".format(inp_id))
+                setattr(target_clt, streamtype, f"$(inputs.{inp_id})")
                 target_clt.inputs.append(
                     cwl.CommandInputParameter(id=inp_id, type=target_type)
                 )
                 step.in_.append(
-                    cwl.WorkflowStepInput(
-                        id=inp_id, source="{}/result".format(etool_id)
-                    )
+                    cwl.WorkflowStepInput(id=inp_id, source=f"{etool_id}/result")
                 )
     for inp in clt.inputs:
         if not skip_command_line1 and inp.inputBinding and inp.inputBinding.valueFrom:
@@ -1400,19 +1388,17 @@ def traverse_CommandLineTool(
             if expression:
                 modified = True
                 self_id = inp.id.split("#")[-1]
-                inp_id = "_{}_valueFrom".format(self_id)
-                etool_id = "_expression_{}{}".format(step_id, inp_id)
+                inp_id = f"_{self_id}_valueFrom"
+                etool_id = f"_expression_{step_id}{inp_id}"
                 replace_step_clt_expr_with_etool(
                     expression, etool_id, parent, inp, step, replace_etool, self_id
                 )
-                inp.inputBinding.valueFrom = "$(inputs.{})".format(inp_id)
+                inp.inputBinding.valueFrom = f"$(inputs.{inp_id})"
                 target_clt.inputs.append(
                     cwl.CommandInputParameter(id=inp_id, type=inp.type)
                 )
                 step.in_.append(
-                    cwl.WorkflowStepInput(
-                        id=inp_id, source="{}/result".format(etool_id)
-                    )
+                    cwl.WorkflowStepInput(id=inp_id, source=f"{etool_id}/result")
                 )
     for outp in clt.outputs:
         if outp.outputBinding:
@@ -1421,13 +1407,13 @@ def traverse_CommandLineTool(
                 if expression:
                     modified = True
                     inp_id = "_{}_glob".format(outp.id.split("#")[-1])
-                    etool_id = "_expression_{}{}".format(step_id, inp_id)
+                    etool_id = f"_expression_{step_id}{inp_id}"
                     glob_target_type = ["string", cwl.ArraySchema("string", "array")]
                     target = cwl.InputParameter(id=None, type=glob_target_type)
                     replace_step_clt_expr_with_etool(
                         expression, etool_id, parent, target, step, replace_etool
                     )
-                    outp.outputBinding.glob = "$(inputs.{})".format(inp_id)
+                    outp.outputBinding.glob = f"$(inputs.{inp_id})"
                     target_clt.inputs.append(
                         cwl.CommandInputParameter(
                             id=inp_id,
@@ -1435,9 +1421,7 @@ def traverse_CommandLineTool(
                         )
                     )
                     step.in_.append(
-                        cwl.WorkflowStepInput(
-                            id=inp_id, source="{}/result".format(etool_id)
-                        )
+                        cwl.WorkflowStepInput(id=inp_id, source=f"{etool_id}/result")
                     )
             if outp.outputBinding.outputEval and not skip_command_line2:
                 self: CWLOutputType = [
@@ -1456,8 +1440,8 @@ def traverse_CommandLineTool(
                 if expression:
                     modified = True
                     outp_id = outp.id.split("#")[-1]
-                    inp_id = "_{}_outputEval".format(outp_id)
-                    etool_id = "expression{}".format(inp_id)
+                    inp_id = f"_{outp_id}_outputEval"
+                    etool_id = f"expression{inp_id}"
                     sub_wf_outputs = cltool_step_outputs_to_workflow_outputs(
                         step, etool_id, outp_id
                     )
@@ -1559,13 +1543,11 @@ def traverse_CommandLineTool(
                     step.run = sub_workflow
                     rename_step_source(
                         sub_workflow,
-                        "{}/{}".format(step_id, outp_id),
-                        "{}/result".format(etool_id),
+                        f"{step_id}/{outp_id}",
+                        f"{etool_id}/result",
                     )
                     orig_step_inputs.append(
-                        cwl.WorkflowStepInput(
-                            id="self", source="{}/{}".format(step_id, outp_id)
-                        )
+                        cwl.WorkflowStepInput(id="self", source=f"{step_id}/{outp_id}")
                     )
                     if not parent.requirements:
                         parent.requirements = [cwl.SubworkflowFeatureRequirement()]
@@ -1735,7 +1717,7 @@ def cltool_inputs_to_etool_inputs(
 
 
 def cltool_step_outputs_to_workflow_outputs(
-    cltool_step: cwl.WorkflowStep, etool_step_id: Text, etool_out_id: str
+    cltool_step: cwl.WorkflowStep, etool_step_id: str, etool_out_id: str
 ) -> List[cwl.OutputParameter]:
     """
     Copy CommandLineTool outputs into the equivalent Workflow output parameters.
@@ -1751,9 +1733,9 @@ def cltool_step_outputs_to_workflow_outputs(
         for clt_out in cltool_step.run.outputs:
             clt_out_id = clt_out.id.split("#")[-1].split("/")[-1]
             if clt_out_id == etool_out_id:
-                outputSource = "{}/result".format(etool_step_id)
+                outputSource = f"{etool_step_id}/result"
             else:
-                outputSource = "{}/{}".format(default_step_id, clt_out_id)
+                outputSource = f"{default_step_id}/{clt_out_id}"
             if not clt_out_id.startswith("_"):
                 outputs.append(
                     cwl.WorkflowOutputParameter(
@@ -1797,7 +1779,7 @@ def generate_etool_from_expr2(
     )
     expression = "${"
     if self_name:
-        expression += "\n  var self=inputs.{};".format(self_name)
+        expression += f"\n  var self=inputs.{self_name};"
     expression += (
         """
   return {"result": function(){"""
@@ -1949,7 +1931,7 @@ def traverse_step(
                     source_type,
                 )
                 inp.valueFrom = None
-                inp.source = "{}/result".format(etool_id)
+                inp.source = f"{etool_id}/result"
     # TODO: skip or special process for sub workflows?
     process_modified = process_level_reqs(
         original_process,

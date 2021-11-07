@@ -26,7 +26,7 @@ EXTRAS=
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
-PYSOURCES=$(filter-out parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) $(wildcard tests/*.py) *.py
+PYSOURCES=$(filter-out $(MODULE)/parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) $(wildcard tests/*.py) $(wildcard *.py)
 DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox tox-pyenv \
 	isort wheel autoflake flake8-bugbear pyupgrade bandit \
 	-rtest-requirements.txt -rmypy-requirements.txt

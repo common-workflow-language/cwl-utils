@@ -8,6 +8,7 @@ import shutil
 import sys
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -16,7 +17,6 @@ from typing import (
     Optional,
     Tuple,
     Union,
-    TYPE_CHECKING,
 )
 
 from cwltool.loghandler import _logger as _cwltoollogger
@@ -38,12 +38,7 @@ from cwl_utils import (
     cwl_v1_1_expression_refactor,
     cwl_v1_2_expression_refactor,
 )
-
-from cwl_utils.parser import (
-    cwl_v1_0,
-    cwl_v1_1,
-    cwl_v1_2,
-)
+from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
 
 save_type = Union[Dict[str, str], List[Union[Dict[str, str], List[Any], None]], None]
 
@@ -109,7 +104,7 @@ def run(args: argparse.Namespace) -> int:
     """Primary processing loop."""
     for document in args.inputs:
         _logger.info("Processing %s.", document)
-        with open(document, "r") as doc_handle:
+        with open(document) as doc_handle:
             result = yaml.main.round_trip_load(doc_handle, preserve_quotes=True)
         version = result["cwlVersion"]
         uri = Path(document).resolve().as_uri()
