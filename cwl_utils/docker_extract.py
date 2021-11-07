@@ -98,8 +98,7 @@ def get_process_from_step(step: cwl.WorkflowStep) -> ProcessType:
 def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.DockerRequirement]:
     """Iterate over the steps of this workflow, yielding the docker reqs."""
     for step in workflow.steps:
-        for req in extract_docker_reqs(step):
-            yield req
+        yield from extract_docker_reqs(step)
         yield from traverse(get_process_from_step(step))
 
 

@@ -1,24 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
 
-from schema_salad.exceptions import ValidationException
-from schema_salad.utils import yaml_no_ts
-from . import cwl_v1_0 as cwl_v1_0
-from . import cwl_v1_1 as cwl_v1_1
-from . import cwl_v1_2 as cwl_v1_2
-
 import os
 from pathlib import Path
-from urllib.parse import unquote_plus, urlparse
 from typing import (
-    cast,
     Any,
     Dict,
     MutableMapping,
     MutableSequence,
+    Optional,
     Tuple,
     Union,
-    Optional,
+    cast,
 )
+from urllib.parse import unquote_plus, urlparse
+
+from schema_salad.exceptions import ValidationException
+from schema_salad.utils import yaml_no_ts
+
+from . import cwl_v1_0 as cwl_v1_0
+from . import cwl_v1_1 as cwl_v1_1
+from . import cwl_v1_2 as cwl_v1_2
 
 LoadingOptions = Union[
     cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions
@@ -131,7 +132,7 @@ def load_document_by_yaml(
         raise ValidationException("could not get the cwlVersion")
     else:
         raise ValidationException(
-            "Version error. Did not recognise {} as a CWL version".format(version)
+            f"Version error. Did not recognise {version} as a CWL version"
         )
 
     if isinstance(result, MutableSequence):
@@ -162,7 +163,7 @@ def save(
             save(v, top=top, base_url=base_url, relative_uris=relative_uris)
             for v in val
         ]
-        if top and all((is_process(v) for v in val)):
+        if top and all(is_process(v) for v in val):
             vers = [
                 e.get("cwlVersion") for i, e in enumerate(lst) if is_process(val[i])
             ]

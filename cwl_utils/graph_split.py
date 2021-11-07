@@ -58,7 +58,7 @@ def main() -> None:
     """Split the packed CWL at the path of the first argument."""
     options = arg_parser().parse_args()
 
-    with open(options.cwlfile, "r") as source_handle:
+    with open(options.cwlfile) as source_handle:
         run(
             source_handle,
             options.outdir,
@@ -95,10 +95,10 @@ def run(
         imports = rewrite(entry, entry_id)
         if imports:
             for import_name in imports:
-                rewrite_types(entry, "#{}".format(import_name), False)
+                rewrite_types(entry, f"#{import_name}", False)
         if entry_id == "main":
             if mainfile is None:
-                entry_id = "unpacked_{}".format(os.path.basename(sourceIO.name))
+                entry_id = f"unpacked_{os.path.basename(sourceIO.name)}"
             else:
                 entry_id = mainfile
 
@@ -112,7 +112,7 @@ def run(
 def rewrite(document: Any, doc_id: str) -> Set[str]:
     """Rewrite the given element from the CWL $graph."""
     imports = set()
-    if isinstance(document, list) and not isinstance(document, Text):
+    if isinstance(document, list) and not isinstance(document, str):
         for entry in document:
             imports.update(rewrite(entry, doc_id))
     elif isinstance(document, dict):
@@ -133,14 +133,12 @@ def rewrite(document: Any, doc_id: str) -> Set[str]:
                         elif isinstance(entry, str):
                             if entry.startswith(this_id):
                                 return entry[len(this_id) + 1 :]
-                        raise Exception(
-                            "{} is neither a dictionary nor string.".format(entry)
-                        )
+                        raise Exception(f"{entry} is neither a dictionary nor string.")
 
                     document[key][:] = [rewrite_id(entry) for entry in value]
                 elif key in ("source", "scatter", "items", "format"):
                     if (
-                        isinstance(value, Text)
+                        isinstance(value, str)
                         and value.startswith("#")
                         and "/" in value
                     ):
@@ -148,7 +146,7 @@ def rewrite(document: Any, doc_id: str) -> Set[str]:
                         if referrant_file == doc_id:
                             document[key] = sub
                         else:
-                            document[key] = "{}#{}".format(referrant_file, sub)
+                            document[key] = f"{referrant_file}#{sub}"
                     elif isinstance(value, list):
                         new_sources = list()
                         for entry in value:
@@ -174,7 +172,7 @@ def rewrite_import(document: MutableMapping[str, Any]) -> None:
 
 def rewrite_types(field: Any, entry_file: str, sameself: bool) -> None:
     """Clean up the names of the types."""
-    if isinstance(field, list) and not isinstance(field, Text):
+    if isinstance(field, list) and not isinstance(field, str):
         for entry in field:
             rewrite_types(entry, entry_file, sameself)
         return
@@ -182,7 +180,7 @@ def rewrite_types(field: Any, entry_file: str, sameself: bool) -> None:
         for key, value in field.items():
             for name in ("type", "items"):
                 if key == name:
-                    if isinstance(value, Text) and value.startswith(entry_file):
+                    if isinstance(value, str) and value.startswith(entry_file):
                         if sameself:
                             field[key] = value[len(entry_file) + 1 :]
                         else:
@@ -191,7 +189,7 @@ def rewrite_types(field: Any, entry_file: str, sameself: bool) -> None:
                             )
             if isinstance(value, dict):
                 rewrite_types(value, entry_file, sameself)
-            if isinstance(value, list) and not isinstance(value, Text):
+            if isinstance(value, list) and not isinstance(value, str):
                 for entry in value:
                     rewrite_types(entry, entry_file, sameself)
 

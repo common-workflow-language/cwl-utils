@@ -7,12 +7,7 @@ import logging
 import sys
 import tempfile
 from pathlib import Path
-from typing import (
-    List,
-    MutableSequence,
-    Optional,
-    Set,
-)
+from typing import List, MutableSequence, Optional, Set
 
 from cwltool.context import LoadingContext, RuntimeContext
 from cwltool.load_tool import (
@@ -89,7 +84,7 @@ def run(args: argparse.Namespace) -> int:
     imports: Set[str] = set()
     for document in args.inputs:
         _logger.info("Processing %s.", document)
-        with open(document, "r") as doc_handle:
+        with open(document) as doc_handle:
             result = yaml.main.round_trip_load(doc_handle, preserve_quotes=True)
         add_lc_filename(result, document)
         version = result.get("cwlVersion", None)
