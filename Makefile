@@ -32,7 +32,7 @@ DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox tox-pyenv \
 	-rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \
 	   python-flake8 python-mock shellcheck
-VERSION=$(shell awk '{print $3}' < cwl_utils/__meta__.py )
+VERSION=v$(shell echo $$(tail -n 1 cwl_utils/__meta__.py | awk '{print $$3}'))
 mkfile_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 UNAME_S=$(shell uname -s)
 
