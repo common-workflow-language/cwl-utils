@@ -78,7 +78,7 @@ class SingularityImagePuller(ImagePuller):
 
     def __init__(self, req: str, save_directory: str) -> None:
         """Create a Singularity-based software container image downloader."""
-        super(SingularityImagePuller, self).__init__(req, save_directory)
+        super().__init__(req, save_directory)
         version = subprocess.check_output(  # nosec
             ["singularity", "--version"], universal_newlines=True
         )

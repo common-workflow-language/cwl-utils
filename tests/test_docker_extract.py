@@ -1,7 +1,8 @@
 from pathlib import Path
-from pytest import mark
 from shutil import which
 from tempfile import TemporaryDirectory
+
+from pytest import mark
 
 import cwl_utils.parser.cwl_v1_0 as parser
 from cwl_utils.docker_extract import traverse

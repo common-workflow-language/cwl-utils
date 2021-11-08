@@ -1,8 +1,10 @@
 """Test the load and save functions for CWL."""
+from pathlib import Path
+
+from ruamel import yaml
+
 from cwl_utils.parser import cwl_version, load_document, load_document_by_uri, save
 import cwl_utils.parser.latest as latest
-from pathlib import Path
-from ruamel import yaml
 
 HERE = Path(__file__).resolve().parent
 TEST_v1_0_CWL = HERE / "../testdata/md5sum.cwl"
@@ -12,7 +14,7 @@ TEST_v1_2_CWL = HERE / "../testdata/workflow_input_format_expr_v1_2.cwl"
 
 def test_cwl_version() -> None:
     """Test cwl_version for a CommandLineTool."""
-    with open(TEST_v1_0_CWL, "r") as cwl_h:
+    with open(TEST_v1_0_CWL) as cwl_h:
         yaml_obj = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     ver = cwl_version(yaml_obj)
     assert ver == "v1.0"
@@ -20,7 +22,7 @@ def test_cwl_version() -> None:
 
 def test_load_document() -> None:
     """Test load_document for a CommandLineTool."""
-    with open(TEST_v1_0_CWL, "r") as cwl_h:
+    with open(TEST_v1_0_CWL) as cwl_h:
         yaml_obj = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     cwl_obj = load_document(yaml_obj)
     assert cwl_obj.cwlVersion == "v1.0"
@@ -45,12 +47,12 @@ def test_load_document_with_remote_uri() -> None:
 
 def test_save() -> None:
     """Test save for a list of Process objects with different cwlVersions."""
-    with open(TEST_v1_0_CWL, "r") as cwl_h:
+    with open(TEST_v1_0_CWL) as cwl_h:
         yaml_obj10 = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     cwl_obj10 = load_document(yaml_obj10)
     assert cwl_obj10.cwlVersion == "v1.0"
 
-    with open(TEST_v1_2_CWL, "r") as cwl_h:
+    with open(TEST_v1_2_CWL) as cwl_h:
         yaml_obj12 = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     cwl_obj12 = load_document(yaml_obj12)
     assert cwl_obj12.cwlVersion == "v1.2"
