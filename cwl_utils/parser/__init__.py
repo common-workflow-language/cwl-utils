@@ -5,7 +5,6 @@ from schema_salad.utils import yaml_no_ts
 from . import cwl_v1_0 as cwl_v1_0
 from . import cwl_v1_1 as cwl_v1_1
 from . import cwl_v1_2 as cwl_v1_2
-from . import latest as latest
 
 import os
 from pathlib import Path
