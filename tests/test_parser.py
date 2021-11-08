@@ -67,5 +67,5 @@ def test_latest_parser() -> None:
     uri = Path(TEST_v1_2_CWL).as_uri()
     with open(TEST_v1_2_CWL, "r") as cwl_h:
         yaml_obj12 = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
-    latest_cwl_obj = latest.load_document_by_yaml(yaml_obj12, uri) # type: ignore
+    latest_cwl_obj = latest.load_document_by_yaml(yaml_obj12, uri)  # type: ignore
     assert latest_cwl_obj.cwlVersion == "v1.2"
