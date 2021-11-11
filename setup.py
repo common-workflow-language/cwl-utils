@@ -35,7 +35,6 @@ setup(
         "requests",
         "schema-salad >= 8.2, < 9",
         "cwltool >= 3.0.20201113183607",
-        "cwlformat",
         "cwl-upgrader >= 1.2",
     ],
     tests_require=["pytest<7", "cwltool"],
@@ -47,6 +46,7 @@ setup(
         "cwl_utils/graph_split.py",
         "cwl_utils/cwl_normalizer.py",
     ],
+    extras_require={"pretty": ["cwlformat"]},
     classifiers=[
         "Environment :: Console",
         "Intended Audience :: Science/Research",
