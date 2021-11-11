@@ -7,7 +7,7 @@ export LC_ALL=C
 
 package=cwl-utils
 module=cwl_utils
-extras=""
+extras="[pretty]"
 
 if [ "$GITHUB_ACTIONS" = "true" ]; then
     # We are running as a GH Action
