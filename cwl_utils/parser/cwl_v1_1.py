@@ -22,7 +22,7 @@ from typing import (
     Type,
     Union,
 )
-from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit, urlparse
 from urllib.request import pathname2url
 
 from ruamel.yaml.comments import CommentedMap
@@ -672,6 +672,22 @@ def save_relative_uri(
         return uri
     else:
         return save(uri, top=False, base_url=base_url)
+
+
+def shortname(inputid: str) -> str:
+    """
+    Compute the shortname of a fully qualified identifer.
+
+    See https://w3id.org/cwl/v1.2/SchemaSalad.html#Short_names.
+    """
+    parsed_id = urlparse(inputid)
+    if parsed_id.fragment:
+        return parsed_id.fragment.split("/")[-1]
+    return parsed_id.path.split("/")[-1]
+
+
+def parser_info() -> str:
+    return "org.w3id.cwl.v1_1"
 
 
 class Documented(Savable):
@@ -13230,7 +13246,7 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#v1.1.0-dev1": "v1.1.0-dev1",
 }
 
-strtype = _PrimitiveLoader((str, str))
+strtype = _PrimitiveLoader(str)
 inttype = _PrimitiveLoader(int)
 floattype = _PrimitiveLoader(float)
 booltype = _PrimitiveLoader(bool)

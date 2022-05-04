@@ -22,7 +22,7 @@ from typing import (
     Type,
     Union,
 )
-from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit, urlparse
 from urllib.request import pathname2url
 
 from ruamel.yaml.comments import CommentedMap
@@ -674,6 +674,22 @@ def save_relative_uri(
         return save(uri, top=False, base_url=base_url)
 
 
+def shortname(inputid: str) -> str:
+    """
+    Compute the shortname of a fully qualified identifer.
+
+    See https://w3id.org/cwl/v1.2/SchemaSalad.html#Short_names.
+    """
+    parsed_id = urlparse(inputid)
+    if parsed_id.fragment:
+        return parsed_id.fragment.split("/")[-1]
+    return parsed_id.path.split("/")[-1]
+
+
+def parser_info() -> str:
+    return "org.w3id.cwl.v1_2"
+
+
 class Documented(Savable):
     pass
 
@@ -1205,8 +1221,8 @@ class File(Savable):
     a number of properties that provide metadata about the file.
 
     The `location` property of a File is a URI that uniquely identifies the
-    file.  Implementations must support the file:// URI scheme and may support
-    other schemes such as http://.  The value of `location` may also be a
+    file.  Implementations must support the `file://` URI scheme and may support
+    other schemes such as `http://` and `https://`.  The value of `location` may also be a
     relative reference, in which case it must be resolved relative to the URI
     of the document it appears in.  Alternately to `location`, implementations
     must also accept the `path` property on File, which must be a filesystem
@@ -3972,7 +3988,7 @@ class SchemaDefRequirement(ProcessRequirement):
     """
     This field consists of an array of type definitions which must be used when
     interpreting the `inputs` and `outputs` fields.  When a `type` field
-    contain a IRI, the implementation must check if the type is defined in
+    contains a IRI, the implementation must check if the type is defined in
     `schemaDefs` and use that definition.  If the type is not found in
     `schemaDefs`, it is an error.  The entries in `schemaDefs` must be
     processed in the order listed such that later schema definitions may refer
@@ -14507,7 +14523,7 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#v1.2.0-dev5": "v1.2.0-dev5",
 }
 
-strtype = _PrimitiveLoader((str, str))
+strtype = _PrimitiveLoader(str)
 inttype = _PrimitiveLoader(int)
 floattype = _PrimitiveLoader(float)
 booltype = _PrimitiveLoader(bool)
