@@ -3,7 +3,13 @@ from pathlib import Path
 
 from ruamel import yaml
 
-from cwl_utils.parser import cwl_version, load_document, load_document_by_uri, save
+from cwl_utils.parser import (
+    cwl_version,
+    load_document,
+    load_document_by_uri,
+    save,
+    cwl_v1_2,
+)
 import cwl_utils.parser.latest as latest
 
 HERE = Path(__file__).resolve().parent
@@ -69,3 +75,12 @@ def test_latest_parser() -> None:
         yaml_obj12 = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
     latest_cwl_obj = latest.load_document_by_yaml(yaml_obj12, uri)  # type: ignore
     assert latest_cwl_obj.cwlVersion == "v1.2"
+
+
+def test_shortname() -> None:
+    assert cwl_v1_2.shortname("http://example.com/foo") == "foo"
+    assert cwl_v1_2.shortname("http://example.com/#bar") == "bar"
+    assert cwl_v1_2.shortname("http://example.com/foo/bar") == "bar"
+    assert cwl_v1_2.shortname("http://example.com/foo#bar") == "bar"
+    assert cwl_v1_2.shortname("http://example.com/#foo/bar") == "bar"
+    assert cwl_v1_2.shortname("http://example.com/foo#bar/baz") == "baz"
