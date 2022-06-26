@@ -1,4 +1,3 @@
 requests
 schema-salad >= 7, < 9
-cwltool
 cwl-upgrader >= 1.2

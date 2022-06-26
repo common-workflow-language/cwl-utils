@@ -34,10 +34,9 @@ setup(
     install_requires=[
         "requests",
         "schema-salad >= 8.2, < 9",
-        "cwltool >= 3.0.20201113183607",
         "cwl-upgrader >= 1.2",
     ],
-    tests_require=["pytest<7", "cwltool"],
+    tests_require=["pytest<7"],
     test_suite="tests",
     scripts=[
         "cwl_utils/docker_extract.py",

@@ -8,7 +8,6 @@ from typing import Generator
 import pytest
 import requests
 from _pytest.tmpdir import TempPathFactory
-from cwltool.errors import WorkflowException
 from pytest import raises
 
 import cwl_utils.parser.cwl_v1_0 as parser
@@ -17,6 +16,7 @@ import cwl_utils.parser.cwl_v1_2 as parser2
 from cwl_utils.cwl_v1_0_expression_refactor import traverse as traverse0
 from cwl_utils.cwl_v1_1_expression_refactor import traverse as traverse1
 from cwl_utils.cwl_v1_2_expression_refactor import traverse as traverse2
+from cwl_utils.errors import WorkflowException
 
 HERE = Path(__file__).resolve().parent
 

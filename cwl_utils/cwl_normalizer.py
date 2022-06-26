@@ -15,18 +15,19 @@ from cwltool.load_tool import (
     resolve_and_validate_document,
     resolve_tool_uri,
 )
-from cwltool.loghandler import _logger as _cwltoollogger
 from cwltool.main import print_pack
 from cwltool.process import use_standard_schema
 from cwlupgrader import main as cwlupgrader
 from ruamel import yaml
 from schema_salad.sourceline import add_lc_filename
 
+from cwl_utils.loghandler import _logger as _cwlutilslogger
+
 _logger = logging.getLogger("cwl-normalizer")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
 _logger.addHandler(defaultStreamHandler)
 _logger.setLevel(logging.INFO)
-_cwltoollogger.setLevel(100)
+_cwlutilslogger.setLevel(100)
 
 from cwl_utils import cwl_v1_2_expression_refactor
 from cwl_utils.parser.cwl_v1_2 import load_document_by_yaml, save
