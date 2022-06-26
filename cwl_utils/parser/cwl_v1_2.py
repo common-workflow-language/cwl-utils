@@ -22,7 +22,7 @@ from typing import (
     Type,
     Union,
 )
-from urllib.parse import quote, urlsplit, urlunsplit, urlparse
+from urllib.parse import quote, urlparse, urlsplit, urlunsplit
 from urllib.request import pathname2url
 
 from ruamel.yaml.comments import CommentedMap
@@ -9027,7 +9027,7 @@ class Dirent(Savable):
 class InitialWorkDirRequirement(ProcessRequirement):
     """
     Define a list of files and subdirectories that must be staged by the workflow platform prior to executing the command line tool.
-    Normally files are staged within the designated output directory. However, when running inside containers, files may be staged at arbitrary locations, see discussion for `Dirent.entryname`. Together with `DockerRequirement.dockerOutputDirectory` this it possible to control the locations of both input and output files when running in containers.
+    Normally files are staged within the designated output directory. However, when running inside containers, files may be staged at arbitrary locations, see discussion for [`Dirent.entryname`](#Dirent). Together with `DockerRequirement.dockerOutputDirectory` it is possible to control the locations of both input and output files when running in containers.
     """
 
     def __init__(
@@ -9244,8 +9244,8 @@ class EnvVarRequirement(ProcessRequirement):
 class ShellCommandRequirement(ProcessRequirement):
     """
     Modify the behavior of CommandLineTool to generate a single string
-    containing a shell command line.  Each item in the argument list must be
-    joined into a string separated by single spaces and quoted to prevent
+    containing a shell command line.  Each item in the `arguments` list must
+    be joined into a string separated by single spaces and quoted to prevent
     intepretation by the shell, unless `CommandLineBinding` for that argument
     contains `shellQuote: false`.  If `shellQuote: false` is specified, the
     argument is joined into the command string without quoting, which allows
@@ -14571,6 +14571,13 @@ CWLVersionLoader = _EnumLoader(
 )
 CWLTypeLoader = _EnumLoader(
     (
+        "null",
+        "boolean",
+        "int",
+        "long",
+        "float",
+        "double",
+        "string",
         "File",
         "Directory",
     )
