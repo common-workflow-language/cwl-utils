@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import pathlib
 import sys
 from typing import List
 
@@ -31,11 +32,11 @@ setup(
         "cwl_utils.testdata": "testdata",
     },
     include_package_data=True,
-    install_requires=[
-        "requests",
-        "schema-salad >= 8.2, < 9",
-        "cwl-upgrader >= 1.2",
-    ],
+    install_requires=open(
+        os.path.join(pathlib.Path(__file__).parent, "requirements.txt")
+    )
+    .read()
+    .splitlines(),
     tests_require=["pytest<7"],
     test_suite="tests",
     scripts=[

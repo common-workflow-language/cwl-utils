@@ -9,19 +9,12 @@ import tempfile
 from pathlib import Path
 from typing import List, MutableSequence, Optional, Set
 
-from cwltool.context import LoadingContext, RuntimeContext
-from cwltool.load_tool import (
-    fetch_document,
-    resolve_and_validate_document,
-    resolve_tool_uri,
-)
-from cwltool.main import print_pack
-from cwltool.process import use_standard_schema
 from cwlupgrader import main as cwlupgrader
 from ruamel import yaml
 from schema_salad.sourceline import add_lc_filename
 
 from cwl_utils.loghandler import _logger as _cwlutilslogger
+from cwl_utils.pack import pack
 
 _logger = logging.getLogger("cwl-normalizer")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
@@ -128,29 +121,7 @@ def run(args: argparse.Namespace) -> int:
         else:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 path = Path(tmpdirname) / Path(document).name
-                with open(path, "w") as handle:
-                    yaml.main.round_trip_dump(result, handle)
-                # TODO replace the cwltool based packing with a parser_v1_2 based packer
-                runtimeContext = RuntimeContext()
-                loadingContext = LoadingContext()
-                use_standard_schema("v1.2")
-                # loadingContext.construct_tool_object = workflow.default_make_tool
-                # loadingContext.resolver = tool_resolver
-                loadingContext.do_update = False
-                uri, tool_file_uri = resolve_tool_uri(
-                    str(path),
-                    resolver=loadingContext.resolver,
-                    fetcher_constructor=loadingContext.fetcher_constructor,
-                )
-                loadingContext, workflowobj, uri = fetch_document(uri, loadingContext)
-                loadingContext, uri = resolve_and_validate_document(
-                    loadingContext,
-                    workflowobj,
-                    uri,
-                    preprocess_only=True,
-                    skip_schemas=True,
-                )
-                packed = print_pack(loadingContext, uri)
+                packed = pack(str(path))
         output = Path(args.dir) / Path(document).name
         with open(output, "w", encoding="utf-8") as output_filehandle:
             output_filehandle.write(packed)

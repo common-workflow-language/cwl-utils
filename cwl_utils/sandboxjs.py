@@ -4,11 +4,23 @@ import json
 import os
 import re
 import select
-import subprocess
+import subprocess  # nosec
 import threading
 from abc import ABC, abstractmethod
 from io import BytesIO
-from typing import Mapping, MutableMapping, MutableSequence, Optional, Tuple, cast
+from typing import (
+    Any,
+    Awaitable,
+    Deque,
+    List,
+    Mapping,
+    MutableMapping,
+    MutableSequence,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
 
 from pkg_resources import resource_stream
 from schema_salad.utils import json_dumps
@@ -19,7 +31,6 @@ from cwl_utils.types import CWLOutputType
 from cwl_utils.utils import kill_processes, singularity_supports_userns
 
 default_timeout = 20
-
 
 seg_symbol = r"""\w+"""
 seg_single = r"""\['([^']|\\')+'\]"""
@@ -40,7 +51,7 @@ def code_fragment_to_js(jscript: str, jslib: str = "") -> str:
     return f'"use strict";\n{jslib}\n(function(){inner_js})()'
 
 
-def linenum(fn) -> str:
+def linenum(fn: str) -> str:
     lines = fn.splitlines()
     ofs = 0
     maxlines = 99
@@ -58,7 +69,9 @@ def stdfmt(data: str) -> str:
 
 class JSEngine(ABC):
     @abstractmethod
-    def eval(self, scan: str, jslib: str = "", **kwargs):
+    def eval(
+        self, scan: str, jslib: str = "", **kwargs: Any
+    ) -> Union[CWLOutputType, Awaitable[CWLOutputType]]:
         ...
 
     @abstractmethod
@@ -67,8 +80,8 @@ class JSEngine(ABC):
         parsed_string: str,
         remaining_string: str,
         current_value: CWLOutputType,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> Union[CWLOutputType, Awaitable[CWLOutputType]]:
         ...
 
 
@@ -88,17 +101,17 @@ class NodeJSEngine(JSEngine):
             collections.deque()
         )  # type: Deque[subprocess.Popen[str]]
 
-    def __del__(self):
+    def __del__(self) -> None:
         kill_processes(self.processes_to_kill)
 
-    def _check_js_threshold_version(self, working_alias: str) -> bool:
+    def check_js_threshold_version(self, working_alias: str) -> bool:
         """
         Check if the nodeJS engine version on the system with the allowed minimum version.
 
         https://github.com/nodejs/node/blob/master/CHANGELOG.md#nodejs-changelog
         """
         # parse nodejs version into int Tuple: 'v4.2.6\n' -> [4, 2, 6]
-        current_version_str = subprocess.check_output(
+        current_version_str = subprocess.check_output(  # nosec
             [working_alias, "-v"], universal_newlines=True
         )
         current_version = [
@@ -110,7 +123,7 @@ class NodeJSEngine(JSEngine):
 
         return current_version >= minimum_node_version
 
-    def _exec_js_process(
+    def exec_js_process(
         self,
         js_text: str,
         timeout: float = default_timeout,
@@ -149,7 +162,7 @@ class NodeJSEngine(JSEngine):
 
             created_new_process = True
 
-            new_proc = self._new_js_proc(
+            new_proc = self.new_js_proc(
                 js_engine_code,
                 force_docker_pull=force_docker_pull,
                 container_engine=container_engine,
@@ -227,7 +240,7 @@ class NodeJSEngine(JSEngine):
 
         return returncode, stdoutdata.decode("utf-8"), stderrdata.decode("utf-8")
 
-    def _new_js_proc(
+    def new_js_proc(
         self,
         js_text: str,
         force_docker_pull: bool = False,
@@ -240,7 +253,7 @@ class NodeJSEngine(JSEngine):
         for n in trynodes:
             try:
                 if (
-                    subprocess.check_output(
+                    subprocess.check_output(  # nosec
                         [n, "--eval", "process.stdout.write('t')"],
                         universal_newlines=True,
                     )
@@ -256,7 +269,7 @@ class NodeJSEngine(JSEngine):
                         universal_newlines=True,
                     )
                     self.processes_to_kill.append(nodejs)
-                    required_node_version = self._check_js_threshold_version(n)
+                    required_node_version = self.check_js_threshold_version(n)
                     break
             except (subprocess.CalledProcessError, OSError):
                 pass
@@ -288,7 +301,7 @@ class NodeJSEngine(JSEngine):
                         if container_engine == "singularity":
                             nodejs_pull_commands.append("--force")
                         nodejs_pull_commands.append(nodeimg)
-                        nodejsimg = subprocess.check_output(
+                        nodejsimg = subprocess.check_output(  # nosec
                             nodejs_pull_commands, universal_newlines=True
                         )
                         _logger.debug(
@@ -377,9 +390,10 @@ class NodeJSEngine(JSEngine):
         debug: bool = False,
         js_console: bool = False,
         container_engine: str = "docker",
+        **kwargs: Any,
     ) -> CWLOutputType:
         fn = code_fragment_to_js(scan, jslib)
-        returncode, stdout, stderr = self._exec_js_process(
+        returncode, stdout, stderr = self.exec_js_process(
             fn,
             timeout,
             js_console=js_console,
@@ -427,8 +441,8 @@ class NodeJSEngine(JSEngine):
         parsed_string: str,
         remaining_string: str,
         current_value: CWLOutputType,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> CWLOutputType:
         if remaining_string:
             m = segment_re.match(remaining_string)
             if not m:
@@ -498,16 +512,13 @@ class NodeJSEngine(JSEngine):
             return current_value
 
 
-__js_engine: Optional[JSEngine] = None
+__js_engine: JSEngine = NodeJSEngine()
 
 
 def get_js_engine() -> JSEngine:
     return __js_engine
 
 
-def set_js_engine(js_engine: JSEngine):
+def set_js_engine(js_engine: JSEngine) -> None:
     global __js_engine
     __js_engine = js_engine
-
-
-set_js_engine(NodeJSEngine())

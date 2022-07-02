@@ -1,5 +1,23 @@
 from typing import Any, MutableMapping, MutableSequence, Optional, Union
 
+# From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
+built_in_types = [
+    "null",
+    "boolean",
+    "int",
+    "long",
+    "float",
+    "double",
+    "string",
+    "File",
+    "Directory",
+    "stdin",
+    "stdout",
+    "stderr",
+    "Any",
+]
+
+
 CWLOutputAtomType = Union[
     None,
     bool,

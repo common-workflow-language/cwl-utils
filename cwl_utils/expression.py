@@ -2,13 +2,23 @@ import asyncio
 import copy
 import inspect
 import json
-from typing import Any, Dict, List, MutableMapping, Optional, Tuple, Union, cast
+from typing import (
+    Any,
+    Awaitable,
+    Dict,
+    List,
+    MutableMapping,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
 
 from schema_salad.utils import json_dumps
 
 from cwl_utils.errors import JavascriptException, SubstitutionError, WorkflowException
 from cwl_utils.loghandler import _logger
-from cwl_utils.sandbox import JSEngine, default_timeout, get_js_engine, param_re
+from cwl_utils.sandboxjs import JSEngine, default_timeout, get_js_engine, param_re
 from cwl_utils.types import CWLObjectType, CWLOutputType
 from cwl_utils.utils import bytes2str_in_dicts
 
@@ -95,16 +105,14 @@ def scanner(scan: str) -> Optional[Tuple[int, int]]:
     return None
 
 
-def get_loop():
-    try:
-        return asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.new_event_loop()
-
-
 def evaluator(
-    js_engine: JSEngine, ex: str, obj: CWLObjectType, jslib: str, fullJS: bool, **kwargs
-):
+    js_engine: JSEngine,
+    ex: str,
+    obj: CWLObjectType,
+    jslib: str,
+    fullJS: bool,
+    **kwargs: Any,
+) -> Optional[CWLOutputType]:
     js_engine = js_engine or get_js_engine()
     match = param_re.match(ex)
     expression_parse_exception = None
@@ -119,29 +127,37 @@ def evaluator(
             if first_symbol not in obj:
                 raise WorkflowException("%s is not defined" % first_symbol)
 
-            if inspect.iscoroutinefunction(js_engine.eval):
-                return get_loop().run_until_complete(
+            if inspect.iscoroutinefunction(js_engine.regex_eval):
+                return asyncio.get_event_loop().run_until_complete(
+                    cast(
+                        Awaitable[CWLOutputType],
+                        js_engine.regex_eval(
+                            first_symbol,
+                            ex[first_symbol_end:-1],
+                            cast(CWLOutputType, obj[first_symbol]),
+                            **kwargs,
+                        ),
+                    )
+                )
+            else:
+                return cast(
+                    CWLOutputType,
                     js_engine.regex_eval(
                         first_symbol,
                         ex[first_symbol_end:-1],
                         cast(CWLOutputType, obj[first_symbol]),
                         **kwargs,
-                    )
-                )
-            else:
-                return js_engine.regex_eval(
-                    first_symbol,
-                    ex[first_symbol_end:-1],
-                    cast(CWLOutputType, obj[first_symbol]),
-                    **kwargs,
+                    ),
                 )
         except WorkflowException as werr:
             expression_parse_exception = werr
     if fullJS:
         if inspect.iscoroutinefunction(js_engine.eval):
-            return get_loop().run_until_complete(js_engine.eval(ex, jslib, **kwargs))
+            return asyncio.get_event_loop().run_until_complete(
+                cast(Awaitable[CWLOutputType], js_engine.eval(ex, jslib, **kwargs))
+            )
         else:
-            return js_engine.eval(ex, jslib, **kwargs)
+            return cast(CWLOutputType, js_engine.eval(ex, jslib, **kwargs))
     else:
         if expression_parse_exception is not None:
             raise JavascriptException(
@@ -166,7 +182,7 @@ def interpolate(
     escaping_behavior: int = 2,
     convert_to_expression: bool = False,
     js_engine: Optional[JSEngine] = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> Optional[CWLOutputType]:
     """
     Interpolate and evaluate.
@@ -182,7 +198,7 @@ def interpolate(
         parts.append("${return ")
     else:
 
-        def dump(string):
+        def dump(string: str) -> str:
             return string
 
     w = scanner(scan)
@@ -194,6 +210,7 @@ def interpolate(
 
         if scan[w[0]] == "$":
             if not convert_to_expression:
+                js_engine = js_engine or get_js_engine()
                 e = evaluator(
                     js_engine, scan[w[0] + 1 : w[1]], rootvars, jslib, fullJS, **kwargs
                 )
@@ -267,7 +284,7 @@ def do_eval(
     timeout: float = default_timeout,
     strip_whitespace: bool = True,
     cwlVersion: str = "",
-    **kwargs,
+    **kwargs: Any,
 ) -> Optional[CWLOutputType]:
     runtime = cast(MutableMapping[str, Union[int, str, None]], copy.deepcopy(resources))
     runtime["tmpdir"] = tmpdir if tmpdir else None
