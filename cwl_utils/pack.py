@@ -18,16 +18,13 @@ import os
 import sys
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, ItemsView, List, Optional, Tuple, cast
 
-import ruamel.yaml
 from packaging import version
 
 from cwl_utils import schemadef, utils
 
 logger = logging.getLogger(__name__)
-
-fast_yaml = ruamel.yaml.YAML(typ="safe")
 
 
 def get_inner_dict(
@@ -172,7 +169,7 @@ def resolve_imports(cwl: Any, base_url: urllib.parse.ParseResult) -> Any:
     if isinstance(cwl, dict):
         itr = cwl.items()
     elif isinstance(cwl, list):
-        itr = [(n, v) for n, v in enumerate(cwl)]
+        itr = cast(ItemsView[Any, Any], [(n, v) for n, v in enumerate(cwl)])
     else:
         return cwl
 

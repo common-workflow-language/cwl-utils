@@ -11,7 +11,7 @@ Only tested with a single v1.0 workflow.
 import argparse
 import json
 import os
-from typing import IO, Any, MutableMapping, Set, Text, Union, cast
+from typing import Any, IO, MutableMapping, Set, Union, cast
 
 from cwlformat.formatter import stringify_dict
 from ruamel import yaml

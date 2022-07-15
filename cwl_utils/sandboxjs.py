@@ -530,7 +530,7 @@ def check_js_threshold_version(*args: Any, **kwargs: Any) -> bool:
         get_js_engine(), "check_js_threshold_version", None
     )
     if callable(_check_js_threshold_version):
-        return _check_js_threshold_version(*args, **kwargs)
+        return cast(bool, _check_js_threshold_version(*args, **kwargs))
     else:
         raise NotImplementedError(
             "Method check_js_threshold_version is not implemented in js engine {}".format(
@@ -542,7 +542,7 @@ def check_js_threshold_version(*args: Any, **kwargs: Any) -> bool:
 def exec_js_process(*args: Any, **kwargs: Any) -> Tuple[int, str, str]:
     _exec_js_process = getattr(get_js_engine(), "exec_js_process", None)
     if callable(_exec_js_process):
-        return _exec_js_process(*args, **kwargs)
+        return cast(Tuple[int, str, str], _exec_js_process(*args, **kwargs))
     else:
         raise NotImplementedError(
             "Method exec_js_process is not implemented in js engine {}".format(
@@ -551,10 +551,10 @@ def exec_js_process(*args: Any, **kwargs: Any) -> Tuple[int, str, str]:
         )
 
 
-def new_js_proc(*args, **kwargs) -> "subprocess.Popen[str]":
+def new_js_proc(*args: Any, **kwargs: Any) -> "subprocess.Popen[str]":
     _new_js_proc = getattr(get_js_engine(), "new_js_proc", None)
     if callable(_new_js_proc):
-        return _new_js_proc(*args, **kwargs)
+        return cast("subprocess.Popen[str]", _new_js_proc(*args, **kwargs))
     else:
         raise NotImplementedError(
             "Method new_js_proc is not implemented in js engine {}".format(

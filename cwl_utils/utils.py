@@ -18,13 +18,14 @@ from typing import (
     Union,
 )
 
-import ruamel.yaml
+from ruamel.yaml.main import YAML
 from ruamel.yaml.parser import ParserError
 from ruamel.yaml.scanner import ScannerError
 
 from cwl_utils.errors import MissingKeyField
+from cwl_utils.loghandler import _logger
 
-fast_yaml = ruamel.yaml.YAML(typ="safe")
+fast_yaml = YAML(typ="safe")
 
 _USERNS = None
 
@@ -123,7 +124,7 @@ def load_linked_file(
                 urllib.request.urlopen(new_url.geturl()).read().decode("utf-8")  # nosec
             )
         except urllib.error.HTTPError as e:
-            e.msg += f"\n===\nCould not find linked file: {new_url.geturl()}\n===\n"
+            _logger.error("Could not find linked file: %s", new_url.geturl())
             raise SystemExit(e)
 
     if _is_github_symbolic_link(new_url, contents):
@@ -209,16 +210,16 @@ def resolved_path(
 
     if link_url.scheme == "file://":
         # Absolute local path
-        new_url = urllib.parse.ParseResult(link_url)
+        return link_url
 
     elif link_url.scheme == "":
         # Relative path, can be local or remote
         if base_url.scheme in ["file://", ""]:
             # Local relative path
             if link == "":
-                new_url = base_url
+                return base_url
             else:
-                new_url = base_url._replace(
+                return base_url._replace(
                     path=str(
                         (
                             pathlib.Path(base_url.path).parent / pathlib.Path(link)
@@ -228,17 +229,14 @@ def resolved_path(
 
         else:
             # Remote relative path
-            new_url = urllib.parse.urlparse(
+            return urllib.parse.urlparse(
                 urllib.parse.urljoin(base_url.geturl(), link_url.path)
             )
             # We need urljoin because we need to resolve relative links in a
             # platform independent manner
 
-    else:
-        # Absolute remote path
-        new_url = link_url
-
-    return new_url
+    # Absolute remote path
+    return link_url
 
 
 def singularity_supports_userns() -> bool:

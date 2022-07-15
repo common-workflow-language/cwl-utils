@@ -18,13 +18,13 @@ from typing import (
     cast,
 )
 
-from cwl_utils.expression import do_eval, interpolate
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
 
 import cwl_utils.parser.cwl_v1_0 as cwl
 from cwl_utils.errors import JavascriptException, WorkflowException
+from cwl_utils.expression import do_eval, interpolate
 from cwl_utils.types import CWLObjectType, CWLOutputType
 
 

@@ -17,7 +17,7 @@ From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b0033
 import sys
 import urllib.parse
 from copy import deepcopy
-from typing import Any, Dict
+from typing import Any, Dict, List, Set, cast
 
 from cwl_utils import errors, types, utils
 
@@ -53,7 +53,7 @@ def _build_user_defined_type_dict(
     base_url: urllib.parse.ParseResult,
     user_defined_types: Dict[str, Any],
 ) -> Dict[str, Any]:
-    schemadef = next(
+    schemadef: Dict[str, str] = next(
         (
             req
             for req in cwl.get("requirements", [])
@@ -61,7 +61,7 @@ def _build_user_defined_type_dict(
         ),
         {},
     )
-    schema_list = schemadef.get("types", [])
+    schema_list = cast(List[Dict[str, Any]], schemadef.get("types", []))
 
     if not isinstance(schema_list, list):
         raise RuntimeError(
@@ -131,17 +131,17 @@ def inline_types(
     return cwl
 
 
+_inline_type_name_uniq_id = 0
+_inline_type_names: Set[str] = set()
+
+
 def _inline_type(
     v: Any, base_url: urllib.parse.ParseResult, user_defined_types: Dict[str, Any]
 ) -> Any:
-    try:
-        _inline_type.type_name_uniq_id += 1
-    except AttributeError:
-        _inline_type.type_name_uniq_id = 1
-    try:
-        len(_inline_type.type_names)
-    except AttributeError:
-        _inline_type.type_names = set()
+    global _inline_type_name_uniq_id
+    global _inline_type_names
+
+    _inline_type_name_uniq_id += 1
 
     if isinstance(v, str):
 
@@ -177,14 +177,14 @@ def _inline_type(
             # resolve_type.pop("name", None) # Should work, but cwltool complains
             if "name" in resolve_type:
                 user_type_name = resolve_type["name"]
-                if user_type_name in _inline_type.type_names:
+                if user_type_name in _inline_type_names:
                     resolve_type[
                         "name"
-                    ] = f"{user_type_name}_{_inline_type.type_name_uniq_id}"
+                    ] = f"{user_type_name}_{_inline_type_name_uniq_id}"
                 else:
-                    _inline_type.type_names.add(user_type_name)
+                    _inline_type_names.add(user_type_name)
             else:
-                resolve_type["name"] = f"user_type_{_inline_type.type_name_uniq_id}"
+                resolve_type["name"] = f"user_type_{_inline_type_name_uniq_id}"
             return _inline_type(resolve_type, path_prefix, user_defined_types)
 
     elif isinstance(v, list):
@@ -194,7 +194,7 @@ def _inline_type(
         _type = v.get("type")
         if _type is None:
             raise errors.MissingTypeName(
-                f"In file {base_url.geturl()}, type {_type.get('name')} is missing type name"
+                f"In file {base_url.geturl()}, type {v.get('name')} is missing type name"
             )
 
         elif _type == "enum":
