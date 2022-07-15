@@ -2,16 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import (
-    Any,
-    Dict,
-    MutableMapping,
-    MutableSequence,
-    Optional,
-    Tuple,
-    Union,
-    cast,
-)
+from typing import Any, MutableMapping, MutableSequence, Optional, Union, cast
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException

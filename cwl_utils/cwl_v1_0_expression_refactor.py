@@ -12,22 +12,20 @@ from typing import (
     MutableSequence,
     Optional,
     Sequence,
-    Text,
     Tuple,
     Type,
     Union,
     cast,
 )
 
-from cwltool.errors import WorkflowException
-from cwltool.expression import do_eval, interpolate
-from cwltool.sandboxjs import JavascriptException
-from cwltool.utils import CWLObjectType, CWLOutputType
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
 
 import cwl_utils.parser.cwl_v1_0 as cwl
+from cwl_utils.errors import JavascriptException, WorkflowException
+from cwl_utils.expression import do_eval, interpolate
+from cwl_utils.types import CWLObjectType, CWLOutputType
 
 
 def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool:

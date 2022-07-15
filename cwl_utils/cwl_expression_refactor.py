@@ -19,8 +19,9 @@ from typing import (
     Union,
 )
 
-from cwltool.loghandler import _logger as _cwltoollogger
 from ruamel import yaml
+
+from cwl_utils.loghandler import _logger as _cwlutilslogger
 
 if TYPE_CHECKING:
     from typing_extensions import Protocol
@@ -31,7 +32,7 @@ _logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invali
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
 _logger.addHandler(defaultStreamHandler)
 _logger.setLevel(logging.INFO)
-_cwltoollogger.setLevel(100)
+_cwlutilslogger.setLevel(100)
 
 from cwl_utils import (
     cwl_v1_0_expression_refactor,

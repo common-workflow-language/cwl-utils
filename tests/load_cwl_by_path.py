@@ -1,9 +1,7 @@
 """This is the example from README.md, please synchronize all changes between the two."""
 # SPDX-License-Identifier: Apache-2.0
-import sys
 from pathlib import Path
 
-from ruamel import yaml
 
 from cwl_utils.parser import load_document_by_uri, save
 
