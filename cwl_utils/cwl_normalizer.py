@@ -83,9 +83,7 @@ def run(args: argparse.Namespace) -> int:
         add_lc_filename(result, document)
         version = result.get("cwlVersion", None)
         if version in ("draft-3", "cwl:draft-3", "v1.0", "v1.1"):
-            result = cwlupgrader.upgrade_document(
-                result, False, False, args.dir, imports
-            )
+            result = cwlupgrader.upgrade_document(result, args.dir, imports=imports)
         else:
             _logger.error(
                 "Sorry, %s in %s is not a supported CWL version by this tool.",

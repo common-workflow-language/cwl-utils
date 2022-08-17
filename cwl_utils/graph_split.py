@@ -11,10 +11,12 @@ Only tested with a single v1.0 workflow.
 import argparse
 import json
 import os
-from typing import Any, IO, MutableMapping, Set, Union, cast
+from typing import IO, Any, MutableMapping, Set, Union, cast
 
 from cwlformat.formatter import stringify_dict
-from ruamel import yaml
+from ruamel.yaml.main import YAML, dump
+from ruamel.yaml.representer import RoundTripRepresenter
+from ruamel.yaml.dumper import RoundTripDumper
 from schema_salad.sourceline import SourceLine, add_lc_filename
 
 
@@ -72,7 +74,9 @@ def run(
     sourceIO: IO[str], output_dir: str, output_format: str, mainfile: str, pretty: bool
 ) -> None:
     """Loop over the provided packed CWL document and split it up."""
-    source = yaml.main.round_trip_load(sourceIO, preserve_quotes=True)
+    yaml = YAML(typ="rt")
+    yaml.preserve_quotes = True  # type: ignore[assignment]
+    source = yaml.load(sourceIO)
     add_lc_filename(source, sourceIO.name)
 
     if "$graph" not in source:
@@ -87,7 +91,7 @@ def run(
         """Force clean representation of 'null'."""
         return self.represent_scalar("tag:yaml.org,2002:null", "null")
 
-    yaml.representer.RoundTripRepresenter.add_representer(type(None), my_represent_none)
+    RoundTripRepresenter.add_representer(type(None), my_represent_none)
 
     for entry in source["$graph"]:
         entry_id = entry.pop("id")[1:]
@@ -205,9 +209,7 @@ def rewrite_schemadef(document: MutableMapping[str, Any]) -> Set[str]:
                 field["name"] = field["name"].split("/")[2]
                 rewrite_types(field, entry_file, True)
             with open(entry_file[1:], "a", encoding="utf-8") as entry_handle:
-                yaml.main.dump(
-                    [entry], entry_handle, Dumper=yaml.dumper.RoundTripDumper
-                )
+                dump([entry], entry_handle, Dumper=RoundTripDumper)
             entry["$import"] = entry_file[1:]
             del entry["name"]
             del entry["type"]
@@ -236,16 +238,17 @@ def json_dump(entry: Any, output_file: str) -> None:
 
 def yaml_dump(entry: Any, output_file: str, pretty: bool) -> None:
     """Output object as YAML."""
+    yaml = YAML(typ="rt")
+    yaml.default_flow_style = False
+    yaml.map_indent = 4  # type: ignore[assignment]
+    yaml.sequence_indent = 2  # type: ignore[assignment]
     with open(output_file, "w", encoding="utf-8") as result_handle:
         if pretty:
             result_handle.write(stringify_dict(entry))
         else:
-            yaml.main.round_trip_dump(
+            yaml.dump(
                 entry,
                 result_handle,
-                default_flow_style=False,
-                indent=4,
-                block_seq_indent=2,
             )
 
 

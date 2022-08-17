@@ -1,4 +1,4 @@
-cwl-upgrader >= 1.2
+cwl-upgrader >= 1.2.3
 packaging
 requests
 schema-salad >= 8.2, < 9
