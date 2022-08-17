@@ -97,12 +97,13 @@ class NodeJSEngine(JSEngine):
         self.have_node_slim: bool = have_node_slim
         self.minimum_node_version_str: str = minimum_node_version_str
         self.process_finished_str: str = process_finished_str
-        self.processes_to_kill = (
-            collections.deque()
-        )  # type: Deque[subprocess.Popen[str]]
+        self.processes_to_kill: Deque[subprocess.Popen[str]] = collections.deque()
 
     def __del__(self) -> None:
-        kill_processes(self.processes_to_kill)
+        try:
+            kill_processes(self.processes_to_kill)
+        except TypeError:
+            pass
 
     def check_js_threshold_version(self, working_alias: str) -> bool:
         """

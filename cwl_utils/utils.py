@@ -51,8 +51,7 @@ def _is_github_symbolic_link(base_url: urllib.parse.ParseResult, contents: str) 
 
 def bytes2str_in_dicts(
     inp: Union[MutableMapping[str, Any], MutableSequence[Any], Any],
-):
-    # type: (...) -> Union[str, MutableSequence[Any], MutableMapping[str, Any]]
+) -> Union[str, MutableSequence[Any], MutableMapping[str, Any]]:
     """
     Convert any present byte string to unicode string, inplace.
 

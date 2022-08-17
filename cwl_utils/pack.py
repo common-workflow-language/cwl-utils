@@ -18,11 +18,24 @@ import os
 import sys
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, ItemsView, List, Optional, Tuple, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    ItemsView,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
 
 from packaging import version
 
 from cwl_utils import schemadef, utils
+
+if TYPE_CHECKING:
+    from _collections_abc import dict_items
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +180,7 @@ def resolve_schemadefs(
 
 def resolve_imports(cwl: Any, base_url: urllib.parse.ParseResult) -> Any:
     if isinstance(cwl, dict):
-        itr = cwl.items()
+        itr: Union["dict_items[Any, Any]", ItemsView[Any, Any]] = cwl.items()
     elif isinstance(cwl, list):
         itr = cast(ItemsView[Any, Any], [(n, v) for n, v in enumerate(cwl)])
     else:

@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 
-
 from cwl_utils.parser import load_document_by_uri, save
 
 # File Input - This is the only thing you will need to adjust or take in as an input to your function:
