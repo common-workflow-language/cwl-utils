@@ -28,7 +28,7 @@ from schema_salad.utils import json_dumps
 from cwl_utils.errors import JavascriptException, WorkflowException
 from cwl_utils.loghandler import _logger
 from cwl_utils.types import CWLOutputType
-from cwl_utils.utils import kill_processes, singularity_supports_userns
+from cwl_utils.utils import singularity_supports_userns
 
 default_timeout = 20
 
@@ -101,7 +101,35 @@ class NodeJSEngine(JSEngine):
 
     def __del__(self) -> None:
         try:
-            kill_processes(self.processes_to_kill)
+            while self.processes_to_kill:
+                process = self.processes_to_kill.popleft()
+                if isinstance(process.args, MutableSequence):
+                    args = process.args
+                else:
+                    args = [process.args]
+                cidfile = [
+                    str(arg).split("=")[1] for arg in args if "--cidfile" in str(arg)
+                ]
+                if cidfile:  # Try to be nice
+                    try:
+                        with open(cidfile[0]) as inp_stream:
+                            p = subprocess.Popen(  # nosec
+                                ["docker", "kill", inp_stream.read()],
+                                shell=False,  # nosec
+                            )
+                            try:
+                                p.wait(timeout=10)
+                            except subprocess.TimeoutExpired:
+                                p.kill()
+                    except FileNotFoundError:
+                        pass
+                if process.stdin:
+                    process.stdin.close()
+                try:
+                    process.wait(10)
+                except subprocess.TimeoutExpired:
+                    pass
+                process.kill()
         except TypeError:
             pass
 
