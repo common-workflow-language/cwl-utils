@@ -6,9 +6,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from copy import deepcopy
+
+from ruamel.yaml.main import YAML
+from ruamel.yaml.parser import ParserError
+from ruamel.yaml.scanner import ScannerError
 from typing import (
     Any,
-    Deque,
     Dict,
     List,
     MutableMapping,
@@ -17,10 +20,6 @@ from typing import (
     Tuple,
     Union,
 )
-
-from ruamel.yaml.main import YAML
-from ruamel.yaml.parser import ParserError
-from ruamel.yaml.scanner import ScannerError
 
 from cwl_utils.errors import MissingKeyField
 from cwl_utils.loghandler import _logger
@@ -76,37 +75,6 @@ def bytes2str_in_dicts(
 
     # simply return elements itself
     return inp
-
-
-def kill_processes(
-    processes_to_kill,  # type: Deque[subprocess.Popen[str]]
-) -> None:
-    while processes_to_kill:
-        process = processes_to_kill.popleft()
-        if isinstance(process.args, MutableSequence):
-            args = process.args
-        else:
-            args = [process.args]
-        cidfile = [str(arg).split("=")[1] for arg in args if "--cidfile" in str(arg)]
-        if cidfile:  # Try to be nice
-            try:
-                with open(cidfile[0]) as inp_stream:
-                    p = subprocess.Popen(  # nosec
-                        ["docker", "kill", inp_stream.read()], shell=False  # nosec
-                    )
-                    try:
-                        p.wait(timeout=10)
-                    except subprocess.TimeoutExpired:
-                        p.kill()
-            except FileNotFoundError:
-                pass
-        if process.stdin:
-            process.stdin.close()
-        try:
-            process.wait(10)
-        except subprocess.TimeoutExpired:
-            pass
-        process.kill()
 
 
 def load_linked_file(
