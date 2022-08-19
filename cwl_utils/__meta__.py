@@ -1,2 +1,2 @@
 """Global version number for the cwl_utils package."""
-__version__ = "0.14"
+__version__ = "0.15"
