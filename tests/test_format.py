@@ -42,6 +42,7 @@ def _load_format(fetchurl: str) -> Graph:
 
 
 def test_check_format() -> None:
+    """Exact format equivalence test, with ontology."""
     check_format(
         actual_file=_create_file(format_="http://edamontology.org/format_2330"),
         input_formats="http://edamontology.org/format_2330",
@@ -56,6 +57,16 @@ def test_check_format_subformat() -> None:
         input_formats="http://edamontology.org/format_2330",
         ontology=_load_format("http://edamontology.org/EDAM.owl"),
     )
+
+
+def test_check_format_wrong_format() -> None:
+    """Test of check_format with a non-match format."""
+    with raises(ValidationException, match=r"File has an incompatible format: .*"):
+        check_format(
+            actual_file=_create_file(format_="http://edamontology.org/format_1929"),
+            input_formats="http://edamontology.org/format_2334",
+            ontology=_load_format("http://edamontology.org/EDAM.owl"),
+        )
 
 
 def test_check_format_no_format() -> None:
