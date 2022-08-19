@@ -1,0 +1,3 @@
+from typing import Any, Dict
+
+def stringify_dict(as_dict: Dict[str, Any]) -> str: ...

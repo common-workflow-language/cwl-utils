@@ -142,7 +142,7 @@ def save(
     base_url: str = "",
     relative_uris: bool = True,
 ) -> Any:
-    """Convert a given CWL object into a build-in typed object."""
+    """Convert a given CWL object into a built-in typed object."""
     if (
         isinstance(val, cwl_v1_0.Savable)
         or isinstance(val, cwl_v1_1.Savable)

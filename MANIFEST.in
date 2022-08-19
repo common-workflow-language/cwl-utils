@@ -3,6 +3,8 @@ include Makefile
 include MANIFEST.in
 include LICENSE.txt
 include *requirements.txt
+include create_cwl_from_objects.py
+include load_cwl_by_path.py
 include cwl_utils/cwlNodeEngine.js
 include cwl_utils/cwlNodeEngineJSConsole.js
 include cwl_utils/cwlNodeEngineWithContext.js

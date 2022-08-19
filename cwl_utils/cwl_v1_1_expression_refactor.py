@@ -1300,7 +1300,7 @@ def traverse_CommandLineTool(
 ) -> bool:
     """Extract any CWL Expressions within the given CommandLineTool into sibling steps."""
     modified = False
-    # don't modifiy clt, modify step.run
+    # don't modify clt, modify step.run
     target_clt = step.run
     inputs = empty_inputs(clt)
     if not step.id:
@@ -1720,7 +1720,7 @@ def cltool_step_outputs_to_workflow_outputs(
     """
     Copy CommandLineTool outputs into the equivalent Workflow output parameters.
 
-    Connects the outputSources for each of the new output paramters to the step
+    Connects the outputSources for each of the new output parameters to the step
     they came from.
     """
     outputs = yaml.comments.CommentedSeq()

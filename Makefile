@@ -26,7 +26,7 @@ EXTRAS=
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
-PYSOURCES=$(filter-out $(MODULE)/parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) $(wildcard tests/*.py) $(wildcard *.py)
+PYSOURCES=$(filter-out $(MODULE)/parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) $(wildcard tests/*.py) create_cwl_from_objects.py load_cwl_by_path.py setup.py
 DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox tox-pyenv \
 	isort wheel autoflake flake8-bugbear pyupgrade bandit \
 	-rtest-requirements.txt -rmypy-requirements.txt
@@ -36,43 +36,46 @@ VERSION=v$(shell echo $$(tail -n 1 cwl_utils/__meta__.py | awk '{print $$3}'))
 mkfile_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 UNAME_S=$(shell uname -s)
 
-## all         : default task
+## all                    : default task (install cwl-utils in dev mode)
 all: dev
 
-## help        : print this help message and exit
+## help                   : print this help message and exit
 help: Makefile
 	@sed -n 's/^##//p' $<
 
-## install-dep : install most of the development dependencies via pip
+## cleanup                : shortcut for "make sort_imports format flake8 diff_pydocstyle_report"
+cleanup: sort_imports format flake8 diff_pydocstyle_report
+
+## install-dep            : install most of the development dependencies via pip
 install-dep: install-dependencies
 
 install-dependencies:
 	pip install --upgrade $(DEVPKGS)
 	pip install -r requirements.txt -r mypy-requirements.txt -r docs/requirements.txt
 
-## install-deb-dep: install most of the dev dependencies via apt-get
+## install-deb-dep        : install many of the dev dependencies via apt-get
 install-deb-dep:
 	sudo apt-get install $(DEBDEVPKGS)
 
-## install     : install the ${MODULE} module and scripts
+## install                : install the cwl-utils package and the scripts
 install: FORCE
 	pip install .$(EXTRAS)
 
-## dev     : install the ${MODULE} module in dev mode
+## dev                    : install the cwl-utils package in dev mode
 dev: install-dep
 	pip install -e .$(EXTRAS)
 
-## dist        : create a module package for distribution
+## dist                   : create a module package for distribution
 dist: dist/${MODULE}-$(VERSION).tar.gz
 
 dist/${MODULE}-$(VERSION).tar.gz: $(SOURCES)
 	python setup.py sdist bdist_wheel
 
-## docs	       : make the docs
+## docs                   : make the docs
 docs: FORCE
 	cd docs && $(MAKE) html
 
-## clean       : clean up all temporary / machine-generated files
+## clean                  : clean up all temporary / machine-generated files
 clean: FORCE
 	rm -f ${MODILE}/*.pyc tests/*.pyc
 	python setup.py clean --all || true
@@ -80,7 +83,7 @@ clean: FORCE
 	rm -f diff-cover.html
 
 # Linting and code style related targets
-## sorting imports using isort: https://github.com/timothycrosley/isort
+## sort_import            : sorting imports using isort: https://github.com/timothycrosley/isort
 sort_imports: $(PYSOURCES)
 	isort $^
 
@@ -88,24 +91,29 @@ remove_unused_imports: $(PYSOURCES)
 	autoflake --in-place --remove-all-unused-imports $^
 
 pep257: pydocstyle
-## pydocstyle      : check Python code style
+## pydocstyle             : check Python docstring style
 pydocstyle: $(PYSOURCES)
 	pydocstyle --add-ignore=D100,D101,D102,D103 $^ || true
 
 pydocstyle_report.txt: $(PYSOURCES)
 	pydocstyle setup.py $^ > $@ 2>&1 || true
 
+## diff_pydocstyle_report : check Python docstring style for changed files only
 diff_pydocstyle_report: pydocstyle_report.txt
 	diff-quality --compare-branch=main --violations=pydocstyle --fail-under=100 $^
 
-## format      : check/fix all code indentation and formatting (runs black)
+## codespell              : check for common misspellings
+codespell:
+	codespell -w $(shell git ls-files | grep -v mypy-stubs)
+
+## format                 : check/fix all code indentation and formatting (runs black)
 format: $(PYSOURCES)
 	black $^
 
 format-check: $(PYSOURCES)
 	black --diff --check $^
 
-## pylint      : run static code analysis on Python code
+## pylint                 : run static code analysis on Python code
 pylint: $(PYSOURCES)
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
                 $^ -j0|| true
@@ -115,7 +123,7 @@ pylint_report.txt: $(PYSOURCES)
 		$^ -j0> $@ || true
 
 diff_pylint_report: pylint_report.txt
-	diff-quality --violations=pylint pylint_report.txt
+	diff-quality --compare-branch=main --violations=pylint pylint_report.txt
 
 .coverage: testcov
 
@@ -135,23 +143,23 @@ coverage-report: .coverage
 	coverage report
 
 diff-cover: coverage.xml
-	diff-cover $^
+	diff-cover --compare-branch=main $^
 
 diff-cover.html: coverage.xml
-	diff-cover $^ --html-report $@
+	diff-cover --compare-branch=main $^ --html-report $@
 
-## test        : run the ${MODULE} test suite
+## test                   : run the cwl-utils test suite
 test: $(PYSOURCES)
-	pytest ${PYTEST_EXTRA}
+	python -m pytest -rs ${PYTEST_EXTRA}
 
-## testcov     : run the ${MODULE} test suite and collect coverage
+## testcov                : run the cwl-utils test suite and collect coverage
 testcov: $(PYSOURCES)
 	pytest --cov ${PYTEST_EXTRA}
 
 sloccount.sc: $(PYSOURCES) Makefile
 	sloccount --duplicates --wide --details $^ > $@
 
-## sloccount   : count lines of code
+## sloccount              : count lines of code
 sloccount: $(PYSOURCES) Makefile
 	sloccount $^
 
@@ -161,19 +169,16 @@ list-author-emails:
 
 mypy3: mypy
 mypy: $(filter-out setup.py,${PYSOURCES})
-	if ! test -f $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))')/py.typed ; \
-	then \
-		rm -Rf typeshed/ruamel/yaml ; \
-		ln -s $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
-			typeshed/ruamel/ ; \
-	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
-	MYPYPATH=$$MYPYPATH:typeshed mypy $^
+	MYPYPATH=$$MYPYPATH:mypy-stubs mypy $^
+
+shellcheck: FORCE
+	shellcheck release-test.sh
 
 pyupgrade: $(PYSOURCES)
 	pyupgrade --exit-zero-even-if-changed --py36-plus $^
 
 release-test: FORCE
-	git diff-index --quiet HEAD -- || ( echo You have uncommited changes, please commit them and try again; false )
+	git diff-index --quiet HEAD -- || ( echo You have uncommitted changes, please commit them and try again; false )
 	./release-test.sh
 
 release: release-test
