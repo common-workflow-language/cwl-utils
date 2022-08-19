@@ -9,6 +9,8 @@ include cwl_utils/cwlNodeEngineWithContext.js
 include testdata/*.cwl
 include testdata/*.yaml
 include testdata/*.input
+include testdata/*.ttl
+include testdata/*.owl
 include cwl_utils/py.typed
 global-exclude *~
 global-exclude *.pyc
