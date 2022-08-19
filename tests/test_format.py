@@ -68,16 +68,6 @@ def test_check_format_no_format() -> None:
         )
 
 
-def test_check_format_no_input_formats() -> None:
-    """Unknown test."""
-    with raises(ValidationException, match=r"File has an incompatible format: .*"):
-        check_format(
-            actual_file=_create_file(format_="http://edamontology.org/format_2330"),
-            input_formats=[],
-            ontology=Graph(),
-        )
-
-
 def test_check_format_no_ontology() -> None:
     """Confirm that precisely matching formats without an ontology still match."""
     check_format(
