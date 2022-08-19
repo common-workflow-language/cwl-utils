@@ -74,13 +74,32 @@ def test_check_format_equiv() -> None:
     )
 
 
+def test_check_format_equiv2() -> None:
+    """Test of check_format with an equivalent format, in the reverse."""
+    check_format(
+        actual_file=_create_file(format_="http://galaxyproject.org/formats/fasta"),
+        input_formats="http://edamontology.org/format_1929",
+        ontology=EDAM + GX,
+    )
+
+
 def test_check_format_wrong_format() -> None:
-    """Test of check_format with a non-match format."""
+    """Test of check_format with a non-match format with an ontology."""
     with raises(ValidationException, match=r"File has an incompatible format: .*"):
         check_format(
             actual_file=_create_file(format_="http://edamontology.org/format_1929"),
             input_formats="http://edamontology.org/format_2334",
             ontology=EDAM,
+        )
+
+
+def test_check_format_wrong_format_no_ontology() -> None:
+    """Test of check_format with a non-match format."""
+    with raises(ValidationException, match=r"File has an incompatible format: .*"):
+        check_format(
+            actual_file=_create_file(format_="http://edamontology.org/format_1929"),
+            input_formats="http://edamontology.org/format_2334",
+            ontology=None,
         )
 
 
@@ -92,6 +111,15 @@ def test_check_format_no_format() -> None:
             input_formats="http://edamontology.org/format_2330",
             ontology=EDAM,
         )
+
+
+def test_check_format_missing_file() -> None:
+    """Confirm that a missing file produces no error."""
+    check_format(
+        actual_file=[{}],
+        input_formats="http://edamontology.org/format_2330",
+        ontology=EDAM,
+    )
 
 
 def test_check_format_no_ontology() -> None:
