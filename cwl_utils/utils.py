@@ -168,7 +168,7 @@ def resolved_path(
     linked document. This function will
     1. Resolve the path, which means dot and double dot components are resolved
     2. Use the OS appropriate path resolution for local paths, and network
-       apropriate resolution for network paths
+       appropriate resolution for network paths
 
     From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
     """
