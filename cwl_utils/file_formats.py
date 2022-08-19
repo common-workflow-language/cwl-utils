@@ -1,3 +1,9 @@
+"""
+CWL file formats utilities.
+
+For more information, please visit https://www.commonwl.org/user_guide/16-file-formats/
+"""
+
 from typing import List, Optional, Set, Union
 
 from rdflib import Graph, OWL, RDFS, URIRef

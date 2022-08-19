@@ -1,5 +1,5 @@
 import xml.sax
-from typing import Optional
+from typing import Any, Optional
 
 import requests
 from pytest import raises
@@ -8,10 +8,10 @@ from rdflib.plugins.parsers.notation3 import BadSyntax
 from schema_salad.exceptions import ValidationException
 from schema_salad.fetcher import DefaultFetcher
 
-from cwl_utils.format import check_format
+from cwl_utils.file_formats import check_format
 
 
-def _create_file(format_: Optional[str] = None):
+def _create_file(format_: Optional[str] = None) -> Any:
     obj = {
         "class": "File",
         "basename": "example.txt",
@@ -25,7 +25,7 @@ def _create_file(format_: Optional[str] = None):
     return obj
 
 
-def _load_format(fetchurl: str):
+def _load_format(fetchurl: str) -> Graph:
     fetcher = DefaultFetcher({}, requests.Session())
     content = fetcher.fetch_text(fetchurl)
     graph = Graph()
@@ -38,7 +38,7 @@ def _load_format(fetchurl: str):
     return graph
 
 
-def test_check_format():
+def test_check_format() -> None:
     check_format(
         actual_file=_create_file(format_="http://edamontology.org/format_2330"),
         input_formats="http://edamontology.org/format_2330",
@@ -46,7 +46,7 @@ def test_check_format():
     )
 
 
-def test_check_format_no_format():
+def test_check_format_no_format() -> None:
     with raises(ValidationException, match=r"File has no 'format' defined: .*"):
         check_format(
             actual_file=_create_file(),
@@ -55,7 +55,7 @@ def test_check_format_no_format():
         )
 
 
-def test_check_format_no_input_formats():
+def test_check_format_no_input_formats() -> None:
     with raises(ValidationException, match=r"File has an incompatible format: .*"):
         check_format(
             actual_file=_create_file(format_="http://edamontology.org/format_2330"),
@@ -64,7 +64,7 @@ def test_check_format_no_input_formats():
         )
 
 
-def test_check_format_no_ontology():
+def test_check_format_no_ontology() -> None:
     check_format(
         actual_file=_create_file(format_="http://edamontology.org/format_2330"),
         input_formats="http://edamontology.org/format_2330",
