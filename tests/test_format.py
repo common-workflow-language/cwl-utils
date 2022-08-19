@@ -1,6 +1,7 @@
 """Tests of cwl_utils.file_formats."""
 
 import xml.sax
+from pathlib import Path
 from typing import Optional
 
 import requests
@@ -41,12 +42,17 @@ def _load_format(fetchurl: str) -> Graph:
     return graph
 
 
+HERE = Path(__file__).resolve().parent
+EDAM = _load_format((HERE / "../testdata/EDAM.owl").absolute().as_uri())
+GX = _load_format((HERE / "../testdata/gx_edam.ttl").absolute().as_uri())
+
+
 def test_check_format() -> None:
     """Exact format equivalence test, with ontology."""
     check_format(
         actual_file=_create_file(format_="http://edamontology.org/format_2330"),
         input_formats="http://edamontology.org/format_2330",
-        ontology=_load_format("http://edamontology.org/EDAM.owl"),
+        ontology=EDAM,
     )
 
 
@@ -55,7 +61,16 @@ def test_check_format_subformat() -> None:
     check_format(
         actual_file=_create_file(format_="http://edamontology.org/format_1929"),
         input_formats="http://edamontology.org/format_2330",
-        ontology=_load_format("http://edamontology.org/EDAM.owl"),
+        ontology=EDAM,
+    )
+
+
+def test_check_format_equiv() -> None:
+    """Test of check_format with an equivalent format."""
+    check_format(
+        actual_file=_create_file(format_="http://edamontology.org/format_1929"),
+        input_formats="http://galaxyproject.org/formats/fasta",
+        ontology=EDAM + GX,
     )
 
 
@@ -65,7 +80,7 @@ def test_check_format_wrong_format() -> None:
         check_format(
             actual_file=_create_file(format_="http://edamontology.org/format_1929"),
             input_formats="http://edamontology.org/format_2334",
-            ontology=_load_format("http://edamontology.org/EDAM.owl"),
+            ontology=EDAM,
         )
 
 
@@ -75,7 +90,7 @@ def test_check_format_no_format() -> None:
         check_format(
             actual_file=_create_file(),
             input_formats="http://edamontology.org/format_2330",
-            ontology=_load_format("http://edamontology.org/EDAM.owl"),
+            ontology=EDAM,
         )
 
 
