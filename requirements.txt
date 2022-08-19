@@ -2,4 +2,5 @@ cwl-upgrader >= 1.2.3
 packaging
 rdflib
 requests
+CacheControl
 schema-salad >= 8.2, < 9
