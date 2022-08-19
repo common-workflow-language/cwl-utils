@@ -6,7 +6,7 @@ For more information, please visit https://www.commonwl.org/user_guide/16-file-f
 
 from typing import List, Optional, Set, Union
 
-from rdflib import Graph, OWL, RDFS, URIRef
+from rdflib import OWL, RDFS, Graph, URIRef
 from schema_salad.exceptions import ValidationException
 from schema_salad.utils import aslist, json_dumps
 

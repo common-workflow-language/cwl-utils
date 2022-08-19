@@ -6,10 +6,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from copy import deepcopy
-
-from ruamel.yaml.main import YAML
-from ruamel.yaml.parser import ParserError
-from ruamel.yaml.scanner import ScannerError
 from typing import (
     Any,
     Dict,
@@ -20,6 +16,10 @@ from typing import (
     Tuple,
     Union,
 )
+
+from ruamel.yaml.main import YAML
+from ruamel.yaml.parser import ParserError
+from ruamel.yaml.scanner import ScannerError
 
 from cwl_utils.errors import MissingKeyField
 from cwl_utils.loghandler import _logger

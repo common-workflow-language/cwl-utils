@@ -14,9 +14,9 @@ import os
 from typing import IO, Any, MutableMapping, Set, Union, cast
 
 from cwlformat.formatter import stringify_dict
+from ruamel.yaml.dumper import RoundTripDumper
 from ruamel.yaml.main import YAML, dump
 from ruamel.yaml.representer import RoundTripRepresenter
-from ruamel.yaml.dumper import RoundTripDumper
 from schema_salad.sourceline import SourceLine, add_lc_filename
 
 

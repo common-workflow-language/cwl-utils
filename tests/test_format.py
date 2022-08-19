@@ -1,5 +1,7 @@
+"""Tests of cwl_utils.file_formats."""
+
 import xml.sax
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 from pytest import raises
@@ -9,10 +11,11 @@ from schema_salad.exceptions import ValidationException
 from schema_salad.fetcher import DefaultFetcher
 
 from cwl_utils.file_formats import check_format
+from cwl_utils.types import CWLObjectType
 
 
-def _create_file(format_: Optional[str] = None) -> Any:
-    obj = {
+def _create_file(format_: Optional[str] = None) -> CWLObjectType:
+    obj: CWLObjectType = {
         "class": "File",
         "basename": "example.txt",
         "size": 23,
@@ -46,7 +49,17 @@ def test_check_format() -> None:
     )
 
 
+def test_check_format_subformat() -> None:
+    """Test of check_format with a subformat."""
+    check_format(
+        actual_file=_create_file(format_="http://edamontology.org/format_1929"),
+        input_formats="http://edamontology.org/format_2330",
+        ontology=_load_format("http://edamontology.org/EDAM.owl"),
+    )
+
+
 def test_check_format_no_format() -> None:
+    """Confirm that a missing format produces the expected exception."""
     with raises(ValidationException, match=r"File has no 'format' defined: .*"):
         check_format(
             actual_file=_create_file(),
@@ -56,6 +69,7 @@ def test_check_format_no_format() -> None:
 
 
 def test_check_format_no_input_formats() -> None:
+    """Unknown test."""
     with raises(ValidationException, match=r"File has an incompatible format: .*"):
         check_format(
             actual_file=_create_file(format_="http://edamontology.org/format_2330"),
@@ -65,6 +79,7 @@ def test_check_format_no_input_formats() -> None:
 
 
 def test_check_format_no_ontology() -> None:
+    """Confirm that precisely matching formats without an ontology still match."""
     check_format(
         actual_file=_create_file(format_="http://edamontology.org/format_2330"),
         input_formats="http://edamontology.org/format_2330",
