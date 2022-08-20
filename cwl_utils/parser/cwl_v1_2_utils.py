@@ -14,7 +14,7 @@ def convert_stdstreams_to_files(clt: CommandLineTool):
                 raise ValidationException(
                     "Not allowed to specify outputBinding when using stdout shortcut.")
             if clt.stdout is None:
-                clt.stdout = str(hashlib.sha1(json_dumps(
+                clt.stdout = str(hashlib.sha1(json_dumps(  # nosec
                     clt.save(), sort_keys=True).encode('utf-8')).hexdigest())
             out.type = 'File'
             out.outputBinding = CommandOutputBinding(glob=clt.stdout)
@@ -23,7 +23,7 @@ def convert_stdstreams_to_files(clt: CommandLineTool):
                 raise ValidationException(
                     "Not allowed to specify outputBinding when using stderr shortcut.")
             if clt.stderr is None:
-                clt.stderr = str(hashlib.sha1(json_dumps(
+                clt.stderr = str(hashlib.sha1(json_dumps(  # nosec
                     clt.save(), sort_keys=True).encode('utf-8')).hexdigest())
             out.type = 'File'
             out.outputBinding = CommandOutputBinding(glob=clt.stderr)
