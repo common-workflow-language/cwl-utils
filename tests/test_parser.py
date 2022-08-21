@@ -1,9 +1,11 @@
 """Test the load and save functions for CWL."""
 from pathlib import Path
 
+from _pytest.python_api import raises
 from ruamel.yaml.main import YAML
 
 import cwl_utils.parser.latest as latest
+from cwl_utils.errors import GraphTargetMissingException
 from cwl_utils.parser import (
     cwl_v1_2,
     cwl_version,
@@ -86,3 +88,21 @@ def test_shortname() -> None:
     assert cwl_v1_2.shortname("http://example.com/foo#bar") == "bar"
     assert cwl_v1_2.shortname("http://example.com/#foo/bar") == "bar"
     assert cwl_v1_2.shortname("http://example.com/foo#bar/baz") == "baz"
+
+
+def test_get_id_from_graph() -> None:
+    uri = Path(HERE / "../testdata/echo-tool-packed.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri + "#main")
+    assert cwl_obj.id == uri + "#main"
+
+
+def test_get_default_id_from_graph() -> None:
+    uri = Path(HERE / "../testdata/echo-tool-packed.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert cwl_obj.id == uri + "#main"
+
+
+def test_get_default_id_from_graph_without_main() -> None:
+    with raises(GraphTargetMissingException):
+        uri = Path(HERE / "../testdata/js-expr-req-wf.cwl").resolve().as_uri()
+        cwl_obj = load_document_by_uri(uri)

@@ -79,7 +79,7 @@ def load_document_by_uri(
     """Load a CWL object from a URI or a path."""
     if isinstance(path, str):
         uri = urlparse(path)
-        id_ = cast(Optional[str], uri.fragment)
+        id_ = uri.fragment or None
         if not uri.scheme or uri.scheme == "file":
             real_path = Path(unquote_plus(uri.path)).resolve().as_uri()
         else:
