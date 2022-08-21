@@ -8,9 +8,12 @@ from urllib.parse import unquote_plus, urlparse
 from schema_salad.exceptions import ValidationException
 from schema_salad.utils import yaml_no_ts
 
-from . import cwl_v1_0 as cwl_v1_0
-from . import cwl_v1_1 as cwl_v1_1
-from . import cwl_v1_2 as cwl_v1_2
+from cwl_utils.errors import GraphTargetMissingException
+from cwl_utils.parser import (
+    cwl_v1_0 as cwl_v1_0,
+    cwl_v1_1 as cwl_v1_1,
+    cwl_v1_2 as cwl_v1_2,
+)
 
 LoadingOptions = Union[
     cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions
@@ -36,6 +39,18 @@ DockerRequirementTypes = (
     cwl_v1_2.DockerRequirement,
 )
 _Loader = Union[cwl_v1_0._Loader, cwl_v1_1._Loader, cwl_v1_2._Loader]
+
+
+def _get_id_from_graph(yaml: MutableMapping[str, Any], id_: Optional[str]) -> Any:
+    if id_ is None:
+        id_ = "main"
+    for el in yaml["$graph"]:
+        if el["id"].lstrip("#") == id_:
+            return el
+    raise GraphTargetMissingException(
+        "Tool file contains graph of multiple objects, must specify "
+        "one of #%s" % ", #".join(el["id"] for el in yaml["$graph"])
+    )
 
 
 def cwl_version(yaml: Any) -> Any:
@@ -64,12 +79,14 @@ def load_document_by_uri(
     """Load a CWL object from a URI or a path."""
     if isinstance(path, str):
         uri = urlparse(path)
+        id_ = uri.fragment
         if not uri.scheme or uri.scheme == "file":
             real_path = Path(unquote_plus(uri.path)).resolve().as_uri()
         else:
             real_path = path
     else:
         real_path = path.resolve().as_uri()
+        id_ = path.resolve().name.split("#")[1] if "#" in path.resolve().name else None
 
     baseuri = str(real_path)
 
@@ -77,36 +94,46 @@ def load_document_by_uri(
         loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
 
     doc = loadingOptions.fetcher.fetch_text(real_path)
-    return load_document_by_string(doc, baseuri, loadingOptions)
+    return load_document_by_string(doc, baseuri, loadingOptions, id_)
 
 
 def load_document(
     doc: Any,
     baseuri: Optional[str] = None,
     loadingOptions: Optional[LoadingOptions] = None,
+    id_: Optional[str] = None,
 ) -> Any:
     """Load a CWL object from a serialized YAML string or a YAML object."""
     if baseuri is None:
         baseuri = cwl_v1_0.file_uri(os.getcwd()) + "/"
     if isinstance(doc, str):
-        return load_document_by_string(doc, baseuri, loadingOptions)
-    return load_document_by_yaml(doc, baseuri, loadingOptions)
+        return load_document_by_string(doc, baseuri, loadingOptions, id_)
+    return load_document_by_yaml(doc, baseuri, loadingOptions, id_)
 
 
 def load_document_by_string(
-    string: str, uri: str, loadingOptions: Optional[LoadingOptions] = None
+    string: str,
+    uri: str,
+    loadingOptions: Optional[LoadingOptions] = None,
+    id_: Optional[str] = None,
 ) -> Any:
     """Load a CWL object from a serialized YAML string."""
     yaml = yaml_no_ts()
     result = yaml.load(string)
-    return load_document_by_yaml(result, uri, loadingOptions)
+    return load_document_by_yaml(result, uri, loadingOptions, id_)
 
 
 def load_document_by_yaml(
-    yaml: Any, uri: str, loadingOptions: Optional[LoadingOptions] = None
+    yaml: Any,
+    uri: str,
+    loadingOptions: Optional[LoadingOptions] = None,
+    id_: Optional[str] = None,
 ) -> Any:
     """Load a CWL object from a YAML object."""
     version = cwl_version(yaml)
+    if "$graph" in yaml:
+        yaml = _get_id_from_graph(yaml, id_)
+        yaml["cwlVersion"] = version
     if version == "v1.0":
         result = cwl_v1_0.load_document_by_yaml(
             yaml, uri, cast(Optional[cwl_v1_0.LoadingOptions], loadingOptions)
