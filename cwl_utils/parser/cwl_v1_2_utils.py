@@ -7,7 +7,7 @@ from schema_salad.utils import json_dumps
 from cwl_utils.parser.cwl_v1_2 import CommandLineTool, CommandOutputBinding
 
 
-def convert_stdstreams_to_files(clt: CommandLineTool):
+def convert_stdstreams_to_files(clt: CommandLineTool) -> None:
     for out in clt.outputs:
         if out.type == 'stdout':
             if out.outputBinding is not None:
