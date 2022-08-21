@@ -27,14 +27,3 @@ def convert_stdstreams_to_files(clt: CommandLineTool):
                     clt.save(), sort_keys=True).encode('utf-8')).hexdigest())
             out.type = 'File'
             out.outputBinding = CommandOutputBinding(glob=clt.stderr)
-    for inp in clt.inputs:
-        if inp.type == 'stdin':
-            if inp.inputBinding is not None:
-                raise ValidationException(
-                    "Not allowed to specify unputBinding when using stdin shortcut.")
-            if clt.stdin is not None:
-                raise ValidationException(
-                    "Not allowed to specify stdin path when using stdin type shortcut.")
-            else:
-                clt.stdin = '$(inputs.%s.path)' % cast(str, inp.id).rpartition('#')[2].split('/')[-1]
-                inp.type = 'File'
