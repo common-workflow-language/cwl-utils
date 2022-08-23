@@ -91,18 +91,21 @@ def test_shortname() -> None:
 
 
 def test_get_id_from_graph() -> None:
+    """Test loading an explicit id of a CWL document with $graph property."""
     uri = Path(HERE / "../testdata/echo-tool-packed.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri + "#main")
     assert cwl_obj.id == uri + "#main"
 
 
 def test_get_default_id_from_graph() -> None:
+    """Test that loading the default id of a CWL document with $graph property returns the `#main` id."""
     uri = Path(HERE / "../testdata/echo-tool-packed.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert cwl_obj.id == uri + "#main"
 
 
 def test_get_default_id_from_graph_without_main() -> None:
+    """Test that loading the default id of a CWL document with $graph property and no `#main` id throws an error."""
     with raises(GraphTargetMissingException):
         uri = Path(HERE / "../testdata/js-expr-req-wf.cwl").resolve().as_uri()
-        cwl_obj = load_document_by_uri(uri)
+        load_document_by_uri(uri)
