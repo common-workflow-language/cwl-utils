@@ -1,6 +1,6 @@
 """Test the CWL parsers utility functions."""
 
-from _pytest.python_api import raises
+from pytest import raises
 from schema_salad.exceptions import ValidationException
 
 import cwl_utils.parser.cwl_v1_0
