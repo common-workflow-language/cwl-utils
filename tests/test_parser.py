@@ -1,7 +1,7 @@
 """Test the load and save functions for CWL."""
 from pathlib import Path
 
-from _pytest.python_api import raises
+from pytest import raises
 from ruamel.yaml.main import YAML
 
 import cwl_utils.parser.latest as latest
