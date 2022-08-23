@@ -1,3 +1,5 @@
+"""Test the CWL parsers utility functions."""
+
 from _pytest.python_api import raises
 from schema_salad.exceptions import ValidationException
 
@@ -10,6 +12,7 @@ import cwl_utils.parser.cwl_v1_2_utils
 
 
 def test_v1_0_stdout_to_file() -> None:
+    """Test that stdout shortcut is converted to stdout parameter with CWL v1.0."""
     clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
         inputs=[],
         outputs=[
@@ -22,6 +25,7 @@ def test_v1_0_stdout_to_file() -> None:
 
 
 def test_v1_0_stdout_to_file_with_binding() -> None:
+    """Test that outputBinding is not allowed with stdout shortcut with CWL v1.0."""
     with raises(ValidationException):
         clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
             inputs=[],
@@ -39,6 +43,7 @@ def test_v1_0_stdout_to_file_with_binding() -> None:
 
 
 def test_v1_0_stdout_to_file_preserve_original() -> None:
+    """Test that stdout parameter prevails on stdout shortcut with CWL v1.0."""
     clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
         inputs=[],
         outputs=[
@@ -52,6 +57,7 @@ def test_v1_0_stdout_to_file_preserve_original() -> None:
 
 
 def test_v1_0_stderr_to_file() -> None:
+    """Test that stderr shortcut is converted to stderr parameter with CWL v1.0."""
     clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
         inputs=[],
         outputs=[
@@ -64,6 +70,7 @@ def test_v1_0_stderr_to_file() -> None:
 
 
 def test_v1_0_stderr_to_file_with_binding() -> None:
+    """Test that outputBinding is not allowed with stderr shortcut with CWL v1.0."""
     with raises(ValidationException):
         clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
             inputs=[],
@@ -81,6 +88,7 @@ def test_v1_0_stderr_to_file_with_binding() -> None:
 
 
 def test_v1_0_stderr_to_file_preserve_original() -> None:
+    """Test that stderr parameter prevails on stdout shortcut with CWL v1.0."""
     clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
         inputs=[],
         outputs=[
@@ -94,6 +102,7 @@ def test_v1_0_stderr_to_file_preserve_original() -> None:
 
 
 def test_v1_1_stdout_to_file() -> None:
+    """Test that stdout shortcut is converted to stdout parameter with CWL v1.1."""
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[],
         outputs=[
@@ -106,6 +115,7 @@ def test_v1_1_stdout_to_file() -> None:
 
 
 def test_v1_1_stdout_to_file_with_binding() -> None:
+    """Test that outputBinding is not allowed with stdout shortcut with CWL v1.1."""
     with raises(ValidationException):
         clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
             inputs=[],
@@ -123,6 +133,7 @@ def test_v1_1_stdout_to_file_with_binding() -> None:
 
 
 def test_v1_1_stdout_to_file_preserve_original() -> None:
+    """Test that stdout parameter prevails on stdout shortcut with CWL v1.1."""
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[],
         outputs=[
@@ -136,6 +147,7 @@ def test_v1_1_stdout_to_file_preserve_original() -> None:
 
 
 def test_v1_1_stderr_to_file() -> None:
+    """Test that stderr shortcut is converted to stderr parameter with CWL v1.1."""
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[],
         outputs=[
@@ -148,6 +160,7 @@ def test_v1_1_stderr_to_file() -> None:
 
 
 def test_v1_1_stderr_to_file_with_binding() -> None:
+    """Test that outputBinding is not allowed with stderr shortcut with CWL v1.1."""
     with raises(ValidationException):
         clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
             inputs=[],
@@ -165,6 +178,7 @@ def test_v1_1_stderr_to_file_with_binding() -> None:
 
 
 def test_v1_1_stderr_to_file_preserve_original() -> None:
+    """Test that stderr parameter prevails on stdout shortcut with CWL v1.1."""
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[],
         outputs=[
@@ -178,6 +192,7 @@ def test_v1_1_stderr_to_file_preserve_original() -> None:
 
 
 def test_v1_1_stdin_to_file() -> None:
+    """Test that stdin shortcut is converted to stdin parameter with CWL v1.1."""
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[
             cwl_utils.parser.cwl_v1_1.CommandInputParameter(id="test", type="stdin")
@@ -189,6 +204,7 @@ def test_v1_1_stdin_to_file() -> None:
 
 
 def test_v1_1_stdin_to_file_with_binding() -> None:
+    """Test that inputBinding is not allowed with stdin shortcut with CWL v1.1."""
     with raises(ValidationException):
         clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
             inputs=[
@@ -206,6 +222,7 @@ def test_v1_1_stdin_to_file_with_binding() -> None:
 
 
 def test_v1_1_stdin_to_file_fail_with_original() -> None:
+    """Test that stdin shortcut fails when stdin parameter is defined with CWL v1.1."""
     with raises(ValidationException):
         clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
             inputs=[
@@ -218,6 +235,7 @@ def test_v1_1_stdin_to_file_fail_with_original() -> None:
 
 
 def test_v1_2_stdout_to_file() -> None:
+    """Test that stdout shortcut is converted to stdout parameter with CWL v1.2."""
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[],
         outputs=[
@@ -230,6 +248,7 @@ def test_v1_2_stdout_to_file() -> None:
 
 
 def test_v1_2_stdout_to_file_with_binding() -> None:
+    """Test that outputBinding is not allowed with stdout shortcut with CWL v1.2."""
     with raises(ValidationException):
         clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
             inputs=[],
@@ -247,6 +266,7 @@ def test_v1_2_stdout_to_file_with_binding() -> None:
 
 
 def test_v1_2_stdout_to_file_preserve_original() -> None:
+    """Test that stdout parameter prevails on stdout shortcut with CWL v1.2."""
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[],
         outputs=[
@@ -260,6 +280,7 @@ def test_v1_2_stdout_to_file_preserve_original() -> None:
 
 
 def test_v1_2_stderr_to_file() -> None:
+    """Test that stderr shortcut is converted to stderr parameter with CWL v1.2."""
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[],
         outputs=[
@@ -272,6 +293,7 @@ def test_v1_2_stderr_to_file() -> None:
 
 
 def test_v1_2_stderr_to_file_with_binding() -> None:
+    """Test that outputBinding is not allowed with stderr shortcut with CWL v1.2."""
     with raises(ValidationException):
         clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
             inputs=[],
@@ -289,6 +311,7 @@ def test_v1_2_stderr_to_file_with_binding() -> None:
 
 
 def test_v1_2_stderr_to_file_preserve_original() -> None:
+    """Test that stderr parameter prevails on stdout shortcut with CWL v1.2."""
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[],
         outputs=[
@@ -302,6 +325,7 @@ def test_v1_2_stderr_to_file_preserve_original() -> None:
 
 
 def test_v1_2_stdin_to_file() -> None:
+    """Test that stdin shortcut is converted to stdin parameter with CWL v1.2."""
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[
             cwl_utils.parser.cwl_v1_2.CommandInputParameter(id="test", type="stdin")
@@ -313,6 +337,7 @@ def test_v1_2_stdin_to_file() -> None:
 
 
 def test_v1_2_stdin_to_file_with_binding() -> None:
+    """Test that inputBinding is not allowed with stdin shortcut with CWL v1.2."""
     with raises(ValidationException):
         clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
             inputs=[
@@ -330,6 +355,7 @@ def test_v1_2_stdin_to_file_with_binding() -> None:
 
 
 def test_v1_2_stdin_to_file_fail_with_original() -> None:
+    """Test that stdin shortcut fails when stdin parameter is defined with CWL v1.2."""
     with raises(ValidationException):
         clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
             inputs=[
