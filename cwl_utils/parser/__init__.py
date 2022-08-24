@@ -8,12 +8,8 @@ from urllib.parse import unquote_plus, urlparse
 from schema_salad.exceptions import ValidationException
 from schema_salad.utils import yaml_no_ts
 
-from cwl_utils.errors import GraphTargetMissingException
-from cwl_utils.parser import (
-    cwl_v1_0 as cwl_v1_0,
-    cwl_v1_1 as cwl_v1_1,
-    cwl_v1_2 as cwl_v1_2,
-)
+from ..errors import GraphTargetMissingException
+from . import cwl_v1_0, cwl_v1_1, cwl_v1_2
 
 LoadingOptions = Union[
     cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions
