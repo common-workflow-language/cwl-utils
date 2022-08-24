@@ -24,3 +24,7 @@ class SubstitutionError(Exception):
 
 class WorkflowException(Exception):
     pass
+
+
+class GraphTargetMissingException(WorkflowException):
+    """When a $graph is encountered and there is no target and no main/#main."""
