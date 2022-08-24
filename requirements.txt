@@ -3,4 +3,5 @@ packaging
 rdflib
 requests
 CacheControl
-schema-salad >= 8.2, < 9
+# schema-salad >= 8.2, < 9
+schema-salad @ git+https://github.com/common-workflow-language/schema_salad.git@schema-graph-loader#egg=schema-salad
