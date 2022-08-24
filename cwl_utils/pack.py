@@ -261,12 +261,12 @@ def add_missing_requirements(cwl: Dict[str, Any]) -> Dict[str, Any]:
             requirements += [{"class": _req_name}]
 
     if cwl.get("class") == "Workflow":
-        sub_worflow = False
+        sub_workflow = False
         for step in cwl["steps"]:
             if step["run"]["class"] == "Workflow":
-                sub_worflow = True
+                sub_workflow = True
                 break
-        if sub_worflow:
+        if sub_workflow:
             _add_req("SubworkflowFeatureRequirement")
     return cwl
 
