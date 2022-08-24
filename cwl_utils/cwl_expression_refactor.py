@@ -59,7 +59,7 @@ class saveCWL(Protocol):
 
 
 def arg_parser() -> argparse.ArgumentParser:
-    """Build the arrgument parser."""
+    """Build the argument parser."""
     parser = argparse.ArgumentParser(
         description="Tool to refactor CWL documents so that any CWL expression "
         "are separate steps as either ExpressionTools or CommandLineTools. Exit code 7 "
@@ -154,7 +154,7 @@ def run(args: argparse.Namespace) -> int:
                 for result_item in result
             ]
         yaml.scalarstring.walk_tree(result_json)
-        # ^ converts multine line strings to nice multiline YAML
+        # ^ converts multiline strings to nice multiline YAML
         with open(output, "w", encoding="utf-8") as output_filehandle:
             output_filehandle.write(
                 "#!/usr/bin/env cwl-runner\n"

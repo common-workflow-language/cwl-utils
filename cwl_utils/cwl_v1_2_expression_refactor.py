@@ -216,7 +216,7 @@ def traverse(
     skip_command_line1: bool,
     skip_command_line2: bool,
 ) -> Tuple[Union[cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], bool]:
-    """Convert the given process and any subprocesess."""
+    """Convert the given process and any subprocesses."""
     if not inside and isinstance(process, cwl.CommandLineTool):
         process = expand_stream_shortcuts(process)
         wf_inputs = []
@@ -1584,7 +1584,7 @@ def traverse_CommandLineTool(
                     )
                     new_clt_step = copy.copy(
                         step
-                    )  # a deepcopy would be convienant, but params2.cwl gives it problems
+                    )  # a deepcopy would be convenient, but params2.cwl gives it problems
                     new_clt_step.id = cast(str, new_clt_step.id).split("#")[-1]
                     new_clt_step.run = copy.copy(step.run)
                     new_clt_step.run.id = None
@@ -1611,7 +1611,7 @@ def traverse_CommandLineTool(
                                 )
                             else:
                                 raise Exception(
-                                    "Unimplemented OutputParamter type: %s",
+                                    "Unimplemented OutputParameter type: %s",
                                     type(new_outp),
                                 )
                     new_clt_step.in_ = copy.deepcopy(step.in_)
@@ -1691,7 +1691,7 @@ def remove_JSReq(
     process: Union[cwl.CommandLineTool, cwl.WorkflowStep, cwl.Workflow],
     skip_command_line1: bool,
 ) -> None:
-    """Since the InlineJavascriptRequiment is longer needed, remove it."""
+    """Since the InlineJavascriptRequirement is longer needed, remove it."""
     if skip_command_line1 and isinstance(process, cwl.CommandLineTool):
         return
     if process.hints:
@@ -2062,7 +2062,7 @@ def traverse_step(
 def workflow_step_to_WorkflowInputParameters(
     step_ins: List[cwl.WorkflowStepInput], parent: cwl.Workflow, except_in_id: str
 ) -> List[cwl.WorkflowInputParameter]:
-    """Create WorkflowInputParametes to match the given WorkflowStep inputs."""
+    """Create WorkflowInputParameters to match the given WorkflowStep inputs."""
     params = []
     for inp in step_ins:
         if not inp.id:

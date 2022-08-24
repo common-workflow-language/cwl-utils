@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'cwl-utils'
-copyright = '2019, CWL Commmunity'
-author = 'CWL Commmunity'
+copyright = '2019, CWL Community'
+author = 'CWL Community'
 
 
 # -- General configuration ---------------------------------------------------
