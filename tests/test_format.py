@@ -7,11 +7,13 @@ from typing import Optional
 import requests
 from pytest import raises
 from rdflib import Graph
+from rdflib.compare import to_isomorphic
 from rdflib.plugins.parsers.notation3 import BadSyntax
 from schema_salad.exceptions import ValidationException
 from schema_salad.fetcher import DefaultFetcher
 
 from cwl_utils.file_formats import check_format
+from cwl_utils.parser import load_document_by_uri
 from cwl_utils.types import CWLObjectType
 
 
@@ -129,3 +131,53 @@ def test_check_format_no_ontology() -> None:
         input_formats="http://edamontology.org/format_2330",
         ontology=Graph(),
     )
+
+
+def test_loading_options_graph_property_v1_0() -> None:
+    """Test that RDFLib Graph representations of $schema properties are correctly loaded, CWL v1.0."""
+    uri = Path(HERE / "../testdata/formattest2_v1_0.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(EDAM)
+
+
+def test_loading_options_graph_property_v1_1() -> None:
+    """Test that RDFLib Graph representations of $schema properties are correctly loaded, CWL v1.1."""
+    uri = Path(HERE / "../testdata/formattest2_v1_1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(EDAM)
+
+
+def test_loading_options_graph_property_v1_2() -> None:
+    """Test that RDFLib Graph representations of $schema properties are correctly loaded, CWL v1.2."""
+    uri = Path(HERE / "../testdata/formattest2.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(EDAM)
+
+
+def test_loading_options_missing_graph_v1_0() -> None:
+    """Affirm that v1.0 documents without $schema still produce an empty graph property."""
+    uri = Path(HERE / "../testdata/workflow_input_format_expr.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
+
+
+def test_loading_options_missing_graph_v1_1() -> None:
+    """Affirm that v1.1 documents without $schema still produce an empty graph property."""
+    uri = (
+        Path(HERE / "../testdata/workflow_input_format_expr_v1_1.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
+
+
+def test_loading_options_missing_graph_v1_2() -> None:
+    """Affirm that v1.2 documents without $schema still produce an empty graph property."""
+    uri = (
+        Path(HERE / "../testdata/workflow_input_format_expr_v1_2.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
