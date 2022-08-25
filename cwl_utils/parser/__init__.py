@@ -49,14 +49,11 @@ def _get_id_from_graph(yaml: MutableMapping[str, Any], id_: Optional[str]) -> An
     )
 
 
-def cwl_version(yaml: Any) -> Any:
+def cwl_version(yaml: Any) -> Optional[str]:
     """Return the cwlVersion of a YAML object.
 
     Args:
         yaml: A YAML object
-
-    Returns:
-        Any: The value of `cwlVersion`. Its type is Optional[str] when a given YAML object is a valid CWL object.
 
     Raises:
         ValidationException: If `yaml` is not a MutableMapping.
@@ -65,7 +62,7 @@ def cwl_version(yaml: Any) -> Any:
         raise ValidationException("MutableMapping is required")
     if "cwlVersion" not in list(yaml.keys()):
         return None
-    return yaml["cwlVersion"]
+    return cast(str, yaml["cwlVersion"])
 
 
 def load_document_by_uri(
