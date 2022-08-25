@@ -13,7 +13,7 @@ README = os.path.join(SETUP_DIR, "README.rst")
 exec(open("cwl_utils/__meta__.py").read())
 
 needs_pytest = {"pytest", "test", "ptr"}.intersection(sys.argv)
-pytest_runner: List[str] = ["pytest < 7", "pytest-runner"] if needs_pytest else []
+pytest_runner: List[str] = ["pytest < 8", "pytest-runner"] if needs_pytest else []
 setup(
     name="cwl-utils",
     version=__version__,  # type: ignore
