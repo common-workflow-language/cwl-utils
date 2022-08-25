@@ -159,7 +159,6 @@ def test_loading_options_missing_graph_v1_0() -> None:
     uri = Path(HERE / "../testdata/workflow_input_format_expr.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
-    assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
 
 
 def test_loading_options_missing_graph_v1_1() -> None:
@@ -171,7 +170,6 @@ def test_loading_options_missing_graph_v1_1() -> None:
     )
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
-    assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
 
 
 def test_loading_options_missing_graph_v1_2() -> None:
@@ -182,5 +180,4 @@ def test_loading_options_missing_graph_v1_2() -> None:
         .as_uri()
     )
     cwl_obj = load_document_by_uri(uri)
-    assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
