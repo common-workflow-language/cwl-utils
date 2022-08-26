@@ -37,7 +37,7 @@ setup(
     )
     .read()
     .splitlines(),
-    tests_require=["pytest<7"],
+    tests_require=["pytest<8"],
     test_suite="tests",
     scripts=[
         "cwl_utils/docker_extract.py",
