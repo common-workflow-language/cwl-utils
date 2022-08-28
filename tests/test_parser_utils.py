@@ -1,4 +1,5 @@
 """Test the CWL parsers utility functions."""
+from pathlib import Path
 
 from pytest import raises
 from schema_salad.exceptions import ValidationException
@@ -9,6 +10,9 @@ import cwl_utils.parser.cwl_v1_1
 import cwl_utils.parser.cwl_v1_1_utils
 import cwl_utils.parser.cwl_v1_2
 import cwl_utils.parser.cwl_v1_2_utils
+from cwl_utils.parser import load_document_by_uri
+
+HERE = Path(__file__).resolve().parent
 
 
 def test_v1_0_stdout_to_file() -> None:
@@ -99,6 +103,30 @@ def test_v1_0_stderr_to_file_preserve_original() -> None:
     cwl_utils.parser.cwl_v1_0_utils.convert_stdstreams_to_files(clt)
     assert clt.stderr == "original.txt"
     assert clt.stderr == clt.outputs[0].outputBinding.glob
+
+
+def test_v1_0_type_for_source() -> None:
+    """Test that the type is correctly inferred from a source id with CWL v1.0."""
+    uri = Path(HERE / "../testdata/step_valuefrom5_wf_v1_0.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+    )
+    assert source_type == "File"
+
+
+def test_v1_0_type_for_source_with_id() -> None:
+    """Test that the type is correctly inferred from a source id with CWL v1.0."""
+    uri = (
+        Path(HERE / "../testdata/step_valuefrom5_wf_with_id_v1_0.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+    )
+    assert source_type == "File"
 
 
 def test_v1_1_stdout_to_file() -> None:
@@ -234,6 +262,30 @@ def test_v1_1_stdin_to_file_fail_with_original() -> None:
         cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
 
 
+def test_v1_1_type_for_source() -> None:
+    """Test that the type is correctly inferred from a source id with CWL v1.2."""
+    uri = Path(HERE / "../testdata/step_valuefrom5_wf_v1_1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+    )
+    assert source_type == "File"
+
+
+def test_v1_1_type_for_source_with_id() -> None:
+    """Test that the type is correctly inferred from a source id with CWL v1.1."""
+    uri = (
+        Path(HERE / "../testdata/step_valuefrom5_wf_with_id_v1_1.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+    )
+    assert source_type == "File"
+
+
 def test_v1_2_stdout_to_file() -> None:
     """Test that stdout shortcut is converted to stdout parameter with CWL v1.2."""
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
@@ -365,3 +417,27 @@ def test_v1_2_stdin_to_file_fail_with_original() -> None:
             stdin="original.txt",
         )
         cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
+
+
+def test_v1_2_type_for_source() -> None:
+    """Test that the type is correctly inferred from a source id with CWL v1.2."""
+    uri = Path(HERE / "../testdata/step_valuefrom5_wf_v1_2.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+    )
+    assert source_type == "File"
+
+
+def test_v1_2_type_for_source_with_id() -> None:
+    """Test that the type is correctly inferred from a source id with CWL v1.2."""
+    uri = (
+        Path(HERE / "../testdata/step_valuefrom5_wf_with_id_v1_2.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+    )
+    assert source_type == "File"
