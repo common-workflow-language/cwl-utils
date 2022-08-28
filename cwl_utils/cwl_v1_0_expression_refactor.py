@@ -23,6 +23,7 @@ from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
 
 import cwl_utils.parser.cwl_v1_0 as cwl
+import cwl_utils.parser.cwl_v1_0_utils as utils
 from cwl_utils.errors import JavascriptException, WorkflowException
 from cwl_utils.expression import do_eval, interpolate
 from cwl_utils.types import CWLObjectType, CWLOutputType
@@ -537,7 +538,7 @@ def empty_inputs(
             else:
                 try:
                     result[param_id] = example_input(
-                        type_for_source(process_or_step.run, param.source, parent)
+                        utils.type_for_source(process_or_step.run, param.source, parent)
                     )
                 except WorkflowException:
                     pass
@@ -580,71 +581,6 @@ def example_input(some_type: Any) -> Any:
     if some_type == "boolean":
         return True
     return None
-
-
-def type_for_source(
-    process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
-    sourcenames: Union[str, List[str]],
-    parent: Optional[cwl.Workflow] = None,
-) -> Union[List[Any], Any]:
-    """Determine the type for the given sourcenames."""
-    params = param_for_source_id(process, sourcenames, parent)
-    if not isinstance(params, list):
-        return params.type
-    new_type: List[Any] = []
-    for p in params:
-        if isinstance(p, str) and p not in new_type:
-            new_type.append(p)
-        elif hasattr(p, "type") and p.type not in new_type:
-            new_type.append(p.type)
-    return new_type
-
-
-def param_for_source_id(
-    process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
-    sourcenames: Union[str, List[str]],
-    parent: Optional[cwl.Workflow] = None,
-) -> Union[List[cwl.InputParameter], cwl.InputParameter]:
-    """Find the process input parameter that matches one of the given sourcenames."""
-    if isinstance(sourcenames, str):
-        sourcenames = [sourcenames]
-    params: List[cwl.InputParameter] = []
-    for sourcename in sourcenames:
-        if not isinstance(process, cwl.Workflow):
-            for param in process.inputs:
-                if param.id.split("#")[-1] == sourcename.split("#")[-1]:
-                    params.append(param)
-        targets = [process]
-        if parent:
-            targets.append(parent)
-        for target in targets:
-            if isinstance(target, cwl.Workflow):
-                for inp in target.inputs:
-                    if inp.id.split("#")[-1] == sourcename.split("#")[-1]:
-                        params.append(inp)
-                for step in target.steps:
-                    if sourcename.split("/")[0] == step.id.split("#")[-1] and step.out:
-                        for outp in step.out:
-                            outp_id = outp if isinstance(outp, str) else outp.id
-                            if outp_id.split("/")[-1] == sourcename.split("/", 1)[1]:
-                                if step.run and step.run.outputs:
-                                    for output in step.run.outputs:
-                                        if (
-                                            output.id.split("#")[-1]
-                                            == sourcename.split("/", 1)[1]
-                                        ):
-                                            params.append(output)
-    if len(params) == 1:
-        return params[0]
-    elif len(params) > 1:
-        return params
-    raise WorkflowException(
-        "param {} not found in {}\n or\n {}.".format(
-            sourcename,
-            yaml.main.round_trip_dump(cwl.save(process)),
-            yaml.main.round_trip_dump(cwl.save(parent)),
-        )
-    )
 
 
 EMPTY_FILE: CWLOutputType = {
@@ -1841,11 +1777,13 @@ def traverse_step(
                         if not step.scatter:
                             self.append(
                                 example_input(
-                                    type_for_source(parent, source.split("#")[-1])
+                                    utils.type_for_source(parent, source.split("#")[-1])
                                 )
                             )
                         else:
-                            scattered_source_type = type_for_source(parent, source)
+                            scattered_source_type = utils.type_for_source(
+                                parent, source
+                            )
                             if isinstance(scattered_source_type, list):
                                 for stype in scattered_source_type:
                                     self.append(example_input(stype.type))
@@ -1854,10 +1792,12 @@ def traverse_step(
                 else:
                     if not step.scatter:
                         self = example_input(
-                            type_for_source(parent, inp.source.split("#")[-1])
+                            utils.type_for_source(parent, inp.source.split("#")[-1])
                         )
                     else:
-                        scattered_source_type2 = type_for_source(parent, inp.source)
+                        scattered_source_type2 = utils.type_for_source(
+                            parent, inp.source
+                        )
                         if isinstance(scattered_source_type2, list):
                             self = example_input(scattered_source_type2[0].type)
                         else:
@@ -1880,7 +1820,9 @@ def traverse_step(
                         for source in inp.source:
                             source_id = source.split("#")[-1]
                             input_source_id.append(source_id)
-                            temp_type = type_for_source(step.run, source_id, parent)
+                            temp_type = utils.type_for_source(
+                                step.run, source_id, parent
+                            )
                             if isinstance(temp_type, list):
                                 for ttype in temp_type:
                                     if ttype not in source_types:
@@ -1894,7 +1836,7 @@ def traverse_step(
                         )
                     else:
                         input_source_id = inp.source.split("#")[-1]
-                        source_type = param_for_source_id(
+                        source_type = utils.param_for_source_id(
                             step.run, input_source_id, parent
                         )
                 # target.id = target.id.split('#')[-1]
@@ -1965,7 +1907,9 @@ def workflow_step_to_InputParameters(
             continue
         inp_id = inp.id.split("#")[-1].split("/")[-1]
         if inp.source and inp_id != except_in_id:
-            param = copy.deepcopy(param_for_source_id(parent, sourcenames=inp.source))
+            param = copy.deepcopy(
+                utils.param_for_source_id(parent, sourcenames=inp.source)
+            )
             if isinstance(param, list):
                 for p in param:
                     if not p.type:
