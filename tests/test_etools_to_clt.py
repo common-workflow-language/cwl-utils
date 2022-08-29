@@ -146,6 +146,72 @@ def test_v1_2_workflow_top_level_sf_expr_array() -> None:
         )
 
 
+def test_v1_0_step_valuefrom_expr_multisource() -> None:
+    """Convert a valueFrom expression that has multiple sources."""
+    result, modified = traverse0(
+        parser.load_document(str(HERE / "../testdata/step-valuefrom2-wf_v10.cwl")),
+        False,
+        False,
+        False,
+        False,
+    )
+
+
+def test_v1_1_step_valuefrom_expr_multisource() -> None:
+    """Convert a valueFrom expression that has multiple sources."""
+    result, modified = traverse1(
+        parser1.load_document(str(HERE / "../testdata/step-valuefrom2-wf_v11.cwl")),
+        False,
+        False,
+        False,
+        False,
+    )
+
+
+def test_v1_2_step_valuefrom_expr_multisource() -> None:
+    """Convert a valueFrom expression that has multiple sources."""
+    result, modified = traverse2(
+        parser2.load_document(str(HERE / "../testdata/step-valuefrom2-wf_v12.cwl")),
+        False,
+        False,
+        False,
+        False,
+    )
+
+
+def test_v1_0_step_valuefrom_expr_sibling_inputs() -> None:
+    """Convert a valueFrom expression from a step input that has uninvolved sibling inputs."""
+    result, modified = traverse0(
+        parser.load_document(str(HERE / "../testdata/step-valuefrom3-wf_v10.cwl")),
+        False,
+        False,
+        False,
+        False,
+    )
+
+
+def test_v1_1_step_valuefrom_expr_sibling_inputs() -> None:
+    """Convert a valueFrom expression from a step input that has uninvolved sibling inputs."""
+    result, modified = traverse1(
+        parser1.load_document(str(HERE / "../testdata/step-valuefrom3-wf_v11.cwl")),
+        False,
+        False,
+        False,
+        False,
+    )
+
+
+def test_v1_2_step_valuefrom_expr_sibling_inputs() -> None:
+    """Convert a valueFrom expression from a step input that has uninvolved sibling inputs."""
+    result, modified = traverse2(
+        parser2.load_document(str(HERE / "../testdata/step-valuefrom3-wf_v12.cwl")),
+        False,
+        False,
+        False,
+        False,
+    )
+
+
 @pytest.fixture(scope="session")
 def cwl_v1_0_dir(
     tmp_path_factory: TempPathFactory,
