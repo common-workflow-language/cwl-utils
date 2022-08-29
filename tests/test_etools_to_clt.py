@@ -13,6 +13,7 @@ from pytest import raises
 import cwl_utils.parser.cwl_v1_0 as parser
 import cwl_utils.parser.cwl_v1_1 as parser1
 import cwl_utils.parser.cwl_v1_2 as parser2
+from cwl_utils.cwl_expression_refactor import main as expression_refactor
 from cwl_utils.cwl_v1_0_expression_refactor import traverse as traverse0
 from cwl_utils.cwl_v1_1_expression_refactor import traverse as traverse1
 from cwl_utils.cwl_v1_2_expression_refactor import traverse as traverse2
@@ -221,6 +222,28 @@ def test_v1_2_workflow_output_pickvalue_expr() -> None:
         False,
         False,
     )
+
+
+def test_expression_refactor(tmp_path: Path) -> None:
+    """Functional test."""
+    input_path = str(HERE / "../testdata/cond-wf-003.1.cwl")
+    result = expression_refactor([str(tmp_path), input_path])
+    assert result == 0
+
+
+def test_expression_refactor_noop_solo(tmp_path: Path) -> None:
+    """Functional test."""
+    input_path = str(HERE / "../testdata/dockstore-tool-md5sum.cwl")
+    result = expression_refactor([str(tmp_path), input_path])
+    assert result == 7
+
+
+def test_expression_refactor_noop(tmp_path: Path) -> None:
+    """Functional test."""
+    input_path1 = str(HERE / "../testdata/dockstore-tool-md5sum.cwl")
+    input_path2 = str(HERE / "../testdata/echo-tool-packed.cwl")
+    result = expression_refactor([str(tmp_path), input_path1, input_path2])
+    assert result == 0
 
 
 @pytest.fixture(scope="session")
