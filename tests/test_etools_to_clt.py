@@ -212,6 +212,17 @@ def test_v1_2_step_valuefrom_expr_sibling_inputs() -> None:
     )
 
 
+def test_v1_2_workflow_output_pickvalue_expr() -> None:
+    """Convert a workflow output pickValue expression."""
+    result, modified = traverse2(
+        parser2.load_document(str(HERE / "../testdata/cond-wf-003.1.cwl")),
+        False,
+        False,
+        False,
+        False,
+    )
+
+
 @pytest.fixture(scope="session")
 def cwl_v1_0_dir(
     tmp_path_factory: TempPathFactory,
