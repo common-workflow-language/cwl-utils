@@ -1,7 +1,7 @@
 $namespaces:
   edam: http://edamontology.org/
 $schemas:
-  - EDAM.owl
+  - EDAM_subset.owl
 class: CommandLineTool
 cwlVersion: v1.2
 doc: "Reverse each line using the `rev` command"
