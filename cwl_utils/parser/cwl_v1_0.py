@@ -25,7 +25,7 @@ from typing import (
     Union,
     cast,
 )
-from urllib.parse import quote, urlparse, urlsplit, urlunsplit
+from urllib.parse import quote, urlparse, urlsplit, urlunsplit, urldefrag
 from urllib.request import pathname2url
 
 from rdflib import Graph
@@ -35,7 +35,7 @@ from ruamel.yaml.comments import CommentedMap
 from schema_salad.exceptions import SchemaSaladException, ValidationException
 from schema_salad.fetcher import DefaultFetcher, Fetcher, MemoryCachingFetcher
 from schema_salad.sourceline import SourceLine, add_lc_filename
-from schema_salad.utils import yaml_no_ts  # requires schema-salad v8.2+
+from schema_salad.utils import yaml_no_ts, CacheType  # requires schema-salad v8.2+
 
 _vocab: Dict[str, str] = {}
 _rvocab: Dict[str, str] = {}
@@ -43,7 +43,22 @@ _rvocab: Dict[str, str] = {}
 _logger = logging.getLogger("salad")
 
 
+IdxType = MutableMapping[str, Tuple[Any, "LoadingOptions"]]
+
 class LoadingOptions:
+
+    idx: IdxType
+    fileuri: str
+    baseuri: str
+    namespaces: MutableMapping[str, str]
+    schemas: MutableSequence[str]
+    original_doc: Optional[Any]
+    addl_metadata: MutableMapping[str, Any]
+    fetcher: Fetcher
+    vocab: Dict[str, str]
+    rvocab: Dict[str, str]
+    cache: CacheType
+
     def __init__(
         self,
         fetcher: Optional[Fetcher] = None,
@@ -52,25 +67,47 @@ class LoadingOptions:
         fileuri: Optional[str] = None,
         copyfrom: Optional["LoadingOptions"] = None,
         original_doc: Optional[Any] = None,
+        addl_metadata: Optional[Dict[str, str]] = None,
+        baseuri: Optional[str] = None,
+        idx: Optional[IdxType] = None,
     ) -> None:
         """Create a LoadingOptions object."""
-        self.idx: Dict[str, Dict[str, Any]] = {}
-        self.fileuri: Optional[str] = fileuri
-        self.namespaces = namespaces
-        self.schemas = schemas
-        self.original_doc = original_doc
-        if copyfrom is not None:
-            self.idx = copyfrom.idx
-            if fetcher is None:
-                fetcher = copyfrom.fetcher
-            if fileuri is None:
-                self.fileuri = copyfrom.fileuri
-            if namespaces is None:
-                self.namespaces = copyfrom.namespaces
-            if schemas is None:
-                self.schemas = copyfrom.schemas
 
-        if fetcher is None:
+        if idx is not None:
+            self.idx = idx
+        else:
+            self.idx = copyfrom.idx if copyfrom is not None else {}
+
+        if fileuri is not None:
+            self.fileuri = fileuri
+        else:
+            self.fileuri = copyfrom.fileuri if copyfrom is not None else ""
+
+        if baseuri is not None:
+            self.baseuri = baseuri
+        else:
+            self.baseuri = copyfrom.baseuri if copyfrom is not None else ""
+
+        if namespaces is not None:
+            self.namespaces = namespaces
+        else:
+            self.namespaces = copyfrom.namespaces if copyfrom is not None else {}
+
+        if schemas is not None:
+            self.schemas = schemas
+        else:
+            self.schemas = copyfrom.schemas if copyfrom is not None else []
+
+        if addl_metadata is not None:
+            self.addl_metadata = addl_metadata
+        else:
+            self.addl_metadata = copyfrom.addl_metadata if copyfrom is not None else {}
+
+        if fetcher is not None:
+            self.fetcher = fetcher
+        elif copyfrom is not None:
+            self.fetcher = copyfrom.fetcher
+        else:
             import requests
             from cachecontrol.caches import FileCache
             from cachecontrol.wrapper import CacheControl
@@ -81,8 +118,6 @@ class LoadingOptions:
                 cache=FileCache(root / ".cache" / "salad"),
             )
             self.fetcher: Fetcher = DefaultFetcher({}, session)
-        else:
-            self.fetcher = fetcher
 
         self.cache = (
             self.fetcher.cache if isinstance(self.fetcher, MemoryCachingFetcher) else {}
@@ -135,7 +170,7 @@ class LoadingOptions:
         return graph
 
 
-class Savable(ABC):
+class Saveable(ABC):
     """Mark classes than have a save() and fromDoc() function."""
 
     @classmethod
@@ -146,7 +181,7 @@ class Savable(ABC):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-    ) -> "Savable":
+    ) -> "Saveable":
         """Construct this object from the result of yaml.load()."""
 
     @abstractmethod
@@ -162,11 +197,12 @@ def load_field(val, fieldtype, baseuri, loadingOptions):
         if "$import" in val:
             if loadingOptions.fileuri is None:
                 raise SchemaSaladException("Cannot load $import without fileuri")
-            return _document_load_by_url(
+            result, metadata = _document_load_by_url(
                 fieldtype,
                 loadingOptions.fetcher.urljoin(loadingOptions.fileuri, val["$import"]),
                 loadingOptions,
             )
+            return result
         elif "$include" in val:
             if loadingOptions.fileuri is None:
                 raise SchemaSaladException("Cannot load $import without fileuri")
@@ -176,16 +212,19 @@ def load_field(val, fieldtype, baseuri, loadingOptions):
     return fieldtype.load(val, baseuri, loadingOptions)
 
 
-save_type = Union[Dict[str, Any], List[Union[Dict[str, Any], List[Any], None]], None]
+save_type = Union[
+    MutableMapping[str, Any],
+    MutableSequence[Union[MutableMapping[str, Any], MutableSequence[Any], None]],
+]
 
 
 def save(
-    val: Optional[Union[Savable, MutableSequence[Savable]]],
+    val: Any,
     top: bool = True,
     base_url: str = "",
     relative_uris: bool = True,
 ) -> save_type:
-    if isinstance(val, Savable):
+    if isinstance(val, Saveable):
         return val.save(top=top, base_url=base_url, relative_uris=relative_uris)
     if isinstance(val, MutableSequence):
         return [
@@ -199,7 +238,34 @@ def save(
                 val[key], top=False, base_url=base_url, relative_uris=relative_uris
             )
         return newdict
-    return val
+    raise Exception("Not a Saveable")
+
+
+def save_with_metadata(
+    val: Any,
+    valLoadingOpts: LoadingOptions,
+    top: bool = True,
+    base_url: str = "",
+    relative_uris: bool = True,
+) -> save_type:
+    saved_val = save(val, top, base_url, relative_uris)
+    newdict: MutableMapping[str, Any] = {}
+    if isinstance(saved_val, MutableSequence):
+        newdict = {"$graph": saved_val}
+    elif isinstance(saved_val, MutableMapping):
+        newdict = saved_val
+
+    if valLoadingOpts.namespaces:
+        newdict["$namespaces"] = valLoadingOpts.namespaces
+    if valLoadingOpts.schemas:
+        newdict["$schemas"] = valLoadingOpts.schemas
+    if valLoadingOpts.baseuri:
+        newdict["$base"] = valLoadingOpts.baseuri
+    for k, v in valLoadingOpts.addl_metadata.items():
+        if k not in newdict:
+            newdict[k] = v
+
+    return newdict
 
 
 def expand_url(
@@ -311,7 +377,7 @@ class _ArrayLoader(_Loader):
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
         if not isinstance(doc, MutableSequence):
-            raise ValidationException("Expected a list")
+            raise ValidationException("Expected a list, was {}".format(type(doc)))
         r = []  # type: List[Any]
         errors = []  # type: List[SchemaSaladException]
         for i in range(0, len(doc)):
@@ -334,9 +400,10 @@ class _ArrayLoader(_Loader):
 
 
 class _EnumLoader(_Loader):
-    def __init__(self, symbols):
-        # type: (Sequence[str]) -> None
+    def __init__(self, symbols, name):
+        # type: (Sequence[str], str) -> None
         self.symbols = symbols
+        self.name = name
 
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
@@ -344,6 +411,9 @@ class _EnumLoader(_Loader):
             return doc
         else:
             raise ValidationException(f"Expected one of {self.symbols}")
+
+    def __repr__(self):  # type: () -> str
+        return self.name
 
 
 class _SecondaryDSLLoader(_Loader):
@@ -419,17 +489,17 @@ class _SecondaryDSLLoader(_Loader):
 
 class _RecordLoader(_Loader):
     def __init__(self, classtype):
-        # type: (Type[Savable]) -> None
+        # type: (Type[Saveable]) -> None
         self.classtype = classtype
 
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
         if not isinstance(doc, MutableMapping):
-            raise ValidationException("Expected a dict")
+            raise ValidationException("Expected a dict, was {}".format(type(doc)))
         return self.classtype.fromDoc(doc, baseuri, loadingOptions, docRoot=docRoot)
 
     def __repr__(self):  # type: () -> str
-        return str(self.classtype)
+        return str(self.classtype.__name__)
 
 
 class _ExpressionLoader(_Loader):
@@ -439,7 +509,7 @@ class _ExpressionLoader(_Loader):
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
         if not isinstance(doc, str):
-            raise ValidationException("Expected a str")
+            raise ValidationException("Expected a str, was {}".format(type(doc)))
         return doc
 
 
@@ -455,9 +525,7 @@ class _UnionLoader(_Loader):
             try:
                 return t.load(doc, baseuri, loadingOptions, docRoot=docRoot)
             except ValidationException as e:
-                errors.append(
-                    ValidationException(f"tried {t.__class__.__name__} but", None, [e])
-                )
+                errors.append(ValidationException(f"tried {t} but", None, [e]))
         raise ValidationException("", None, errors, "-")
 
     def __repr__(self):  # type: () -> str
@@ -599,56 +667,101 @@ class _IdMapLoader(_Loader):
         return self.inner.load(doc, baseuri, loadingOptions)
 
 
-def _document_load(loader, doc, baseuri, loadingOptions):
-    # type: (_Loader, Any, str, LoadingOptions) -> Any
+def _document_load(
+    loader: _Loader,
+    doc: Union[str, MutableMapping[str, Any], MutableSequence[Any]],
+    baseuri: str,
+    loadingOptions: LoadingOptions,
+    addl_metadata_fields: MutableSequence[str] = [],
+) -> Tuple[Any, LoadingOptions]:
     if isinstance(doc, str):
         return _document_load_by_url(
-            loader, loadingOptions.fetcher.urljoin(baseuri, doc), loadingOptions
+            loader,
+            loadingOptions.fetcher.urljoin(baseuri, doc),
+            loadingOptions,
+            addl_metadata_fields=addl_metadata_fields,
         )
 
     if isinstance(doc, MutableMapping):
-        if "$namespaces" in doc or "$schemas" in doc:
-            loadingOptions = LoadingOptions(
-                copyfrom=loadingOptions,
-                namespaces=doc.get("$namespaces", None),
-                schemas=doc.get("$schemas", None),
-            )
-            doc = {k: v for k, v in doc.items() if k not in ["$namespaces", "$schemas"]}
+        addl_metadata = {}
+        for mf in addl_metadata_fields:
+            if mf in doc:
+                addl_metadata[mf] = doc[mf]
 
         if "$base" in doc:
             baseuri = doc["$base"]
 
+        loadingOptions = LoadingOptions(
+            copyfrom=loadingOptions,
+            namespaces=doc.get("$namespaces", None),
+            schemas=doc.get("$schemas", None),
+            baseuri=doc.get("$base", None),
+            addl_metadata=addl_metadata,
+        )
+
+        doc = {
+            k: v
+            for k, v in doc.items()
+            if k not in ("$namespaces", "$schemas", "$base")
+        }
+
         if "$graph" in doc:
-            return loader.load(doc["$graph"], baseuri, loadingOptions)
+            loadingOptions.idx[baseuri] = (
+                loader.load(doc["$graph"], baseuri, loadingOptions),
+                loadingOptions,
+            )
         else:
-            return loader.load(doc, baseuri, loadingOptions, docRoot=baseuri)
+            loadingOptions.idx[baseuri] = (
+                loader.load(doc, baseuri, loadingOptions, docRoot=baseuri),
+                loadingOptions,
+            )
+
+        return loadingOptions.idx[baseuri]
 
     if isinstance(doc, MutableSequence):
-        return loader.load(doc, baseuri, loadingOptions)
+        loadingOptions.idx[baseuri] = (
+            loader.load(doc, baseuri, loadingOptions),
+            loadingOptions,
+        )
+        return loadingOptions.idx[baseuri]
 
-    raise ValidationException("Oops, we shouldn't be here!")
+    raise ValidationException(
+        "Expected URI string, MutableMapping or MutableSequence, got %s" % type(doc)
+    )
 
 
-def _document_load_by_url(loader, url, loadingOptions):
-    # type: (_Loader, str, LoadingOptions) -> Any
+def _document_load_by_url(
+    loader: _Loader,
+    url: str,
+    loadingOptions: LoadingOptions,
+    addl_metadata_fields: MutableSequence[str] = [],
+) -> Tuple[Any, LoadingOptions]:
     if url in loadingOptions.idx:
-        return _document_load(loader, loadingOptions.idx[url], url, loadingOptions)
+        return loadingOptions.idx[url]
 
-    text = loadingOptions.fetcher.fetch_text(url)
+    doc_url, frg = urldefrag(url)
+
+    text = loadingOptions.fetcher.fetch_text(doc_url)
     if isinstance(text, bytes):
         textIO = StringIO(text.decode("utf-8"))
     else:
         textIO = StringIO(text)
-    textIO.name = str(url)
+    textIO.name = str(doc_url)
     yaml = yaml_no_ts()
     result = yaml.load(textIO)
-    add_lc_filename(result, url)
+    add_lc_filename(result, doc_url)
 
-    loadingOptions.idx[url] = result
+    loadingOptions = LoadingOptions(copyfrom=loadingOptions, fileuri=doc_url)
 
-    loadingOptions = LoadingOptions(copyfrom=loadingOptions, fileuri=url)
+    _document_load(
+        loader,
+        result,
+        doc_url,
+        loadingOptions,
+        addl_metadata_fields=addl_metadata_fields,
+    )
 
-    return _document_load(loader, result, url, loadingOptions)
+    return loadingOptions.idx[url]
 
 
 def file_uri(path, split_frag=False):  # type: (str, bool) -> str
@@ -683,14 +796,14 @@ def save_relative_uri(
     relative_uris: bool,
 ) -> Any:
     """Convert any URI to a relative one, obeying the scoping rules."""
-    if not relative_uris or uri == base_url:
-        return uri
     if isinstance(uri, MutableSequence):
         return [
             save_relative_uri(u, base_url, scoped_id, ref_scope, relative_uris)
             for u in uri
         ]
     elif isinstance(uri, str):
+        if not relative_uris or uri == base_url:
+            return uri
         urisplit = urlsplit(uri)
         basesplit = urlsplit(base_url)
         if urisplit.scheme == basesplit.scheme and urisplit.netloc == basesplit.netloc:
@@ -715,12 +828,12 @@ def save_relative_uri(
                 return urisplit.fragment
         return uri
     else:
-        return save(uri, top=False, base_url=base_url)
+        return save(uri, top=False, base_url=base_url, relative_uris=relative_uris)
 
 
 def shortname(inputid: str) -> str:
     """
-    Compute the shortname of a fully qualified identifer.
+    Compute the shortname of a fully qualified identifier.
 
     See https://w3id.org/cwl/v1.2/SchemaSalad.html#Short_names.
     """
@@ -734,7 +847,7 @@ def parser_info() -> str:
     return "org.w3id.cwl.v1_0"
 
 
-class RecordField(Savable):
+class RecordField(Saveable):
     """
     A field of a record.
     """
@@ -854,24 +967,30 @@ class RecordField(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'RecordField'", None, _errors__)
-        return cls(
+        _constructed = cls(
             name=name,
             doc=doc,
             type=type,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
+            r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
                 self.doc, top=False, base_url=self.name, relative_uris=relative_uris
@@ -892,7 +1011,7 @@ class RecordField(Savable):
     attrs = frozenset(["name", "doc", "type"])
 
 
-class RecordSchema(Savable):
+class RecordSchema(Saveable):
     def __init__(
         self,
         type: Any,
@@ -979,19 +1098,25 @@ class RecordSchema(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'RecordSchema'", None, _errors__)
-        return cls(
+        _constructed = cls(
             fields=fields,
             type=type,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.fields is not None:
             r["fields"] = save(
                 self.fields, top=False, base_url=base_url, relative_uris=relative_uris
@@ -1012,7 +1137,7 @@ class RecordSchema(Savable):
     attrs = frozenset(["fields", "type"])
 
 
-class EnumSchema(Savable):
+class EnumSchema(Saveable):
     """
     Define an enumerated type.
 
@@ -1101,23 +1226,28 @@ class EnumSchema(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'EnumSchema'", None, _errors__)
-        return cls(
+        _constructed = cls(
             symbols=symbols,
             type=type,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, base_url, True, None, relative_uris)
-            if u:
-                r["symbols"] = u
+            r["symbols"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=base_url, relative_uris=relative_uris
@@ -1134,7 +1264,7 @@ class EnumSchema(Savable):
     attrs = frozenset(["symbols", "type"])
 
 
-class ArraySchema(Savable):
+class ArraySchema(Saveable):
     def __init__(
         self,
         items: Any,
@@ -1218,23 +1348,28 @@ class ArraySchema(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'ArraySchema'", None, _errors__)
-        return cls(
+        _constructed = cls(
             items=items,
             type=type,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.items is not None:
             u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
-            if u:
-                r["items"] = u
+            r["items"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=base_url, relative_uris=relative_uris
@@ -1251,7 +1386,7 @@ class ArraySchema(Savable):
     attrs = frozenset(["items", "type"])
 
 
-class File(Savable):
+class File(Saveable):
     """
     Represents a file (or group of files when `secondaryFiles` is provided) that
     will be accessible by tools using standard POSIX file system call API such as
@@ -1596,7 +1731,7 @@ class File(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'File'", None, _errors__)
-        return cls(
+        _constructed = cls(
             location=location,
             path=path,
             basename=basename,
@@ -1611,23 +1746,27 @@ class File(Savable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "File"
         if self.location is not None:
             u = save_relative_uri(self.location, base_url, False, None, relative_uris)
-            if u:
-                r["location"] = u
+            r["location"] = u
         if self.path is not None:
             u = save_relative_uri(self.path, base_url, False, None, relative_uris)
-            if u:
-                r["path"] = u
+            r["path"] = u
         if self.basename is not None:
             r["basename"] = save(
                 self.basename, top=False, base_url=base_url, relative_uris=relative_uris
@@ -1661,8 +1800,7 @@ class File(Savable):
             )
         if self.format is not None:
             u = save_relative_uri(self.format, base_url, True, None, relative_uris)
-            if u:
-                r["format"] = u
+            r["format"] = u
         if self.contents is not None:
             r["contents"] = save(
                 self.contents, top=False, base_url=base_url, relative_uris=relative_uris
@@ -1694,7 +1832,7 @@ class File(Savable):
     )
 
 
-class Directory(Savable):
+class Directory(Saveable):
     """
     Represents a directory to present to a command line tool.
 
@@ -1876,7 +2014,7 @@ class Directory(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'Directory'", None, _errors__)
-        return cls(
+        _constructed = cls(
             location=location,
             path=path,
             basename=basename,
@@ -1884,23 +2022,27 @@ class Directory(Savable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "Directory"
         if self.location is not None:
             u = save_relative_uri(self.location, base_url, False, None, relative_uris)
-            if u:
-                r["location"] = u
+            r["location"] = u
         if self.path is not None:
             u = save_relative_uri(self.path, base_url, False, None, relative_uris)
-            if u:
-                r["path"] = u
+            r["path"] = u
         if self.basename is not None:
             r["basename"] = save(
                 self.basename, top=False, base_url=base_url, relative_uris=relative_uris
@@ -1921,7 +2063,7 @@ class Directory(Savable):
     attrs = frozenset(["class", "location", "path", "basename", "listing"])
 
 
-class SchemaBase(Savable):
+class SchemaBase(Saveable):
     pass
 
 
@@ -1934,11 +2076,11 @@ class Parameter(SchemaBase):
     pass
 
 
-class InputBinding(Savable):
+class InputBinding(Saveable):
     pass
 
 
-class OutputBinding(Savable):
+class OutputBinding(Saveable):
     pass
 
 
@@ -2106,7 +2248,7 @@ class InputRecordField(RecordField):
 
         if _errors__:
             raise ValidationException("Trying 'InputRecordField'", None, _errors__)
-        return cls(
+        _constructed = cls(
             name=name,
             doc=doc,
             type=type,
@@ -2115,17 +2257,23 @@ class InputRecordField(RecordField):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
+            r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
                 self.doc, top=False, base_url=self.name, relative_uris=relative_uris
@@ -2293,7 +2441,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'InputRecordSchema'", None, _errors__)
-        return cls(
+        _constructed = cls(
             fields=fields,
             type=type,
             label=label,
@@ -2301,17 +2449,23 @@ class InputRecordSchema(RecordSchema, InputSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
+            r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
                 self.fields, top=False, base_url=self.name, relative_uris=relative_uris
@@ -2489,7 +2643,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'InputEnumSchema'", None, _errors__)
-        return cls(
+        _constructed = cls(
             symbols=symbols,
             type=type,
             label=label,
@@ -2498,21 +2652,26 @@ class InputEnumSchema(EnumSchema, InputSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
+            r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
-            if u:
-                r["symbols"] = u
+            r["symbols"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=self.name, relative_uris=relative_uris
@@ -2664,7 +2823,7 @@ class InputArraySchema(ArraySchema, InputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'InputArraySchema'", None, _errors__)
-        return cls(
+        _constructed = cls(
             items=items,
             type=type,
             label=label,
@@ -2672,17 +2831,22 @@ class InputArraySchema(ArraySchema, InputSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.items is not None:
             u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
-            if u:
-                r["items"] = u
+            r["items"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=base_url, relative_uris=relative_uris
@@ -2846,7 +3010,7 @@ class OutputRecordField(RecordField):
 
         if _errors__:
             raise ValidationException("Trying 'OutputRecordField'", None, _errors__)
-        return cls(
+        _constructed = cls(
             name=name,
             doc=doc,
             type=type,
@@ -2854,17 +3018,23 @@ class OutputRecordField(RecordField):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
+            r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
                 self.doc, top=False, base_url=self.name, relative_uris=relative_uris
@@ -2999,20 +3169,26 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'OutputRecordSchema'", None, _errors__)
-        return cls(
+        _constructed = cls(
             fields=fields,
             type=type,
             label=label,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.fields is not None:
             r["fields"] = save(
                 self.fields, top=False, base_url=base_url, relative_uris=relative_uris
@@ -3161,7 +3337,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'OutputEnumSchema'", None, _errors__)
-        return cls(
+        _constructed = cls(
             symbols=symbols,
             type=type,
             label=label,
@@ -3169,17 +3345,22 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, base_url, True, None, relative_uris)
-            if u:
-                r["symbols"] = u
+            r["symbols"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=base_url, relative_uris=relative_uris
@@ -3331,7 +3512,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
 
         if _errors__:
             raise ValidationException("Trying 'OutputArraySchema'", None, _errors__)
-        return cls(
+        _constructed = cls(
             items=items,
             type=type,
             label=label,
@@ -3339,17 +3520,22 @@ class OutputArraySchema(ArraySchema, OutputSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.items is not None:
             u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
-            if u:
-                r["items"] = u
+            r["items"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=base_url, relative_uris=relative_uris
@@ -3616,7 +3802,7 @@ class InputParameter(Parameter):
 
         if _errors__:
             raise ValidationException("Trying 'InputParameter'", None, _errors__)
-        return cls(
+        _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -3629,17 +3815,23 @@ class InputParameter(Parameter):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.label is not None:
             r["label"] = save(
                 self.label, top=False, base_url=self.id, relative_uris=relative_uris
@@ -3664,8 +3856,7 @@ class InputParameter(Parameter):
             )
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
-            if u:
-                r["format"] = u
+            r["format"] = u
         if self.inputBinding is not None:
             r["inputBinding"] = save(
                 self.inputBinding,
@@ -3904,7 +4095,7 @@ class OutputParameter(Parameter):
 
         if _errors__:
             raise ValidationException("Trying 'OutputParameter'", None, _errors__)
-        return cls(
+        _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -3915,17 +4106,23 @@ class OutputParameter(Parameter):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.label is not None:
             r["label"] = save(
                 self.label, top=False, base_url=self.id, relative_uris=relative_uris
@@ -3957,8 +4154,7 @@ class OutputParameter(Parameter):
             )
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
-            if u:
-                r["format"] = u
+            r["format"] = u
 
         # top refers to the directory level
         if top:
@@ -3981,7 +4177,7 @@ class OutputParameter(Parameter):
     )
 
 
-class ProcessRequirement(Savable):
+class ProcessRequirement(Saveable):
     """
     A process requirement declares a prerequisite that may or must be fulfilled
     before executing a process.  See [`Process.hints`](#process) and
@@ -3995,7 +4191,7 @@ class ProcessRequirement(Savable):
     pass
 
 
-class Process(Savable):
+class Process(Saveable):
     """
 
     The base executable type in CWL is the `Process` object defined by the
@@ -4091,18 +4287,24 @@ class InlineJavascriptRequirement(ProcessRequirement):
             raise ValidationException(
                 "Trying 'InlineJavascriptRequirement'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             expressionLib=expressionLib,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "InlineJavascriptRequirement"
         if self.expressionLib is not None:
@@ -4207,18 +4409,24 @@ class SchemaDefRequirement(ProcessRequirement):
 
         if _errors__:
             raise ValidationException("Trying 'SchemaDefRequirement'", None, _errors__)
-        return cls(
+        _constructed = cls(
             types=types,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "SchemaDefRequirement"
         if self.types is not None:
@@ -4237,7 +4445,7 @@ class SchemaDefRequirement(ProcessRequirement):
     attrs = frozenset(["class", "types"])
 
 
-class EnvironmentDef(Savable):
+class EnvironmentDef(Saveable):
     """
     Define an environment variable that will be set in the runtime environment
     by the workflow platform when executing the command line tool.  May be the
@@ -4328,19 +4536,25 @@ class EnvironmentDef(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'EnvironmentDef'", None, _errors__)
-        return cls(
+        _constructed = cls(
             envName=envName,
             envValue=envValue,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.envName is not None:
             r["envName"] = save(
                 self.envName, top=False, base_url=base_url, relative_uris=relative_uris
@@ -4590,7 +4804,7 @@ class CommandLineBinding(InputBinding):
 
         if _errors__:
             raise ValidationException("Trying 'CommandLineBinding'", None, _errors__)
-        return cls(
+        _constructed = cls(
             loadContents=loadContents,
             position=position,
             prefix=prefix,
@@ -4601,13 +4815,19 @@ class CommandLineBinding(InputBinding):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.loadContents is not None:
             r["loadContents"] = save(
                 self.loadContents,
@@ -4794,20 +5014,26 @@ class CommandOutputBinding(OutputBinding):
 
         if _errors__:
             raise ValidationException("Trying 'CommandOutputBinding'", None, _errors__)
-        return cls(
+        _constructed = cls(
             glob=glob,
             loadContents=loadContents,
             outputEval=outputEval,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.glob is not None:
             r["glob"] = save(
                 self.glob, top=False, base_url=base_url, relative_uris=relative_uris
@@ -4996,7 +5222,7 @@ class CommandInputRecordField(InputRecordField):
             raise ValidationException(
                 "Trying 'CommandInputRecordField'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             name=name,
             doc=doc,
             type=type,
@@ -5005,17 +5231,23 @@ class CommandInputRecordField(InputRecordField):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
+            r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
                 self.doc, top=False, base_url=self.name, relative_uris=relative_uris
@@ -5185,7 +5417,7 @@ class CommandInputRecordSchema(InputRecordSchema):
             raise ValidationException(
                 "Trying 'CommandInputRecordSchema'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             fields=fields,
             type=type,
             label=label,
@@ -5193,17 +5425,23 @@ class CommandInputRecordSchema(InputRecordSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
+            r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
                 self.fields, top=False, base_url=self.name, relative_uris=relative_uris
@@ -5383,7 +5621,7 @@ class CommandInputEnumSchema(InputEnumSchema):
             raise ValidationException(
                 "Trying 'CommandInputEnumSchema'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             symbols=symbols,
             type=type,
             label=label,
@@ -5392,21 +5630,26 @@ class CommandInputEnumSchema(InputEnumSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
+            r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
-            if u:
-                r["symbols"] = u
+            r["symbols"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=self.name, relative_uris=relative_uris
@@ -5560,7 +5803,7 @@ class CommandInputArraySchema(InputArraySchema):
             raise ValidationException(
                 "Trying 'CommandInputArraySchema'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             items=items,
             type=type,
             label=label,
@@ -5568,17 +5811,22 @@ class CommandInputArraySchema(InputArraySchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.items is not None:
             u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
-            if u:
-                r["items"] = u
+            r["items"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=base_url, relative_uris=relative_uris
@@ -5744,7 +5992,7 @@ class CommandOutputRecordField(OutputRecordField):
             raise ValidationException(
                 "Trying 'CommandOutputRecordField'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             name=name,
             doc=doc,
             type=type,
@@ -5752,17 +6000,23 @@ class CommandOutputRecordField(OutputRecordField):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
+            r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
                 self.doc, top=False, base_url=self.name, relative_uris=relative_uris
@@ -5928,7 +6182,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             raise ValidationException(
                 "Trying 'CommandOutputRecordSchema'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             fields=fields,
             type=type,
             label=label,
@@ -5936,17 +6190,23 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
-            if u:
-                r["name"] = u
+            r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
                 self.fields, top=False, base_url=self.name, relative_uris=relative_uris
@@ -6097,7 +6357,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             raise ValidationException(
                 "Trying 'CommandOutputEnumSchema'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             symbols=symbols,
             type=type,
             label=label,
@@ -6105,17 +6365,22 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, base_url, True, None, relative_uris)
-            if u:
-                r["symbols"] = u
+            r["symbols"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=base_url, relative_uris=relative_uris
@@ -6269,7 +6534,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             raise ValidationException(
                 "Trying 'CommandOutputArraySchema'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             items=items,
             type=type,
             label=label,
@@ -6277,17 +6542,22 @@ class CommandOutputArraySchema(OutputArraySchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.items is not None:
             u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
-            if u:
-                r["items"] = u
+            r["items"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=base_url, relative_uris=relative_uris
@@ -6558,7 +6828,7 @@ class CommandInputParameter(InputParameter):
 
         if _errors__:
             raise ValidationException("Trying 'CommandInputParameter'", None, _errors__)
-        return cls(
+        _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -6571,17 +6841,23 @@ class CommandInputParameter(InputParameter):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.label is not None:
             r["label"] = save(
                 self.label, top=False, base_url=self.id, relative_uris=relative_uris
@@ -6606,8 +6882,7 @@ class CommandInputParameter(InputParameter):
             )
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
-            if u:
-                r["format"] = u
+            r["format"] = u
         if self.inputBinding is not None:
             r["inputBinding"] = save(
                 self.inputBinding,
@@ -6872,7 +7147,7 @@ class CommandOutputParameter(OutputParameter):
             raise ValidationException(
                 "Trying 'CommandOutputParameter'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -6884,17 +7159,23 @@ class CommandOutputParameter(OutputParameter):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.label is not None:
             r["label"] = save(
                 self.label, top=False, base_url=self.id, relative_uris=relative_uris
@@ -6926,8 +7207,7 @@ class CommandOutputParameter(OutputParameter):
             )
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
-            if u:
-                r["format"] = u
+            r["format"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=self.id, relative_uris=relative_uris
@@ -7338,7 +7618,7 @@ class CommandLineTool(Process):
 
         if _errors__:
             raise ValidationException("Trying 'CommandLineTool'", None, _errors__)
-        return cls(
+        _constructed = cls(
             id=id,
             inputs=inputs,
             outputs=outputs,
@@ -7358,19 +7638,25 @@ class CommandLineTool(Process):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "CommandLineTool"
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.inputs is not None:
             r["inputs"] = save(
                 self.inputs, top=False, base_url=self.id, relative_uris=relative_uris
@@ -7400,8 +7686,7 @@ class CommandLineTool(Process):
             )
         if self.cwlVersion is not None:
             u = save_relative_uri(self.cwlVersion, self.id, False, None, relative_uris)
-            if u:
-                r["cwlVersion"] = u
+            r["cwlVersion"] = u
         if self.baseCommand is not None:
             r["baseCommand"] = save(
                 self.baseCommand,
@@ -7690,7 +7975,7 @@ class DockerRequirement(ProcessRequirement):
 
         if _errors__:
             raise ValidationException("Trying 'DockerRequirement'", None, _errors__)
-        return cls(
+        _constructed = cls(
             dockerPull=dockerPull,
             dockerLoad=dockerLoad,
             dockerFile=dockerFile,
@@ -7700,13 +7985,19 @@ class DockerRequirement(ProcessRequirement):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "DockerRequirement"
         if self.dockerPull is not None:
@@ -7851,18 +8142,24 @@ class SoftwareRequirement(ProcessRequirement):
 
         if _errors__:
             raise ValidationException("Trying 'SoftwareRequirement'", None, _errors__)
-        return cls(
+        _constructed = cls(
             packages=packages,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "SoftwareRequirement"
         if self.packages is not None:
@@ -7881,7 +8178,7 @@ class SoftwareRequirement(ProcessRequirement):
     attrs = frozenset(["class", "packages"])
 
 
-class SoftwarePackage(Savable):
+class SoftwarePackage(Saveable):
     def __init__(
         self,
         package: Any,
@@ -7988,20 +8285,26 @@ class SoftwarePackage(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'SoftwarePackage'", None, _errors__)
-        return cls(
+        _constructed = cls(
             package=package,
             version=version,
             specs=specs,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.package is not None:
             r["package"] = save(
                 self.package, top=False, base_url=base_url, relative_uris=relative_uris
@@ -8026,7 +8329,7 @@ class SoftwarePackage(Savable):
     attrs = frozenset(["package", "version", "specs"])
 
 
-class Dirent(Savable):
+class Dirent(Saveable):
     """
     Define a file or subdirectory that must be placed in the designated output
     directory prior to executing the command line tool.  May be the result of
@@ -8141,20 +8444,26 @@ class Dirent(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'Dirent'", None, _errors__)
-        return cls(
+        _constructed = cls(
             entryname=entryname,
             entry=entry,
             writable=writable,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.entryname is not None:
             r["entryname"] = save(
                 self.entryname,
@@ -8260,18 +8569,24 @@ class InitialWorkDirRequirement(ProcessRequirement):
             raise ValidationException(
                 "Trying 'InitialWorkDirRequirement'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             listing=listing,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "InitialWorkDirRequirement"
         if self.listing is not None:
@@ -8368,18 +8683,24 @@ class EnvVarRequirement(ProcessRequirement):
 
         if _errors__:
             raise ValidationException("Trying 'EnvVarRequirement'", None, _errors__)
-        return cls(
+        _constructed = cls(
             envDef=envDef,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "EnvVarRequirement"
         if self.envDef is not None:
@@ -8464,17 +8785,23 @@ class ShellCommandRequirement(ProcessRequirement):
             raise ValidationException(
                 "Trying 'ShellCommandRequirement'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "ShellCommandRequirement"
 
@@ -8728,7 +9055,7 @@ class ResourceRequirement(ProcessRequirement):
 
         if _errors__:
             raise ValidationException("Trying 'ResourceRequirement'", None, _errors__)
-        return cls(
+        _constructed = cls(
             coresMin=coresMin,
             coresMax=coresMax,
             ramMin=ramMin,
@@ -8740,13 +9067,19 @@ class ResourceRequirement(ProcessRequirement):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "ResourceRequirement"
         if self.coresMin is not None:
@@ -9038,7 +9371,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             raise ValidationException(
                 "Trying 'ExpressionToolOutputParameter'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -9050,17 +9383,23 @@ class ExpressionToolOutputParameter(OutputParameter):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.label is not None:
             r["label"] = save(
                 self.label, top=False, base_url=self.id, relative_uris=relative_uris
@@ -9092,8 +9431,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             )
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
-            if u:
-                r["format"] = u
+            r["format"] = u
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=self.id, relative_uris=relative_uris
@@ -9361,7 +9699,7 @@ class ExpressionTool(Process):
 
         if _errors__:
             raise ValidationException("Trying 'ExpressionTool'", None, _errors__)
-        return cls(
+        _constructed = cls(
             id=id,
             inputs=inputs,
             outputs=outputs,
@@ -9374,19 +9712,25 @@ class ExpressionTool(Process):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "ExpressionTool"
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.inputs is not None:
             r["inputs"] = save(
                 self.inputs, top=False, base_url=self.id, relative_uris=relative_uris
@@ -9416,8 +9760,7 @@ class ExpressionTool(Process):
             )
         if self.cwlVersion is not None:
             u = save_relative_uri(self.cwlVersion, self.id, False, None, relative_uris)
-            if u:
-                r["cwlVersion"] = u
+            r["cwlVersion"] = u
         if self.expression is not None:
             r["expression"] = save(
                 self.expression,
@@ -9645,7 +9988,7 @@ class WorkflowOutputParameter(OutputParameter):
             try:
                 outputSource = load_field(
                     _doc.get("outputSource"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0,
+                    uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1,
                     baseuri,
                     loadingOptions,
                 )
@@ -9718,7 +10061,7 @@ class WorkflowOutputParameter(OutputParameter):
             raise ValidationException(
                 "Trying 'WorkflowOutputParameter'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -9732,17 +10075,23 @@ class WorkflowOutputParameter(OutputParameter):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.label is not None:
             r["label"] = save(
                 self.label, top=False, base_url=self.id, relative_uris=relative_uris
@@ -9774,12 +10123,10 @@ class WorkflowOutputParameter(OutputParameter):
             )
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
-            if u:
-                r["format"] = u
+            r["format"] = u
         if self.outputSource is not None:
-            u = save_relative_uri(self.outputSource, self.id, False, 0, relative_uris)
-            if u:
-                r["outputSource"] = u
+            u = save_relative_uri(self.outputSource, self.id, False, 1, relative_uris)
+            r["outputSource"] = u
         if self.linkMerge is not None:
             r["linkMerge"] = save(
                 self.linkMerge, top=False, base_url=self.id, relative_uris=relative_uris
@@ -9813,7 +10160,7 @@ class WorkflowOutputParameter(OutputParameter):
     )
 
 
-class Sink(Savable):
+class Sink(Saveable):
     pass
 
 
@@ -10019,7 +10366,7 @@ class WorkflowStepInput(Sink):
 
         if _errors__:
             raise ValidationException("Trying 'WorkflowStepInput'", None, _errors__)
-        return cls(
+        _constructed = cls(
             source=source,
             linkMerge=linkMerge,
             id=id,
@@ -10028,21 +10375,26 @@ class WorkflowStepInput(Sink):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.source is not None:
             u = save_relative_uri(self.source, self.id, False, 2, relative_uris)
-            if u:
-                r["source"] = u
+            r["source"] = u
         if self.linkMerge is not None:
             r["linkMerge"] = save(
                 self.linkMerge, top=False, base_url=self.id, relative_uris=relative_uris
@@ -10067,7 +10419,7 @@ class WorkflowStepInput(Sink):
     attrs = frozenset(["source", "linkMerge", "id", "default", "valueFrom"])
 
 
-class WorkflowStepOutput(Savable):
+class WorkflowStepOutput(Saveable):
     """
     Associate an output parameter of the underlying process with a workflow
     parameter.  The workflow parameter (given in the `id` field) be may be used
@@ -10152,22 +10504,28 @@ class WorkflowStepOutput(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'WorkflowStepOutput'", None, _errors__)
-        return cls(
+        _constructed = cls(
             id=id,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
 
         # top refers to the directory level
         if top:
@@ -10180,7 +10538,7 @@ class WorkflowStepOutput(Savable):
     attrs = frozenset(["id"])
 
 
-class WorkflowStep(Savable):
+class WorkflowStep(Saveable):
     """
     A workflow step is an executable element of a workflow.  It specifies the
     underlying process implementation (such as `CommandLineTool` or another
@@ -10489,7 +10847,7 @@ class WorkflowStep(Savable):
 
         if _errors__:
             raise ValidationException("Trying 'WorkflowStep'", None, _errors__)
-        return cls(
+        _constructed = cls(
             id=id,
             in_=in_,
             out=out,
@@ -10503,25 +10861,30 @@ class WorkflowStep(Savable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.in_ is not None:
             r["in"] = save(
                 self.in_, top=False, base_url=self.id, relative_uris=relative_uris
             )
         if self.out is not None:
             u = save_relative_uri(self.out, self.id, True, None, relative_uris)
-            if u:
-                r["out"] = u
+            r["out"] = u
         if self.requirements is not None:
             r["requirements"] = save(
                 self.requirements,
@@ -10543,18 +10906,15 @@ class WorkflowStep(Savable):
             )
         if self.run is not None:
             u = save_relative_uri(self.run, self.id, False, None, relative_uris)
-            if u:
-                r["run"] = u
+            r["run"] = u
         if self.scatter is not None:
             u = save_relative_uri(self.scatter, self.id, False, 0, relative_uris)
-            if u:
-                r["scatter"] = u
+            r["scatter"] = u
         if self.scatterMethod is not None:
             u = save_relative_uri(
                 self.scatterMethod, self.id, False, None, relative_uris
             )
-            if u:
-                r["scatterMethod"] = u
+            r["scatterMethod"] = u
 
         # top refers to the directory level
         if top:
@@ -10586,7 +10946,7 @@ class Workflow(Process):
     those steps.  When a step produces output that will be consumed by a
     second step, the first step is a dependency of the second step.
 
-    When there is a dependency, the workflow engine must execute the preceding
+    When there is a dependency, the workflow engine must execute the preceeding
     step and wait for it to successfully produce output before executing the
     dependent step.  If two steps are defined in the workflow graph that
     are not directly or indirectly dependent, these steps are **independent**,
@@ -10864,7 +11224,7 @@ class Workflow(Process):
 
         if _errors__:
             raise ValidationException("Trying 'Workflow'", None, _errors__)
-        return cls(
+        _constructed = cls(
             id=id,
             inputs=inputs,
             outputs=outputs,
@@ -10877,19 +11237,25 @@ class Workflow(Process):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "Workflow"
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            if u:
-                r["id"] = u
+            r["id"] = u
         if self.inputs is not None:
             r["inputs"] = save(
                 self.inputs, top=False, base_url=self.id, relative_uris=relative_uris
@@ -10919,8 +11285,7 @@ class Workflow(Process):
             )
         if self.cwlVersion is not None:
             u = save_relative_uri(self.cwlVersion, self.id, False, None, relative_uris)
-            if u:
-                r["cwlVersion"] = u
+            r["cwlVersion"] = u
         if self.steps is not None:
             r["steps"] = save(
                 self.steps, top=False, base_url=self.id, relative_uris=relative_uris
@@ -11011,17 +11376,23 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
             raise ValidationException(
                 "Trying 'SubworkflowFeatureRequirement'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "SubworkflowFeatureRequirement"
 
@@ -11097,17 +11468,23 @@ class ScatterFeatureRequirement(ProcessRequirement):
             raise ValidationException(
                 "Trying 'ScatterFeatureRequirement'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "ScatterFeatureRequirement"
 
@@ -11183,17 +11560,23 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
             raise ValidationException(
                 "Trying 'MultipleInputFeatureRequirement'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "MultipleInputFeatureRequirement"
 
@@ -11269,17 +11652,23 @@ class StepInputExpressionRequirement(ProcessRequirement):
             raise ValidationException(
                 "Trying 'StepInputExpressionRequirement'", None, _errors__
             )
-        return cls(
+        _constructed = cls(
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
+        return _constructed
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
     ) -> Dict[str, Any]:
         r: Dict[str, Any] = {}
-        for ef in self.extension_fields:
-            r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
 
         r["class"] = "StepInputExpressionRequirement"
 
@@ -11508,9 +11897,10 @@ PrimitiveTypeLoader = _EnumLoader(
         "float",
         "double",
         "string",
-    )
+    ),
+    "PrimitiveType",
 )
-AnyLoader = _EnumLoader(("Any",))
+AnyLoader = _EnumLoader(("Any",), "Any")
 RecordFieldLoader = _RecordLoader(RecordField)
 RecordSchemaLoader = _RecordLoader(RecordSchema)
 EnumSchemaLoader = _RecordLoader(EnumSchema)
@@ -11529,7 +11919,8 @@ CWLVersionLoader = _EnumLoader(
         "draft-4.dev3",
         "v1.0.dev4",
         "v1.0",
-    )
+    ),
+    "CWLVersion",
 )
 CWLTypeLoader = _EnumLoader(
     (
@@ -11542,7 +11933,8 @@ CWLTypeLoader = _EnumLoader(
         "string",
         "File",
         "Directory",
-    )
+    ),
+    "CWLType",
 )
 FileLoader = _RecordLoader(File)
 DirectoryLoader = _RecordLoader(Directory)
@@ -11572,8 +11964,8 @@ CommandOutputEnumSchemaLoader = _RecordLoader(CommandOutputEnumSchema)
 CommandOutputArraySchemaLoader = _RecordLoader(CommandOutputArraySchema)
 CommandInputParameterLoader = _RecordLoader(CommandInputParameter)
 CommandOutputParameterLoader = _RecordLoader(CommandOutputParameter)
-stdoutLoader = _EnumLoader(("stdout",))
-stderrLoader = _EnumLoader(("stderr",))
+stdoutLoader = _EnumLoader(("stdout",), "stdout")
+stderrLoader = _EnumLoader(("stderr",), "stderr")
 CommandLineToolLoader = _RecordLoader(CommandLineTool)
 DockerRequirementLoader = _RecordLoader(DockerRequirement)
 SoftwareRequirementLoader = _RecordLoader(SoftwareRequirement)
@@ -11589,7 +11981,8 @@ LinkMergeMethodLoader = _EnumLoader(
     (
         "merge_nested",
         "merge_flattened",
-    )
+    ),
+    "LinkMergeMethod",
 )
 WorkflowOutputParameterLoader = _RecordLoader(WorkflowOutputParameter)
 WorkflowStepInputLoader = _RecordLoader(WorkflowStepInput)
@@ -11599,7 +11992,8 @@ ScatterMethodLoader = _EnumLoader(
         "dotproduct",
         "nested_crossproduct",
         "flat_crossproduct",
-    )
+    ),
+    "ScatterMethod",
 )
 WorkflowStepLoader = _RecordLoader(WorkflowStep)
 WorkflowLoader = _RecordLoader(Workflow)
@@ -11650,11 +12044,11 @@ union_of_None_type_or_array_of_RecordFieldLoader = _UnionLoader(
 idmap_fields_union_of_None_type_or_array_of_RecordFieldLoader = _IdMapLoader(
     union_of_None_type_or_array_of_RecordFieldLoader, "name", "type"
 )
-Record_symbolLoader = _EnumLoader(("record",))
+Record_symbolLoader = _EnumLoader(("record",), "Record_symbol")
 typedsl_Record_symbolLoader_2 = _TypeDSLLoader(Record_symbolLoader, 2)
 array_of_strtype = _ArrayLoader(strtype)
 uri_array_of_strtype_True_False_None = _URILoader(array_of_strtype, True, False, None)
-Enum_symbolLoader = _EnumLoader(("enum",))
+Enum_symbolLoader = _EnumLoader(("enum",), "Enum_symbol")
 typedsl_Enum_symbolLoader_2 = _TypeDSLLoader(Enum_symbolLoader, 2)
 uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_False_True_2 = _URILoader(
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype,
@@ -11662,9 +12056,9 @@ uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_Ar
     True,
     2,
 )
-Array_symbolLoader = _EnumLoader(("array",))
+Array_symbolLoader = _EnumLoader(("array",), "Array_symbol")
 typedsl_Array_symbolLoader_2 = _TypeDSLLoader(Array_symbolLoader, 2)
-File_classLoader = _EnumLoader(("File",))
+File_classLoader = _EnumLoader(("File",), "File_class")
 uri_File_classLoader_False_True_None = _URILoader(File_classLoader, False, True, None)
 uri_union_of_None_type_or_strtype_False_False_None = _URILoader(
     union_of_None_type_or_strtype, False, False, None
@@ -11693,7 +12087,7 @@ union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader = _UnionLo
 uri_union_of_None_type_or_strtype_True_False_None = _URILoader(
     union_of_None_type_or_strtype, True, False, None
 )
-Directory_classLoader = _EnumLoader(("Directory",))
+Directory_classLoader = _EnumLoader(("Directory",), "Directory_class")
 uri_Directory_classLoader_False_True_None = _URILoader(
     Directory_classLoader, False, True, None
 )
@@ -12159,8 +12553,8 @@ array_of_ExpressionToolOutputParameterLoader = _ArrayLoader(
 idmap_outputs_array_of_ExpressionToolOutputParameterLoader = _IdMapLoader(
     array_of_ExpressionToolOutputParameterLoader, "id", "type"
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0 = _URILoader(
-    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1 = _URILoader(
+    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 1
 )
 union_of_None_type_or_LinkMergeMethodLoader = _UnionLoader(
     (
@@ -12211,6 +12605,9 @@ uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_Workflo
     False,
     None,
 )
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0 = _URILoader(
+    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0
+)
 union_of_None_type_or_ScatterMethodLoader = _UnionLoader(
     (
         None_type,
@@ -12260,11 +12657,30 @@ def load_document(
         baseuri = file_uri(os.getcwd()) + "/"
     if loadingOptions is None:
         loadingOptions = LoadingOptions()
+    result, metadata = _document_load(
+        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
+        doc,
+        baseuri,
+        loadingOptions,
+    )
+    return result
+
+def load_document_with_metadata(
+    doc: Any,
+    baseuri: Optional[str] = None,
+    loadingOptions: Optional[LoadingOptions] = None,
+    addl_metadata_fields: MutableSequence[str] = []
+) -> Any:
+    if baseuri is None:
+        baseuri = file_uri(os.getcwd()) + "/"
+    if loadingOptions is None:
+        loadingOptions = LoadingOptions(fileuri=baseuri)
     return _document_load(
         union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
         doc,
         baseuri,
         loadingOptions,
+        addl_metadata_fields=addl_metadata_fields
     )
 
 
@@ -12279,14 +12695,14 @@ def load_document_by_string(
 
     if loadingOptions is None:
         loadingOptions = LoadingOptions(fileuri=uri)
-    loadingOptions.idx[uri] = result
 
-    return _document_load(
+    result, metadata = _document_load(
         union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
         result,
         uri,
         loadingOptions,
     )
+    return result
 
 
 def load_document_by_yaml(
@@ -12302,11 +12718,11 @@ def load_document_by_yaml(
 
     if loadingOptions is None:
         loadingOptions = LoadingOptions(fileuri=uri)
-    loadingOptions.idx[uri] = yaml
 
-    return _document_load(
+    result, metadata = _document_load(
         union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
         yaml,
         uri,
         loadingOptions,
     )
+    return result

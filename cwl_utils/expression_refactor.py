@@ -14,6 +14,7 @@ from typing import (
     Dict,
     List,
     MutableSequence,
+    MutableMapping,
     Optional,
     Tuple,
     Union,
@@ -43,7 +44,11 @@ from cwl_utils import (
 )
 from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
 
-save_type = Union[Dict[str, str], List[Union[Dict[str, str], List[Any], None]], None]
+save_type = Union[
+    MutableMapping[str, Any],
+    MutableSequence[Union[MutableMapping[str, Any], MutableSequence[Any], None]],
+    None,
+]
 
 
 class saveCWL(Protocol):

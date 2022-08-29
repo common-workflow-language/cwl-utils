@@ -14,7 +14,7 @@ from . import cwl_v1_0, cwl_v1_1, cwl_v1_2
 LoadingOptions = Union[
     cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions
 ]
-Savable = Union[cwl_v1_0.Savable, cwl_v1_1.Savable, cwl_v1_2.Savable]
+Saveable = Union[cwl_v1_0.Saveable, cwl_v1_1.Saveable, cwl_v1_2.Saveable]
 Workflow = Union[cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow]
 WorkflowTypes = (cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow)
 WorkflowStep = Union[
@@ -157,16 +157,16 @@ def load_document_by_yaml(
 
 
 def save(
-    val: Optional[Union[Savable, MutableSequence[Savable]]],
+    val: Optional[Union[Saveable, MutableSequence[Saveable]]],
     top: bool = True,
     base_url: str = "",
     relative_uris: bool = True,
 ) -> Any:
     """Convert a given CWL object into a built-in typed object."""
     if (
-        isinstance(val, cwl_v1_0.Savable)
-        or isinstance(val, cwl_v1_1.Savable)
-        or isinstance(val, cwl_v1_2.Savable)
+        isinstance(val, cwl_v1_0.Saveable)
+        or isinstance(val, cwl_v1_1.Saveable)
+        or isinstance(val, cwl_v1_2.Saveable)
     ):
         return val.save(top=top, base_url=base_url, relative_uris=relative_uris)
     if isinstance(val, MutableSequence):
