@@ -602,11 +602,11 @@ TOPLEVEL_FORMAT_EXPR_ERROR = (
 )
 
 PICKVALUE_FIRST_NON_NULL_EXPR = """${
-self.forEach(function(item) {
-  if (item !== null){
+for (let i = 0; i < self.length; i++) {
+  if (self[i] !== null){
     return self[i];
   }
-})
+}
 throw 'pickValue=first_non_null, but no non-null value found: ' + self;
 }
 """

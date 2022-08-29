@@ -21,6 +21,7 @@ from typing import (
 
 from ruamel import yaml
 
+from cwl_utils.errors import WorkflowException
 from cwl_utils.loghandler import _logger as _cwlutilslogger
 
 if TYPE_CHECKING:
@@ -103,6 +104,7 @@ def main(args: Optional[List[str]] = None) -> int:
 
 def run(args: argparse.Namespace) -> int:
     """Primary processing loop."""
+    return_code = 0
     for document in args.inputs:
         _logger.info("Processing %s.", document)
         with open(document) as doc_handle:
@@ -128,39 +130,44 @@ def run(args: argparse.Namespace) -> int:
                 "Sorry, %s is not a supported CWL version by this tool.", version
             )
             return -1
-        result, modified = traverse(
-            top, not args.etools, False, args.skip_some1, args.skip_some2
-        )
-        output = Path(args.dir) / Path(document).name
-        if not modified:
-            if len(args.inputs) > 1:
-                shutil.copyfile(document, output)
-                continue
-            else:
-                return 7
-        if not isinstance(result, MutableSequence):
-            result_json = save(
-                result,
-                base_url=result.loadingOptions.fileuri
-                if result.loadingOptions.fileuri
-                else "",
+        try:
+            result, modified = traverse(
+                top, not args.etools, False, args.skip_some1, args.skip_some2
             )
-        #   ^^ Setting the base_url and keeping the default value
-        #      for relative_uris=True means that the IDs in the generated
-        #      JSON/YAML are kept clean of the path to the input document
-        else:
-            result_json = [
-                save(result_item, base_url=result_item.loadingOptions.fileuri)
-                for result_item in result
-            ]
-        yaml.scalarstring.walk_tree(result_json)
-        # ^ converts multiline strings to nice multiline YAML
-        with open(output, "w", encoding="utf-8") as output_filehandle:
-            output_filehandle.write(
-                "#!/usr/bin/env cwl-runner\n"
-            )  # TODO: teach the codegen to do this?
-            yaml.main.round_trip_dump(result_json, output_filehandle)
-    return 0
+            output = Path(args.dir) / Path(document).name
+            if not modified:
+                if len(args.inputs) > 1:
+                    shutil.copyfile(document, output)
+                    continue
+                else:
+                    return 7
+            if not isinstance(result, MutableSequence):
+                result_json = save(
+                    result,
+                    base_url=result.loadingOptions.fileuri
+                    if result.loadingOptions.fileuri
+                    else "",
+                )
+            #   ^^ Setting the base_url and keeping the default value
+            #      for relative_uris=True means that the IDs in the generated
+            #      JSON/YAML are kept clean of the path to the input document
+            else:
+                result_json = [
+                    save(result_item, base_url=result_item.loadingOptions.fileuri)
+                    for result_item in result
+                ]
+            yaml.scalarstring.walk_tree(result_json)
+            # ^ converts multiline strings to nice multiline YAML
+            with open(output, "w", encoding="utf-8") as output_filehandle:
+                output_filehandle.write(
+                    "#!/usr/bin/env cwl-runner\n"
+                )  # TODO: teach the codegen to do this?
+                yaml.main.round_trip_dump(result_json, output_filehandle)
+        except WorkflowException as exc:
+            return_code = 1
+            _logger.exception("Skipping %s due to error.", document, exc_info=exc)
+
+    return return_code
 
 
 if __name__ == "__main__":
