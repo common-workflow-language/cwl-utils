@@ -19,7 +19,8 @@ from typing import (
     Union,
 )
 
-from ruamel import yaml
+from ruamel.yaml.main import YAML
+from ruamel.yaml.scalarstring import walk_tree
 
 from cwl_utils.errors import WorkflowException
 from cwl_utils.loghandler import _logger as _cwlutilslogger
@@ -105,10 +106,12 @@ def main(args: Optional[List[str]] = None) -> int:
 def run(args: argparse.Namespace) -> int:
     """Primary processing loop."""
     return_code = 0
+    yaml = YAML(typ="rt")
+    yaml.preserve_quotes = True  # type: ignore[assignment]
     for document in args.inputs:
         _logger.info("Processing %s.", document)
         with open(document) as doc_handle:
-            result = yaml.main.round_trip_load(doc_handle, preserve_quotes=True)
+            result = yaml.load(doc_handle)
         version = result["cwlVersion"]
         uri = Path(document).resolve().as_uri()
         if version == "v1.0":
@@ -156,13 +159,13 @@ def run(args: argparse.Namespace) -> int:
                     save(result_item, base_url=result_item.loadingOptions.fileuri)
                     for result_item in result
                 ]
-            yaml.scalarstring.walk_tree(result_json)
+            walk_tree(result_json)
             # ^ converts multiline strings to nice multiline YAML
             with open(output, "w", encoding="utf-8") as output_filehandle:
                 output_filehandle.write(
                     "#!/usr/bin/env cwl-runner\n"
                 )  # TODO: teach the codegen to do this?
-                yaml.main.round_trip_dump(result_json, output_filehandle)
+                yaml.dump(result_json, output_filehandle)
         except WorkflowException as exc:
             return_code = 1
             _logger.exception("Skipping %s due to error.", document, exc_info=exc)
