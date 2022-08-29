@@ -263,7 +263,7 @@ def test_v1_1_stdin_to_file_fail_with_original() -> None:
 
 
 def test_v1_1_type_for_source() -> None:
-    """Test that the type is correctly inferred from a source id with CWL v1.2."""
+    """Test that the type is correctly inferred from a source id with CWL v1.1."""
     uri = Path(HERE / "../testdata/step_valuefrom5_wf_v1_1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
