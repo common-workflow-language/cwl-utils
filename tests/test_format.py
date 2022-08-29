@@ -45,7 +45,7 @@ def _load_format(fetchurl: str) -> Graph:
 
 
 HERE = Path(__file__).resolve().parent
-EDAM = _load_format((HERE / "../testdata/EDAM.owl").absolute().as_uri())
+EDAM = _load_format((HERE / "../testdata/EDAM_subset.owl").absolute().as_uri())
 GX = _load_format((HERE / "../testdata/gx_edam.ttl").absolute().as_uri())
 
 
