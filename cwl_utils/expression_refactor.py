@@ -44,10 +44,8 @@ from cwl_utils import (
 )
 from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
 
-save_type = Union[
-    MutableMapping[str, Any],
-    MutableSequence[Union[MutableMapping[str, Any], MutableSequence[Any], None]],
-    None,
+save_type = Optional[
+    Union[MutableMapping[str, Any], MutableSequence[Any], int, float, bool, str]
 ]
 
 
@@ -56,7 +54,7 @@ class saveCWL(Protocol):
 
     def __call__(
         self,
-        val: Optional[Union[Any, MutableSequence[Any]]],
+        val: Any,
         top: bool = True,
         base_url: str = "",
         relative_uris: bool = True,

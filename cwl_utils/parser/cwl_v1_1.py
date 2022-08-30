@@ -45,10 +45,11 @@ _logger = logging.getLogger("salad")
 
 IdxType = MutableMapping[str, Tuple[Any, "LoadingOptions"]]
 
+
 class LoadingOptions:
 
     idx: IdxType
-    fileuri: str
+    fileuri: Optional[str]
     baseuri: str
     namespaces: MutableMapping[str, str]
     schemas: MutableSequence[str]
@@ -81,7 +82,7 @@ class LoadingOptions:
         if fileuri is not None:
             self.fileuri = fileuri
         else:
-            self.fileuri = copyfrom.fileuri if copyfrom is not None else ""
+            self.fileuri = copyfrom.fileuri if copyfrom is not None else None
 
         if baseuri is not None:
             self.baseuri = baseuri
@@ -212,9 +213,8 @@ def load_field(val, fieldtype, baseuri, loadingOptions):
     return fieldtype.load(val, baseuri, loadingOptions)
 
 
-save_type = Union[
-    MutableMapping[str, Any],
-    MutableSequence[Union[MutableMapping[str, Any], MutableSequence[Any], None]],
+save_type = Optional[
+    Union[MutableMapping[str, Any], MutableSequence[Any], int, float, bool, str]
 ]
 
 
@@ -238,7 +238,9 @@ def save(
                 val[key], top=False, base_url=base_url, relative_uris=relative_uris
             )
         return newdict
-    raise Exception("Not a Saveable")
+    if val is None or isinstance(val, (int, float, bool, str)):
+        return val
+    raise Exception("Not Saveable: %s" % type(val))
 
 
 def save_with_metadata(
@@ -248,6 +250,7 @@ def save_with_metadata(
     base_url: str = "",
     relative_uris: bool = True,
 ) -> save_type:
+    """Save and set $namespaces, $schemas, $base and any other metadata fields at the top level."""
     saved_val = save(val, top, base_url, relative_uris)
     newdict: MutableMapping[str, Any] = {}
     if isinstance(saved_val, MutableSequence):
@@ -672,7 +675,7 @@ def _document_load(
     doc: Union[str, MutableMapping[str, Any], MutableSequence[Any]],
     baseuri: str,
     loadingOptions: LoadingOptions,
-    addl_metadata_fields: MutableSequence[str] = [],
+    addl_metadata_fields: Optional[MutableSequence[str]] = None,
 ) -> Tuple[Any, LoadingOptions]:
     if isinstance(doc, str):
         return _document_load_by_url(
@@ -684,10 +687,12 @@ def _document_load(
 
     if isinstance(doc, MutableMapping):
         addl_metadata = {}
-        for mf in addl_metadata_fields:
-            if mf in doc:
-                addl_metadata[mf] = doc[mf]
+        if addl_metadata_fields is not None:
+            for mf in addl_metadata_fields:
+                if mf in doc:
+                    addl_metadata[mf] = doc[mf]
 
+        docuri = baseuri
         if "$base" in doc:
             baseuri = doc["$base"]
 
@@ -716,6 +721,9 @@ def _document_load(
                 loadingOptions,
             )
 
+        if docuri != baseuri:
+            loadingOptions.idx[docuri] = loadingOptions.idx[baseuri]
+
         return loadingOptions.idx[baseuri]
 
     if isinstance(doc, MutableSequence):
@@ -734,7 +742,7 @@ def _document_load_by_url(
     loader: _Loader,
     url: str,
     loadingOptions: LoadingOptions,
-    addl_metadata_fields: MutableSequence[str] = [],
+    addl_metadata_fields: Optional[MutableSequence[str]] = None,
 ) -> Tuple[Any, LoadingOptions]:
     if url in loadingOptions.idx:
         return loadingOptions.idx[url]
@@ -14569,11 +14577,12 @@ def load_document(
     )
     return result
 
+
 def load_document_with_metadata(
     doc: Any,
     baseuri: Optional[str] = None,
     loadingOptions: Optional[LoadingOptions] = None,
-    addl_metadata_fields: MutableSequence[str] = []
+    addl_metadata_fields: Optional[MutableSequence[str]] = None,
 ) -> Any:
     if baseuri is None:
         baseuri = file_uri(os.getcwd()) + "/"
@@ -14584,7 +14593,7 @@ def load_document_with_metadata(
         doc,
         baseuri,
         loadingOptions,
-        addl_metadata_fields=addl_metadata_fields
+        addl_metadata_fields=addl_metadata_fields,
     )
 
 
