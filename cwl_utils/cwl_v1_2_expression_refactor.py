@@ -702,14 +702,9 @@ def process_workflow_inputs_and_outputs(
                     target_type.name = None
                 target = cwl.WorkflowInputParameter(id=None, type=target_type)
                 if not isinstance(param2.outputSource, list):
-                    sources: Union[List[str], str] = "/".join(
-                        param2.outputSource.split("#")[-1].split("/")[1:]
-                    )
+                    sources: Union[List[str], str] = param2.outputSource.split("#")[-1]
                 else:
-                    sources = [
-                        "/".join(s.split("#")[-1].split("/")[1:])
-                        for s in param2.outputSource
-                    ]
+                    sources = [s.split("#")[-1] for s in param2.outputSource]
                 source_type_items = utils.type_for_source(workflow, sources)
                 if "null" not in source_type_items:
                     if isinstance(source_type_items, list):
