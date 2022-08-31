@@ -7,7 +7,7 @@ import logging
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, MutableSequence, Optional, Set
+from typing import List, MutableSequence, Set
 
 from cwlupgrader import main as cwlupgrader
 from ruamel import yaml
@@ -29,7 +29,7 @@ from cwl_utils.parser.cwl_v1_2 import load_document_by_yaml, save
 def arg_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
     parser = argparse.ArgumentParser(
-        description="Tool to normalize CWL documents. Will upgrade to CWL v1.2, "
+        description="Normalizes CWL documents. Will upgrade to CWL v1.2, "
         "and pack the result. Can optionally refactor out CWL expressions."
     )
     parser.add_argument(
@@ -66,11 +66,9 @@ def parse_args(args: List[str]) -> argparse.Namespace:
     return arg_parser().parse_args(args)
 
 
-def main(args: Optional[List[str]] = None) -> int:
-    """Collect the arguments and run."""
-    if not args:
-        args = sys.argv[1:]
-    return run(parse_args(args))
+def main() -> None:
+    """Console entry point."""
+    sys.exit(run(parse_args(sys.argv[1:])))
 
 
 def run(args: argparse.Namespace) -> int:
@@ -128,4 +126,3 @@ def run(args: argparse.Namespace) -> int:
 
 if __name__ == "__main__":
     main()
-    sys.exit(0)

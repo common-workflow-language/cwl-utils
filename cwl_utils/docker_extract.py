@@ -4,7 +4,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from typing import Iterator, Union, cast
+from typing import Iterator, List, Union, cast
 
 import cwl_utils.parser.cwl_v1_0 as cwl
 from cwl_utils.image_puller import (
@@ -19,10 +19,13 @@ ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 def arg_parser() -> argparse.ArgumentParser:
     """Argument parser."""
     parser = argparse.ArgumentParser(
-        description="Tool to save docker images from a cwl workflow."
+        description="Save container images specified in a CWL document (Workflow or CommandLineTool). "
+        "For CWL Workflows, all steps will also be searched (recursively)."
     )
     parser.add_argument("dir", help="Directory in which to save images")
-    parser.add_argument("input", help="Input CWL workflow")
+    parser.add_argument(
+        "input", help="Input CWL document (CWL Workflow or CWL CommandLineTool)"
+    )
     parser.add_argument(
         "-s",
         "--singularity",
@@ -32,12 +35,12 @@ def arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(args: List[str]) -> argparse.Namespace:
     """Parse the command line arguments."""
-    return arg_parser().parse_args()
+    return arg_parser().parse_args(args)
 
 
-def main(args: argparse.Namespace) -> None:
+def run(args: argparse.Namespace) -> int:
     """Extract the docker reqs and download them using Singularity or docker."""
     os.makedirs(args.dir, exist_ok=True)
 
@@ -52,6 +55,7 @@ def main(args: argparse.Namespace) -> None:
         else:
             image_puller = DockerImagePuller(req.dockerPull, args.dir)
         image_puller.save_docker_image()
+    return 0
 
 
 def extract_docker_requirements(
@@ -102,6 +106,10 @@ def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.DockerRequirement]
         yield from traverse(get_process_from_step(step))
 
 
+def main() -> None:
+    """Command line entry point."""
+    sys.exit(run(parse_args(sys.argv[1:])))
+
+
 if __name__ == "__main__":
-    main(parse_args())
-    sys.exit(0)
+    main()

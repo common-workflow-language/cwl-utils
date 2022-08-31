@@ -14,20 +14,23 @@ Modules
    :caption: Contents:
 
 
-Example scripts
-===============
+Included Utility Programs
+=========================
+
+.. autoprogram:: cwl_utils.cite_extract:arg_parser()
+   :prog: cwl-cite-extract
 
 .. autoprogram:: cwl_utils.docker_extract:arg_parser()
-   :prog: docker_extract.py
+   :prog: cwl-docker-extract
 
-.. autoprogram:: cwl_utils.cwl_expression_refactor:arg_parser()
-   :prog: cwl_expression_refactor.py
+.. autoprogram:: cwl_utils.expression_refactor:arg_parser()
+   :prog: cwl-expression-refactor
 
 .. autoprogram:: cwl_utils.graph_split:arg_parser()
-   :prog: graph_split.py
+   :prog: cwl-graph-split
 
-.. autoprogram:: cwl_utils.cwl_normalizer:arg_parser()
-   :prog: cwl_normalizer.py
+.. autoprogram:: cwl_utils.normalizer:arg_parser()
+   :prog: cwl-normalizer
 
 
 Indices and tables
