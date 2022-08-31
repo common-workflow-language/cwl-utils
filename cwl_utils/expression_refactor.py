@@ -96,15 +96,19 @@ def parse_args(args: List[str]) -> argparse.Namespace:
     return arg_parser().parse_args(args)
 
 
-def main(args: Optional[List[str]] = None) -> int:
+def main() -> None:
+    """Console entry point."""
+    sys.exit(run(sys.argv[1:]))
+
+
+def run(args: List[str]) -> int:
     """Collect the arguments and run."""
-    if not args:
-        args = sys.argv[1:]
-    return run(parse_args(args))
+    return refactor(parse_args(args))
 
 
-def run(args: argparse.Namespace) -> int:
+def refactor(args: argparse.Namespace) -> int:
     """Primary processing loop."""
+
     return_code = 0
     yaml = YAML(typ="rt")
     yaml.preserve_quotes = True  # type: ignore[assignment]
@@ -175,4 +179,3 @@ def run(args: argparse.Namespace) -> int:
 
 if __name__ == "__main__":
     main()
-    sys.exit(0)

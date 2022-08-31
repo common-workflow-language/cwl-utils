@@ -39,14 +39,16 @@ setup(
     .splitlines(),
     tests_require=["pytest<8"],
     test_suite="tests",
-    scripts=[
-        "cwl_utils/docker_extract.py",
-        "cwl_utils/cwl_expression_refactor.py",
-        "cwl_utils/cite_extract.py",
-        "cwl_utils/graph_split.py",
-        "cwl_utils/cwl_normalizer.py",
-    ],
     extras_require={"pretty": ["cwlformat"]},
+    entry_points={
+        "console_scripts": [
+            "cwl-cite-extract=cwl_utils.cite_extract:main",
+            "cwl-docker-extract=cwl_utils.docker_extract:main",
+            "cwl-expression-refactor=cwl_utils.expression_refactor:main",
+            "cwl-graph-split=cwl_utils.graph_split:main",
+            "cwl-normalizer=cwl_utils.normalizer:main",
+        ]
+    },
     classifiers=[
         "Environment :: Console",
         "Intended Audience :: Science/Research",

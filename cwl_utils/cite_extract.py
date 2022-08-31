@@ -1,18 +1,41 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
+import argparse
 import sys
-from typing import Iterator, Union, cast
+from typing import Iterator, List, Union, cast
 
 import cwl_utils.parser.cwl_v1_0 as cwl
 
 ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 
 
-def main() -> int:
-    """Load the first argument and extract the software requirements."""
-    top = cwl.load_document(sys.argv[1])
+def arg_parser() -> argparse.ArgumentParser:
+    """Argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Print information about software used in a CWL document (Workflow or CommandLineTool). "
+        "For CWL Workflows, all steps will also be searched (recursively)."
+    )
+    parser.add_argument(
+        "input", help="Input CWL document (CWL Workflow or CWL CommandLineTool)"
+    )
+    return parser
+
+
+def parse_args(args: List[str]) -> argparse.Namespace:
+    """Parse the command line arguments."""
+    return arg_parser().parse_args(args)
+
+
+def run(args: argparse.Namespace) -> int:
+    """Extract the software requirements."""
+    top = cwl.load_document(args.input)
     traverse(top)
     return 0
+
+
+def main() -> None:
+    """Console entry point."""
+    sys.exit(run(parse_args(sys.argv[1:])))
 
 
 def extract_software_packages(process: ProcessType) -> None:
@@ -73,4 +96,4 @@ def traverse_workflow(workflow: cwl.Workflow) -> None:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

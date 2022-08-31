@@ -11,7 +11,8 @@ Only tested with a single v1.0 workflow.
 import argparse
 import json
 import os
-from typing import IO, Any, MutableMapping, Set, Union, cast
+import sys
+from typing import IO, Any, List, MutableMapping, Set, Union, cast
 
 from cwlformat.formatter import stringify_dict
 from ruamel.yaml.dumper import RoundTripDumper
@@ -22,7 +23,7 @@ from schema_salad.sourceline import SourceLine, add_lc_filename
 
 def arg_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
-    parser = argparse.ArgumentParser(description="Split the packed CWL.")
+    parser = argparse.ArgumentParser(description="Split a packed CWL document.")
     parser.add_argument("cwlfile")
     parser.add_argument(
         "-m",
@@ -57,20 +58,26 @@ def arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Console entry point."""
+    sys.exit(run(sys.argv[1:]))
+
+
+def run(args: List[str]) -> int:
     """Split the packed CWL at the path of the first argument."""
-    options = arg_parser().parse_args()
+    options = arg_parser().parse_args(args)
 
     with open(options.cwlfile) as source_handle:
-        run(
+        graph_split(
             source_handle,
             options.outdir,
             options.output_format,
             options.mainfile,
             options.pretty,
         )
+    return 0
 
 
-def run(
+def graph_split(
     sourceIO: IO[str], output_dir: str, output_format: str, mainfile: str, pretty: bool
 ) -> None:
     """Loop over the provided packed CWL document and split it up."""
