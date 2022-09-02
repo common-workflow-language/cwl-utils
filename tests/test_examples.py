@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests of example Python scripts."""
 import os
 from pathlib import Path

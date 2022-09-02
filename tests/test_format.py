@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests of cwl_utils.file_formats."""
 
 import xml.sax

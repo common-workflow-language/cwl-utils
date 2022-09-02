@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Common Exceptions."""
+
+
 class ArrayMissingItems(BaseException):
     """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py"""
 

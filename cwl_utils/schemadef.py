@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+#  Copyright (c) 2021 Michael R. Crusoe
+#  Copyright (c) 2020 Seven Bridges
+#  See https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/LICENSE
 """
 Valid forms of user defined types stored in external file
 
@@ -10,9 +14,6 @@ Only records and arrays can be defined (https://github.com/common-workflow-langu
 From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
 """
 
-#  Copyright (c) 2021 Michael R. Crusoe
-#  Copyright (c) 2020 Seven Bridges
-#  See https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/LICENSE
 
 import sys
 import urllib.parse

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Test the load and save functions for CWL."""
 from pathlib import Path
 

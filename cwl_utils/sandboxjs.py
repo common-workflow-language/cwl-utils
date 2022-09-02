@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Safe execution of CWL Expressions in a NodeJS sandbox."""
 import collections
 import errno
 import json

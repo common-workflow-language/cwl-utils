@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Test the CWL Expression refactoring tool."""
 import os
 import shutil
