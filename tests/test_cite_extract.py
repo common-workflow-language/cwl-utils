@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Tests for cwl-cite-extract."""
 from pathlib import Path
 
 import cwl_utils.parser.cwl_v1_0 as parser

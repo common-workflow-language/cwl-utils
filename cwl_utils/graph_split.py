@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: Apache-2.0
 # Copyright 2019-2020 Michael R. Crusoe
 # Copyright 2020 Altair Wei
 """

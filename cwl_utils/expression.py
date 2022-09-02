@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+"""CWL Expression parsing."""
 import asyncio
 import copy
 import inspect

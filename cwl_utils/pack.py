@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+#  Copyright (c) 2021 Michael R. Crusoe
+#  Copyright (c) 2020 Seven Bridges
+#  See https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/LICENSE
 """
 The link resolution is as follows:
 
@@ -9,9 +13,6 @@ used to fetch data
 From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
 """
 
-#  Copyright (c) 2021 Michael R. Crusoe
-#  Copyright (c) 2020 Seven Bridges
-#  See https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/LICENSE
 
 import logging
 import os

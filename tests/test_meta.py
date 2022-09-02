@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Test __meta__ properties."""
 
 from cwl_utils.__meta__ import __version__

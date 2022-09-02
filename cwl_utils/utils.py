@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Miscellaneous utility functions."""
 import os
 import pathlib
 import subprocess  # nosec
