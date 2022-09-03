@@ -23,10 +23,11 @@ from ruamel.yaml.main import YAML
 from ruamel.yaml.parser import ParserError
 from ruamel.yaml.scanner import ScannerError
 
+from schema_salad.sourceline import add_lc_filename
 from cwl_utils.errors import MissingKeyField
 from cwl_utils.loghandler import _logger
 
-fast_yaml = YAML(typ="safe")
+fast_yaml = YAML(typ="rt")
 
 _USERNS = None
 
@@ -107,6 +108,7 @@ def load_linked_file(
     if is_import:
         try:
             _node = fast_yaml.load(contents)
+            add_lc_filename(_node, new_url.geturl())
         except ParserError as e:
             e.context = f"\n===\nMalformed file: {new_url.geturl()}\n===\n" + e.context
             raise SystemExit(e)

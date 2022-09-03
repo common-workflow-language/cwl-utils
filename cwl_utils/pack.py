@@ -13,8 +13,7 @@ used to fetch data
 From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
 """
 
-
-import logging
+import tempfile
 import os
 import sys
 import urllib.parse
@@ -34,11 +33,11 @@ from typing import (
 from packaging import version
 
 from cwl_utils import schemadef, utils
+from cwl_utils.loghandler import _logger
+from cwlupgrader import main as cwlupgrader
 
 if TYPE_CHECKING:
     from _collections_abc import dict_items
-
-logger = logging.getLogger(__name__)
 
 
 def get_inner_dict(
@@ -88,30 +87,25 @@ def listify_everything(cwl: Dict[str, Any]) -> Dict[str, Any]:
             cwl.get(port, []), key_field="id", value_field="type"
         )
 
-    cwl["requirements"] = utils.normalize_to_list(
-        cwl.get("requirements", []), key_field="class", value_field=None
-    )
+    if "requirements" in cwl:
+        cwl["requirements"] = utils.normalize_to_list(
+            cwl["requirements"], key_field="class", value_field=None
+        )
 
     if cwl.get("class") != "Workflow":
         return cwl
 
-    cwl["steps"] = utils.normalize_to_list(
-        cwl.get("steps", []), key_field="id", value_field=None
-    )
+    if "steps" in cwl:
+        cwl["steps"] = utils.normalize_to_list(
+            cwl["steps"], key_field="id", value_field=None
+        )
 
     for _, v in enumerate(cwl["steps"]):
         if isinstance(v, dict):
             v["in"] = utils.normalize_to_list(
-                v.get("in", []), key_field="id", value_field="source"
+                v["in"], key_field="id", value_field="source"
             )
 
-    return cwl
-
-
-def dictify_requirements(cwl: Dict[str, Any]) -> Dict[str, Any]:
-    cwl["requirements"] = utils.normalize_to_map(
-        cwl.get("requirements", {}), key_field="class"
-    )
     return cwl
 
 
@@ -160,11 +154,12 @@ def load_schemadefs(
     if parent_user_defined_types is not None:
         user_defined_types.update(parent_user_defined_types)
 
-    cwl["requirements"] = [
-        req
-        for req in cwl.get("requirements", [])
-        if req.get("class") != "SchemaDefRequirement"
-    ]
+    if "requirements" in cwl:
+        cwl["requirements"] = [
+            req
+            for req in cwl.get("requirements", [])
+            if req.get("class") != "SchemaDefRequirement"
+        ]
 
     return cwl, user_defined_types
 
@@ -219,9 +214,7 @@ def resolve_steps(
     workflow_id = cwl.get("id", os.path.basename(base_url.path))
     for _, v in enumerate(cwl["steps"]):
         if isinstance(v, dict):
-            sys.stderr.write(
-                f"\n--\nRecursing into step {base_url.geturl()}:{v['id']}\n"
-            )
+            _logger.info("Recursing into step %s:%s", base_url.geturl(), v["id"])
 
             _run = v.get("run")
             if isinstance(_run, str):
@@ -269,17 +262,28 @@ def add_missing_requirements(cwl: Dict[str, Any]) -> Dict[str, Any]:
                 break
         if sub_workflow:
             _add_req("SubworkflowFeatureRequirement")
+    if requirements:
+        cwl["requirements"] = requirements
     return cwl
 
 
-def pack(cwl_path: str) -> Dict[str, Any]:
-    sys.stderr.write(f"Packing {cwl_path}\n")
+def pack(cwl_path: str, tmp_dir: Optional[str] = None, skip_upgrade: bool = False) -> Dict[str, Any]:
+    _logger.info("Packing %s", cwl_path)
+    if tmp_dir:
+        tmp_path = tmp_dir
+    else:
+        tmp_dir = tempfile.TemporaryDirectory()  # need to keep it in the local context
+        tmp_path = tmp_dir.name
     file_path_url = urllib.parse.urlparse(cwl_path)
 
     cwl, full_url = cast(
         Tuple[Dict[str, Any], urllib.parse.ParseResult],
         utils.load_linked_file(base_url=file_path_url, link="", is_import=True),
     )
+    if not skip_upgrade:
+        _logger.info("Upgrading %s in %s.", full_url.geturl(), tmp_path)
+        cwl = cwlupgrader.upgrade_document(cwl, output_dir=tmp_path)
+
     if "$graph" in cwl:
         # assume already packed
         return cwl

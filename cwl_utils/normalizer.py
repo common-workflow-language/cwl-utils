@@ -117,7 +117,7 @@ def run(args: argparse.Namespace) -> int:
         else:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 path = Path(tmpdirname) / Path(document).name
-                packed = pack(str(path))
+                packed = pack(str(path), skip_upgrade=True)
         output = Path(args.dir) / Path(document).name
         with open(output, "w", encoding="utf-8") as output_filehandle:
             output_filehandle.write(packed)
