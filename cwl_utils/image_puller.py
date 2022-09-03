@@ -49,7 +49,7 @@ class DockerImagePuller(ImagePuller):
         """Generate the udocker loading command."""
         return f"udocker load -i {self.get_image_name()}"
 
-    def save_docker_image(self, image_file=None: str) -> str:
+    def save_docker_image(self, image_file: str = None) -> str:
         """Download and save the software container image to disk as a docker tarball."""
         _LOGGER.info(f"Pulling {self.req} with Docker...")
         cmd_pull = ["docker", "pull", self.req]
