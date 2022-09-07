@@ -148,13 +148,13 @@ Regenerate parsers
 To regenerate install the ``schema_salad`` package and run:
 
 ``cwl_utils/parser/cwl_v1_0.py`` was created via
-``schema-salad-tool --codegen python https://github.com/common-workflow-language/common-workflow-language/raw/main/v1.0/CommonWorkflowLanguage.yml --codegen-parser-info "org.w3id.cwl.v1_0"``
+``schema-salad-tool --codegen python https://github.com/common-workflow-language/common-workflow-language/raw/codegen/v1.0/CommonWorkflowLanguage.yml --codegen-parser-info "org.w3id.cwl.v1_0" > cwl_utils/parser/cwl_v1_0.py``
 
 ``cwl_utils/parser/cwl_v1_1.py`` was created via
-``schema-salad-tool --codegen python https://github.com/common-workflow-language/cwl-v1.1/raw/main/CommonWorkflowLanguage.yml --codegen-parser-info "org.w3id.cwl.v1_1"``
+``schema-salad-tool --codegen python https://github.com/common-workflow-language/cwl-v1.1/raw/codegen/CommonWorkflowLanguage.yml --codegen-parser-info "org.w3id.cwl.v1_1" > cwl_utils/parser/cwl_v1_1.py``
 
 ``cwl_utils/parser/cwl_v1_2.py`` was created via
-``schema-salad-tool --codegen python https://github.com/common-workflow-language/cwl-v1.2/raw/1.2.1_proposed/CommonWorkflowLanguage.yml --codegen-parser-info "org.w3id.cwl.v1_2"``
+``schema-salad-tool --codegen python https://github.com/common-workflow-language/cwl-v1.2/raw/1.2.1_proposed/CommonWorkflowLanguage.yml --codegen-parser-info "org.w3id.cwl.v1_2" > cwl_utils/parser/cwl_v1_2.py``
 
 Release
 ~~~~~~~

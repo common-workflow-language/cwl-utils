@@ -55,7 +55,10 @@ def extract_software_reqs(
                 yield req
     if process.hints:
         for req in process.hints:
-            if req["class"] == "SoftwareRequirement":
+            if isinstance(req, cwl.ProcessRequirement):
+                if isinstance(req, cwl.SoftwareRequirement):
+                    yield req
+            elif req["class"] == "SoftwareRequirement":
                 yield cwl.load_field(
                     req,
                     cwl.SoftwareRequirementLoader,

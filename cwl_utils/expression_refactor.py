@@ -13,6 +13,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    MutableMapping,
     MutableSequence,
     Optional,
     Tuple,
@@ -43,7 +44,9 @@ from cwl_utils import (
 )
 from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
 
-save_type = Union[Dict[str, str], List[Union[Dict[str, str], List[Any], None]], None]
+save_type = Optional[
+    Union[MutableMapping[str, Any], MutableSequence[Any], int, float, bool, str]
+]
 
 
 class saveCWL(Protocol):
@@ -51,7 +54,7 @@ class saveCWL(Protocol):
 
     def __call__(
         self,
-        val: Optional[Union[Any, MutableSequence[Any]]],
+        val: Any,
         top: bool = True,
         base_url: str = "",
         relative_uris: bool = True,
