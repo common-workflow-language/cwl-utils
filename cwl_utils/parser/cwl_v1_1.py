@@ -7581,7 +7581,7 @@ class CommandInputParameter(InputParameter):
             try:
                 default = load_field(
                     _doc.get("default"),
-                    union_of_None_type_or_Any_type,
+                    union_of_None_type_or_FileLoader_or_DirectoryLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
                 )
@@ -8257,7 +8257,7 @@ class CommandLineTool(Process):
             try:
                 hints = load_field(
                     _doc.get("hints"),
-                    idmap_hints_union_of_None_type_or_array_of_Any_type,
+                    idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
                 )
@@ -11003,7 +11003,7 @@ class WorkflowInputParameter(InputParameter):
             try:
                 default = load_field(
                     _doc.get("default"),
-                    union_of_None_type_or_Any_type,
+                    union_of_None_type_or_FileLoader_or_DirectoryLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
                 )
@@ -11363,7 +11363,7 @@ class ExpressionTool(Process):
             try:
                 hints = load_field(
                     _doc.get("hints"),
-                    idmap_hints_union_of_None_type_or_array_of_Any_type,
+                    idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
                 )
@@ -12747,7 +12747,7 @@ class Workflow(Process):
     those steps.  When a step produces output that will be consumed by a
     second step, the first step is a dependency of the second step.
 
-    When there is a dependency, the workflow engine must execute the preceeding
+    When there is a dependency, the workflow engine must execute the preceding
     step and wait for it to successfully produce output before executing the
     dependent step.  If two steps are defined in the workflow graph that
     are not directly or indirectly dependent, these steps are **independent**,
@@ -12957,7 +12957,7 @@ class Workflow(Process):
             try:
                 hints = load_field(
                     _doc.get("hints"),
-                    idmap_hints_union_of_None_type_or_array_of_Any_type,
+                    idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
                 )
@@ -14107,9 +14107,11 @@ uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader
     True,
     2,
 )
-union_of_None_type_or_Any_type = _UnionLoader(
+union_of_None_type_or_FileLoader_or_DirectoryLoader_or_Any_type = _UnionLoader(
     (
         None_type,
+        FileLoader,
+        DirectoryLoader,
         Any_type,
     )
 )
@@ -14177,15 +14179,41 @@ idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequi
     "class",
     "None",
 )
-array_of_Any_type = _ArrayLoader(Any_type)
-union_of_None_type_or_array_of_Any_type = _UnionLoader(
+union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type = _UnionLoader(
     (
-        None_type,
-        array_of_Any_type,
+        InlineJavascriptRequirementLoader,
+        SchemaDefRequirementLoader,
+        LoadListingRequirementLoader,
+        DockerRequirementLoader,
+        SoftwareRequirementLoader,
+        InitialWorkDirRequirementLoader,
+        EnvVarRequirementLoader,
+        ShellCommandRequirementLoader,
+        ResourceRequirementLoader,
+        WorkReuseLoader,
+        NetworkAccessLoader,
+        InplaceUpdateRequirementLoader,
+        ToolTimeLimitLoader,
+        SubworkflowFeatureRequirementLoader,
+        ScatterFeatureRequirementLoader,
+        MultipleInputFeatureRequirementLoader,
+        StepInputExpressionRequirementLoader,
+        Any_type,
     )
 )
-idmap_hints_union_of_None_type_or_array_of_Any_type = _IdMapLoader(
-    union_of_None_type_or_array_of_Any_type, "class", "None"
+array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type = _ArrayLoader(
+    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type
+)
+union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type = _UnionLoader(
+    (
+        None_type,
+        array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
+    )
+)
+idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type = _IdMapLoader(
+    union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
+    "class",
+    "None",
 )
 union_of_None_type_or_CWLVersionLoader = _UnionLoader(
     (
@@ -14479,6 +14507,12 @@ union_of_None_type_or_LinkMergeMethodLoader = _UnionLoader(
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2 = _URILoader(
     union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2
 )
+union_of_None_type_or_Any_type = _UnionLoader(
+    (
+        None_type,
+        Any_type,
+    )
+)
 array_of_WorkflowStepInputLoader = _ArrayLoader(WorkflowStepInputLoader)
 idmap_in__array_of_WorkflowStepInputLoader = _IdMapLoader(
     array_of_WorkflowStepInputLoader, "id", "source"
@@ -14502,6 +14536,16 @@ uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_No
         False,
         None,
     )
+)
+array_of_Any_type = _ArrayLoader(Any_type)
+union_of_None_type_or_array_of_Any_type = _UnionLoader(
+    (
+        None_type,
+        array_of_Any_type,
+    )
+)
+idmap_hints_union_of_None_type_or_array_of_Any_type = _IdMapLoader(
+    union_of_None_type_or_array_of_Any_type, "class", "None"
 )
 union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader = (
     _UnionLoader(

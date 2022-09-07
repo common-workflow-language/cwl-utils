@@ -76,7 +76,10 @@ def extract_docker_reqs(process: ProcessType) -> Iterator[cwl.DockerRequirement]
                 yield req
     if process.hints:
         for req in process.hints:
-            if req["class"] == "DockerRequirement":
+            if isinstance(req, cwl.ProcessRequirement):
+                if isinstance(req, cwl.DockerRequirement):
+                    yield req
+            elif req["class"] == "DockerRequirement":
                 yield cwl.load_field(
                     req,
                     cwl.DockerRequirementLoader,

@@ -20,7 +20,9 @@ def test_traverse_workflow() -> None:
     loaded = parser.load_document(str(TEST_CWL.resolve()))
 
     with TemporaryDirectory() as tmpdir:
-        for req in set(traverse(loaded)):
+        reqs = set(traverse(loaded))
+        assert len(reqs) == 1
+        for req in reqs:
             assert req.dockerPull
             image_puller = DockerImagePuller(req.dockerPull, tmpdir)
             image_puller.save_docker_image()
@@ -33,7 +35,9 @@ def test_traverse_workflow_singularity() -> None:
     loaded = parser.load_document(str(TEST_CWL.resolve()))
 
     with TemporaryDirectory() as tmpdir:
-        for req in set(traverse(loaded)):
+        reqs = set(traverse(loaded))
+        assert len(reqs) == 1
+        for req in reqs:
             assert req.dockerPull
             image_puller = SingularityImagePuller(req.dockerPull, tmpdir)
             image_puller.save_docker_image()
