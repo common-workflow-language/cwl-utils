@@ -152,6 +152,18 @@ def test_v1_0_type_for_source_with_id() -> None:
     assert source_type == "File"
 
 
+def test_v1_0_type_for_source_with_multiple_entries() -> None:
+    """Test that the type is correctly inferred from a list of source ids with CWL v1.0."""
+    uri = Path(HERE / "../testdata/count-lines7-wf_v10.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        cwl_obj, cwl_obj.steps[0].in_[0].source
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert source_type.items[0].type == "array"
+    assert source_type.items[0].items == "File"
+
+
 def test_v1_1_file_content_64_kB() -> None:
     """Test that reading file content is allowed up to 64kB in CWL v1.1."""
     text = "a" * cwl_utils.parser.cwl_v1_1_utils.CONTENT_LIMIT
@@ -329,6 +341,18 @@ def test_v1_1_type_for_source_with_id() -> None:
     assert source_type == "File"
 
 
+def test_v1_1_type_for_source_with_multiple_entries() -> None:
+    """Test that the type is correctly inferred from a list of source ids with CWL v1.1."""
+    uri = Path(HERE / "../testdata/count-lines7-wf_v11.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        cwl_obj, cwl_obj.steps[0].in_[0].source
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert source_type.items[0].type == "array"
+    assert source_type.items[0].items == "File"
+
+
 def test_v1_2_file_content_64_kB() -> None:
     """Test that reading file content is allowed up to 64kB in CWL v1.2."""
     text = "a" * cwl_utils.parser.cwl_v1_2_utils.CONTENT_LIMIT
@@ -504,3 +528,15 @@ def test_v1_2_type_for_source_with_id() -> None:
         cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
     )
     assert source_type == "File"
+
+
+def test_v1_2_type_for_source_with_multiple_entries() -> None:
+    """Test that the type is correctly inferred from a list of source ids with CWL v1.2."""
+    uri = Path(HERE / "../testdata/count-lines7-wf_v12.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        cwl_obj, cwl_obj.steps[0].in_[0].source
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert source_type.items[0].type == "array"
+    assert source_type.items[0].items == "File"

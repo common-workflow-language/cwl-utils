@@ -72,18 +72,18 @@ def type_for_source(
     process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
     sourcenames: Union[str, List[str]],
     parent: Optional[cwl.Workflow] = None,
-) -> Union[List[Any], Any]:
+) -> Any:
     """Determine the type for the given sourcenames."""
     params = param_for_source_id(process, sourcenames, parent)
     if not isinstance(params, list):
-        return params.type
-    new_type: List[Any] = []
+        return cwl.ArraySchema(items=params.type, type='array') if isinstance(sourcenames, List) else params.type
+    new_type = []
     for p in params:
         if isinstance(p, str) and p not in new_type:
             new_type.append(p)
         elif hasattr(p, "type") and p.type not in new_type:
             new_type.append(p.type)
-    return new_type
+    return cwl.ArraySchema(items=new_type, type='array') if isinstance(sourcenames, List) else new_type
 
 
 def param_for_source_id(

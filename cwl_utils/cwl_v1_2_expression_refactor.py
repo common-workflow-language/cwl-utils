@@ -702,18 +702,21 @@ def process_workflow_inputs_and_outputs(
                     target_type.name = None
                 target = cwl.WorkflowInputParameter(id=None, type=target_type)
                 if not isinstance(param2.outputSource, list):
-                    sources: Union[List[str], str] = param2.outputSource.split("#")[-1]
+                    sources = param2.outputSource.split("#")[-1]
+                    source_type_items = utils.type_for_source(workflow, sources)
+                    if "null" not in source_type_items:
+                        source_type_items = ["null", source_type_items]
+                    source_type = cwl.CommandInputParameter(
+                        type=cwl.ArraySchema(type="array", items=source_type_items)
+                    )
                 else:
                     sources = [s.split("#")[-1] for s in param2.outputSource]
-                source_type_items = utils.type_for_source(workflow, sources)
-                if "null" not in source_type_items:
-                    if isinstance(source_type_items, list):
-                        source_type_items.append("null")
-                    else:
-                        source_type_items = ["null", source_type_items]
-                source_type = cwl.CommandInputParameter(
-                    type=cwl.ArraySchema(type="array", items=source_type_items)
-                )
+                    source_type_items = cast(
+                        cwl.ArraySchema, utils.type_for_source(workflow, sources)
+                    )
+                    if "null" not in source_type_items.items:
+                        source_type_items.items.append("null")
+                    source_type = cwl.CommandInputParameter(type=source_type_items)
                 replace_expr_with_etool(
                     expression,
                     etool_id,
@@ -1900,36 +1903,17 @@ def traverse_step(
                 target = get_input_for_id(inp.id, original_process)
                 if not target:
                     raise WorkflowException("target not found")
-                input_source_id = None
+                input_source_id: Optional[Union[str, List[str]]] = None
                 source_type: Optional[
                     Union[List[cwl.WorkflowInputParameter], cwl.WorkflowInputParameter]
                 ] = None
                 if inp.source:
-                    if isinstance(inp.source, MutableSequence):
-                        input_source_id = []
-                        source_types: List[cwl.WorkflowInputParameter] = []
-                        for source in inp.source:
-                            source_id = source.split("#")[-1]
-                            input_source_id.append(source_id)
-                            temp_type = utils.type_for_source(
-                                step.run, source_id, parent
-                            )
-                            if isinstance(temp_type, list):
-                                for ttype in temp_type:
-                                    if ttype not in source_types:
-                                        source_types.append(ttype)
-                            else:
-                                if temp_type not in source_types:
-                                    source_types.append(temp_type)
-                        source_type = cwl.WorkflowInputParameter(
-                            id=None,
-                            type=cwl.ArraySchema(source_types, "array"),
-                        )
-                    else:
-                        input_source_id = inp.source.split("#")[-1]
-                        source_type = utils.param_for_source_id(
-                            step.run, input_source_id, parent
-                        )
+                    input_source_id = (
+                        [source.split("#")[-1] for source in inp.source]
+                        if isinstance(inp.source, MutableSequence)
+                        else inp.source.split("#")[-1]
+                    )
+                    source_type = utils.type_for_source(step.run, inp.source, parent)
                 # target.id = target.id.split('#')[-1]
                 if isinstance(original_process, cwl.ExpressionTool):
                     found_JSReq = False
@@ -2030,7 +2014,7 @@ def replace_step_valueFrom_expr_with_etool(
     step_inp: cwl.WorkflowStepInput,
     original_process: Union[cwl.CommandLineTool, cwl.ExpressionTool],
     original_step_ins: List[cwl.WorkflowStepInput],
-    source: Union[str, List[str]],
+    source: Optional[Union[str, List[str]]],
     replace_etool: bool,
     source_type: Optional[
         Union[cwl.WorkflowInputParameter, List[cwl.WorkflowInputParameter]]
