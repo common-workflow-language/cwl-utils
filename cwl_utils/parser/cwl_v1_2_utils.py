@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
-from typing import Any, List, Optional, Union, cast
+from typing import Any, IO, List, Optional, Union, cast
 
 from ruamel import yaml
 from schema_salad.exceptions import ValidationException
@@ -8,6 +8,32 @@ from schema_salad.utils import json_dumps
 
 import cwl_utils.parser.cwl_v1_2 as cwl
 from cwl_utils.errors import WorkflowException
+
+
+CONTENT_LIMIT: int = 64 * 1024
+
+
+def content_limit_respected_read_bytes(f: IO[bytes]) -> bytes:
+    """
+    Read file content up to 64 kB as a byte array.
+
+    Throw exception for larger files (see https://www.commonwl.org/v1.2/Workflow.html#Changelog).
+    """
+    contents = f.read(CONTENT_LIMIT + 1)
+    if len(contents) > CONTENT_LIMIT:
+        raise WorkflowException(
+            "file is too large, loadContents limited to %d bytes" % CONTENT_LIMIT
+        )
+    return contents
+
+
+def content_limit_respected_read(f: IO[bytes]) -> str:
+    """
+    Read file content up to 64 kB as an utf-8 encoded string.
+
+    Throw exception for larger files (see https://www.commonwl.org/v1.2/Workflow.html#Changelog).
+    """
+    return content_limit_respected_read_bytes(f).decode("utf-8")
 
 
 def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
