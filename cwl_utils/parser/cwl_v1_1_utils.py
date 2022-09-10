@@ -87,6 +87,8 @@ def type_for_source(
             new_type.append(p)
         elif hasattr(p, "type") and p.type not in new_type:
             new_type.append(p.type)
+    if len(new_type) == 1:
+        new_type = new_type[0]
     if linkMerge == 'merge_nested':
         for _ in range(len(sourcenames)):
             new_type = cwl.ArraySchema(items=new_type, type='array')

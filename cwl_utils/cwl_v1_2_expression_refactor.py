@@ -703,20 +703,21 @@ def process_workflow_inputs_and_outputs(
                 target = cwl.WorkflowInputParameter(id=None, type=target_type)
                 if not isinstance(param2.outputSource, list):
                     sources = param2.outputSource.split("#")[-1]
-                    source_type_items = utils.type_for_source(workflow, sources)
-                    if "null" not in source_type_items:
-                        source_type_items = ["null", source_type_items]
-                    source_type = cwl.CommandInputParameter(
-                        type=cwl.ArraySchema(type="array", items=source_type_items)
-                    )
                 else:
                     sources = [s.split("#")[-1] for s in param2.outputSource]
-                    source_type_items = cast(
-                        cwl.ArraySchema, utils.type_for_source(workflow, sources)
-                    )
-                    if "null" not in source_type_items.items:
-                        source_type_items.items.append("null")
-                    source_type = cwl.CommandInputParameter(type=source_type_items)
+                source_type_items = utils.type_for_source(workflow, sources)
+                if isinstance(source_type_items, cwl.ArraySchema):
+                    if isinstance(source_type_items.items, list):
+                        if "null" not in source_type_items.items:
+                            source_type_items.items.append("null")
+                    elif source_type_items.items != "null":
+                        source_type_items.items = ["null", source_type_items.items]
+                elif isinstance(source_type_items, list):
+                    if "null" not in source_type_items:
+                        source_type_items.append("null")
+                elif source_type_items != "null":
+                    source_type_items = ["null", source_type_items]
+                source_type = cwl.CommandInputParameter(type=source_type_items)
                 replace_expr_with_etool(
                     expression,
                     etool_id,

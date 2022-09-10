@@ -591,3 +591,76 @@ def test_v1_2_type_for_source_with_multiple_entries_merge_flattened() -> None:
     assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
     assert isinstance(source_type.items[0], cwl_utils.parser.cwl_v1_2.ArraySchema)
     assert source_type.items[0].items == "File"
+
+
+def test_v1_2_type_for_source_with_multiple_entries_first_non_null() -> None:
+    """Test that the type is correctly inferred from a list of source ids and first_non_null with CWL v1.2."""
+    uri = Path(HERE / "../testdata/cond-wf-003.1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_obj.steps[0].run = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[0].run
+        ),
+        loadingOptions=cwl_obj.loadingOptions,
+    )
+    cwl_obj.steps[1].run = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[1].run
+        ),
+        loadingOptions=cwl_obj.loadingOptions,
+    )
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+        pickValue=cwl_obj.outputs[0].pickValue,
+    )
+    assert source_type == "string"
+
+
+def test_v1_2_type_for_source_with_multiple_entries_the_only_non_null() -> None:
+    """Test that the type is correctly inferred from a list of source ids and the_only_non_null with CWL v1.2."""
+    uri = Path(HERE / "../testdata/cond-wf-004.1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_obj.steps[0].run = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[0].run
+        ),
+        loadingOptions=cwl_obj.loadingOptions,
+    )
+    cwl_obj.steps[1].run = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[1].run
+        ),
+        loadingOptions=cwl_obj.loadingOptions,
+    )
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+        pickValue=cwl_obj.outputs[0].pickValue,
+    )
+    assert source_type == "string"
+
+
+def test_v1_2_type_for_source_with_multiple_entries_all_non_null() -> None:
+    """Test that the type is correctly inferred from a list of source ids and all_non_null with CWL v1.2."""
+    uri = Path(HERE / "../testdata/cond-wf-005.1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_obj.steps[0].run = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[0].run
+        ),
+        loadingOptions=cwl_obj.loadingOptions,
+    )
+    cwl_obj.steps[1].run = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[1].run
+        ),
+        loadingOptions=cwl_obj.loadingOptions,
+    )
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+        pickValue=cwl_obj.outputs[0].pickValue,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert source_type.items == "string"
