@@ -152,15 +152,32 @@ def test_v1_0_type_for_source_with_id() -> None:
     assert source_type == "File"
 
 
-def test_v1_0_type_for_source_with_multiple_entries() -> None:
-    """Test that the type is correctly inferred from a list of source ids with CWL v1.0."""
+def test_v1_0_type_for_source_with_multiple_entries_merge_nested() -> None:
+    """Test that the type is correctly inferred from a list of source ids and merge_nested with CWL v1.0."""
+    uri = Path(HERE / "../testdata/count-lines6-wf_v10.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert isinstance(source_type.items.items[0], cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert source_type.items.items[0].items == "File"
+
+
+def test_v1_0_type_for_source_with_multiple_entries_merge_flattened() -> None:
+    """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.0."""
     uri = Path(HERE / "../testdata/count-lines7-wf_v10.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
-        cwl_obj, cwl_obj.steps[0].in_[0].source
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
     assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
-    assert source_type.items[0].type == "array"
+    assert isinstance(source_type.items[0], cwl_utils.parser.cwl_v1_0.ArraySchema)
     assert source_type.items[0].items == "File"
 
 
@@ -341,15 +358,32 @@ def test_v1_1_type_for_source_with_id() -> None:
     assert source_type == "File"
 
 
-def test_v1_1_type_for_source_with_multiple_entries() -> None:
-    """Test that the type is correctly inferred from a list of source ids with CWL v1.1."""
+def test_v1_1_type_for_source_with_multiple_entries_merge_nested() -> None:
+    """Test that the type is correctly inferred from a list of source ids and merge_nested with CWL v1.1."""
+    uri = Path(HERE / "../testdata/count-lines6-wf_v11.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert isinstance(source_type.items.items[0], cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert source_type.items.items[0].items == "File"
+
+
+def test_v1_1_type_for_source_with_multiple_entries_merge_flattened() -> None:
+    """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.1."""
     uri = Path(HERE / "../testdata/count-lines7-wf_v11.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
-        cwl_obj, cwl_obj.steps[0].in_[0].source
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
     assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
-    assert source_type.items[0].type == "array"
+    assert isinstance(source_type.items[0], cwl_utils.parser.cwl_v1_1.ArraySchema)
     assert source_type.items[0].items == "File"
 
 
@@ -530,13 +564,30 @@ def test_v1_2_type_for_source_with_id() -> None:
     assert source_type == "File"
 
 
-def test_v1_2_type_for_source_with_multiple_entries() -> None:
-    """Test that the type is correctly inferred from a list of source ids with CWL v1.2."""
+def test_v1_2_type_for_source_with_multiple_entries_merge_nested() -> None:
+    """Test that the type is correctly inferred from a list of source ids and merge_nested with CWL v1.2."""
+    uri = Path(HERE / "../testdata/count-lines6-wf_v12.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type.items.items[0], cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert source_type.items.items[0].items == "File"
+
+
+def test_v1_2_type_for_source_with_multiple_entries_merge_flattened() -> None:
+    """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.2."""
     uri = Path(HERE / "../testdata/count-lines7-wf_v12.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
-        cwl_obj, cwl_obj.steps[0].in_[0].source
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
     assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
-    assert source_type.items[0].type == "array"
+    assert isinstance(source_type.items[0], cwl_utils.parser.cwl_v1_2.ArraySchema)
     assert source_type.items[0].items == "File"

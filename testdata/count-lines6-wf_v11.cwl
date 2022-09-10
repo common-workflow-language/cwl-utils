@@ -1,6 +1,6 @@
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.1
 
 requirements:
   - class: MultipleInputFeatureRequirement
@@ -20,5 +20,5 @@ steps:
     in:
       file1:
         source: [file1, file2]
-        linkMerge: merge_flattened
+        linkMerge: merge_nested
     out: [output]

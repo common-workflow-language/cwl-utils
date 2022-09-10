@@ -6,10 +6,8 @@ requirements:
   - class: MultipleInputFeatureRequirement
 
 inputs:
-    file1:
-      type: File[]
-    file2:
-      type: File[]
+    file1: File[]
+    file2: File[]
 
 outputs:
     count_output:

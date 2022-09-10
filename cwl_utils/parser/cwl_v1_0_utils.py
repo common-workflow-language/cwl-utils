@@ -54,25 +54,41 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
 
 
 def type_for_source(
-    source: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
+    process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
     sourcenames: Union[str, List[str]],
     parent: Optional[cwl.Workflow] = None,
+    linkMerge: Optional[str] = None
 ) -> Any:
     """Determine the type for the given sourcenames."""
-    params = param_for_source_id(source, sourcenames, parent)
+    params = param_for_source_id(process, sourcenames, parent)
     if not isinstance(params, list):
-        return cwl.ArraySchema(items=params.type, type='array') if isinstance(sourcenames, List) else params.type
+        if linkMerge == 'merge_nested':
+            new_type = params.type
+            for _ in range(len(sourcenames)):
+                new_type = cwl.ArraySchema(items=new_type, type='array')
+            return new_type
+        elif isinstance(sourcenames, List):
+            return cwl.ArraySchema(items=params.type, type='array')
+        else:
+            return params.type
     new_type = []
     for p in params:
         if isinstance(p, str) and p not in new_type:
             new_type.append(p)
         elif hasattr(p, "type") and p.type not in new_type:
             new_type.append(p.type)
-    return cwl.ArraySchema(items=new_type, type='array') if isinstance(sourcenames, List) else new_type
+    if linkMerge == 'merge_nested':
+        for _ in range(len(sourcenames)):
+            new_type = cwl.ArraySchema(items=new_type, type='array')
+        return new_type
+    elif isinstance(sourcenames, List):
+        return cwl.ArraySchema(items=new_type, type='array')
+    else:
+        return new_type
 
 
 def param_for_source_id(
-    source: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
+    process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
     sourcenames: Union[str, List[str]],
     parent: Optional[cwl.Workflow] = None,
 ) -> Union[List[cwl.InputParameter], cwl.InputParameter]:
@@ -81,11 +97,11 @@ def param_for_source_id(
         sourcenames = [sourcenames]
     params: List[cwl.InputParameter] = []
     for sourcename in sourcenames:
-        if not isinstance(source, cwl.Workflow):
-            for param in source.inputs:
+        if not isinstance(process, cwl.Workflow):
+            for param in process.inputs:
                 if param.id.split("#")[-1] == sourcename.split("#")[-1]:
                     params.append(param)
-        targets = [source]
+        targets = [process]
         if parent:
             targets.append(parent)
         for target in targets:
@@ -112,7 +128,7 @@ def param_for_source_id(
     raise WorkflowException(
         "param {} not found in {}\n or\n {}.".format(
             sourcename,
-            yaml.main.round_trip_dump(cwl.save(source)),
+            yaml.main.round_trip_dump(cwl.save(process)),
             yaml.main.round_trip_dump(cwl.save(parent)),
         )
     )

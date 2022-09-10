@@ -20,5 +20,5 @@ steps:
     in:
       file1:
         source: [file1, file2]
-        linkMerge: merge_flattened
+        linkMerge: merge_nested
     out: [output]
