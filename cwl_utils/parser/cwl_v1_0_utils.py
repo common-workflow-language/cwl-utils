@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
-from typing import Any, IO, List, Optional, Union
+from typing import Any, IO, List, MutableSequence, Optional, Tuple, Union
 
 from ruamel import yaml
 from schema_salad.exceptions import ValidationException
@@ -60,23 +60,38 @@ def type_for_source(
     linkMerge: Optional[str] = None
 ) -> Any:
     """Determine the type for the given sourcenames."""
-    params = param_for_source_id(process, sourcenames, parent)
+    scatter_context: List[Optional[Tuple[int, str]]] = []
+    params = param_for_source_id(process, sourcenames, parent, scatter_context)
     if not isinstance(params, list):
+        new_type = params.type
+        if scatter_context[0] is not None:
+            if scatter_context[0][1] == 'nested_crossproduct':
+                for _ in range(scatter_context[0][0]):
+                    new_type = cwl.ArraySchema(items=new_type, type='array')
+            else:
+                new_type = cwl.ArraySchema(items=new_type, type='array')
         if linkMerge == 'merge_nested':
-            new_type = params.type
             for _ in range(len(sourcenames)):
                 new_type = cwl.ArraySchema(items=new_type, type='array')
-            return new_type
         elif isinstance(sourcenames, List):
-            return cwl.ArraySchema(items=params.type, type='array')
-        else:
-            return params.type
+            new_type = cwl.ArraySchema(items=new_type, type='array')
+        return new_type
     new_type = []
-    for p in params:
+    for p, sc in zip(params, scatter_context):
         if isinstance(p, str) and p not in new_type:
-            new_type.append(p)
+            cur_type = p
         elif hasattr(p, "type") and p.type not in new_type:
-            new_type.append(p.type)
+            cur_type = p.type
+        else:
+            cur_type = None
+        if cur_type is not None:
+            if sc is not None:
+                if sc[1] == 'nested_crossproduct':
+                    for _ in range(sc[0]):
+                        cur_type = cwl.ArraySchema(items=cur_type, type='array')
+                else:
+                    cur_type = cwl.ArraySchema(items=cur_type, type='array')
+            new_type.append(cur_type)
     if len(new_type) == 1:
         new_type = new_type[0]
     if linkMerge == 'merge_nested':
@@ -93,6 +108,7 @@ def param_for_source_id(
     process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
     sourcenames: Union[str, List[str]],
     parent: Optional[cwl.Workflow] = None,
+    scatter_context: Optional[List[Optional[Tuple[int, str]]]] = None,
 ) -> Union[List[cwl.InputParameter], cwl.InputParameter]:
     """Find the process input parameter that matches one of the given sourcenames."""
     if isinstance(sourcenames, str):
@@ -103,6 +119,8 @@ def param_for_source_id(
             for param in process.inputs:
                 if param.id.split("#")[-1] == sourcename.split("#")[-1]:
                     params.append(param)
+                    if scatter_context is not None:
+                        scatter_context.append(None)
         targets = [process]
         if parent:
             targets.append(parent)
@@ -111,6 +129,8 @@ def param_for_source_id(
                 for inp in target.inputs:
                     if inp.id.split("#")[-1] == sourcename.split("#")[-1]:
                         params.append(inp)
+                        if scatter_context is not None:
+                            scatter_context.append(None)
                 for step in target.steps:
                     if sourcename.split("#")[-1].split("/")[0] == step.id.split("#")[-1] and step.out:
                         for outp in step.out:
@@ -123,6 +143,13 @@ def param_for_source_id(
                                             == sourcename.split('#')[-1].split("/", 1)[1]
                                         ):
                                             params.append(output)
+                                            if scatter_context is not None:
+                                                if isinstance(step.scatter, str):
+                                                    scatter_context.append((1, step.scatterMethod or 'dotproduct'))
+                                                elif isinstance(step.scatter, MutableSequence):
+                                                    scatter_context.append((len(step.scatter), step.scatterMethod or 'dotproduct'))
+                                                else:
+                                                    scatter_context.append(None)
     if len(params) == 1:
         return params[0]
     elif len(params) > 1:
