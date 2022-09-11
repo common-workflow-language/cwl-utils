@@ -883,6 +883,18 @@ class RecordField(Saveable):
         self.doc = doc
         self.type = type
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, RecordField):
+            return bool(
+                self.name == other.name
+                and self.doc == other.doc
+                and self.type == other.type
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.doc, self.type))
+
     @classmethod
     def fromDoc(
         cls,
@@ -1041,6 +1053,14 @@ class RecordSchema(Saveable):
         self.fields = fields
         self.type = type
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, RecordSchema):
+            return bool(self.fields == other.fields and self.type == other.type)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.fields, self.type))
+
     @classmethod
     def fromDoc(
         cls,
@@ -1172,6 +1192,14 @@ class EnumSchema(Saveable):
         self.symbols = symbols
         self.type = type
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, EnumSchema):
+            return bool(self.symbols == other.symbols and self.type == other.type)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.symbols, self.type))
+
     @classmethod
     def fromDoc(
         cls,
@@ -1293,6 +1321,14 @@ class ArraySchema(Saveable):
             self.loadingOptions = LoadingOptions()
         self.items = items
         self.type = type
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ArraySchema):
+            return bool(self.items == other.items and self.type == other.type)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.items, self.type))
 
     @classmethod
     def fromDoc(
@@ -1504,6 +1540,42 @@ class File(Saveable):
         self.secondaryFiles = secondaryFiles
         self.format = format
         self.contents = contents
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, File):
+            return bool(
+                self.class_ == other.class_
+                and self.location == other.location
+                and self.path == other.path
+                and self.basename == other.basename
+                and self.dirname == other.dirname
+                and self.nameroot == other.nameroot
+                and self.nameext == other.nameext
+                and self.checksum == other.checksum
+                and self.size == other.size
+                and self.secondaryFiles == other.secondaryFiles
+                and self.format == other.format
+                and self.contents == other.contents
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.class_,
+                self.location,
+                self.path,
+                self.basename,
+                self.dirname,
+                self.nameroot,
+                self.nameext,
+                self.checksum,
+                self.size,
+                self.secondaryFiles,
+                self.format,
+                self.contents,
+            )
+        )
 
     @classmethod
     def fromDoc(
@@ -1914,6 +1986,22 @@ class Directory(Saveable):
         self.basename = basename
         self.listing = listing
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Directory):
+            return bool(
+                self.class_ == other.class_
+                and self.location == other.location
+                and self.path == other.path
+                and self.basename == other.basename
+                and self.listing == other.listing
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (self.class_, self.location, self.path, self.basename, self.listing)
+        )
+
     @classmethod
     def fromDoc(
         cls,
@@ -2128,6 +2216,20 @@ class InputRecordField(RecordField):
         self.inputBinding = inputBinding
         self.label = label
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, InputRecordField):
+            return bool(
+                self.name == other.name
+                and self.doc == other.doc
+                and self.type == other.type
+                and self.inputBinding == other.inputBinding
+                and self.label == other.label
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.doc, self.type, self.inputBinding, self.label))
+
     @classmethod
     def fromDoc(
         cls,
@@ -2339,6 +2441,19 @@ class InputRecordSchema(RecordSchema, InputSchema):
         self.label = label
         self.name = name
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, InputRecordSchema):
+            return bool(
+                self.fields == other.fields
+                and self.type == other.type
+                and self.label == other.label
+                and self.name == other.name
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.fields, self.type, self.label, self.name))
+
     @classmethod
     def fromDoc(
         cls,
@@ -2525,6 +2640,20 @@ class InputEnumSchema(EnumSchema, InputSchema):
         self.label = label
         self.name = name
         self.inputBinding = inputBinding
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, InputEnumSchema):
+            return bool(
+                self.symbols == other.symbols
+                and self.type == other.type
+                and self.label == other.label
+                and self.name == other.name
+                and self.inputBinding == other.inputBinding
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.symbols, self.type, self.label, self.name, self.inputBinding))
 
     @classmethod
     def fromDoc(
@@ -2733,6 +2862,19 @@ class InputArraySchema(ArraySchema, InputSchema):
         self.label = label
         self.inputBinding = inputBinding
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, InputArraySchema):
+            return bool(
+                self.items == other.items
+                and self.type == other.type
+                and self.label == other.label
+                and self.inputBinding == other.inputBinding
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.items, self.type, self.label, self.inputBinding))
+
     @classmethod
     def fromDoc(
         cls,
@@ -2907,6 +3049,19 @@ class OutputRecordField(RecordField):
         self.doc = doc
         self.type = type
         self.outputBinding = outputBinding
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, OutputRecordField):
+            return bool(
+                self.name == other.name
+                and self.doc == other.doc
+                and self.type == other.type
+                and self.outputBinding == other.outputBinding
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.doc, self.type, self.outputBinding))
 
     @classmethod
     def fromDoc(
@@ -3094,6 +3249,18 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
         self.type = type
         self.label = label
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, OutputRecordSchema):
+            return bool(
+                self.fields == other.fields
+                and self.type == other.type
+                and self.label == other.label
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.fields, self.type, self.label))
+
     @classmethod
     def fromDoc(
         cls,
@@ -3246,6 +3413,19 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         self.type = type
         self.label = label
         self.outputBinding = outputBinding
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, OutputEnumSchema):
+            return bool(
+                self.symbols == other.symbols
+                and self.type == other.type
+                and self.label == other.label
+                and self.outputBinding == other.outputBinding
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.symbols, self.type, self.label, self.outputBinding))
 
     @classmethod
     def fromDoc(
@@ -3421,6 +3601,19 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         self.type = type
         self.label = label
         self.outputBinding = outputBinding
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, OutputArraySchema):
+            return bool(
+                self.items == other.items
+                and self.type == other.type
+                and self.label == other.label
+                and self.outputBinding == other.outputBinding
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.items, self.type, self.label, self.outputBinding))
 
     @classmethod
     def fromDoc(
@@ -3606,6 +3799,36 @@ class InputParameter(Parameter):
         self.inputBinding = inputBinding
         self.default = default
         self.type = type
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, InputParameter):
+            return bool(
+                self.label == other.label
+                and self.secondaryFiles == other.secondaryFiles
+                and self.streamable == other.streamable
+                and self.doc == other.doc
+                and self.id == other.id
+                and self.format == other.format
+                and self.inputBinding == other.inputBinding
+                and self.default == other.default
+                and self.type == other.type
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.label,
+                self.secondaryFiles,
+                self.streamable,
+                self.doc,
+                self.id,
+                self.format,
+                self.inputBinding,
+                self.default,
+                self.type,
+            )
+        )
 
     @classmethod
     def fromDoc(
@@ -3936,6 +4159,32 @@ class OutputParameter(Parameter):
         self.outputBinding = outputBinding
         self.format = format
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, OutputParameter):
+            return bool(
+                self.label == other.label
+                and self.secondaryFiles == other.secondaryFiles
+                and self.streamable == other.streamable
+                and self.doc == other.doc
+                and self.id == other.id
+                and self.outputBinding == other.outputBinding
+                and self.format == other.format
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.label,
+                self.secondaryFiles,
+                self.streamable,
+                self.doc,
+                self.id,
+                self.outputBinding,
+                self.format,
+            )
+        )
+
     @classmethod
     def fromDoc(
         cls,
@@ -4239,6 +4488,17 @@ class InlineJavascriptRequirement(ProcessRequirement):
         self.class_ = "InlineJavascriptRequirement"
         self.expressionLib = expressionLib
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, InlineJavascriptRequirement):
+            return bool(
+                self.class_ == other.class_
+                and self.expressionLib == other.expressionLib
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.expressionLib))
+
     @classmethod
     def fromDoc(
         cls,
@@ -4366,6 +4626,14 @@ class SchemaDefRequirement(ProcessRequirement):
         self.class_ = "SchemaDefRequirement"
         self.types = types
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, SchemaDefRequirement):
+            return bool(self.class_ == other.class_ and self.types == other.types)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.types))
+
     @classmethod
     def fromDoc(
         cls,
@@ -4481,6 +4749,16 @@ class EnvironmentDef(Saveable):
             self.loadingOptions = LoadingOptions()
         self.envName = envName
         self.envValue = envValue
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, EnvironmentDef):
+            return bool(
+                self.envName == other.envName and self.envValue == other.envValue
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.envName, self.envValue))
 
     @classmethod
     def fromDoc(
@@ -4653,6 +4931,32 @@ class CommandLineBinding(InputBinding):
         self.itemSeparator = itemSeparator
         self.valueFrom = valueFrom
         self.shellQuote = shellQuote
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandLineBinding):
+            return bool(
+                self.loadContents == other.loadContents
+                and self.position == other.position
+                and self.prefix == other.prefix
+                and self.separate == other.separate
+                and self.itemSeparator == other.itemSeparator
+                and self.valueFrom == other.valueFrom
+                and self.shellQuote == other.shellQuote
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.loadContents,
+                self.position,
+                self.prefix,
+                self.separate,
+                self.itemSeparator,
+                self.valueFrom,
+                self.shellQuote,
+            )
+        )
 
     @classmethod
     def fromDoc(
@@ -4936,6 +5240,18 @@ class CommandOutputBinding(OutputBinding):
         self.loadContents = loadContents
         self.outputEval = outputEval
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandOutputBinding):
+            return bool(
+                self.glob == other.glob
+                and self.loadContents == other.loadContents
+                and self.outputEval == other.outputEval
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.glob, self.loadContents, self.outputEval))
+
     @classmethod
     def fromDoc(
         cls,
@@ -5099,6 +5415,20 @@ class CommandInputRecordField(InputRecordField):
         self.type = type
         self.inputBinding = inputBinding
         self.label = label
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandInputRecordField):
+            return bool(
+                self.name == other.name
+                and self.doc == other.doc
+                and self.type == other.type
+                and self.inputBinding == other.inputBinding
+                and self.label == other.label
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.doc, self.type, self.inputBinding, self.label))
 
     @classmethod
     def fromDoc(
@@ -5313,6 +5643,19 @@ class CommandInputRecordSchema(InputRecordSchema):
         self.label = label
         self.name = name
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandInputRecordSchema):
+            return bool(
+                self.fields == other.fields
+                and self.type == other.type
+                and self.label == other.label
+                and self.name == other.name
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.fields, self.type, self.label, self.name))
+
     @classmethod
     def fromDoc(
         cls,
@@ -5501,6 +5844,20 @@ class CommandInputEnumSchema(InputEnumSchema):
         self.label = label
         self.name = name
         self.inputBinding = inputBinding
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandInputEnumSchema):
+            return bool(
+                self.symbols == other.symbols
+                and self.type == other.type
+                and self.label == other.label
+                and self.name == other.name
+                and self.inputBinding == other.inputBinding
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.symbols, self.type, self.label, self.name, self.inputBinding))
 
     @classmethod
     def fromDoc(
@@ -5711,6 +6068,19 @@ class CommandInputArraySchema(InputArraySchema):
         self.label = label
         self.inputBinding = inputBinding
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandInputArraySchema):
+            return bool(
+                self.items == other.items
+                and self.type == other.type
+                and self.label == other.label
+                and self.inputBinding == other.inputBinding
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.items, self.type, self.label, self.inputBinding))
+
     @classmethod
     def fromDoc(
         cls,
@@ -5887,6 +6257,19 @@ class CommandOutputRecordField(OutputRecordField):
         self.doc = doc
         self.type = type
         self.outputBinding = outputBinding
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandOutputRecordField):
+            return bool(
+                self.name == other.name
+                and self.doc == other.doc
+                and self.type == other.type
+                and self.outputBinding == other.outputBinding
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.doc, self.type, self.outputBinding))
 
     @classmethod
     def fromDoc(
@@ -6078,6 +6461,19 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         self.label = label
         self.name = name
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandOutputRecordSchema):
+            return bool(
+                self.fields == other.fields
+                and self.type == other.type
+                and self.label == other.label
+                and self.name == other.name
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.fields, self.type, self.label, self.name))
+
     @classmethod
     def fromDoc(
         cls,
@@ -6265,6 +6661,19 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         self.label = label
         self.outputBinding = outputBinding
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandOutputEnumSchema):
+            return bool(
+                self.symbols == other.symbols
+                and self.type == other.type
+                and self.label == other.label
+                and self.outputBinding == other.outputBinding
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.symbols, self.type, self.label, self.outputBinding))
+
     @classmethod
     def fromDoc(
         cls,
@@ -6441,6 +6850,19 @@ class CommandOutputArraySchema(OutputArraySchema):
         self.type = type
         self.label = label
         self.outputBinding = outputBinding
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandOutputArraySchema):
+            return bool(
+                self.items == other.items
+                and self.type == other.type
+                and self.label == other.label
+                and self.outputBinding == other.outputBinding
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.items, self.type, self.label, self.outputBinding))
 
     @classmethod
     def fromDoc(
@@ -6632,6 +7054,36 @@ class CommandInputParameter(InputParameter):
         self.inputBinding = inputBinding
         self.default = default
         self.type = type
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandInputParameter):
+            return bool(
+                self.label == other.label
+                and self.secondaryFiles == other.secondaryFiles
+                and self.streamable == other.streamable
+                and self.doc == other.doc
+                and self.id == other.id
+                and self.format == other.format
+                and self.inputBinding == other.inputBinding
+                and self.default == other.default
+                and self.type == other.type
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.label,
+                self.secondaryFiles,
+                self.streamable,
+                self.doc,
+                self.id,
+                self.format,
+                self.inputBinding,
+                self.default,
+                self.type,
+            )
+        )
 
     @classmethod
     def fromDoc(
@@ -6968,6 +7420,34 @@ class CommandOutputParameter(OutputParameter):
         self.format = format
         self.type = type
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandOutputParameter):
+            return bool(
+                self.label == other.label
+                and self.secondaryFiles == other.secondaryFiles
+                and self.streamable == other.streamable
+                and self.doc == other.doc
+                and self.id == other.id
+                and self.outputBinding == other.outputBinding
+                and self.format == other.format
+                and self.type == other.type
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.label,
+                self.secondaryFiles,
+                self.streamable,
+                self.doc,
+                self.id,
+                self.outputBinding,
+                self.format,
+                self.type,
+            )
+        )
+
     @classmethod
     def fromDoc(
         cls,
@@ -7298,6 +7778,52 @@ class CommandLineTool(Process):
         self.successCodes = successCodes
         self.temporaryFailCodes = temporaryFailCodes
         self.permanentFailCodes = permanentFailCodes
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CommandLineTool):
+            return bool(
+                self.id == other.id
+                and self.inputs == other.inputs
+                and self.outputs == other.outputs
+                and self.requirements == other.requirements
+                and self.hints == other.hints
+                and self.label == other.label
+                and self.doc == other.doc
+                and self.cwlVersion == other.cwlVersion
+                and self.class_ == other.class_
+                and self.baseCommand == other.baseCommand
+                and self.arguments == other.arguments
+                and self.stdin == other.stdin
+                and self.stderr == other.stderr
+                and self.stdout == other.stdout
+                and self.successCodes == other.successCodes
+                and self.temporaryFailCodes == other.temporaryFailCodes
+                and self.permanentFailCodes == other.permanentFailCodes
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.id,
+                self.inputs,
+                self.outputs,
+                self.requirements,
+                self.hints,
+                self.label,
+                self.doc,
+                self.cwlVersion,
+                self.class_,
+                self.baseCommand,
+                self.arguments,
+                self.stdin,
+                self.stderr,
+                self.stdout,
+                self.successCodes,
+                self.temporaryFailCodes,
+                self.permanentFailCodes,
+            )
+        )
 
     @classmethod
     def fromDoc(
@@ -7839,6 +8365,32 @@ class DockerRequirement(ProcessRequirement):
         self.dockerImageId = dockerImageId
         self.dockerOutputDirectory = dockerOutputDirectory
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, DockerRequirement):
+            return bool(
+                self.class_ == other.class_
+                and self.dockerPull == other.dockerPull
+                and self.dockerLoad == other.dockerLoad
+                and self.dockerFile == other.dockerFile
+                and self.dockerImport == other.dockerImport
+                and self.dockerImageId == other.dockerImageId
+                and self.dockerOutputDirectory == other.dockerOutputDirectory
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.class_,
+                self.dockerPull,
+                self.dockerLoad,
+                self.dockerFile,
+                self.dockerImport,
+                self.dockerImageId,
+                self.dockerOutputDirectory,
+            )
+        )
+
     @classmethod
     def fromDoc(
         cls,
@@ -8099,6 +8651,14 @@ class SoftwareRequirement(ProcessRequirement):
         self.class_ = "SoftwareRequirement"
         self.packages = packages
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, SoftwareRequirement):
+            return bool(self.class_ == other.class_ and self.packages == other.packages)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.packages))
+
     @classmethod
     def fromDoc(
         cls,
@@ -8209,6 +8769,18 @@ class SoftwarePackage(Saveable):
         self.package = package
         self.version = version
         self.specs = specs
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, SoftwarePackage):
+            return bool(
+                self.package == other.package
+                and self.version == other.version
+                and self.specs == other.specs
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.package, self.version, self.specs))
 
     @classmethod
     def fromDoc(
@@ -8369,6 +8941,18 @@ class Dirent(Saveable):
         self.entry = entry
         self.writable = writable
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Dirent):
+            return bool(
+                self.entryname == other.entryname
+                and self.entry == other.entry
+                and self.writable == other.writable
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.entryname, self.entry, self.writable))
+
     @classmethod
     def fromDoc(
         cls,
@@ -8524,6 +9108,14 @@ class InitialWorkDirRequirement(ProcessRequirement):
         self.class_ = "InitialWorkDirRequirement"
         self.listing = listing
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, InitialWorkDirRequirement):
+            return bool(self.class_ == other.class_ and self.listing == other.listing)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.listing))
+
     @classmethod
     def fromDoc(
         cls,
@@ -8639,6 +9231,14 @@ class EnvVarRequirement(ProcessRequirement):
             self.loadingOptions = LoadingOptions()
         self.class_ = "EnvVarRequirement"
         self.envDef = envDef
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, EnvVarRequirement):
+            return bool(self.class_ == other.class_ and self.envDef == other.envDef)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.envDef))
 
     @classmethod
     def fromDoc(
@@ -8756,6 +9356,14 @@ class ShellCommandRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_ = "ShellCommandRequirement"
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ShellCommandRequirement):
+            return bool(self.class_ == other.class_)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_))
 
     @classmethod
     def fromDoc(
@@ -8882,6 +9490,36 @@ class ResourceRequirement(ProcessRequirement):
         self.tmpdirMax = tmpdirMax
         self.outdirMin = outdirMin
         self.outdirMax = outdirMax
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ResourceRequirement):
+            return bool(
+                self.class_ == other.class_
+                and self.coresMin == other.coresMin
+                and self.coresMax == other.coresMax
+                and self.ramMin == other.ramMin
+                and self.ramMax == other.ramMax
+                and self.tmpdirMin == other.tmpdirMin
+                and self.tmpdirMax == other.tmpdirMax
+                and self.outdirMin == other.outdirMin
+                and self.outdirMax == other.outdirMax
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.class_,
+                self.coresMin,
+                self.coresMax,
+                self.ramMin,
+                self.ramMax,
+                self.tmpdirMin,
+                self.tmpdirMax,
+                self.outdirMin,
+                self.outdirMax,
+            )
+        )
 
     @classmethod
     def fromDoc(
@@ -9191,6 +9829,34 @@ class ExpressionToolOutputParameter(OutputParameter):
         self.outputBinding = outputBinding
         self.format = format
         self.type = type
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ExpressionToolOutputParameter):
+            return bool(
+                self.label == other.label
+                and self.secondaryFiles == other.secondaryFiles
+                and self.streamable == other.streamable
+                and self.doc == other.doc
+                and self.id == other.id
+                and self.outputBinding == other.outputBinding
+                and self.format == other.format
+                and self.type == other.type
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.label,
+                self.secondaryFiles,
+                self.streamable,
+                self.doc,
+                self.id,
+                self.outputBinding,
+                self.format,
+                self.type,
+            )
+        )
 
     @classmethod
     def fromDoc(
@@ -9508,6 +10174,38 @@ class ExpressionTool(Process):
         self.cwlVersion = cwlVersion
         self.class_ = "ExpressionTool"
         self.expression = expression
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ExpressionTool):
+            return bool(
+                self.id == other.id
+                and self.inputs == other.inputs
+                and self.outputs == other.outputs
+                and self.requirements == other.requirements
+                and self.hints == other.hints
+                and self.label == other.label
+                and self.doc == other.doc
+                and self.cwlVersion == other.cwlVersion
+                and self.class_ == other.class_
+                and self.expression == other.expression
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.id,
+                self.inputs,
+                self.outputs,
+                self.requirements,
+                self.hints,
+                self.label,
+                self.doc,
+                self.cwlVersion,
+                self.class_,
+                self.expression,
+            )
+        )
 
     @classmethod
     def fromDoc(
@@ -9845,6 +10543,38 @@ class WorkflowOutputParameter(OutputParameter):
         self.outputSource = outputSource
         self.linkMerge = linkMerge
         self.type = type
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, WorkflowOutputParameter):
+            return bool(
+                self.label == other.label
+                and self.secondaryFiles == other.secondaryFiles
+                and self.streamable == other.streamable
+                and self.doc == other.doc
+                and self.id == other.id
+                and self.outputBinding == other.outputBinding
+                and self.format == other.format
+                and self.outputSource == other.outputSource
+                and self.linkMerge == other.linkMerge
+                and self.type == other.type
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.label,
+                self.secondaryFiles,
+                self.streamable,
+                self.doc,
+                self.id,
+                self.outputBinding,
+                self.format,
+                self.outputSource,
+                self.linkMerge,
+                self.type,
+            )
+        )
 
     @classmethod
     def fromDoc(
@@ -10243,6 +10973,22 @@ class WorkflowStepInput(Sink):
         self.default = default
         self.valueFrom = valueFrom
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, WorkflowStepInput):
+            return bool(
+                self.source == other.source
+                and self.linkMerge == other.linkMerge
+                and self.id == other.id
+                and self.default == other.default
+                and self.valueFrom == other.valueFrom
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (self.source, self.linkMerge, self.id, self.default, self.valueFrom)
+        )
+
     @classmethod
     def fromDoc(
         cls,
@@ -10455,6 +11201,14 @@ class WorkflowStepOutput(Saveable):
             self.loadingOptions = LoadingOptions()
         self.id = id
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, WorkflowStepOutput):
+            return bool(self.id == other.id)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.id))
+
     @classmethod
     def fromDoc(
         cls,
@@ -10642,6 +11396,38 @@ class WorkflowStep(Saveable):
         self.run = run
         self.scatter = scatter
         self.scatterMethod = scatterMethod
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, WorkflowStep):
+            return bool(
+                self.id == other.id
+                and self.in_ == other.in_
+                and self.out == other.out
+                and self.requirements == other.requirements
+                and self.hints == other.hints
+                and self.label == other.label
+                and self.doc == other.doc
+                and self.run == other.run
+                and self.scatter == other.scatter
+                and self.scatterMethod == other.scatterMethod
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.id,
+                self.in_,
+                self.out,
+                self.requirements,
+                self.hints,
+                self.label,
+                self.doc,
+                self.run,
+                self.scatter,
+                self.scatterMethod,
+            )
+        )
 
     @classmethod
     def fromDoc(
@@ -11034,6 +11820,38 @@ class Workflow(Process):
         self.class_ = "Workflow"
         self.steps = steps
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Workflow):
+            return bool(
+                self.id == other.id
+                and self.inputs == other.inputs
+                and self.outputs == other.outputs
+                and self.requirements == other.requirements
+                and self.hints == other.hints
+                and self.label == other.label
+                and self.doc == other.doc
+                and self.cwlVersion == other.cwlVersion
+                and self.class_ == other.class_
+                and self.steps == other.steps
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.id,
+                self.inputs,
+                self.outputs,
+                self.requirements,
+                self.hints,
+                self.label,
+                self.doc,
+                self.cwlVersion,
+                self.class_,
+                self.steps,
+            )
+        )
+
     @classmethod
     def fromDoc(
         cls,
@@ -11348,6 +12166,14 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
             self.loadingOptions = LoadingOptions()
         self.class_ = "SubworkflowFeatureRequirement"
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, SubworkflowFeatureRequirement):
+            return bool(self.class_ == other.class_)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_))
+
     @classmethod
     def fromDoc(
         cls,
@@ -11439,6 +12265,14 @@ class ScatterFeatureRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_ = "ScatterFeatureRequirement"
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ScatterFeatureRequirement):
+            return bool(self.class_ == other.class_)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_))
 
     @classmethod
     def fromDoc(
@@ -11532,6 +12366,14 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
             self.loadingOptions = LoadingOptions()
         self.class_ = "MultipleInputFeatureRequirement"
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, MultipleInputFeatureRequirement):
+            return bool(self.class_ == other.class_)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_))
+
     @classmethod
     def fromDoc(
         cls,
@@ -11623,6 +12465,14 @@ class StepInputExpressionRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_ = "StepInputExpressionRequirement"
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, StepInputExpressionRequirement):
+            return bool(self.class_ == other.class_)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_))
 
     @classmethod
     def fromDoc(
