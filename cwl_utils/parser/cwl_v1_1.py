@@ -12982,7 +12982,7 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
             try:
                 default = load_field(
                     _doc.get("default"),
-                    union_of_None_type_or_Any_type,
+                    union_of_None_type_or_FileLoader_or_DirectoryLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
                 )
@@ -15516,12 +15516,6 @@ union_of_None_type_or_LinkMergeMethodLoader = _UnionLoader(
 )
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2 = _URILoader(
     union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2
-)
-union_of_None_type_or_Any_type = _UnionLoader(
-    (
-        None_type,
-        Any_type,
-    )
 )
 array_of_WorkflowStepInputLoader = _ArrayLoader(WorkflowStepInputLoader)
 idmap_in__array_of_WorkflowStepInputLoader = _IdMapLoader(
