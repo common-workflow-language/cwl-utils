@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test the CWL parsers utility functions."""
+import tempfile
 from pathlib import Path
 
 from pytest import raises
@@ -11,9 +12,30 @@ import cwl_utils.parser.cwl_v1_1
 import cwl_utils.parser.cwl_v1_1_utils
 import cwl_utils.parser.cwl_v1_2
 import cwl_utils.parser.cwl_v1_2_utils
+from cwl_utils.errors import WorkflowException
 from cwl_utils.parser import load_document_by_uri
 
 HERE = Path(__file__).resolve().parent
+
+
+def test_v1_0_file_content_64_kB() -> None:
+    """Test that reading file content is allowed up to 64kB in CWL v1.0."""
+    text = "a" * cwl_utils.parser.cwl_v1_0_utils.CONTENT_LIMIT
+    with tempfile.TemporaryFile() as f:
+        f.write(text.encode("utf-8"))
+        f.seek(0)
+        content = cwl_utils.parser.cwl_v1_0_utils.content_limit_respected_read(f)
+    assert content == text
+
+
+def test_v1_0_file_content_larger_than_64_kB() -> None:
+    """Test that reading file content is truncated to 64kB for larger files in CWL v1.0."""
+    text = "a" * (cwl_utils.parser.cwl_v1_0_utils.CONTENT_LIMIT + 1)
+    with tempfile.TemporaryFile() as f:
+        f.write(text.encode("utf-8"))
+        f.seek(0)
+        content = cwl_utils.parser.cwl_v1_0_utils.content_limit_respected_read(f)
+    assert content == text[0 : cwl_utils.parser.cwl_v1_0_utils.CONTENT_LIMIT]
 
 
 def test_v1_0_stdout_to_file() -> None:
@@ -128,6 +150,26 @@ def test_v1_0_type_for_source_with_id() -> None:
         cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
     )
     assert source_type == "File"
+
+
+def test_v1_1_file_content_64_kB() -> None:
+    """Test that reading file content is allowed up to 64kB in CWL v1.1."""
+    text = "a" * cwl_utils.parser.cwl_v1_1_utils.CONTENT_LIMIT
+    with tempfile.TemporaryFile() as f:
+        f.write(text.encode("utf-8"))
+        f.seek(0)
+        content = cwl_utils.parser.cwl_v1_1_utils.content_limit_respected_read(f)
+    assert content == text
+
+
+def test_v1_1_file_content_larger_than_64_kB() -> None:
+    """Test that reading file content is truncated to 64kB for larger files in CWL v1.1."""
+    text = "a" * (cwl_utils.parser.cwl_v1_1_utils.CONTENT_LIMIT + 1)
+    with tempfile.TemporaryFile() as f:
+        f.write(text.encode("utf-8"))
+        f.seek(0)
+        content = cwl_utils.parser.cwl_v1_1_utils.content_limit_respected_read(f)
+    assert content == text[0 : cwl_utils.parser.cwl_v1_1_utils.CONTENT_LIMIT]
 
 
 def test_v1_1_stdout_to_file() -> None:
@@ -285,6 +327,26 @@ def test_v1_1_type_for_source_with_id() -> None:
         cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
     )
     assert source_type == "File"
+
+
+def test_v1_2_file_content_64_kB() -> None:
+    """Test that reading file content is allowed up to 64kB in CWL v1.2."""
+    text = "a" * cwl_utils.parser.cwl_v1_2_utils.CONTENT_LIMIT
+    with tempfile.TemporaryFile() as f:
+        f.write(text.encode("utf-8"))
+        f.seek(0)
+        content = cwl_utils.parser.cwl_v1_2_utils.content_limit_respected_read(f)
+    assert content == text
+
+
+def test_v1_2_file_content_larger_than_64_kB() -> None:
+    """Test that reading file content fails for files larger than 64kB in CWL v1.0."""
+    with raises(WorkflowException):
+        text = "a" * (cwl_utils.parser.cwl_v1_2_utils.CONTENT_LIMIT + 1)
+        with tempfile.TemporaryFile() as f:
+            f.write(text.encode("utf-8"))
+            f.seek(0)
+            cwl_utils.parser.cwl_v1_2_utils.content_limit_respected_read(f)
 
 
 def test_v1_2_stdout_to_file() -> None:
