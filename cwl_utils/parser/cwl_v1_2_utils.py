@@ -154,9 +154,9 @@ def param_for_source_id(
     elif len(params) > 1:
         return params
     raise WorkflowException(
-        "param {} not found in {}\n or\n {}.".format(
+        "param {} not found in {}\n{}.".format(
             sourcename,
             yaml.main.round_trip_dump(cwl.save(process)),
-            yaml.main.round_trip_dump(cwl.save(parent)),
+            " or\n {}".format(yaml.main.round_trip_dump(cwl.save(parent)) if parent is not None else ""),
         )
     )
