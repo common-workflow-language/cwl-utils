@@ -13763,11 +13763,13 @@ class WorkflowStep(Identified, Labeled, Documented):
                 )
         else:
             hints = None
+
+        subscope_baseuri = expand_url('run', baseuri, loadingOptions, True)
         try:
             run = load_field(
                 _doc.get("run"),
                 uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_False_False_None,
-                baseuri,
+                subscope_baseuri,
                 loadingOptions,
             )
         except ValidationException as e:
