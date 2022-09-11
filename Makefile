@@ -192,6 +192,26 @@ release: release-test
 flake8: $(PYSOURCES)
 	flake8 $^
 
+cwl_utils/parser/cwl_v1_0.py: FORCE
+	schema-salad-tool --codegen python \
+		--codegen-parser-info "org.w3id.cwl.v1_0" \
+		https://github.com/common-workflow-language/common-workflow-language/raw/codegen/v1.0/CommonWorkflowLanguage.yml \
+		> $@
+
+cwl_utils/parser/cwl_v1_1.py: FORCE
+	schema-salad-tool --codegen python \
+		--codegen-parser-info "org.w3id.cwl.v1_1" \
+		https://github.com/common-workflow-language/cwl-v1.1/raw/codegen/CommonWorkflowLanguage.yml \
+		> $@
+
+cwl_utils/parser/cwl_v1_2.py: FORCE
+	schema-salad-tool --codegen python \
+		--codegen-parser-info "org.w3id.cwl.v1_2" \
+		https://github.com/common-workflow-language/cwl-v1.2/raw/1.2.1_proposed/CommonWorkflowLanguage.yml \
+		> $@
+
+regen_parsers: cwl_utils/parser/cwl_v1_*.py
+
 FORCE:
 
 # Use this to print the value of a Makefile variable
