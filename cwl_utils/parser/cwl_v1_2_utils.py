@@ -188,6 +188,6 @@ def param_for_source_id(
         "param {} not found in {}\n{}.".format(
             sourcename,
             yaml.main.round_trip_dump(cwl.save(process)),
-            " or\n {}".format(yaml.main.round_trip_dump(cwl.save(parent)) if parent is not None else ""),
+            " or\n {}".format(yaml.main.round_trip_dump(cwl.save(parent))) if parent is not None else "",
         )
     )
