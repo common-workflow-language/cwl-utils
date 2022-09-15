@@ -132,15 +132,15 @@ def param_for_source_id(
                         if scatter_context is not None:
                             scatter_context.append(None)
                 for step in target.steps:
-                    if sourcename.split("#")[-1].split("/")[0] == step.id.split("#")[-1] and step.out:
+                    if '/'.join(sourcename.split("#")[-1].split("/")[:-1]) == step.id.split("#")[-1] and step.out:
                         for outp in step.out:
                             outp_id = outp if isinstance(outp, str) else outp.id
-                            if outp_id.split("#")[-1].split("/")[-1] == sourcename.split("#")[-1].split("/", 1)[1]:
+                            if outp_id.split("#")[-1].split("/")[-1] == sourcename.split("#")[-1].split("/")[-1]:
                                 if step.run and step.run.outputs:
                                     for output in step.run.outputs:
                                         if (
-                                            output.id.split("#")[-1].split('/')[-1]
-                                            == sourcename.split('#')[-1].split("/", 1)[1]
+                                            output.id.split("#")[-1].split("/")[-1]
+                                            == sourcename.split('#')[-1].split("/")[-1]
                                         ):
                                             params.append(output)
                                             if scatter_context is not None:

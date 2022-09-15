@@ -177,6 +177,22 @@ def test_v1_0_type_for_output_source_with_nested_crossproduct_scatter_step() -> 
     assert source_type.items.items == "string"
 
 
+def test_v1_0_type_for_output_source_with_flat_crossproduct_scatter_step() -> None:
+    """Test that the type is correctly inferred from a flat_crossproduct scatter step with CWL v1.0."""
+    uri = Path(HERE / "../testdata/scatter-wf3_v10.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_obj.steps[0].run = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri,
+            url=cwl_obj.steps[0].run),
+        loadingOptions=cwl_obj.loadingOptions)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource)
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert source_type.items == "string"
+
+
 def test_v1_0_type_for_source_with_multiple_entries_merge_nested() -> None:
     """Test that the type is correctly inferred from a list of source ids and merge_nested with CWL v1.0."""
     uri = Path(HERE / "../testdata/count-lines6-wf_v10.cwl").resolve().as_uri()
@@ -408,6 +424,23 @@ def test_v1_1_type_for_output_source_with_nested_crossproduct_scatter_step() -> 
     assert source_type.items.items == "string"
 
 
+def test_v1_1_type_for_output_source_with_flat_crossproduct_scatter_step() -> None:
+    """Test that the type is correctly inferred from a flat_crossproduct scatter step with CWL v1.1."""
+    uri = Path(HERE / "../testdata/scatter-wf3_v11.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_obj.steps[0].run = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri,
+            url=cwl_obj.steps[0].run),
+        loadingOptions=cwl_obj.loadingOptions)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert source_type.items == "string"
+
+
 def test_v1_1_type_for_source_with_multiple_entries_merge_nested() -> None:
     """Test that the type is correctly inferred from a list of source ids and merge_nested with CWL v1.1."""
     uri = Path(HERE / "../testdata/count-lines6-wf_v11.cwl").resolve().as_uri()
@@ -637,6 +670,23 @@ def test_v1_2_type_for_output_source_with_nested_crossproduct_scatter_step() -> 
     assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
     assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_2.ArraySchema)
     assert source_type.items.items == "string"
+
+
+def test_v1_2_type_for_output_source_with_flat_crossproduct_scatter_step() -> None:
+    """Test that the type is correctly inferred from a flat_crossproduct scatter step with CWL v1.2."""
+    uri = Path(HERE / "../testdata/scatter-wf3_v12.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_obj.steps[0].run = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri,
+            url=cwl_obj.steps[0].run),
+        loadingOptions=cwl_obj.loadingOptions)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert source_type.items == "string"
 
 
 def test_v1_2_type_for_source_with_multiple_entries_merge_nested() -> None:
