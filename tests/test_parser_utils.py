@@ -181,14 +181,9 @@ def test_v1_0_type_for_output_source_with_flat_crossproduct_scatter_step() -> No
     """Test that the type is correctly inferred from a flat_crossproduct scatter step with CWL v1.0."""
     uri = Path(HERE / "../testdata/scatter-wf3_v10.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
-    cwl_obj.steps[0].run = load_document_by_uri(
-        path=cwl_obj.loadingOptions.fetcher.urljoin(
-            base_url=cwl_obj.loadingOptions.fileuri,
-            url=cwl_obj.steps[0].run),
-        loadingOptions=cwl_obj.loadingOptions)
     source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
-        process=cwl_obj,
-        sourcenames=cwl_obj.outputs[0].outputSource)
+        process=cwl_obj, sourcenames=cwl_obj.outputs[0].outputSource
+    )
     assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
     assert source_type.items == "string"
 
@@ -428,11 +423,6 @@ def test_v1_1_type_for_output_source_with_flat_crossproduct_scatter_step() -> No
     """Test that the type is correctly inferred from a flat_crossproduct scatter step with CWL v1.1."""
     uri = Path(HERE / "../testdata/scatter-wf3_v11.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
-    cwl_obj.steps[0].run = load_document_by_uri(
-        path=cwl_obj.loadingOptions.fetcher.urljoin(
-            base_url=cwl_obj.loadingOptions.fileuri,
-            url=cwl_obj.steps[0].run),
-        loadingOptions=cwl_obj.loadingOptions)
     source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
         process=cwl_obj,
         sourcenames=cwl_obj.outputs[0].outputSource,
@@ -676,11 +666,6 @@ def test_v1_2_type_for_output_source_with_flat_crossproduct_scatter_step() -> No
     """Test that the type is correctly inferred from a flat_crossproduct scatter step with CWL v1.2."""
     uri = Path(HERE / "../testdata/scatter-wf3_v12.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
-    cwl_obj.steps[0].run = load_document_by_uri(
-        path=cwl_obj.loadingOptions.fetcher.urljoin(
-            base_url=cwl_obj.loadingOptions.fileuri,
-            url=cwl_obj.steps[0].run),
-        loadingOptions=cwl_obj.loadingOptions)
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
         sourcenames=cwl_obj.outputs[0].outputSource,
@@ -722,18 +707,6 @@ def test_v1_2_type_for_source_with_multiple_entries_first_non_null() -> None:
     """Test that the type is correctly inferred from a list of source ids and first_non_null with CWL v1.2."""
     uri = Path(HERE / "../testdata/cond-wf-003.1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
-    cwl_obj.steps[0].run = load_document_by_uri(
-        path=cwl_obj.loadingOptions.fetcher.urljoin(
-            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[0].run
-        ),
-        loadingOptions=cwl_obj.loadingOptions,
-    )
-    cwl_obj.steps[1].run = load_document_by_uri(
-        path=cwl_obj.loadingOptions.fetcher.urljoin(
-            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[1].run
-        ),
-        loadingOptions=cwl_obj.loadingOptions,
-    )
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
         sourcenames=cwl_obj.outputs[0].outputSource,
@@ -746,18 +719,6 @@ def test_v1_2_type_for_source_with_multiple_entries_the_only_non_null() -> None:
     """Test that the type is correctly inferred from a list of source ids and the_only_non_null with CWL v1.2."""
     uri = Path(HERE / "../testdata/cond-wf-004.1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
-    cwl_obj.steps[0].run = load_document_by_uri(
-        path=cwl_obj.loadingOptions.fetcher.urljoin(
-            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[0].run
-        ),
-        loadingOptions=cwl_obj.loadingOptions,
-    )
-    cwl_obj.steps[1].run = load_document_by_uri(
-        path=cwl_obj.loadingOptions.fetcher.urljoin(
-            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[1].run
-        ),
-        loadingOptions=cwl_obj.loadingOptions,
-    )
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
         sourcenames=cwl_obj.outputs[0].outputSource,
@@ -770,18 +731,6 @@ def test_v1_2_type_for_source_with_multiple_entries_all_non_null() -> None:
     """Test that the type is correctly inferred from a list of source ids and all_non_null with CWL v1.2."""
     uri = Path(HERE / "../testdata/cond-wf-005.1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
-    cwl_obj.steps[0].run = load_document_by_uri(
-        path=cwl_obj.loadingOptions.fetcher.urljoin(
-            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[0].run
-        ),
-        loadingOptions=cwl_obj.loadingOptions,
-    )
-    cwl_obj.steps[1].run = load_document_by_uri(
-        path=cwl_obj.loadingOptions.fetcher.urljoin(
-            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[1].run
-        ),
-        loadingOptions=cwl_obj.loadingOptions,
-    )
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
         sourcenames=cwl_obj.outputs[0].outputSource,

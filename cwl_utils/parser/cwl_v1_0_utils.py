@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
-from typing import Any, IO, List, MutableSequence, Optional, Tuple, Union
+from typing import Any, IO, List, MutableSequence, Optional, Tuple, Union, cast
 
 from ruamel import yaml
 from schema_salad.exceptions import ValidationException
 from schema_salad.utils import json_dumps
 
+import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_0 as cwl
 from cwl_utils.errors import WorkflowException
 
@@ -136,8 +137,15 @@ def param_for_source_id(
                         for outp in step.out:
                             outp_id = outp if isinstance(outp, str) else outp.id
                             if outp_id.split("#")[-1].split("/")[-1] == sourcename.split("#")[-1].split("/")[-1]:
-                                if step.run and step.run.outputs:
-                                    for output in step.run.outputs:
+                                step_run = step.run
+                                if isinstance(step.run, str):
+                                    step_run = cwl_utils.parser.load_document_by_uri(
+                                        path=target.loadingOptions.fetcher.urljoin(
+                                            base_url=cast(str, target.loadingOptions.fileuri),
+                                            url=step.run),
+                                        loadingOptions=target.loadingOptions)
+                                if step_run and step_run.outputs:
+                                    for output in step_run.outputs:
                                         if (
                                             output.id.split("#")[-1].split("/")[-1]
                                             == sourcename.split('#')[-1].split("/")[-1]
