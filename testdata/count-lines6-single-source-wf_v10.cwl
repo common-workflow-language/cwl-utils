@@ -2,6 +2,10 @@
 class: Workflow
 cwlVersion: v1.0
 
+requirements:
+  - class: ScatterFeatureRequirement
+
+
 inputs:
     file1: File[]
 
@@ -12,7 +16,8 @@ outputs:
 
 steps:
   step1:
-    run: wc3-tool.cwl
+    run: wc3-tool_v10.cwl
+    scatter: file1
     in:
       file1:
         source: file1

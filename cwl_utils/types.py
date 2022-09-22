@@ -47,3 +47,4 @@ CWLOutputType = Union[
     MutableMapping[str, CWLOutputAtomType],
 ]
 CWLObjectType = MutableMapping[str, Optional[CWLOutputType]]
+SinkType = Union[CWLOutputType, CWLObjectType]

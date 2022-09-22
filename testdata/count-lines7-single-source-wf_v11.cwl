@@ -12,7 +12,7 @@ outputs:
 
 steps:
   step1:
-    run: wc3-tool.cwl
+    run: wc3-tool_v11.cwl
     in:
       file1:
         source: file1

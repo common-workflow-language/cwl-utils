@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
+import logging
 from typing import Any, IO, List, MutableSequence, Optional, Tuple, Union, cast
 
 from ruamel import yaml
@@ -10,8 +11,115 @@ import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_0 as cwl
 from cwl_utils.errors import WorkflowException
 
-
 CONTENT_LIMIT: int = 64 * 1024
+
+_logger = logging.getLogger("cwl_utils")
+
+
+def _compare_records(
+    src: cwl.RecordSchema,
+    sink: cwl.RecordSchema,
+    strict: bool = False
+) -> bool:
+    """
+    Compare two records, ensuring they have compatible fields.
+
+    This handles normalizing record names, which will be relative to workflow
+    step, so that they can be compared.
+    """
+
+    srcfields = {cwl.shortname(field.name): field.type for field in (src.fields or {})}
+    sinkfields = {cwl.shortname(field.name): field.type for field in (sink.fields or {})}
+    for key in sinkfields.keys():
+        if (
+            not can_assign_src_to_sink(
+                srcfields.get(key, "null"), sinkfields.get(key, "null"), strict
+            )
+            and sinkfields.get(key) is not None
+        ):
+            _logger.info(
+                "Record comparison failure for %s and %s\n"
+                "Did not match fields for %s: %s and %s",
+                cast(Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], src).name,
+                cast(Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], sink).name,
+                key,
+                srcfields.get(key),
+                sinkfields.get(key),
+            )
+            return False
+    return True
+
+
+def can_assign_src_to_sink(
+    src: Any,
+    sink: Any,
+    strict: bool = False
+) -> bool:
+    """
+    Check for identical type specifications, ignoring extra keys like inputBinding.
+
+    src: admissible source types
+    sink: admissible sink types
+
+    In non-strict comparison, at least one source type must match one sink type,
+       except for 'null'.
+    In strict comparison, all source types must match at least one sink type.
+    """
+    if src == "Any" or sink == "Any":
+        return True
+    if isinstance(src, cwl.ArraySchema) and isinstance(sink, cwl.ArraySchema):
+        return can_assign_src_to_sink(src.items, sink.items, strict)
+    if isinstance(src, cwl.RecordSchema) and isinstance(sink, cwl.RecordSchema):
+        return _compare_records(src, sink, strict)
+    if hasattr(src, "type") and hasattr(sink, "type"):
+        if src.type == "File" and sink.type == "File":
+            for sinksf in getattr(sink, 'secondaryFiles', []):
+                if not [
+                    1
+                    for srcsf in getattr(src, 'secondaryFiles', [])
+                        if sinksf == srcsf
+                ]:
+                    if strict:
+                        return False
+            return True
+        return can_assign_src_to_sink(src.type, sink.type, strict)
+    if isinstance(src, MutableSequence):
+        if strict:
+            for this_src in src:
+                if not can_assign_src_to_sink(this_src, sink):
+                    return False
+            return True
+        for this_src in src:
+            if this_src != "null" and can_assign_src_to_sink(
+                this_src, sink
+            ):
+                return True
+        return False
+    if isinstance(sink, MutableSequence):
+        for this_sink in sink:
+            if can_assign_src_to_sink(src, this_sink):
+                return True
+        return False
+    return bool(src == sink)
+
+
+def check_types(
+    srctype: Any,
+    sinktype: Any,
+    valueFrom: Optional[str] = None,
+) -> str:
+    """
+    Check if the source and sink types are correct.
+
+    Acceptable types are "pass", "warning", or "exception".
+    """
+    if valueFrom is not None:
+        return "pass"
+    if can_assign_src_to_sink(srctype, sinktype, strict=True):
+        return "pass"
+    if can_assign_src_to_sink(srctype, sinktype, strict=False):
+        return "warning"
+    return "exception"
 
 
 def content_limit_respected_read_bytes(f: IO[bytes]) -> bytes:
@@ -30,6 +138,15 @@ def content_limit_respected_read(f: IO[bytes]) -> str:
     Truncate content for larger files.
     """
     return content_limit_respected_read_bytes(f).decode("utf-8")
+
+
+def merge_flatten_type(src: Any) -> Any:
+    """Return the merge flattened type of the source type."""
+    if isinstance(src, MutableSequence):
+        return [merge_flatten_type(t) for t in src]
+    if isinstance(src, cwl.ArraySchema):
+        return src
+    return cwl.ArraySchema(type="array", items=src)
 
 
 def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
@@ -73,6 +190,8 @@ def type_for_source(
                 new_type = cwl.ArraySchema(items=new_type, type='array')
         if linkMerge == 'merge_nested':
             new_type = cwl.ArraySchema(items=new_type, type='array')
+        elif linkMerge == 'merge_flattened':
+            new_type = merge_flatten_type(new_type)
         return new_type
     new_type = []
     for p, sc in zip(params, scatter_context):
@@ -93,9 +212,9 @@ def type_for_source(
     if len(new_type) == 1:
         new_type = new_type[0]
     if linkMerge == 'merge_nested':
-        for _ in range(len(sourcenames)):
-            new_type = cwl.ArraySchema(items=new_type, type='array')
-        return new_type
+        return cwl.ArraySchema(items=new_type, type='array')
+    elif linkMerge == 'merge_flattened':
+        return merge_flatten_type(new_type)
     elif isinstance(sourcenames, List):
         return cwl.ArraySchema(items=new_type, type='array')
     else:
