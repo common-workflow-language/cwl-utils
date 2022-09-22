@@ -88,17 +88,11 @@ def type_for_source(
             else:
                 new_type = cwl.ArraySchema(items=new_type, type='array')
         if linkMerge == 'merge_nested':
-            for _ in range(len(sourcenames)):
-                new_type = cwl.ArraySchema(items=new_type, type='array')
-        elif isinstance(sourcenames, List):
             new_type = cwl.ArraySchema(items=new_type, type='array')
         if pickValue is not None:
             if isinstance(new_type, cwl.ArraySchema):
                 if pickValue in ['first_non_null', 'the_only_non_null']:
                     new_type = new_type.items
-            else:
-                raise ValidationException(
-                    "Invalid source type. The `pickValue` field and ArraySchema.")
         return new_type
     new_type = []
     for p, sc in zip(params, scatter_context):
@@ -127,9 +121,6 @@ def type_for_source(
         if isinstance(new_type, cwl.ArraySchema):
             if pickValue in ['first_non_null', 'the_only_non_null']:
                 new_type = new_type.items
-        else:
-            raise ValidationException(
-                "Invalid source type. The `pickValue` field and ArraySchema.")
     return new_type
 
 

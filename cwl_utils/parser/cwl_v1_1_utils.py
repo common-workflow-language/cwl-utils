@@ -82,9 +82,6 @@ def type_for_source(
             else:
                 new_type = cwl.ArraySchema(items=new_type, type='array')
         if linkMerge == 'merge_nested':
-            for _ in range(len(sourcenames)):
-                new_type = cwl.ArraySchema(items=new_type, type='array')
-        elif isinstance(sourcenames, List):
             new_type = cwl.ArraySchema(items=new_type, type='array')
         return new_type
     new_type = []

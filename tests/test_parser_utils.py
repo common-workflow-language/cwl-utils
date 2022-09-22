@@ -217,6 +217,41 @@ def test_v1_0_type_for_source_with_multiple_entries_merge_flattened() -> None:
     assert source_type.items.items == "File"
 
 
+def test_v1_0_type_for_source_with_single_entry_merge_nested() -> None:
+    """Test that the type is correctly inferred from a single source id and merge_nested with CWL v1.0."""
+    uri = (
+        Path(HERE / "../testdata/count-lines6-single-source-wf_v10.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert source_type.items.items == "File"
+
+
+def test_v1_0_type_for_source_with_single_entry_merge_flattened() -> None:
+    """Test that the type is correctly inferred from a single source id and merge_flattened with CWL v1.0."""
+    uri = (
+        Path(HERE / "../testdata/count-lines7-single-source-wf_v10.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert source_type.items == "File"
+
+
 def test_v1_1_file_content_64_kB() -> None:
     """Test that reading file content is allowed up to 64kB in CWL v1.1."""
     text = "a" * cwl_utils.parser.cwl_v1_1_utils.CONTENT_LIMIT
@@ -458,6 +493,41 @@ def test_v1_1_type_for_source_with_multiple_entries_merge_flattened() -> None:
     assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
     assert isinstance(source_type.items[0], cwl_utils.parser.cwl_v1_1.ArraySchema)
     assert source_type.items[0].items == "File"
+
+
+def test_v1_1_type_for_source_with_single_entry_merge_nested() -> None:
+    """Test that the type is correctly inferred from a single source id and merge_nested with CWL v1.1."""
+    uri = (
+        Path(HERE / "../testdata/count-lines6-single-source-wf_v11.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert source_type.items.items == "File"
+
+
+def test_v1_1_type_for_source_with_single_entry_merge_flattened() -> None:
+    """Test that the type is correctly inferred from a single source id and merge_flattened with CWL v1.1."""
+    uri = (
+        Path(HERE / "../testdata/count-lines7-single-source-wf_v11.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert source_type.items == "File"
 
 
 def test_v1_2_file_content_64_kB() -> None:
@@ -703,6 +773,41 @@ def test_v1_2_type_for_source_with_multiple_entries_merge_flattened() -> None:
     assert source_type.items[0].items == "File"
 
 
+def test_v1_2_type_for_source_with_single_entry_merge_nested() -> None:
+    """Test that the type is correctly inferred from a single source id and merge_nested with CWL v1.2."""
+    uri = (
+        Path(HERE / "../testdata/count-lines6-single-source-wf_v12.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert source_type.items.items == "File"
+
+
+def test_v1_2_type_for_source_with_single_entry_merge_flattened() -> None:
+    """Test that the type is correctly inferred from a single source id and merge_flattened with CWL v1.2."""
+    uri = (
+        Path(HERE / "../testdata/count-lines7-single-source-wf_v12.cwl")
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+        linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert source_type.items == "File"
+
+
 def test_v1_2_type_for_source_with_multiple_entries_first_non_null() -> None:
     """Test that the type is correctly inferred from a list of source ids and first_non_null with CWL v1.2."""
     uri = Path(HERE / "../testdata/cond-wf-003.1.cwl").resolve().as_uri()
@@ -730,6 +835,43 @@ def test_v1_2_type_for_source_with_multiple_entries_the_only_non_null() -> None:
 def test_v1_2_type_for_source_with_multiple_entries_all_non_null() -> None:
     """Test that the type is correctly inferred from a list of source ids and all_non_null with CWL v1.2."""
     uri = Path(HERE / "../testdata/cond-wf-005.1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+        pickValue=cwl_obj.outputs[0].pickValue,
+    )
+    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert source_type.items == "string"
+
+
+def test_v1_2_type_for_source_with_single_entry_first_non_null() -> None:
+    """Test that the type is correctly inferred from a single source id and first_non_null with CWL v1.2."""
+    uri = Path(HERE / "../testdata/cond-single-source-wf-003.1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+        pickValue=cwl_obj.outputs[0].pickValue,
+    )
+    assert source_type == "string"
+
+
+def test_v1_2_type_for_source_with_single_entry_the_only_non_null() -> None:
+    """Test that the type is correctly inferred from a single source id and the_only_non_null with CWL v1.2."""
+    uri = Path(HERE / "../testdata/cond-single-source-wf-004.1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+        pickValue=cwl_obj.outputs[0].pickValue,
+    )
+    assert source_type == "string"
+
+
+def test_v1_2_type_for_source_with_single_entry_all_non_null() -> None:
+    """Test that the type is correctly inferred from a single source id and all_non_null with CWL v1.2."""
+    uri = Path(HERE / "../testdata/cond-single-source-wf-005.1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
