@@ -129,6 +129,26 @@ def test_v1_0_stderr_to_file_preserve_original() -> None:
     assert clt.stderr == clt.outputs[0].outputBinding.glob
 
 
+def test_v1_0_type_compare_list() -> None:
+    """Test that the type comparison works correctly a list type with CWL v1.0."""
+    uri = Path(HERE / "../testdata/echo_v1_0.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert cwl_utils.parser.cwl_v1_0_utils._compare_type(
+        cwl_obj.inputs[0].type, cwl_obj.inputs[0].type
+    )
+
+
+def test_v1_0_type_compare_record() -> None:
+    """Test that the type comparison works correctly a record type with CWL v1.0."""
+    uri = Path(HERE / "../testdata/record-output-wf_v1_0.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+    )
+    assert cwl_utils.parser.cwl_v1_0_utils._compare_type(source_type, source_type)
+
+
 def test_v1_0_type_for_source() -> None:
     """Test that the type is correctly inferred from a source id with CWL v1.0."""
     uri = Path(HERE / "../testdata/step_valuefrom5_wf_v1_0.cwl").resolve().as_uri()
@@ -429,6 +449,26 @@ def test_v1_1_stdin_to_file_fail_with_original() -> None:
             stdin="original.txt",
         )
         cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
+
+
+def test_v1_1_type_compare_list() -> None:
+    """Test that the type comparison works correctly a list type with CWL v1.1."""
+    uri = Path(HERE / "../testdata/echo_v1_1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert cwl_utils.parser.cwl_v1_1_utils._compare_type(
+        cwl_obj.inputs[0].type, cwl_obj.inputs[0].type
+    )
+
+
+def test_v1_1_type_compare_record() -> None:
+    """Test that the type comparison works correctly a record type with CWL v1.1."""
+    uri = Path(HERE / "../testdata/record-output-wf_v1_1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+    )
+    assert cwl_utils.parser.cwl_v1_1_utils._compare_type(source_type, source_type)
 
 
 def test_v1_1_type_for_source() -> None:
@@ -732,6 +772,26 @@ def test_v1_2_stdin_to_file_fail_with_original() -> None:
             stdin="original.txt",
         )
         cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
+
+
+def test_v1_2_type_compare_list() -> None:
+    """Test that the type comparison works correctly a list type with CWL v1.2."""
+    uri = Path(HERE / "../testdata/echo_v1_2.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert cwl_utils.parser.cwl_v1_2_utils._compare_type(
+        cwl_obj.inputs[0].type, cwl_obj.inputs[0].type
+    )
+
+
+def test_v1_2_type_compare_record() -> None:
+    """Test that the type comparison works correctly a record type with CWL v1.2."""
+    uri = Path(HERE / "../testdata/record-output-wf_v1_2.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.outputs[0].outputSource,
+    )
+    assert cwl_utils.parser.cwl_v1_2_utils._compare_type(source_type, source_type)
 
 
 def test_v1_2_type_for_source() -> None:
