@@ -9,11 +9,7 @@ from schema_salad.exceptions import ValidationException
 from schema_salad.utils import yaml_no_ts
 
 from ..errors import GraphTargetMissingException
-from . import (
-    cwl_v1_0,
-    cwl_v1_1,
-    cwl_v1_2,
-)
+from . import cwl_v1_0, cwl_v1_1, cwl_v1_2
 
 LoadingOptions = Union[
     cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions

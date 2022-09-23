@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
 import logging
-from typing import Any, IO, List, MutableSequence, Optional, Tuple, Union, cast
+from typing import IO, Any, List, MutableSequence, Optional, Tuple, Union, cast
 
 from ruamel import yaml
 from schema_salad.exceptions import ValidationException
@@ -18,9 +18,7 @@ _logger = logging.getLogger("cwl_utils")
 
 
 def _compare_records(
-    src: cwl.RecordSchema,
-    sink: cwl.RecordSchema,
-    strict: bool = False
+    src: cwl.RecordSchema, sink: cwl.RecordSchema, strict: bool = False
 ) -> bool:
     """
     Compare two records, ensuring they have compatible fields.
@@ -30,7 +28,9 @@ def _compare_records(
     """
 
     srcfields = {cwl.shortname(field.name): field.type for field in (src.fields or {})}
-    sinkfields = {cwl.shortname(field.name): field.type for field in (sink.fields or {})}
+    sinkfields = {
+        cwl.shortname(field.name): field.type for field in (sink.fields or {})
+    }
     for key in sinkfields.keys():
         if (
             not can_assign_src_to_sink(
@@ -41,8 +41,12 @@ def _compare_records(
             _logger.info(
                 "Record comparison failure for %s and %s\n"
                 "Did not match fields for %s: %s and %s",
-                cast(Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], src).name,
-                cast(Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], sink).name,
+                cast(
+                    Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], src
+                ).name,
+                cast(
+                    Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], sink
+                ).name,
                 key,
                 srcfields.get(key),
                 sinkfields.get(key),
@@ -51,11 +55,7 @@ def _compare_records(
     return True
 
 
-def can_assign_src_to_sink(
-    src: Any,
-    sink: Any,
-    strict: bool = False
-) -> bool:
+def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
     """
     Check for identical type specifications, ignoring extra keys like inputBinding.
 
@@ -79,9 +79,7 @@ def can_assign_src_to_sink(
                     return False
             return True
         for this_src in src:
-            if this_src != "null" and can_assign_src_to_sink(
-                this_src, sink
-            ):
+            if this_src != "null" and can_assign_src_to_sink(this_src, sink):
                 return True
         return False
     if isinstance(sink, MutableSequence):
@@ -137,35 +135,48 @@ def content_limit_respected_read(f: IO[bytes]) -> str:
 def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
     """Convert stdin, stdout and stderr type shortcuts to files."""
     for out in clt.outputs:
-        if out.type == 'stdout':
+        if out.type == "stdout":
             if out.outputBinding is not None:
                 raise ValidationException(
-                    "Not allowed to specify outputBinding when using stdout shortcut.")
+                    "Not allowed to specify outputBinding when using stdout shortcut."
+                )
             if clt.stdout is None:
-                clt.stdout = str(hashlib.sha1(json_dumps(  # nosec
-                    clt.save(), sort_keys=True).encode('utf-8')).hexdigest())
-            out.type = 'File'
+                clt.stdout = str(
+                    hashlib.sha1(
+                        json_dumps(clt.save(), sort_keys=True).encode("utf-8")  # nosec
+                    ).hexdigest()
+                )
+            out.type = "File"
             out.outputBinding = cwl.CommandOutputBinding(glob=clt.stdout)
-        elif out.type == 'stderr':
+        elif out.type == "stderr":
             if out.outputBinding is not None:
                 raise ValidationException(
-                    "Not allowed to specify outputBinding when using stderr shortcut.")
+                    "Not allowed to specify outputBinding when using stderr shortcut."
+                )
             if clt.stderr is None:
-                clt.stderr = str(hashlib.sha1(json_dumps(  # nosec
-                    clt.save(), sort_keys=True).encode('utf-8')).hexdigest())
-            out.type = 'File'
+                clt.stderr = str(
+                    hashlib.sha1(
+                        json_dumps(clt.save(), sort_keys=True).encode("utf-8")  # nosec
+                    ).hexdigest()
+                )
+            out.type = "File"
             out.outputBinding = cwl.CommandOutputBinding(glob=clt.stderr)
     for inp in clt.inputs:
-        if inp.type == 'stdin':
+        if inp.type == "stdin":
             if inp.inputBinding is not None:
                 raise ValidationException(
-                    "Not allowed to specify unputBinding when using stdin shortcut.")
+                    "Not allowed to specify unputBinding when using stdin shortcut."
+                )
             if clt.stdin is not None:
                 raise ValidationException(
-                    "Not allowed to specify stdin path when using stdin type shortcut.")
+                    "Not allowed to specify stdin path when using stdin type shortcut."
+                )
             else:
-                clt.stdin = '$(inputs.%s.path)' % cast(str, inp.id).rpartition('#')[2].split('/')[-1]
-                inp.type = 'File'
+                clt.stdin = (
+                    "$(inputs.%s.path)"
+                    % cast(str, inp.id).rpartition("#")[2].split("/")[-1]
+                )
+                inp.type = "File"
 
 
 def merge_flatten_type(src: Any) -> Any:
@@ -190,18 +201,18 @@ def type_for_source(
     if not isinstance(params, list):
         new_type = params.type
         if scatter_context[0] is not None:
-            if scatter_context[0][1] == 'nested_crossproduct':
+            if scatter_context[0][1] == "nested_crossproduct":
                 for _ in range(scatter_context[0][0]):
-                    new_type = cwl.ArraySchema(items=new_type, type='array')
+                    new_type = cwl.ArraySchema(items=new_type, type="array")
             else:
-                new_type = cwl.ArraySchema(items=new_type, type='array')
-        if linkMerge == 'merge_nested':
-            new_type = cwl.ArraySchema(items=new_type, type='array')
-        elif linkMerge == 'merge_flattened':
+                new_type = cwl.ArraySchema(items=new_type, type="array")
+        if linkMerge == "merge_nested":
+            new_type = cwl.ArraySchema(items=new_type, type="array")
+        elif linkMerge == "merge_flattened":
             new_type = merge_flatten_type(new_type)
         if pickValue is not None:
             if isinstance(new_type, cwl.ArraySchema):
-                if pickValue in ['first_non_null', 'the_only_non_null']:
+                if pickValue in ["first_non_null", "the_only_non_null"]:
                     new_type = new_type.items
         return new_type
     new_type = []
@@ -214,23 +225,23 @@ def type_for_source(
             cur_type = None
         if cur_type is not None:
             if sc is not None:
-                if sc[1] == 'nested_crossproduct':
+                if sc[1] == "nested_crossproduct":
                     for _ in range(sc[0]):
-                        cur_type = cwl.ArraySchema(items=cur_type, type='array')
+                        cur_type = cwl.ArraySchema(items=cur_type, type="array")
                 else:
-                    cur_type = cwl.ArraySchema(items=cur_type, type='array')
+                    cur_type = cwl.ArraySchema(items=cur_type, type="array")
             new_type.append(cur_type)
     if len(new_type) == 1:
         new_type = new_type[0]
-    if linkMerge == 'merge_nested':
-        return cwl.ArraySchema(items=new_type, type='array')
-    elif linkMerge == 'merge_flattened':
+    if linkMerge == "merge_nested":
+        return cwl.ArraySchema(items=new_type, type="array")
+    elif linkMerge == "merge_flattened":
         return merge_flatten_type(new_type)
     elif isinstance(sourcenames, List):
-        new_type = cwl.ArraySchema(items=new_type, type='array')
+        new_type = cwl.ArraySchema(items=new_type, type="array")
     if pickValue is not None:
         if isinstance(new_type, cwl.ArraySchema):
-            if pickValue in ['first_non_null', 'the_only_non_null']:
+            if pickValue in ["first_non_null", "the_only_non_null"]:
                 new_type = new_type.items
     return new_type
 
@@ -263,32 +274,58 @@ def param_for_source_id(
                         if scatter_context is not None:
                             scatter_context.append(None)
                 for step in target.steps:
-                    if '/'.join(sourcename.split("#")[-1].split("/")[:-1]) == step.id.split("#")[-1] and step.out:
+                    if (
+                        "/".join(sourcename.split("#")[-1].split("/")[:-1])
+                        == step.id.split("#")[-1]
+                        and step.out
+                    ):
                         for outp in step.out:
                             outp_id = outp if isinstance(outp, str) else outp.id
-                            if outp_id.split("#")[-1].split("/")[-1] == sourcename.split("#")[-1].split("/")[-1]:
+                            if (
+                                outp_id.split("#")[-1].split("/")[-1]
+                                == sourcename.split("#")[-1].split("/")[-1]
+                            ):
                                 step_run = step.run
                                 if isinstance(step.run, str):
                                     step_run = cwl_utils.parser.load_document_by_uri(
                                         path=target.loadingOptions.fetcher.urljoin(
-                                            base_url=cast(str, target.loadingOptions.fileuri),
-                                            url=step.run),
-                                        loadingOptions=target.loadingOptions)
-                                    cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
+                                            base_url=cast(
+                                                str, target.loadingOptions.fileuri
+                                            ),
+                                            url=step.run,
+                                        ),
+                                        loadingOptions=target.loadingOptions,
+                                    )
+                                    cwl_utils.parser.utils.convert_stdstreams_to_files(
+                                        step_run
+                                    )
                                 if step_run and step_run.outputs:
                                     for output in step_run.outputs:
                                         if (
                                             output.id.split("#")[-1].split("/")[-1]
-                                            == sourcename.split('#')[-1].split("/")[-1]
+                                            == sourcename.split("#")[-1].split("/")[-1]
                                         ):
                                             params.append(output)
                                             if scatter_context is not None:
                                                 if scatter_context is not None:
                                                     if isinstance(step.scatter, str):
-                                                        scatter_context.append((1, step.scatterMethod or 'dotproduct'))
-                                                    elif isinstance(step.scatter, MutableSequence):
                                                         scatter_context.append(
-                                                            (len(step.scatter), step.scatterMethod or 'dotproduct'))
+                                                            (
+                                                                1,
+                                                                step.scatterMethod
+                                                                or "dotproduct",
+                                                            )
+                                                        )
+                                                    elif isinstance(
+                                                        step.scatter, MutableSequence
+                                                    ):
+                                                        scatter_context.append(
+                                                            (
+                                                                len(step.scatter),
+                                                                step.scatterMethod
+                                                                or "dotproduct",
+                                                            )
+                                                        )
                                                     else:
                                                         scatter_context.append(None)
     if len(params) == 1:
@@ -299,6 +336,8 @@ def param_for_source_id(
         "param {} not found in {}\n{}.".format(
             sourcename,
             yaml.main.round_trip_dump(cwl.save(process)),
-            " or\n {}".format(yaml.main.round_trip_dump(cwl.save(parent))) if parent is not None else "",
+            " or\n {}".format(yaml.main.round_trip_dump(cwl.save(parent)))
+            if parent is not None
+            else "",
         )
     )
