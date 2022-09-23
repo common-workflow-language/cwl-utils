@@ -1,13 +1,9 @@
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.1
-
-requirements:
-  - class: MultipleInputFeatureRequirement
+cwlVersion: v1.2
 
 inputs:
     file1: File[]
-    file2: File[]
 
 outputs:
     count_output:
@@ -16,9 +12,9 @@ outputs:
 
 steps:
   step1:
-    run: wc3-tool_v11.cwl
+    run: wc3-tool_v1_2.cwl
     in:
       file1:
-        source: [file1, file2]
+        source: file1
         linkMerge: merge_flattened
     out: [output]

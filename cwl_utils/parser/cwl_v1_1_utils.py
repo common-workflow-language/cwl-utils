@@ -9,6 +9,7 @@ from schema_salad.utils import json_dumps
 
 import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_1 as cwl
+import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
 
 CONTENT_LIMIT: int = 64 * 1024
@@ -71,18 +72,6 @@ def can_assign_src_to_sink(
         return can_assign_src_to_sink(src.items, sink.items, strict)
     if isinstance(src, cwl.RecordSchema) and isinstance(sink, cwl.RecordSchema):
         return _compare_records(src, sink, strict)
-    if hasattr(src, "type") and hasattr(sink, "type"):
-        if src.type == "File" and sink.type == "File":
-            for sinksf in getattr(sink, 'secondaryFiles', []):
-                if not [
-                    1
-                    for srcsf in getattr(src, 'secondaryFiles', [])
-                        if sinksf == srcsf
-                ]:
-                    if strict:
-                        return False
-            return True
-        return can_assign_src_to_sink(src.type, sink.type, strict)
     if isinstance(src, MutableSequence):
         if strict:
             for this_src in src:
@@ -141,6 +130,7 @@ def content_limit_respected_read(f: IO[bytes]) -> str:
 
 
 def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
+    """Convert stdin, stdout and stderr type shortcuts to files."""
     for out in clt.outputs:
         if out.type == 'stdout':
             if out.outputBinding is not None:
@@ -271,6 +261,7 @@ def param_for_source_id(
                                             base_url=cast(str, target.loadingOptions.fileuri),
                                             url=step.run),
                                         loadingOptions=target.loadingOptions)
+                                    cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
                                 if step_run and step_run.outputs:
                                     for output in step_run.outputs:
                                         if (

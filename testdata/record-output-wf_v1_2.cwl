@@ -1,6 +1,6 @@
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 
 inputs:
   irec:
@@ -16,6 +16,7 @@ inputs:
 outputs:
   orec:
     type:
+      name: orec
       type: record
       fields:
       - name: ofoo
@@ -26,7 +27,7 @@ outputs:
 
 steps:
   step1:
-    run: record-output_v10.cwl
+    run: record-output_v1_2.cwl
     in:
       irec: irec
     out: [orec]

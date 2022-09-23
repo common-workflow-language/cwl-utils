@@ -3,7 +3,6 @@ class: Workflow
 cwlVersion: v1.1
 
 requirements:
-  - class: ScatterFeatureRequirement
   - class: MultipleInputFeatureRequirement
 
 inputs:
@@ -17,10 +16,9 @@ outputs:
 
 steps:
   step1:
-    run: wc3-tool_v11.cwl
-    scatter: file1
+    run: wc3-tool_v1_1.cwl
     in:
       file1:
         source: [file1, file2]
-        linkMerge: merge_nested
+        linkMerge: merge_flattened
     out: [output]

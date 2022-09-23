@@ -3,11 +3,11 @@ class: Workflow
 cwlVersion: v1.0
 
 requirements:
-  - class: MultipleInputFeatureRequirement
+  - class: ScatterFeatureRequirement
+
 
 inputs:
     file1: File[]
-    file2: File[]
 
 outputs:
     count_output:
@@ -16,9 +16,10 @@ outputs:
 
 steps:
   step1:
-    run: wc3-tool_v10.cwl
+    run: wc3-tool_v1_0.cwl
+    scatter: file1
     in:
       file1:
-        source: [file1, file2]
-        linkMerge: merge_flattened
+        source: file1
+        linkMerge: merge_nested
     out: [output]

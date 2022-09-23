@@ -9,6 +9,7 @@ from schema_salad.utils import json_dumps
 
 import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_0 as cwl
+import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
 
 CONTENT_LIMIT: int = 64 * 1024
@@ -17,9 +18,9 @@ _logger = logging.getLogger("cwl_utils")
 
 
 def _compare_records(
-    src: cwl.RecordSchema,
-    sink: cwl.RecordSchema,
-    strict: bool = False
+        src: cwl.RecordSchema,
+        sink: cwl.RecordSchema,
+        strict: bool = False
 ) -> bool:
     """
     Compare two records, ensuring they have compatible fields.
@@ -32,10 +33,10 @@ def _compare_records(
     sinkfields = {cwl.shortname(field.name): field.type for field in (sink.fields or {})}
     for key in sinkfields.keys():
         if (
-            not can_assign_src_to_sink(
-                srcfields.get(key, "null"), sinkfields.get(key, "null"), strict
-            )
-            and sinkfields.get(key) is not None
+                not can_assign_src_to_sink(
+                    srcfields.get(key, "null"), sinkfields.get(key, "null"), strict
+                )
+                and sinkfields.get(key) is not None
         ):
             _logger.info(
                 "Record comparison failure for %s and %s\n"
@@ -51,9 +52,9 @@ def _compare_records(
 
 
 def can_assign_src_to_sink(
-    src: Any,
-    sink: Any,
-    strict: bool = False
+        src: Any,
+        sink: Any,
+        strict: bool = False
 ) -> bool:
     """
     Check for identical type specifications, ignoring extra keys like inputBinding.
@@ -71,18 +72,6 @@ def can_assign_src_to_sink(
         return can_assign_src_to_sink(src.items, sink.items, strict)
     if isinstance(src, cwl.RecordSchema) and isinstance(sink, cwl.RecordSchema):
         return _compare_records(src, sink, strict)
-    if hasattr(src, "type") and hasattr(sink, "type"):
-        if src.type == "File" and sink.type == "File":
-            for sinksf in getattr(sink, 'secondaryFiles', []):
-                if not [
-                    1
-                    for srcsf in getattr(src, 'secondaryFiles', [])
-                        if sinksf == srcsf
-                ]:
-                    if strict:
-                        return False
-            return True
-        return can_assign_src_to_sink(src.type, sink.type, strict)
     if isinstance(src, MutableSequence):
         if strict:
             for this_src in src:
@@ -91,7 +80,7 @@ def can_assign_src_to_sink(
             return True
         for this_src in src:
             if this_src != "null" and can_assign_src_to_sink(
-                this_src, sink
+                    this_src, sink
             ):
                 return True
         return False
@@ -104,9 +93,9 @@ def can_assign_src_to_sink(
 
 
 def check_types(
-    srctype: Any,
-    sinktype: Any,
-    valueFrom: Optional[str] = None,
+        srctype: Any,
+        sinktype: Any,
+        valueFrom: Optional[str] = None,
 ) -> str:
     """
     Check if the source and sink types are correct.
@@ -150,6 +139,7 @@ def merge_flatten_type(src: Any) -> Any:
 
 
 def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
+    """Convert stdout and stderr type shortcuts to files."""
     for out in clt.outputs:
         if out.type == 'stdout':
             if out.outputBinding is not None:
@@ -172,10 +162,10 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
 
 
 def type_for_source(
-    process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
-    sourcenames: Union[str, List[str]],
-    parent: Optional[cwl.Workflow] = None,
-    linkMerge: Optional[str] = None
+        process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
+        sourcenames: Union[str, List[str]],
+        parent: Optional[cwl.Workflow] = None,
+        linkMerge: Optional[str] = None
 ) -> Any:
     """Determine the type for the given sourcenames."""
     scatter_context: List[Optional[Tuple[int, str]]] = []
@@ -222,10 +212,10 @@ def type_for_source(
 
 
 def param_for_source_id(
-    process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
-    sourcenames: Union[str, List[str]],
-    parent: Optional[cwl.Workflow] = None,
-    scatter_context: Optional[List[Optional[Tuple[int, str]]]] = None,
+        process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
+        sourcenames: Union[str, List[str]],
+        parent: Optional[cwl.Workflow] = None,
+        scatter_context: Optional[List[Optional[Tuple[int, str]]]] = None,
 ) -> Union[List[cwl.InputParameter], cwl.InputParameter]:
     """Find the process input parameter that matches one of the given sourcenames."""
     if isinstance(sourcenames, str):
@@ -260,18 +250,20 @@ def param_for_source_id(
                                             base_url=cast(str, target.loadingOptions.fileuri),
                                             url=step.run),
                                         loadingOptions=target.loadingOptions)
+                                    cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
                                 if step_run and step_run.outputs:
                                     for output in step_run.outputs:
                                         if (
-                                            output.id.split("#")[-1].split("/")[-1]
-                                            == sourcename.split('#')[-1].split("/")[-1]
+                                                output.id.split("#")[-1].split("/")[-1]
+                                                == sourcename.split('#')[-1].split("/")[-1]
                                         ):
                                             params.append(output)
                                             if scatter_context is not None:
                                                 if isinstance(step.scatter, str):
                                                     scatter_context.append((1, step.scatterMethod or 'dotproduct'))
                                                 elif isinstance(step.scatter, MutableSequence):
-                                                    scatter_context.append((len(step.scatter), step.scatterMethod or 'dotproduct'))
+                                                    scatter_context.append(
+                                                        (len(step.scatter), step.scatterMethod or 'dotproduct'))
                                                 else:
                                                     scatter_context.append(None)
     if len(params) == 1:

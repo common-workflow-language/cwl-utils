@@ -1,6 +1,9 @@
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.1
+cwlVersion: v1.2
+
+requirements:
+  - class: ScatterFeatureRequirement
 
 inputs:
     file1: File[]
@@ -12,9 +15,10 @@ outputs:
 
 steps:
   step1:
-    run: wc3-tool_v11.cwl
+    run: wc3-tool_v1_2.cwl
+    scatter: file1
     in:
       file1:
         source: file1
-        linkMerge: merge_flattened
+        linkMerge: merge_nested
     out: [output]

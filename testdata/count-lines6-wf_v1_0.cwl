@@ -17,7 +17,7 @@ outputs:
 
 steps:
   step1:
-    run: wc3-tool_v10.cwl
+    run: wc3-tool_v1_0.cwl
     scatter: file1
     in:
       file1:

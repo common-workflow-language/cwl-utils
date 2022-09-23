@@ -27,7 +27,7 @@ outputs:
 
 steps:
   step1:
-    run: record-output_v11.cwl
+    run: record-output_v1_1.cwl
     in:
       irec: irec
     out: [orec]

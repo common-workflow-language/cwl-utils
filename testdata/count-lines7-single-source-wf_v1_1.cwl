@@ -1,6 +1,6 @@
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.1
 
 inputs:
     file1: File[]
@@ -12,7 +12,7 @@ outputs:
 
 steps:
   step1:
-    run: wc3-tool_v10.cwl
+    run: wc3-tool_v1_1.cwl
     in:
       file1:
         source: file1

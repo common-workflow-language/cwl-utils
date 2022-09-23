@@ -128,6 +128,27 @@ def test_v1_0_stderr_to_file_preserve_original() -> None:
     assert clt.stderr == clt.outputs[0].outputBinding.glob
 
 
+def test_v1_0_type_check_for_single_element_and_list() -> None:
+    """Test that a simple type is considered valid if contained in a Union type in CWL 1.0."""
+    uri = Path(HERE / "../testdata/stdout-wf_v1_0.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        cwl_obj, cwl_obj.steps[0].in_[0].source
+    )
+    step_obj = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[0].run
+        ),
+        loadingOptions=cwl_obj.loadingOptions,
+    )
+    assert (
+        cwl_utils.parser.cwl_v1_0_utils.check_types(
+            source_type, step_obj.inputs[0].type
+        )
+        == "pass"
+    )
+
+
 def test_v1_0_type_for_source() -> None:
     """Test that the type is correctly inferred from a source id with CWL v1.0."""
     uri = Path(HERE / "../testdata/step_valuefrom5_wf_v1_0.cwl").resolve().as_uri()
@@ -152,9 +173,19 @@ def test_v1_0_type_for_source_with_id() -> None:
     assert source_type == "File"
 
 
+def test_v1_0_type_for_stdout() -> None:
+    """Test that the `stdout` type is correctly matched with the `File` type in CWL v1.0."""
+    uri = Path(HERE / "../testdata/stdout-wf_v1_0.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        cwl_obj, cwl_obj.outputs[0].outputSource
+    )
+    assert source_type == "File"
+
+
 def test_v1_0_type_output_source_record() -> None:
     """Test that the type is correctly inferred from a record output source with CWL v1.0."""
-    uri = Path(HERE / "../testdata/record-output-wf_v10.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/record-output-wf_v1_0.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
         process=cwl_obj,
@@ -170,7 +201,7 @@ def test_v1_0_type_output_source_record() -> None:
 
 def test_v1_0_type_for_output_source_with_single_scatter_step() -> None:
     """Test that the type is correctly inferred from a single scatter step with CWL v1.0."""
-    uri = Path(HERE / "../testdata/scatter-wf1_v10.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/scatter-wf1_v1_0.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
         process=cwl_obj,
@@ -186,7 +217,7 @@ def test_v1_0_type_for_output_source_with_single_scatter_step() -> None:
 
 def test_v1_0_type_for_output_source_with_nested_crossproduct_scatter_step() -> None:
     """Test that the type is correctly inferred from a nested_crossproduct scatter step with CWL v1.0."""
-    uri = Path(HERE / "../testdata/scatter-wf2_v10.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/scatter-wf2_v1_0.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
         process=cwl_obj,
@@ -202,7 +233,7 @@ def test_v1_0_type_for_output_source_with_nested_crossproduct_scatter_step() -> 
 
 def test_v1_0_type_for_output_source_with_flat_crossproduct_scatter_step() -> None:
     """Test that the type is correctly inferred from a flat_crossproduct scatter step with CWL v1.0."""
-    uri = Path(HERE / "../testdata/scatter-wf3_v10.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/scatter-wf3_v1_0.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
         process=cwl_obj, sourcenames=cwl_obj.outputs[0].outputSource
@@ -217,7 +248,7 @@ def test_v1_0_type_for_output_source_with_flat_crossproduct_scatter_step() -> No
 
 def test_v1_0_type_for_source_with_multiple_entries_merge_nested() -> None:
     """Test that the type is correctly inferred from a list of source ids and merge_nested with CWL v1.0."""
-    uri = Path(HERE / "../testdata/count-lines6-wf_v10.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/count-lines6-wf_v1_0.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
         process=cwl_obj,
@@ -240,7 +271,7 @@ def test_v1_0_type_for_source_with_multiple_entries_merge_nested() -> None:
 
 def test_v1_0_type_for_source_with_multiple_entries_merge_flattened() -> None:
     """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.0."""
-    uri = Path(HERE / "../testdata/count-lines7-wf_v10.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/count-lines7-wf_v1_0.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
         process=cwl_obj,
@@ -264,7 +295,7 @@ def test_v1_0_type_for_source_with_multiple_entries_merge_flattened() -> None:
 def test_v1_0_type_for_source_with_single_entry_merge_nested() -> None:
     """Test that the type is correctly inferred from a single source id and merge_nested with CWL v1.0."""
     uri = (
-        Path(HERE / "../testdata/count-lines6-single-source-wf_v10.cwl")
+        Path(HERE / "../testdata/count-lines6-single-source-wf_v1_0.cwl")
         .resolve()
         .as_uri()
     )
@@ -291,7 +322,7 @@ def test_v1_0_type_for_source_with_single_entry_merge_nested() -> None:
 def test_v1_0_type_for_source_with_single_entry_merge_flattened() -> None:
     """Test that the type is correctly inferred from a single source id and merge_flattened with CWL v1.0."""
     uri = (
-        Path(HERE / "../testdata/count-lines7-single-source-wf_v10.cwl")
+        Path(HERE / "../testdata/count-lines7-single-source-wf_v1_0.cwl")
         .resolve()
         .as_uri()
     )
@@ -310,6 +341,24 @@ def test_v1_0_type_for_source_with_single_entry_merge_flattened() -> None:
     assert (
         cwl_utils.parser.cwl_v1_0_utils.check_types(
             source_type, step_obj.inputs[0].type
+        )
+        == "pass"
+    )
+
+
+def test_v1_0_type_for_source_with_value_from() -> None:
+    """Test that the type is correctly inferred from a single valueFrom source id with CWL v1.0."""
+    uri = Path(HERE / "../testdata/step-valuefrom2-wf_v1_0.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_0_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+    )
+    assert (
+        cwl_utils.parser.cwl_v1_0_utils.check_types(
+            srctype=source_type,
+            sinktype=cwl_obj.steps[0].run.inputs[0].type,
+            valueFrom=cwl_obj.steps[0].in_[0].valueFrom,
         )
         == "pass"
     )
@@ -468,6 +517,27 @@ def test_v1_1_stdin_to_file_fail_with_original() -> None:
         cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
 
 
+def test_v1_1_type_check_for_single_element_and_list() -> None:
+    """Test that a simple type is considered valid if contained in a Union type in CWL 1.1."""
+    uri = Path(HERE / "../testdata/stdout-wf_v1_1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        cwl_obj, cwl_obj.steps[0].in_[0].source
+    )
+    step_obj = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[0].run
+        ),
+        loadingOptions=cwl_obj.loadingOptions,
+    )
+    assert (
+        cwl_utils.parser.cwl_v1_1_utils.check_types(
+            source_type, step_obj.inputs[0].type
+        )
+        == "pass"
+    )
+
+
 def test_v1_1_type_for_source() -> None:
     """Test that the type is correctly inferred from a source id with CWL v1.1."""
     uri = Path(HERE / "../testdata/step_valuefrom5_wf_v1_1.cwl").resolve().as_uri()
@@ -492,9 +562,19 @@ def test_v1_1_type_for_source_with_id() -> None:
     assert source_type == "File"
 
 
+def test_v1_1_type_for_stdout() -> None:
+    """Test that the `stdout` type is correctly matched with the `File` type in CWL v1.1."""
+    uri = Path(HERE / "../testdata/stdout-wf_v1_1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        cwl_obj, cwl_obj.outputs[0].outputSource
+    )
+    assert source_type == "File"
+
+
 def test_v1_1_type_output_source_record() -> None:
     """Test that the type is correctly inferred from a record output source with CWL v1.1."""
-    uri = Path(HERE / "../testdata/record-output-wf_v11.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/record-output-wf_v1_1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
         process=cwl_obj,
@@ -510,7 +590,7 @@ def test_v1_1_type_output_source_record() -> None:
 
 def test_v1_1_type_for_output_source_with_single_scatter_step() -> None:
     """Test that the type is correctly inferred from a single scatter step with CWL v1.1."""
-    uri = Path(HERE / "../testdata/scatter-wf1_v11.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/scatter-wf1_v1_1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
         process=cwl_obj,
@@ -526,7 +606,7 @@ def test_v1_1_type_for_output_source_with_single_scatter_step() -> None:
 
 def test_v1_1_type_for_output_source_with_nested_crossproduct_scatter_step() -> None:
     """Test that the type is correctly inferred from a nested_crossproduct scatter step with CWL v1.1."""
-    uri = Path(HERE / "../testdata/scatter-wf2_v11.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/scatter-wf2_v1_1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
         process=cwl_obj,
@@ -542,7 +622,7 @@ def test_v1_1_type_for_output_source_with_nested_crossproduct_scatter_step() -> 
 
 def test_v1_1_type_for_output_source_with_flat_crossproduct_scatter_step() -> None:
     """Test that the type is correctly inferred from a flat_crossproduct scatter step with CWL v1.1."""
-    uri = Path(HERE / "../testdata/scatter-wf3_v11.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/scatter-wf3_v1_1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
         process=cwl_obj,
@@ -558,7 +638,7 @@ def test_v1_1_type_for_output_source_with_flat_crossproduct_scatter_step() -> No
 
 def test_v1_1_type_for_source_with_multiple_entries_merge_nested() -> None:
     """Test that the type is correctly inferred from a list of source ids and merge_nested with CWL v1.1."""
-    uri = Path(HERE / "../testdata/count-lines6-wf_v11.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/count-lines6-wf_v1_1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
         process=cwl_obj,
@@ -581,7 +661,7 @@ def test_v1_1_type_for_source_with_multiple_entries_merge_nested() -> None:
 
 def test_v1_1_type_for_source_with_multiple_entries_merge_flattened() -> None:
     """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.1."""
-    uri = Path(HERE / "../testdata/count-lines7-wf_v11.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/count-lines7-wf_v1_1.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
         process=cwl_obj,
@@ -605,7 +685,7 @@ def test_v1_1_type_for_source_with_multiple_entries_merge_flattened() -> None:
 def test_v1_1_type_for_source_with_single_entry_merge_nested() -> None:
     """Test that the type is correctly inferred from a single source id and merge_nested with CWL v1.1."""
     uri = (
-        Path(HERE / "../testdata/count-lines6-single-source-wf_v11.cwl")
+        Path(HERE / "../testdata/count-lines6-single-source-wf_v1_1.cwl")
         .resolve()
         .as_uri()
     )
@@ -632,7 +712,7 @@ def test_v1_1_type_for_source_with_single_entry_merge_nested() -> None:
 def test_v1_1_type_for_source_with_single_entry_merge_flattened() -> None:
     """Test that the type is correctly inferred from a single source id and merge_flattened with CWL v1.1."""
     uri = (
-        Path(HERE / "../testdata/count-lines7-single-source-wf_v11.cwl")
+        Path(HERE / "../testdata/count-lines7-single-source-wf_v1_1.cwl")
         .resolve()
         .as_uri()
     )
@@ -651,6 +731,24 @@ def test_v1_1_type_for_source_with_single_entry_merge_flattened() -> None:
     assert (
         cwl_utils.parser.cwl_v1_1_utils.check_types(
             source_type, step_obj.inputs[0].type
+        )
+        == "pass"
+    )
+
+
+def test_v1_1_type_for_source_with_value_from() -> None:
+    """Test that the type is correctly inferred from a single valueFrom source id with CWL v1.1."""
+    uri = Path(HERE / "../testdata/step-valuefrom2-wf_v1_1.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_1_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+    )
+    assert (
+        cwl_utils.parser.cwl_v1_1_utils.check_types(
+            srctype=source_type,
+            sinktype=cwl_obj.steps[0].run.inputs[0].type,
+            valueFrom=cwl_obj.steps[0].in_[0].valueFrom,
         )
         == "pass"
     )
@@ -809,6 +907,27 @@ def test_v1_2_stdin_to_file_fail_with_original() -> None:
         cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
 
 
+def test_v1_2_type_check_for_single_element_and_list() -> None:
+    """Test that a simple type is considered valid if contained in a Union type in CWL 1.2."""
+    uri = Path(HERE / "../testdata/stdout-wf_v1_2.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        cwl_obj, cwl_obj.steps[0].in_[0].source
+    )
+    step_obj = load_document_by_uri(
+        path=cwl_obj.loadingOptions.fetcher.urljoin(
+            base_url=cwl_obj.loadingOptions.fileuri, url=cwl_obj.steps[0].run
+        ),
+        loadingOptions=cwl_obj.loadingOptions,
+    )
+    assert (
+        cwl_utils.parser.cwl_v1_2_utils.check_types(
+            source_type, step_obj.inputs[0].type
+        )
+        == "pass"
+    )
+
+
 def test_v1_2_type_for_source() -> None:
     """Test that the type is correctly inferred from a source id with CWL v1.2."""
     uri = Path(HERE / "../testdata/step_valuefrom5_wf_v1_2.cwl").resolve().as_uri()
@@ -833,9 +952,19 @@ def test_v1_2_type_for_source_with_id() -> None:
     assert source_type == "File"
 
 
+def test_v1_2_type_for_stdout() -> None:
+    """Test that the `stdout` type is correctly matched with the `File` type in CWL v1.2."""
+    uri = Path(HERE / "../testdata/stdout-wf_v1_2.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        cwl_obj, cwl_obj.outputs[0].outputSource
+    )
+    assert source_type == "File"
+
+
 def test_v1_2_type_output_source_record() -> None:
     """Test that the type is correctly inferred from a record output source with CWL v1.2."""
-    uri = Path(HERE / "../testdata/record-output-wf_v12.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/record-output-wf_v1_2.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
@@ -851,7 +980,7 @@ def test_v1_2_type_output_source_record() -> None:
 
 def test_v1_2_type_for_output_source_with_single_scatter_step() -> None:
     """Test that the type is correctly inferred from a single scatter step with CWL v1.2."""
-    uri = Path(HERE / "../testdata/scatter-wf1_v12.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/scatter-wf1_v1_2.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
@@ -867,7 +996,7 @@ def test_v1_2_type_for_output_source_with_single_scatter_step() -> None:
 
 def test_v1_2_type_for_output_source_with_nested_crossproduct_scatter_step() -> None:
     """Test that the type is correctly inferred from a nested_crossproduct scatter step with CWL v1.2."""
-    uri = Path(HERE / "../testdata/scatter-wf2_v12.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/scatter-wf2_v1_2.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
@@ -883,7 +1012,7 @@ def test_v1_2_type_for_output_source_with_nested_crossproduct_scatter_step() -> 
 
 def test_v1_2_type_for_output_source_with_flat_crossproduct_scatter_step() -> None:
     """Test that the type is correctly inferred from a flat_crossproduct scatter step with CWL v1.2."""
-    uri = Path(HERE / "../testdata/scatter-wf3_v12.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/scatter-wf3_v1_2.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
@@ -899,7 +1028,7 @@ def test_v1_2_type_for_output_source_with_flat_crossproduct_scatter_step() -> No
 
 def test_v1_2_type_for_source_with_multiple_entries_merge_nested() -> None:
     """Test that the type is correctly inferred from a list of source ids and merge_nested with CWL v1.2."""
-    uri = Path(HERE / "../testdata/count-lines6-wf_v12.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/count-lines6-wf_v1_2.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
@@ -922,7 +1051,7 @@ def test_v1_2_type_for_source_with_multiple_entries_merge_nested() -> None:
 
 def test_v1_2_type_for_source_with_multiple_entries_merge_flattened() -> None:
     """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.2."""
-    uri = Path(HERE / "../testdata/count-lines7-wf_v12.cwl").resolve().as_uri()
+    uri = Path(HERE / "../testdata/count-lines7-wf_v1_2.cwl").resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
         process=cwl_obj,
@@ -946,7 +1075,7 @@ def test_v1_2_type_for_source_with_multiple_entries_merge_flattened() -> None:
 def test_v1_2_type_for_source_with_single_entry_merge_nested() -> None:
     """Test that the type is correctly inferred from a single source id and merge_nested with CWL v1.2."""
     uri = (
-        Path(HERE / "../testdata/count-lines6-single-source-wf_v12.cwl")
+        Path(HERE / "../testdata/count-lines6-single-source-wf_v1_2.cwl")
         .resolve()
         .as_uri()
     )
@@ -973,7 +1102,7 @@ def test_v1_2_type_for_source_with_single_entry_merge_nested() -> None:
 def test_v1_2_type_for_source_with_single_entry_merge_flattened() -> None:
     """Test that the type is correctly inferred from a single source id and merge_flattened with CWL v1.2."""
     uri = (
-        Path(HERE / "../testdata/count-lines7-single-source-wf_v12.cwl")
+        Path(HERE / "../testdata/count-lines7-single-source-wf_v1_2.cwl")
         .resolve()
         .as_uri()
     )
@@ -1094,6 +1223,24 @@ def test_v1_2_type_for_source_with_single_entry_all_non_null() -> None:
     assert (
         cwl_utils.parser.cwl_v1_2_utils.check_types(
             source_type, cwl_obj.outputs[0].type
+        )
+        == "pass"
+    )
+
+
+def test_v1_2_type_for_source_with_value_from() -> None:
+    """Test that the type is correctly inferred from a single valueFrom source id with CWL v1.2."""
+    uri = Path(HERE / "../testdata/step-valuefrom2-wf_v1_2.cwl").resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    source_type = cwl_utils.parser.cwl_v1_2_utils.type_for_source(
+        process=cwl_obj,
+        sourcenames=cwl_obj.steps[0].in_[0].source,
+    )
+    assert (
+        cwl_utils.parser.cwl_v1_2_utils.check_types(
+            srctype=source_type,
+            sinktype=cwl_obj.steps[0].run.inputs[0].type,
+            valueFrom=cwl_obj.steps[0].in_[0].valueFrom,
         )
         == "pass"
     )
