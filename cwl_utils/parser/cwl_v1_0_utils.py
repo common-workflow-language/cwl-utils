@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
-import logging
-from typing import IO, Any, List, MutableSequence, Optional, Tuple, Union, cast
+from typing import Any, IO, List, MutableSequence, Optional, Tuple, Union, cast
 
 from ruamel import yaml
 from schema_salad.exceptions import ValidationException
@@ -14,98 +13,29 @@ from cwl_utils.errors import WorkflowException
 
 CONTENT_LIMIT: int = 64 * 1024
 
-_logger = logging.getLogger("cwl_utils")
 
-
-def _compare_records(
-    src: cwl.RecordSchema, sink: cwl.RecordSchema, strict: bool = False
-) -> bool:
-    """
-    Compare two records, ensuring they have compatible fields.
-
-    This handles normalizing record names, which will be relative to workflow
-    step, so that they can be compared.
-    """
-    srcfields = {cwl.shortname(field.name): field.type for field in (src.fields or {})}
-    sinkfields = {
-        cwl.shortname(field.name): field.type for field in (sink.fields or {})
-    }
-    for key in sinkfields.keys():
-        if (
-            not can_assign_src_to_sink(
-                srcfields.get(key, "null"), sinkfields.get(key, "null"), strict
-            )
-            and sinkfields.get(key) is not None
-        ):
-            _logger.info(
-                "Record comparison failure for %s and %s\n"
-                "Did not match fields for %s: %s and %s",
-                cast(
-                    Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], src
-                ).name,
-                cast(
-                    Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], sink
-                ).name,
-                key,
-                srcfields.get(key),
-                sinkfields.get(key),
-            )
+def _compare_type(type1: Any, type2: Any) -> bool:
+    if isinstance(type1, cwl.ArraySchema) and isinstance(type2, cwl.ArraySchema):
+        return _compare_type(type1.items, type2.items)
+    elif isinstance(type1, cwl.RecordSchema) and isinstance(type2, cwl.RecordSchema):
+        fields1 = {
+            cwl.shortname(field.name): field.type for field in (type1.fields or {})
+        }
+        fields2 = {
+            cwl.shortname(field.name): field.type for field in (type2.fields or {})
+        }
+        if fields1.keys() != fields2.keys():
             return False
-    return True
-
-
-def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
-    """
-    Check for identical type specifications, ignoring extra keys like inputBinding.
-
-    src: admissible source types
-    sink: admissible sink types
-
-    In non-strict comparison, at least one source type must match one sink type,
-       except for 'null'.
-    In strict comparison, all source types must match at least one sink type.
-    """
-    if src == "Any" or sink == "Any":
+        return all((_compare_type(fields1[k], fields2[k]) for k in fields1.keys()))
+    elif isinstance(type1, MutableSequence) and isinstance(type2, MutableSequence):
+        if len(type1) != len(type2):
+            return False
+        for t1 in type1:
+            if not any((_compare_type(t1, t2) for t2 in type2)):
+                return False
         return True
-    if isinstance(src, cwl.ArraySchema) and isinstance(sink, cwl.ArraySchema):
-        return can_assign_src_to_sink(src.items, sink.items, strict)
-    if isinstance(src, cwl.RecordSchema) and isinstance(sink, cwl.RecordSchema):
-        return _compare_records(src, sink, strict)
-    if isinstance(src, MutableSequence):
-        if strict:
-            for this_src in src:
-                if not can_assign_src_to_sink(this_src, sink):
-                    return False
-            return True
-        for this_src in src:
-            if this_src != "null" and can_assign_src_to_sink(this_src, sink):
-                return True
-        return False
-    if isinstance(sink, MutableSequence):
-        for this_sink in sink:
-            if can_assign_src_to_sink(src, this_sink):
-                return True
-        return False
-    return bool(src == sink)
-
-
-def check_types(
-    srctype: Any,
-    sinktype: Any,
-    valueFrom: Optional[str] = None,
-) -> str:
-    """
-    Check if the source and sink types are correct.
-
-    Acceptable types are "pass", "warning", or "exception".
-    """
-    if valueFrom is not None:
-        return "pass"
-    if can_assign_src_to_sink(srctype, sinktype, strict=True):
-        return "pass"
-    if can_assign_src_to_sink(srctype, sinktype, strict=False):
-        return "warning"
-    return "exception"
+    else:
+        return bool(type1 == type2)
 
 
 def content_limit_respected_read_bytes(f: IO[bytes]) -> bytes:
@@ -190,9 +120,11 @@ def type_for_source(
         return new_type
     new_type = []
     for p, sc in zip(params, scatter_context):
-        if isinstance(p, str) and p not in new_type:
+        if isinstance(p, str) and not any((_compare_type(t, p) for t in new_type)):
             cur_type = p
-        elif hasattr(p, "type") and p.type not in new_type:
+        elif hasattr(p, "type") and not any(
+            (_compare_type(t, p.type) for t in new_type)
+        ):
             cur_type = p.type
         else:
             cur_type = None
