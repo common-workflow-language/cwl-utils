@@ -26,7 +26,6 @@ def _compare_records(
     This handles normalizing record names, which will be relative to workflow
     step, so that they can be compared.
     """
-
     srcfields = {cwl.shortname(field.name): field.type for field in (src.fields or {})}
     sinkfields = {
         cwl.shortname(field.name): field.type for field in (sink.fields or {})

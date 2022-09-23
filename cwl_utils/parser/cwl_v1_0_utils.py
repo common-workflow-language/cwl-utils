@@ -26,7 +26,6 @@ def _compare_records(
     This handles normalizing record names, which will be relative to workflow
     step, so that they can be compared.
     """
-
     srcfields = {cwl.shortname(field.name): field.type for field in (src.fields or {})}
     sinkfields = {
         cwl.shortname(field.name): field.type for field in (sink.fields or {})
@@ -127,15 +126,6 @@ def content_limit_respected_read(f: IO[bytes]) -> str:
     return content_limit_respected_read_bytes(f).decode("utf-8")
 
 
-def merge_flatten_type(src: Any) -> Any:
-    """Return the merge flattened type of the source type."""
-    if isinstance(src, MutableSequence):
-        return [merge_flatten_type(t) for t in src]
-    if isinstance(src, cwl.ArraySchema):
-        return src
-    return cwl.ArraySchema(type="array", items=src)
-
-
 def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
     """Convert stdout and stderr type shortcuts to files."""
     for out in clt.outputs:
@@ -165,6 +155,15 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
                 )
             out.type = "File"
             out.outputBinding = cwl.CommandOutputBinding(glob=clt.stderr)
+
+
+def merge_flatten_type(src: Any) -> Any:
+    """Return the merge flattened type of the source type."""
+    if isinstance(src, MutableSequence):
+        return [merge_flatten_type(t) for t in src]
+    if isinstance(src, cwl.ArraySchema):
+        return src
+    return cwl.ArraySchema(type="array", items=src)
 
 
 def type_for_source(
