@@ -141,8 +141,8 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
                 )
             if clt.stdout is None:
                 clt.stdout = str(
-                    hashlib.sha1(
-                        json_dumps(clt.save(), sort_keys=True).encode("utf-8")  # nosec
+                    hashlib.sha1(  # nosec
+                        json_dumps(clt.save(), sort_keys=True).encode("utf-8")
                     ).hexdigest()
                 )
             out.type = "File"
@@ -154,8 +154,8 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
                 )
             if clt.stderr is None:
                 clt.stderr = str(
-                    hashlib.sha1(
-                        json_dumps(clt.save(), sort_keys=True).encode("utf-8")  # nosec
+                    hashlib.sha1(  # nosec
+                        json_dumps(clt.save(), sort_keys=True).encode("utf-8")
                     ).hexdigest()
                 )
             out.type = "File"
