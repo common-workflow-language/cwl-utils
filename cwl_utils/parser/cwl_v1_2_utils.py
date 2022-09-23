@@ -165,9 +165,9 @@ def type_for_source(
     if len(new_type) == 1:
         new_type = new_type[0]
     if linkMerge == "merge_nested":
-        return cwl.ArraySchema(items=new_type, type="array")
+        new_type = cwl.ArraySchema(items=new_type, type="array")
     elif linkMerge == "merge_flattened":
-        return merge_flatten_type(new_type)
+        new_type = merge_flatten_type(new_type)
     elif isinstance(sourcenames, List):
         new_type = cwl.ArraySchema(items=new_type, type="array")
     if pickValue is not None:
