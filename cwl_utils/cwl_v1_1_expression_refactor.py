@@ -1931,7 +1931,7 @@ def replace_step_valueFrom_expr_with_etool(
     step_inp: cwl.WorkflowStepInput,
     original_process: Union[cwl.CommandLineTool, cwl.ExpressionTool],
     original_step_ins: List[cwl.WorkflowStepInput],
-    source: Union[str, List[str]],
+    source: Optional[Union[str, List[str]]],
     replace_etool: bool,
     source_type: Optional[
         Union[cwl.WorkflowInputParameter, List[cwl.WorkflowInputParameter]]

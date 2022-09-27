@@ -702,18 +702,22 @@ def process_workflow_inputs_and_outputs(
                     target_type.name = None
                 target = cwl.WorkflowInputParameter(id=None, type=target_type)
                 if not isinstance(param2.outputSource, list):
-                    sources: Union[List[str], str] = param2.outputSource.split("#")[-1]
+                    sources = param2.outputSource.split("#")[-1]
                 else:
                     sources = [s.split("#")[-1] for s in param2.outputSource]
                 source_type_items = utils.type_for_source(workflow, sources)
-                if "null" not in source_type_items:
-                    if isinstance(source_type_items, list):
+                if isinstance(source_type_items, cwl.ArraySchema):
+                    if isinstance(source_type_items.items, list):
+                        if "null" not in source_type_items.items:
+                            source_type_items.items.append("null")
+                    elif source_type_items.items != "null":
+                        source_type_items.items = ["null", source_type_items.items]
+                elif isinstance(source_type_items, list):
+                    if "null" not in source_type_items:
                         source_type_items.append("null")
-                    else:
-                        source_type_items = ["null", source_type_items]
-                source_type = cwl.CommandInputParameter(
-                    type=cwl.ArraySchema(type="array", items=source_type_items)
-                )
+                elif source_type_items != "null":
+                    source_type_items = ["null", source_type_items]
+                source_type = cwl.CommandInputParameter(type=source_type_items)
                 replace_expr_with_etool(
                     expression,
                     etool_id,
@@ -2030,7 +2034,7 @@ def replace_step_valueFrom_expr_with_etool(
     step_inp: cwl.WorkflowStepInput,
     original_process: Union[cwl.CommandLineTool, cwl.ExpressionTool],
     original_step_ins: List[cwl.WorkflowStepInput],
-    source: Union[str, List[str]],
+    source: Optional[Union[str, List[str]]],
     replace_etool: bool,
     source_type: Optional[
         Union[cwl.WorkflowInputParameter, List[cwl.WorkflowInputParameter]]
