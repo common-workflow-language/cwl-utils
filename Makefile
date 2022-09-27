@@ -171,6 +171,9 @@ mypy3: mypy
 mypy: $(filter-out setup.py,${PYSOURCES})
 	MYPYPATH=$$MYPYPATH:mypy-stubs mypy $^
 
+mypy_3.6: $(filter-out setup.py,${PYSOURCES})
+	MYPYPATH=$$MYPYPATH:mypy-stubs mypy --python-version 3.6 $^
+
 shellcheck: FORCE
 	shellcheck release-test.sh
 
