@@ -49,24 +49,26 @@ class DockerImagePuller(ImagePuller):
         """Generate the udocker loading command."""
         return f"udocker load -i {self.get_image_name()}"
 
-    def save_docker_image(self) -> None:
+    def save_docker_image(self, image_file: str = None) -> str:
         """Download and save the software container image to disk as a docker tarball."""
         _LOGGER.info(f"Pulling {self.req} with Docker...")
         cmd_pull = ["docker", "pull", self.req]
         ImagePuller._run_command_pull(cmd_pull)
+        if not image_file:
+            image_file = os.path.join(self.save_directory, self.get_image_name())
         cmd_save = [
             "docker",
             "save",
             "-o",
-            os.path.join(self.save_directory, self.get_image_name()),
+            image_file,
             self.req,
         ]
         subprocess.run(cmd_save, check=True)  # nosec
         _LOGGER.info(
-            f"Image successfully pulled: {self.save_directory}/{self.get_image_name()}"
+            f"Image successfully pulled: {image_file}"
         )
         print(self.generate_udocker_loading_command())
-
+        return image_file
 
 class SingularityImagePuller(ImagePuller):
     """
