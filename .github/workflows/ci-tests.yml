@@ -11,19 +11,19 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  singularity_version: 3.6.4
+  singularity_version: 3.8.3
 
 jobs:
 
   tox:
     name: CI tests via Tox
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-20.04  # 22.04 doesn't support Python 3.6
 
     strategy:
       matrix:
         py-ver-major: [3]
-        py-ver-minor: [6, 7, 8, 9, 10]
+        py-ver-minor: [6, 7, 8, 9, 10, 11]
         step: [lint, unit, bandit, mypy]
         exclude:
           - py-ver-major: 3
@@ -46,9 +46,16 @@ jobs:
           singularity-version: ${{ env.singularity_version }}
 
       - name: Set up Python
+        if: matrix.py-ver-minor != 11
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.py-semver }}
+
+      - name: Set up Python 3.11.0-rc.2
+        if: matrix.py-ver-minor == 11
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11.0-rc.2
 
       - name: Cache for pip
         uses: actions/cache@v3
@@ -121,7 +128,7 @@ jobs:
   release_test:
     name: cwl-utils release test
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v3
