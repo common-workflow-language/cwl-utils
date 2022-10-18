@@ -50,18 +50,20 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.py-semver }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            tox.ini
 
       - name: Set up Python 3.11.0-rc.2
         if: matrix.py-ver-minor == 11
         uses: actions/setup-python@v4
         with:
           python-version: 3.11.0-rc.2
-
-      - name: Cache for pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.step }}-${{ hashFiles('requirements.txt', 'tox.ini') }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            tox.ini
 
       - name: Upgrade setuptools and install tox
         run: |
