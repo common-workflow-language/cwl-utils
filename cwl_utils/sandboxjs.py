@@ -308,12 +308,11 @@ class NodeJSEngine(JSEngine):
         if nodejs is None or nodejs is not None and required_node_version is False:
             try:
                 nodeimg = "docker.io/node:slim"
-                global have_node_slim
                 singularityimgs = [0]
                 dockerimgs = '\n'
                 if container_engine == "singularity":
                     nodeimg = f"docker://{nodeimg}"
-                if not have_node_slim:
+                if not self.have_node_slim:
                     if container_engine in ("docker", "podman"):
                         dockerimgs = subprocess.check_output(  # nosec
                             [container_engine, "images", "-q", nodeimg],
@@ -325,7 +324,9 @@ class NodeJSEngine(JSEngine):
                         except KeyError:
                             singularityimgs = glob.glob(os.getcwd() + '/node_slim.sif')
                     elif container_engine != "singularity":
-                        raise Exception(f"Unknown container_engine: {container_engine}.")
+                        raise Exception(
+                            f"Unknown container_engine: {container_engine}."
+                        )
                     # if output is an empty string
                     if (
                         len(singularityimgs) == 0
