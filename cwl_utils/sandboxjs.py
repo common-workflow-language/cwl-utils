@@ -312,7 +312,7 @@ class NodeJSEngine(JSEngine):
                 dockerimgs = '\n'
                 if container_engine == "singularity":
                     nodeimg = f"docker://{nodeimg}"
-                    
+
                 if not self.have_node_slim:
                     if container_engine in ("docker", "podman"):
                         dockerimgs = subprocess.check_output(  # nosec
