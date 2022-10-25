@@ -308,8 +308,6 @@ class NodeJSEngine(JSEngine):
         if nodejs is None or nodejs is not None and required_node_version is False:
             try:
                 nodeimg = "docker.io/node:slim"
-                singularityimgs = [0]
-                dockerimgs = '\n'
                 if container_engine == "singularity":
                     nodeimg = f"docker://{nodeimg}"
 
@@ -320,20 +318,24 @@ class NodeJSEngine(JSEngine):
                             universal_newlines=True,
                         )
                     elif container_engine == "singularity":
-                        try:
-                            singularityimgs = glob.glob(os.environ['CWL_SINGULARITY_CACHE'] + '/node_slim.sif')
-                        except KeyError:
+                        singularity_cache = os.environ.get('CWL_SINGULARITY_CACHE')
+                        if singularity_cache:
+                            singularityimgs = glob.glob(singularity_cache + '/node_slim.sif')
+                        else:
                             singularityimgs = glob.glob(os.getcwd() + '/node_slim.sif')
-                    elif container_engine != "singularity":
+                    else:
                         raise Exception(
                             f"Unknown container_engine: {container_engine}."
                         )
                     # if output is an empty string
+                    need_singularity = container_engine == "singularity" and not singularityimgs
+                    need_docker = container_engine != "singularity" and (len(dockerimgs.split("\n")) <= 1
                     if (
-                        len(singularityimgs) == 0
-                        or len(dockerimgs.split("\n")) <= 1
+                        need_singularity
+                        or need_docker
                         or force_docker_pull
-                    ):                        # pull node:slim docker container
+                    ):
+                        # pull node:slim docker container
                         nodejs_pull_commands = [container_engine, "pull"]
                         if container_engine == "singularity":
                             nodejs_pull_commands.append("--force")
