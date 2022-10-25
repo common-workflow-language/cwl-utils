@@ -46,20 +46,9 @@ jobs:
           singularity-version: ${{ env.singularity_version }}
 
       - name: Set up Python
-        if: matrix.py-ver-minor != 11
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.py-semver }}
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            tox.ini
-
-      - name: Set up Python 3.11.0-rc.2
-        if: matrix.py-ver-minor == 11
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.11.0-rc.2
           cache: pip
           cache-dependency-path: |
             requirements.txt
@@ -96,7 +85,7 @@ jobs:
         step: [lint-readme, pydocstyle]
 
     env:
-      py-semver: "3.10"
+      py-semver: 3.11
       TOXENV: ${{ format('py310-{0}', matrix.step) }}
 
     steps:
@@ -143,7 +132,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"  # quoted, otherwise that turns into the number 3.1
+          python-version: 3.11
 
       - name: Cache for pip
         uses: actions/cache@v3
