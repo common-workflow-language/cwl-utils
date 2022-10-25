@@ -329,7 +329,7 @@ class NodeJSEngine(JSEngine):
                         )
                     # if output is an empty string
                     need_singularity = container_engine == "singularity" and not singularityimgs
-                    need_docker = container_engine != "singularity" and (len(dockerimgs.split("\n")) <= 1
+                    need_docker = container_engine != "singularity" and (len(dockerimgs.split("\n")) <= 1)
                     if (
                         need_singularity
                         or need_docker
