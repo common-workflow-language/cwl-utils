@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
-from typing import Any, IO, List, MutableSequence, Optional, Tuple, Union, cast
+from typing import IO, Any, List, MutableSequence, Optional, Tuple, Union, cast
 
 from ruamel import yaml
 from schema_salad.exceptions import ValidationException
