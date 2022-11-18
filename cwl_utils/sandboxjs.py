@@ -338,7 +338,7 @@ class NodeJSEngine(JSEngine):
                     ):
                         # pull node:slim docker container
                         nodejs_pull_commands = [container_engine, "pull"]
-                        if container_engine == "singularity":
+                        if force_docker_pull:
                             nodejs_pull_commands.append("--force")
                         nodejs_pull_commands.append(nodeimg)
                         nodejsimg = subprocess.check_output(  # nosec
