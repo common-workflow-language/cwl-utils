@@ -2,9 +2,9 @@
 """Safe execution of CWL Expressions in a NodeJS sandbox."""
 import collections
 import errno
+import glob
 import json
 import os
-import glob
 import re
 import select
 import subprocess  # nosec
@@ -319,23 +319,25 @@ class NodeJSEngine(JSEngine):
                             universal_newlines=True,
                         )
                     elif container_engine == "singularity":
-                        singularity_cache = os.environ.get('CWL_SINGULARITY_CACHE')
+                        singularity_cache = os.environ.get("CWL_SINGULARITY_CACHE")
                         if singularity_cache:
-                            singularityimgs = glob.glob(singularity_cache + '/node_slim.sif')
+                            singularityimgs = glob.glob(
+                                singularity_cache + "/node_slim.sif"
+                            )
                         else:
-                            singularityimgs = glob.glob(os.getcwd() + '/node_slim.sif')
+                            singularityimgs = glob.glob(os.getcwd() + "/node_slim.sif")
                     else:
                         raise Exception(
                             f"Unknown container_engine: {container_engine}."
                         )
                     # if output is an empty string
-                    need_singularity = container_engine == "singularity" and not singularityimgs
-                    need_docker = container_engine != "singularity" and (len(dockerimgs.split("\n")) <= 1)
-                    if (
-                        need_singularity
-                        or need_docker
-                        or force_docker_pull
-                    ):
+                    need_singularity = (
+                        container_engine == "singularity" and not singularityimgs
+                    )
+                    need_docker = container_engine != "singularity" and (
+                        len(dockerimgs.split("\n")) <= 1
+                    )
+                    if need_singularity or need_docker or force_docker_pull:
                         # pull node:slim docker container
                         nodejs_pull_commands = [container_engine, "pull"]
                         if force_docker_pull:
