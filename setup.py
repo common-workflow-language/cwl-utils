@@ -37,7 +37,7 @@ setup(
     )
     .read()
     .splitlines(),
-    tests_require=["pytest<8"],
+    tests_require=["pytest<8", "pytest-mock"],
     test_suite="tests",
     extras_require={"pretty": ["cwlformat"]},
     entry_points={

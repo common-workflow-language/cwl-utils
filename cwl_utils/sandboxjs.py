@@ -2,6 +2,7 @@
 """Safe execution of CWL Expressions in a NodeJS sandbox."""
 import collections
 import errno
+import glob
 import json
 import os
 import re
@@ -312,28 +313,40 @@ class NodeJSEngine(JSEngine):
                     nodeimg = f"docker://{nodeimg}"
 
                 if not self.have_node_slim:
+                    singularity_cache: Optional[str] = None
                     if container_engine in ("docker", "podman"):
                         dockerimgs = subprocess.check_output(  # nosec
                             [container_engine, "images", "-q", nodeimg],
                             universal_newlines=True,
                         )
-                    elif container_engine != "singularity":
+                    elif container_engine == "singularity":
+                        singularity_cache = os.environ.get("CWL_SINGULARITY_CACHE")
+                        if singularity_cache:
+                            singularityimgs = glob.glob(
+                                singularity_cache + "/node_slim.sif"
+                            )
+                        else:
+                            singularityimgs = glob.glob(os.getcwd() + "/node_slim.sif")
+                    else:
                         raise Exception(
                             f"Unknown container_engine: {container_engine}."
                         )
                     # if output is an empty string
-                    if (
-                        container_engine == "singularity"
-                        or len(dockerimgs.split("\n")) <= 1
-                        or force_docker_pull
-                    ):
+                    need_singularity = (
+                        container_engine == "singularity" and not singularityimgs
+                    )
+                    need_docker = container_engine != "singularity" and (
+                        len(dockerimgs.split("\n")) <= 1
+                    )
+                    if need_singularity or need_docker or force_docker_pull:
                         # pull node:slim docker container
                         nodejs_pull_commands = [container_engine, "pull"]
                         if force_docker_pull:
                             nodejs_pull_commands.append("--force")
                         nodejs_pull_commands.append(nodeimg)
+                        cwd = singularity_cache if singularity_cache else os.getcwd()
                         nodejsimg = subprocess.check_output(  # nosec
-                            nodejs_pull_commands, universal_newlines=True
+                            nodejs_pull_commands, universal_newlines=True, cwd=cwd
                         )
                         _logger.debug(
                             "Pulled Docker image %s %s using %s",
