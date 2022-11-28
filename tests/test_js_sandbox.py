@@ -96,7 +96,7 @@ def test_value_from_two_concatenated_expressions_podman(
                 None,
                 {},
                 cwlVersion="v1.0",
-                container_engine="podman"
+                container_engine="podman",
             )
             == "a string"
         )
@@ -122,10 +122,40 @@ def test_value_from_two_concatenated_expressions_singularity(
                 None,
                 {},
                 cwlVersion="v1.0",
-                container_engine="singularity"
+                container_engine="singularity",
             )
             == "a string"
         )
+
+
+@needs_singularity
+def test_singularity_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Affirm that CWL_SINGULARIT_CACHE is respected."""
+    bin_path = tmp_path / "no_nodejs"
+    bin_path.mkdir()
+    new_paths = hide_nodejs(bin_path)
+    cache_path = tmp_path / "singularity_cache"
+    cache_path.mkdir()
+    with monkeypatch.context() as m:
+        m.setenv("PATH", new_paths)
+        m.setenv("CWL_SINGULARITY_CACHE", str(cache_path))
+        js_engine = sandboxjs.get_js_engine()
+        js_engine.localdata = threading.local()  # type: ignore[attr-defined]
+        js_engine.have_node_slim = False  # type: ignore[attr-defined]
+        assert (
+            expression.do_eval(
+                "$(42*23)",
+                {},
+                [{"class": "InlineJavascriptRequirement"}],
+                None,
+                None,
+                {},
+                cwlVersion="v1.0",
+                container_engine="singularity",
+            )
+            == 42 * 23
+        )
+        assert (cache_path / "node_slim.sif").exists()
 
 
 def test_caches_js_processes(mocker: Any) -> None:
