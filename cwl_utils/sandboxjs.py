@@ -313,6 +313,7 @@ class NodeJSEngine(JSEngine):
                     nodeimg = f"docker://{nodeimg}"
 
                 if not self.have_node_slim:
+                    singularity_cache: Optional[str] = None
                     if container_engine in ("docker", "podman"):
                         dockerimgs = subprocess.check_output(  # nosec
                             [container_engine, "images", "-q", nodeimg],
@@ -343,8 +344,9 @@ class NodeJSEngine(JSEngine):
                         if force_docker_pull:
                             nodejs_pull_commands.append("--force")
                         nodejs_pull_commands.append(nodeimg)
+                        cwd = singularity_cache if singularity_cache else os.getcwd()
                         nodejsimg = subprocess.check_output(  # nosec
-                            nodejs_pull_commands, universal_newlines=True
+                            nodejs_pull_commands, universal_newlines=True, cwd=cwd
                         )
                         _logger.debug(
                             "Pulled Docker image %s %s using %s",
