@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  singularity_version: 3.6.4
+  apptainer_version: 1.1.8
 
 jobs:
   release_to_pypi:
@@ -20,10 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Singularity
-        uses: eWaterCycle/setup-singularity@v7
+      - name: Set up Apptainer
+        uses: eWaterCycle/setup-apptainer@v2
         with:
-          singularity-version: ${{ env.singularity_version }}
+          apptainer-version: ${{ env.apptainer_version }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
