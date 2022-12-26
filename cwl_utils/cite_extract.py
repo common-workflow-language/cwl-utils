@@ -10,7 +10,7 @@ ProcessType = Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool]
 
 
 def arg_parser() -> argparse.ArgumentParser:
-    """Argument parser."""
+    """Construct the argument parser."""
     parser = argparse.ArgumentParser(
         description="Print information about software used in a CWL document (Workflow or CommandLineTool). "
         "For CWL Workflows, all steps will also be searched (recursively)."

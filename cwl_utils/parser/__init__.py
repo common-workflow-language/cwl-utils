@@ -14,26 +14,36 @@ from . import cwl_v1_0, cwl_v1_1, cwl_v1_2
 LoadingOptions = Union[
     cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions
 ]
+"""Type union for a CWL v1.x LoadingOptions object."""
 Saveable = Union[cwl_v1_0.Saveable, cwl_v1_1.Saveable, cwl_v1_2.Saveable]
+"""Type union for a CWL v1.x Savable object."""
 Workflow = Union[cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow]
+"""Type union for a CWL v1.x Workflow object."""
 WorkflowTypes = (cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow)
 WorkflowStep = Union[
     cwl_v1_0.WorkflowStep, cwl_v1_1.WorkflowStep, cwl_v1_2.WorkflowStep
 ]
+"""Type union for a CWL v1.x WorkflowStep object."""
 CommandLineTool = Union[
     cwl_v1_0.CommandLineTool, cwl_v1_1.CommandLineTool, cwl_v1_2.CommandLineTool
 ]
+"""Type union for a CWL v1.x CommandLineTool object."""
 ExpressionTool = Union[
     cwl_v1_0.ExpressionTool, cwl_v1_1.ExpressionTool, cwl_v1_2.ExpressionTool
 ]
+"""Type union for a CWL v1.x ExpressionTool object."""
 DockerRequirement = Union[
     cwl_v1_0.DockerRequirement, cwl_v1_1.DockerRequirement, cwl_v1_2.DockerRequirement
 ]
+"""Type union for a CWL v1.x DockerRequirement object."""
 DockerRequirementTypes = (
     cwl_v1_0.DockerRequirement,
     cwl_v1_1.DockerRequirement,
     cwl_v1_2.DockerRequirement,
 )
+Process = Union[Workflow, CommandLineTool, ExpressionTool, cwl_v1_2.Operation]
+"""Type Union for a CWL v1.x Process object."""
+
 _Loader = Union[cwl_v1_0._Loader, cwl_v1_1._Loader, cwl_v1_2._Loader]
 
 
@@ -52,11 +62,9 @@ def _get_id_from_graph(yaml: MutableMapping[str, Any], id_: Optional[str]) -> An
 def cwl_version(yaml: Any) -> Optional[str]:
     """Return the cwlVersion of a YAML object.
 
-    Args:
-        yaml: A YAML object
+    :param yaml: ruamel.yaml object for a CWL document
 
-    Raises:
-        ValidationException: If `yaml` is not a MutableMapping.
+    :raises ValidationException: If `yaml` is not a MutableMapping.
     """
     if not isinstance(yaml, MutableMapping):
         raise ValidationException("MutableMapping is required")
@@ -162,7 +170,7 @@ def save(
     base_url: str = "",
     relative_uris: bool = True,
 ) -> Any:
-    """Convert a given CWL object into a built-in typed object."""
+    """Convert a CWL Python object into a JSON/YAML serializable object."""
     if (
         isinstance(val, cwl_v1_0.Saveable)
         or isinstance(val, cwl_v1_1.Saveable)
@@ -194,6 +202,7 @@ def save(
 
 
 def is_process(v: Any) -> bool:
+    """Test to see if the object is a CWL v1.x Python Process object."""
     return (
         isinstance(v, cwl_v1_0.Process)
         or isinstance(v, cwl_v1_1.Process)
@@ -202,4 +211,5 @@ def is_process(v: Any) -> bool:
 
 
 def version_split(version: str) -> MutableSequence[int]:
+    """Split a cwlVersion value into its numerical components."""
     return [int(v) for v in version[1:].split(".")]
