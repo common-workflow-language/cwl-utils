@@ -4,3 +4,4 @@ rdflib
 requests
 CacheControl
 schema-salad >= 8.3.20220825114525, < 9
+antlr4-python3-runtime
