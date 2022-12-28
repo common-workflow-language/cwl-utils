@@ -14,5 +14,7 @@ include testdata/*.input
 include testdata/*.ttl
 include testdata/*.owl
 include cwl_utils/py.typed
+include docs/conf.py docs/Makefile docs/_static/favicon.ico docs/requirements.txt
+include docs/*.rst
 global-exclude *~
 global-exclude *.pyc
