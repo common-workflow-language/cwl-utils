@@ -47,7 +47,6 @@ IdxType = MutableMapping[str, Tuple[Any, "LoadingOptions"]]
 
 
 class LoadingOptions:
-
     idx: IdxType
     fileuri: Optional[str]
     baseuri: str
@@ -59,6 +58,8 @@ class LoadingOptions:
     vocab: Dict[str, str]
     rvocab: Dict[str, str]
     cache: CacheType
+    imports: List[str]
+    includes: List[str]
 
     def __init__(
         self,
@@ -71,9 +72,10 @@ class LoadingOptions:
         addl_metadata: Optional[Dict[str, str]] = None,
         baseuri: Optional[str] = None,
         idx: Optional[IdxType] = None,
+        imports: Optional[List[str]] = None,
+        includes: Optional[List[str]] = None,
     ) -> None:
         """Create a LoadingOptions object."""
-
         self.original_doc = original_doc
 
         if idx is not None:
@@ -105,6 +107,16 @@ class LoadingOptions:
             self.addl_metadata = addl_metadata
         else:
             self.addl_metadata = copyfrom.addl_metadata if copyfrom is not None else {}
+
+        if imports is not None:
+            self.imports = imports
+        else:
+            self.imports = copyfrom.imports if copyfrom is not None else []
+
+        if includes is not None:
+            self.includes = includes
+        else:
+            self.includes = copyfrom.includes if copyfrom is not None else []
 
         if fetcher is not None:
             self.fetcher = fetcher
@@ -151,24 +163,29 @@ class LoadingOptions:
                 if self.fileuri is not None
                 else pathlib.Path(schema).resolve().as_uri()
             )
-            try:
-                if fetchurl not in self.cache or self.cache[fetchurl] is True:
-                    _logger.debug("Getting external schema %s", fetchurl)
+            if fetchurl not in self.cache or self.cache[fetchurl] is True:
+                _logger.debug("Getting external schema %s", fetchurl)
+                try:
                     content = self.fetcher.fetch_text(fetchurl)
-                    self.cache[fetchurl] = newGraph = Graph()
-                    for fmt in ["xml", "turtle"]:
-                        try:
-                            newGraph.parse(
-                                data=content, format=fmt, publicID=str(fetchurl)
-                            )
-                            break
-                        except (xml.sax.SAXParseException, TypeError, BadSyntax):
-                            pass
-                graph += self.cache[fetchurl]
-            except Exception as e:
-                _logger.warning(
-                    "Could not load extension schema %s: %s", fetchurl, str(e)
-                )
+                except Exception as e:
+                    _logger.warning(
+                        "Could not load extension schema %s: %s", fetchurl, str(e)
+                    )
+                    continue
+                newGraph = Graph()
+                err_msg = "unknown error"
+                for fmt in ["xml", "turtle"]:
+                    try:
+                        newGraph.parse(data=content, format=fmt, publicID=str(fetchurl))
+                        self.cache[fetchurl] = newGraph
+                        graph += newGraph
+                        break
+                    except (xml.sax.SAXParseException, TypeError, BadSyntax) as e:
+                        err_msg = str(e)
+                else:
+                    _logger.warning(
+                        "Could not load extension schema %s: %s", fetchurl, err_msg
+                    )
         self.cache[key] = graph
         return graph
 
@@ -200,18 +217,22 @@ def load_field(val, fieldtype, baseuri, loadingOptions):
         if "$import" in val:
             if loadingOptions.fileuri is None:
                 raise SchemaSaladException("Cannot load $import without fileuri")
+            url = loadingOptions.fetcher.urljoin(loadingOptions.fileuri, val["$import"])
             result, metadata = _document_load_by_url(
                 fieldtype,
-                loadingOptions.fetcher.urljoin(loadingOptions.fileuri, val["$import"]),
+                url,
                 loadingOptions,
             )
+            loadingOptions.imports.append(url)
             return result
         elif "$include" in val:
             if loadingOptions.fileuri is None:
                 raise SchemaSaladException("Cannot load $import without fileuri")
-            val = loadingOptions.fetcher.fetch_text(
-                loadingOptions.fetcher.urljoin(loadingOptions.fileuri, val["$include"])
+            url = loadingOptions.fetcher.urljoin(
+                loadingOptions.fileuri, val["$include"]
             )
+            val = loadingOptions.fetcher.fetch_text(url)
+            loadingOptions.includes.append(url)
     return fieldtype.load(val, baseuri, loadingOptions)
 
 
@@ -382,7 +403,7 @@ class _ArrayLoader(_Loader):
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
         if not isinstance(doc, MutableSequence):
-            raise ValidationException("Expected a list, was {}".format(type(doc)))
+            raise ValidationException(f"Expected a list, was {type(doc)}")
         r = []  # type: List[Any]
         errors = []  # type: List[SchemaSaladException]
         for i in range(0, len(doc)):
@@ -504,7 +525,7 @@ class _RecordLoader(_Loader):
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
         if not isinstance(doc, MutableMapping):
-            raise ValidationException("Expected a dict, was {}".format(type(doc)))
+            raise ValidationException(f"Expected a dict, was {type(doc)}")
         return self.classtype.fromDoc(doc, baseuri, loadingOptions, docRoot=docRoot)
 
     def __repr__(self):  # type: () -> str
@@ -518,7 +539,7 @@ class _ExpressionLoader(_Loader):
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
         if not isinstance(doc, str):
-            raise ValidationException("Expected a str, was {}".format(type(doc)))
+            raise ValidationException(f"Expected a str, was {type(doc)}")
         return doc
 
 
