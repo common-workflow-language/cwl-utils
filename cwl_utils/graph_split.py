@@ -12,13 +12,16 @@ import argparse
 import json
 import os
 import sys
-from typing import IO, Any, List, MutableMapping, Set, Union, cast
+from typing import IO, TYPE_CHECKING, Any, List, MutableMapping, Set, Union, cast
 
 from cwlformat.formatter import stringify_dict
 from ruamel.yaml.dumper import RoundTripDumper
 from ruamel.yaml.main import YAML, dump
 from ruamel.yaml.representer import RoundTripRepresenter
 from schema_salad.sourceline import SourceLine, add_lc_filename
+
+if TYPE_CHECKING:
+    from _typeshed import StrPath
 
 
 def arg_parser() -> argparse.ArgumentParser:
@@ -78,7 +81,11 @@ def run(args: List[str]) -> int:
 
 
 def graph_split(
-    sourceIO: IO[str], output_dir: str, output_format: str, mainfile: str, pretty: bool
+    sourceIO: IO[str],
+    output_dir: "StrPath",
+    output_format: str,
+    mainfile: str,
+    pretty: bool,
 ) -> None:
     """Loop over the provided packed CWL document and split it up."""
     yaml = YAML(typ="rt")
@@ -101,7 +108,7 @@ def graph_split(
     RoundTripRepresenter.add_representer(type(None), my_represent_none)
 
     for entry in source["$graph"]:
-        entry_id = entry.pop("id")[1:]
+        entry_id = entry.pop("id").lstrip("#")
         entry["cwlVersion"] = version
         imports = rewrite(entry, entry_id)
         if imports:
@@ -113,7 +120,7 @@ def graph_split(
             else:
                 entry_id = mainfile
 
-        output_file = os.path.join(output_dir, entry_id)
+        output_file = os.path.join(output_dir, entry_id + ".cwl")
         if output_format == "json":
             json_dump(entry, output_file)
         elif output_format == "yaml":
@@ -131,10 +138,10 @@ def rewrite(document: Any, doc_id: str) -> Set[str]:
         for key, value in document.items():
             with SourceLine(document, key, Exception):
                 if key == "run" and isinstance(value, str) and value[0] == "#":
-                    document[key] = value[1:]
+                    document[key] = f"{value[1:]}.cwl"
                 elif key in ("id", "outputSource") and value.startswith("#" + doc_id):
                     document[key] = value[len(doc_id) + 2 :]
-                elif key == "out":
+                elif key == "out" and isinstance(value, list):
 
                     def rewrite_id(entry: Any) -> Union[MutableMapping[Any, Any], str]:
                         if isinstance(entry, MutableMapping):
@@ -142,8 +149,9 @@ def rewrite(document: Any, doc_id: str) -> Set[str]:
                                 entry["id"] = cast(str, entry["id"])[len(this_id) + 1 :]
                             return entry
                         elif isinstance(entry, str):
-                            if entry.startswith(this_id):
+                            if this_id and entry.startswith(this_id):
                                 return entry[len(this_id) + 1 :]
+                            return entry
                         raise Exception(f"{entry} is neither a dictionary nor string.")
 
                     document[key][:] = [rewrite_id(entry) for entry in value]
