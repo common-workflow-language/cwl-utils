@@ -10,9 +10,6 @@ concurrency:
   group: build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  singularity_version: 3.8.3
-
 jobs:
 
   tox:
@@ -41,9 +38,9 @@ jobs:
 
       - name: Set up Singularity
         if: ${{ matrix.step == 'unit' || matrix.step == 'mypy' }}
-        uses: eWaterCycle/setup-singularity@v7
-        with:
-          singularity-version: ${{ env.singularity_version }}
+        run: |
+          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v3.10.4/singularity-ce_3.10.4-focal_amd64.deb
+          sudo apt-get install -y ./singularity-ce_3.10.4-focal_amd64.deb
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -86,8 +83,8 @@ jobs:
         step: [lint-readme, pydocstyle]
 
     env:
-      py-semver: 3.11
-      TOXENV: ${{ format('py310-{0}', matrix.step) }}
+      py-semver: "3.11"
+      TOXENV: ${{ format('py311-{0}', matrix.step) }}
 
     steps:
       - uses: actions/checkout@v3
@@ -98,12 +95,7 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.py-semver }}
-
-      - name: Cache for pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.step }}-${{ hashFiles('requirements.txt') }}
+          cache: pip
 
       - name: Upgrade setuptools and install tox
         run: |
@@ -119,27 +111,24 @@ jobs:
 
   release_test:
     name: cwl-utils release test
-
     runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v3
 
       - name: Set up Singularity
-        uses: eWaterCycle/setup-singularity@v7
-        with:
-          singularity-version: ${{ env.singularity_version }}
+        run: |
+          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v3.10.4/singularity-ce_3.10.4-jammy_amd64.deb
+          sudo apt-get install -y ./singularity-ce_3.10.4-jammy_amd64.deb
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: 3.11
-
-      - name: Cache for pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-release-${{ hashFiles('requirements.txt', 'test-requirements.txt') }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            test-requirements.txt
 
       - name: Install packages
         run: |
