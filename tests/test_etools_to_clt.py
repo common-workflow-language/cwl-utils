@@ -20,16 +20,14 @@ from cwl_utils.cwl_v1_2_expression_refactor import traverse as traverse2
 from cwl_utils.errors import WorkflowException
 from cwl_utils.expression_refactor import run as expression_refactor
 
-HERE = Path(__file__).resolve().parent
+from .util import get_data
 
 
 def test_v1_0_workflow_top_level_format_expr() -> None:
     """Test for the correct error when converting a format expression in a workflow level input."""
     with raises(WorkflowException, match=r".*format specification.*"):
         result, modified = traverse0(
-            parser.load_document(
-                str(HERE / "../testdata/workflow_input_format_expr.cwl")
-            ),
+            parser.load_document(get_data("testdata/workflow_input_format_expr.cwl")),
             False,
             False,
             False,
@@ -41,7 +39,7 @@ def test_v1_0_workflow_top_level_sf_expr() -> None:
     """Test for the correct error when converting a secondaryFiles expression in a workflow level input."""
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
         result, modified = traverse0(
-            parser.load_document(str(HERE / "../testdata/workflow_input_sf_expr.cwl")),
+            parser.load_document(get_data("testdata/workflow_input_sf_expr.cwl")),
             False,
             False,
             False,
@@ -53,9 +51,7 @@ def test_v1_0_workflow_top_level_sf_expr_array() -> None:
     """Test for the correct error when converting a secondaryFiles expression (array form) in a workflow level input."""
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
         result, modified = traverse0(
-            parser.load_document(
-                str(HERE / "../testdata/workflow_input_sf_expr_array.cwl")
-            ),
+            parser.load_document(get_data("testdata/workflow_input_sf_expr_array.cwl")),
             False,
             False,
             False,
@@ -65,11 +61,10 @@ def test_v1_0_workflow_top_level_sf_expr_array() -> None:
 
 def test_v1_1_workflow_top_level_format_expr() -> None:
     """Test for the correct error when converting a format expression in a workflow level input."""
-    # import ipdb; ipdb.set_trace()
     with raises(WorkflowException, match=r".*format specification.*"):
         result, modified = traverse1(
             parser1.load_document(
-                str(HERE / "../testdata/workflow_input_format_expr_v1_1.cwl")
+                get_data("testdata/workflow_input_format_expr_v1_1.cwl")
             ),
             False,
             False,
@@ -82,9 +77,7 @@ def test_v1_1_workflow_top_level_sf_expr() -> None:
     """Test for the correct error when converting a secondaryFiles expression in a workflow level input."""
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
         result, modified = traverse1(
-            parser1.load_document(
-                str(HERE / "../testdata/workflow_input_sf_expr_v1_1.cwl")
-            ),
+            parser1.load_document(get_data("testdata/workflow_input_sf_expr_v1_1.cwl")),
             False,
             False,
             False,
@@ -97,7 +90,7 @@ def test_v1_1_workflow_top_level_sf_expr_array() -> None:
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
         result, modified = traverse1(
             parser1.load_document(
-                str(HERE / "../testdata/workflow_input_sf_expr_array_v1_1.cwl")
+                get_data("testdata/workflow_input_sf_expr_array_v1_1.cwl")
             ),
             False,
             False,
@@ -111,7 +104,7 @@ def test_v1_2_workflow_top_level_format_expr() -> None:
     with raises(WorkflowException, match=r".*format specification.*"):
         result, modified = traverse2(
             parser2.load_document(
-                str(HERE / "../testdata/workflow_input_format_expr_v1_2.cwl")
+                get_data("testdata/workflow_input_format_expr_v1_2.cwl")
             ),
             False,
             False,
@@ -124,9 +117,7 @@ def test_v1_2_workflow_top_level_sf_expr() -> None:
     """Test for the correct error when converting a secondaryFiles expression in a workflow level input."""
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
         result, modified = traverse2(
-            parser2.load_document(
-                str(HERE / "../testdata/workflow_input_sf_expr_v1_2.cwl")
-            ),
+            parser2.load_document(get_data("testdata/workflow_input_sf_expr_v1_2.cwl")),
             False,
             False,
             False,
@@ -139,7 +130,7 @@ def test_v1_2_workflow_top_level_sf_expr_array() -> None:
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
         result, modified = traverse2(
             parser2.load_document(
-                str(HERE / "../testdata/workflow_input_sf_expr_array_v1_2.cwl")
+                get_data("testdata/workflow_input_sf_expr_array_v1_2.cwl")
             ),
             False,
             False,
@@ -151,7 +142,7 @@ def test_v1_2_workflow_top_level_sf_expr_array() -> None:
 def test_v1_0_step_valuefrom_expr_multisource() -> None:
     """Convert a valueFrom expression that has multiple sources."""
     result, modified = traverse0(
-        parser.load_document(str(HERE / "../testdata/step-valuefrom2-wf_v1_0.cwl")),
+        parser.load_document(get_data("testdata/step-valuefrom2-wf_v1_0.cwl")),
         False,
         False,
         False,
@@ -162,7 +153,7 @@ def test_v1_0_step_valuefrom_expr_multisource() -> None:
 def test_v1_1_step_valuefrom_expr_multisource() -> None:
     """Convert a valueFrom expression that has multiple sources."""
     result, modified = traverse1(
-        parser1.load_document(str(HERE / "../testdata/step-valuefrom2-wf_v1_1.cwl")),
+        parser1.load_document(get_data("testdata/step-valuefrom2-wf_v1_1.cwl")),
         False,
         False,
         False,
@@ -173,7 +164,7 @@ def test_v1_1_step_valuefrom_expr_multisource() -> None:
 def test_v1_2_step_valuefrom_expr_multisource() -> None:
     """Convert a valueFrom expression that has multiple sources."""
     result, modified = traverse2(
-        parser2.load_document(str(HERE / "../testdata/step-valuefrom2-wf_v1_2.cwl")),
+        parser2.load_document(get_data("testdata/step-valuefrom2-wf_v1_2.cwl")),
         False,
         False,
         False,
@@ -184,7 +175,7 @@ def test_v1_2_step_valuefrom_expr_multisource() -> None:
 def test_v1_0_step_valuefrom_expr_sibling_inputs() -> None:
     """Convert a valueFrom expression from a step input that has uninvolved sibling inputs."""
     result, modified = traverse0(
-        parser.load_document(str(HERE / "../testdata/step-valuefrom3-wf_v1_0.cwl")),
+        parser.load_document(get_data("testdata/step-valuefrom3-wf_v1_0.cwl")),
         False,
         False,
         False,
@@ -195,7 +186,7 @@ def test_v1_0_step_valuefrom_expr_sibling_inputs() -> None:
 def test_v1_1_step_valuefrom_expr_sibling_inputs() -> None:
     """Convert a valueFrom expression from a step input that has uninvolved sibling inputs."""
     result, modified = traverse1(
-        parser1.load_document(str(HERE / "../testdata/step-valuefrom3-wf_v1_1.cwl")),
+        parser1.load_document(get_data("testdata/step-valuefrom3-wf_v1_1.cwl")),
         False,
         False,
         False,
@@ -206,7 +197,7 @@ def test_v1_1_step_valuefrom_expr_sibling_inputs() -> None:
 def test_v1_2_step_valuefrom_expr_sibling_inputs() -> None:
     """Convert a valueFrom expression from a step input that has uninvolved sibling inputs."""
     result, modified = traverse2(
-        parser2.load_document(str(HERE / "../testdata/step-valuefrom3-wf_v1_2.cwl")),
+        parser2.load_document(get_data("testdata/step-valuefrom3-wf_v1_2.cwl")),
         False,
         False,
         False,
@@ -217,7 +208,7 @@ def test_v1_2_step_valuefrom_expr_sibling_inputs() -> None:
 def test_v1_2_workflow_output_pickvalue_expr() -> None:
     """Convert a workflow output pickValue expression."""
     result, modified = traverse2(
-        parser2.load_document(str(HERE / "../testdata/cond-wf-003.1.cwl")),
+        parser2.load_document(get_data("testdata/cond-wf-003.1.cwl")),
         False,
         False,
         False,
@@ -227,22 +218,22 @@ def test_v1_2_workflow_output_pickvalue_expr() -> None:
 
 def test_expression_refactor(tmp_path: Path) -> None:
     """Functional test."""
-    input_path = str(HERE / "../testdata/cond-wf-003.1.cwl")
+    input_path = get_data("testdata/cond-wf-003.1.cwl")
     result = expression_refactor([str(tmp_path), input_path])
     assert result == 0
 
 
 def test_expression_refactor_noop_solo(tmp_path: Path) -> None:
     """Functional test."""
-    input_path = str(HERE / "../testdata/dockstore-tool-md5sum.cwl")
+    input_path = get_data("testdata/dockstore-tool-md5sum.cwl")
     result = expression_refactor([str(tmp_path), input_path])
     assert result == 7
 
 
 def test_expression_refactor_noop(tmp_path: Path) -> None:
     """Functional test."""
-    input_path1 = str(HERE / "../testdata/dockstore-tool-md5sum.cwl")
-    input_path2 = str(HERE / "../testdata/echo-tool-packed.cwl")
+    input_path1 = get_data("testdata/dockstore-tool-md5sum.cwl")
+    input_path2 = get_data("testdata/echo-tool-packed.cwl")
     result = expression_refactor([str(tmp_path), input_path1, input_path2])
     assert result == 0
 

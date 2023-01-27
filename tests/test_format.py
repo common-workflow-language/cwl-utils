@@ -17,6 +17,8 @@ from cwl_utils.file_formats import check_format
 from cwl_utils.parser import load_document_by_uri
 from cwl_utils.types import CWLObjectType
 
+from .util import get_data
+
 
 def _create_file(format_: Optional[str] = None) -> CWLObjectType:
     obj: CWLObjectType = {
@@ -45,9 +47,8 @@ def _load_format(fetchurl: str) -> Graph:
     return graph
 
 
-HERE = Path(__file__).resolve().parent
-EDAM = _load_format((HERE / "../testdata/EDAM_subset.owl").absolute().as_uri())
-GX = _load_format((HERE / "../testdata/gx_edam.ttl").absolute().as_uri())
+EDAM = _load_format(Path(get_data("testdata/EDAM_subset.owl")).as_uri())
+GX = _load_format(Path(get_data("testdata/gx_edam.ttl")).as_uri())
 
 
 def test_check_format() -> None:
@@ -136,28 +137,28 @@ def test_check_format_no_ontology() -> None:
 
 def test_loading_options_graph_property_v1_0() -> None:
     """Test that RDFLib Graph representations of $schema properties are correctly loaded, CWL v1.0."""
-    uri = Path(HERE / "../testdata/formattest2_v1_0.cwl").resolve().as_uri()
+    uri = Path(get_data("testdata/formattest2_v1_0.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(EDAM)
 
 
 def test_loading_options_graph_property_v1_1() -> None:
     """Test that RDFLib Graph representations of $schema properties are correctly loaded, CWL v1.1."""
-    uri = Path(HERE / "../testdata/formattest2_v1_1.cwl").resolve().as_uri()
+    uri = Path(get_data("testdata/formattest2_v1_1.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(EDAM)
 
 
 def test_loading_options_graph_property_v1_2() -> None:
     """Test that RDFLib Graph representations of $schema properties are correctly loaded, CWL v1.2."""
-    uri = Path(HERE / "../testdata/formattest2.cwl").resolve().as_uri()
+    uri = Path(get_data("testdata/formattest2.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(EDAM)
 
 
 def test_loading_options_missing_graph_v1_0() -> None:
     """Affirm that v1.0 documents without $schema still produce an empty graph property."""
-    uri = Path(HERE / "../testdata/workflow_input_format_expr.cwl").resolve().as_uri()
+    uri = Path(get_data("testdata/workflow_input_format_expr.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
 
@@ -165,7 +166,7 @@ def test_loading_options_missing_graph_v1_0() -> None:
 def test_loading_options_missing_graph_v1_1() -> None:
     """Affirm that v1.1 documents without $schema still produce an empty graph property."""
     uri = (
-        Path(HERE / "../testdata/workflow_input_format_expr_v1_1.cwl")
+        Path(get_data("testdata/workflow_input_format_expr_v1_1.cwl"))
         .resolve()
         .as_uri()
     )
@@ -176,7 +177,7 @@ def test_loading_options_missing_graph_v1_1() -> None:
 def test_loading_options_missing_graph_v1_2() -> None:
     """Affirm that v1.2 documents without $schema still produce an empty graph property."""
     uri = (
-        Path(HERE / "../testdata/workflow_input_format_expr_v1_2.cwl")
+        Path(get_data("testdata/workflow_input_format_expr_v1_2.cwl"))
         .resolve()
         .as_uri()
     )
