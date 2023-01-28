@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
+import copy
 import hashlib
-from typing import IO, Any, List, MutableSequence, Optional, Tuple, Union, cast
+import logging
+from collections import namedtuple
+from typing import Any, Dict, IO, List, MutableSequence, Optional, Tuple, Union, cast
 
 from ruamel import yaml
 from schema_salad.exceptions import ValidationException
-from schema_salad.utils import json_dumps
+from schema_salad.sourceline import SourceLine
+from schema_salad.utils import aslist, json_dumps
 
 import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_2 as cwl
@@ -12,6 +16,47 @@ import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
 
 CONTENT_LIMIT: int = 64 * 1024
+
+_logger = logging.getLogger("cwl_utils")
+
+SrcSink = namedtuple("SrcSink", ["src", "sink", "linkMerge", "message"])
+
+
+def _compare_records(
+    src: cwl.RecordSchema, sink: cwl.RecordSchema, strict: bool = False
+) -> bool:
+    """
+    Compare two records, ensuring they have compatible fields.
+
+    This handles normalizing record names, which will be relative to workflow
+    step, so that they can be compared.
+    """
+    srcfields = {cwl.shortname(field.name): field.type for field in (src.fields or {})}
+    sinkfields = {
+        cwl.shortname(field.name): field.type for field in (sink.fields or {})
+    }
+    for key in sinkfields.keys():
+        if (
+            not can_assign_src_to_sink(
+                srcfields.get(key, "null"), sinkfields.get(key, "null"), strict
+            )
+            and sinkfields.get(key) is not None
+        ):
+            _logger.info(
+                "Record comparison failure for %s and %s\n"
+                "Did not match fields for %s: %s and %s",
+                cast(
+                    Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], src
+                ).name,
+                cast(
+                    Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], sink
+                ).name,
+                key,
+                srcfields.get(key),
+                sinkfields.get(key),
+            )
+            return False
+    return True
 
 
 def _compare_type(type1: Any, type2: Any) -> bool:
@@ -36,6 +81,174 @@ def _compare_type(type1: Any, type2: Any) -> bool:
         return True
     else:
         return bool(type1 == type2)
+
+
+def _is_conditional_step(
+    param_to_step: Dict[str, cwl.WorkflowStep], parm_id: str
+) -> bool:
+    source_step = param_to_step.get(parm_id)
+    if source_step is not None:
+        if source_step.when is not None:
+            return True
+    return False
+
+
+def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
+    """
+    Check for identical type specifications, ignoring extra keys like inputBinding.
+
+    src: admissible source types
+    sink: admissible sink types
+
+    In non-strict comparison, at least one source type must match one sink type,
+       except for 'null'.
+    In strict comparison, all source types must match at least one sink type.
+    """
+    if src == "Any" or sink == "Any":
+        return True
+    if isinstance(src, cwl.ArraySchema) and isinstance(sink, cwl.ArraySchema):
+        return can_assign_src_to_sink(src.items, sink.items, strict)
+    if isinstance(src, cwl.RecordSchema) and isinstance(sink, cwl.RecordSchema):
+        return _compare_records(src, sink, strict)
+    if isinstance(src, MutableSequence):
+        if strict:
+            for this_src in src:
+                if not can_assign_src_to_sink(this_src, sink):
+                    return False
+            return True
+        for this_src in src:
+            if this_src != "null" and can_assign_src_to_sink(this_src, sink):
+                return True
+        return False
+    if isinstance(sink, MutableSequence):
+        for this_sink in sink:
+            if can_assign_src_to_sink(src, this_sink):
+                return True
+        return False
+    return bool(src == sink)
+
+
+def check_all_types(
+    src_dict: Dict[str, Any],
+    sinks: MutableSequence[Union[cwl.WorkflowStepInput, cwl.WorkflowOutputParameter]],
+    param_to_step: Dict[str, cwl.WorkflowStep],
+    type_dict: Dict[str, Any],
+) -> Dict[str, List[SrcSink]]:
+    """Given a list of sinks, check if their types match with the types of their sources."""
+    validation: Dict[str, List[SrcSink]] = {"warning": [], "exception": []}
+    for sink in sinks:
+        extra_message = (
+            "pickValue is %s" % sink.pickValue if sink.pickValue is not None else None
+        )
+        if isinstance(sink, cwl.WorkflowOutputParameter):
+            sourceName = "outputSource"
+            sourceField = sink.outputSource
+        elif isinstance(sink, cwl.WorkflowStepInput):
+            sourceName = "source"
+            sourceField = sink.source
+        else:
+            continue
+        if sourceField is not None:
+            if isinstance(sourceField, MutableSequence):
+                linkMerge = sink.linkMerge or (
+                    "merge_nested" if len(sourceField) > 1 else None
+                )
+                if sink.pickValue in ["first_non_null", "the_only_non_null"]:
+                    linkMerge = None
+                srcs_of_sink = []
+                for parm_id in sourceField:
+                    srcs_of_sink += [src_dict[parm_id]]
+                    if (
+                        _is_conditional_step(param_to_step, parm_id)
+                        and sink.pickValue is not None
+                    ):
+                        validation["warning"].append(
+                            SrcSink(
+                                src_dict[parm_id],
+                                sink,
+                                linkMerge,
+                                message="Source is from conditional step, but pickValue is not used",
+                            )
+                        )
+            else:
+                parm_id = cast(str, sourceField)
+                if parm_id not in src_dict:
+                    raise SourceLine(sink, sourceName, ValidationException).makeError(
+                        f"{sourceName} not found: {parm_id}"
+                    )
+                srcs_of_sink = [src_dict[parm_id]]
+                linkMerge = None
+                if sink.pickValue is not None:
+                    validation["warning"].append(
+                        SrcSink(
+                            src_dict[parm_id],
+                            sink,
+                            linkMerge,
+                            message="pickValue is used but only a single input source is declared",
+                        )
+                    )
+                if _is_conditional_step(param_to_step, parm_id):
+                    src_typ = aslist(type_dict[srcs_of_sink[0].id])
+                    snk_typ = type_dict[cast(str, sink.id)]
+                    if "null" not in src_typ:
+                        src_typ = ["null"] + cast(List[Any], src_typ)
+                    if (
+                        not isinstance(snk_typ, MutableSequence)
+                        or "null" not in snk_typ
+                    ):
+                        validation["warning"].append(
+                            SrcSink(
+                                src_dict[parm_id],
+                                sink,
+                                linkMerge,
+                                message="Source is from conditional step and may produce `null`",
+                            )
+                        )
+                    type_dict[srcs_of_sink[0].id] = src_typ
+            for src in srcs_of_sink:
+                check_result = check_types(
+                    type_dict[cast(str, src.id)],
+                    type_dict[cast(str, sink.id)],
+                    linkMerge,
+                    getattr(sink, "valueFrom", None),
+                )
+                if check_result == "warning":
+                    validation["warning"].append(
+                        SrcSink(src, sink, linkMerge, extra_message)
+                    )
+                elif check_result == "exception":
+                    validation["exception"].append(
+                        SrcSink(src, sink, linkMerge, extra_message)
+                    )
+    return validation
+
+
+def check_types(
+    srctype: Any,
+    sinktype: Any,
+    linkMerge: Optional[str],
+    valueFrom: Optional[str] = None,
+) -> str:
+    """
+    Check if the source and sink types are correct.
+
+    Acceptable types are "pass", "warning", or "exception".
+    """
+    if valueFrom is not None:
+        return "pass"
+    if linkMerge is None:
+        if can_assign_src_to_sink(srctype, sinktype, strict=True):
+            return "pass"
+        if can_assign_src_to_sink(srctype, sinktype, strict=False):
+            return "warning"
+        return "exception"
+    if linkMerge == "merge_nested":
+        return check_types(
+            cwl.ArraySchema(items=srctype, type="array"), sinktype, None, None
+        )
+    if linkMerge == "merge_flattened":
+        return check_types(merge_flatten_type(srctype), sinktype, None, None)
+    raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
 
 
 def content_limit_respected_read_bytes(f: IO[bytes]) -> bytes:
@@ -117,6 +330,59 @@ def merge_flatten_type(src: Any) -> Any:
     return cwl.ArraySchema(type="array", items=src)
 
 
+def type_for_step_input(
+    step: cwl.WorkflowStep,
+    in_: cwl.WorkflowStepInput,
+) -> Any:
+    """Determine the type for the given step input."""
+    if in_.valueFrom is not None:
+        return "Any"
+    step_run = cwl_utils.parser.utils.load_step(step)
+    cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
+    if step_run and step_run.inputs:
+        for step_input in step_run.inputs:
+            if (
+                cast(str, step_input.id).split("#")[-1]
+                == cast(str, in_.id).split("#")[-1]
+            ):
+                input_type = step_input.type
+                if step.scatter is not None and in_.id in aslist(step.scatter):
+                    input_type = cwl.ArraySchema(items=input_type, type="array")
+                return input_type
+    return "Any"
+
+
+def type_for_step_output(
+    step: cwl.WorkflowStep,
+    sourcename: str,
+) -> Any:
+    """Determine the type for the given step output."""
+    step_run = cwl_utils.parser.utils.load_step(step)
+    cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
+    if step_run and step_run.outputs:
+        for output in step_run.outputs:
+            if (
+                output.id.split("#")[-1].split("/")[-1]
+                == sourcename.split("#")[-1].split("/")[-1]
+            ):
+                output_type = output.type
+                if step.scatter is not None:
+                    if step.scatterMethod == "nested_crossproduct":
+                        for _ in range(len(aslist(step.scatter))):
+                            output_type = cwl.ArraySchema(
+                                items=output_type, type="array"
+                            )
+                    else:
+                        output_type = cwl.ArraySchema(items=output_type, type="array")
+                return output_type
+    raise WorkflowException(
+        "param {} not found in {}.".format(
+            sourcename,
+            yaml.main.round_trip_dump(cwl.save(step)),
+        )
+    )
+
+
 def type_for_source(
     process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
     sourcenames: Union[str, List[str]],
@@ -168,7 +434,7 @@ def type_for_source(
         new_type = cwl.ArraySchema(items=new_type, type="array")
     elif linkMerge == "merge_flattened":
         new_type = merge_flatten_type(new_type)
-    elif isinstance(sourcenames, List):
+    elif isinstance(sourcenames, List) and len(sourcenames) > 1:
         new_type = cwl.ArraySchema(items=new_type, type="array")
     if pickValue is not None:
         if isinstance(new_type, cwl.ArraySchema):
@@ -210,26 +476,14 @@ def param_for_source_id(
                         == step.id.split("#")[-1]
                         and step.out
                     ):
+                        step_run = cwl_utils.parser.utils.load_step(step)
+                        cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
                         for outp in step.out:
                             outp_id = outp if isinstance(outp, str) else outp.id
                             if (
                                 outp_id.split("#")[-1].split("/")[-1]
                                 == sourcename.split("#")[-1].split("/")[-1]
                             ):
-                                step_run = step.run
-                                if isinstance(step.run, str):
-                                    step_run = cwl_utils.parser.load_document_by_uri(
-                                        path=target.loadingOptions.fetcher.urljoin(
-                                            base_url=cast(
-                                                str, target.loadingOptions.fileuri
-                                            ),
-                                            url=step.run,
-                                        ),
-                                        loadingOptions=target.loadingOptions,
-                                    )
-                                    cwl_utils.parser.utils.convert_stdstreams_to_files(
-                                        step_run
-                                    )
                                 if step_run and step_run.outputs:
                                     for output in step_run.outputs:
                                         if (
