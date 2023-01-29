@@ -6,7 +6,7 @@ from schema_salad.exceptions import ValidationException
 
 from cwl_utils.parser import load_document, load_document_by_uri
 from cwl_utils.parser.utils import static_checker
-from tests.util import get_data
+from .util import get_data
 
 
 def test_static_checker() -> None:
