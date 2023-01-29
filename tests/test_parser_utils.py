@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import MutableSequence, cast
 
+import pytest
 from pytest import raises
 from schema_salad.exceptions import ValidationException
 
@@ -18,6 +19,235 @@ from cwl_utils.errors import WorkflowException
 from cwl_utils.parser import load_document_by_uri
 
 from .util import get_data
+
+
+def test_static_checker_fail() -> None:
+    """Confirm that static type checker raises expected exception."""
+    with pytest.raises(ValidationException):
+        uri = Path(get_data("testdata/checker_wf/broken-wf.cwl")).resolve().as_uri()
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    with pytest.raises(ValidationException):
+        uri = Path(get_data("testdata/checker_wf/broken-wf2.cwl")).resolve().as_uri()
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    with pytest.raises(ValidationException):
+        uri = Path(get_data("testdata/checker_wf/broken-wf3.cwl")).resolve().as_uri()
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    with pytest.raises(ValidationException):
+        uri = Path(get_data("testdata/count-lines6-wf_v1_0.cwl")).resolve().as_uri()
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    with pytest.raises(ValidationException):
+        uri = Path(get_data("testdata/count-lines6-wf_v1_1.cwl")).resolve().as_uri()
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    with pytest.raises(ValidationException):
+        uri = Path(get_data("testdata/count-lines6-wf_v1_2.cwl")).resolve().as_uri()
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    with pytest.raises(ValidationException):
+        uri = (
+            Path(get_data("testdata/count-lines6-single-source-wf_v1_0.cwl"))
+            .resolve()
+            .as_uri()
+        )
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    with pytest.raises(ValidationException):
+        uri = (
+            Path(get_data("testdata/count-lines6-single-source-wf_v1_1.cwl"))
+            .resolve()
+            .as_uri()
+        )
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    with pytest.raises(ValidationException):
+        uri = (
+            Path(get_data("testdata/count-lines6-single-source-wf_v1_2.cwl"))
+            .resolve()
+            .as_uri()
+        )
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    with pytest.raises(ValidationException):
+        uri = (
+            Path(get_data("testdata/cond-single-source-wf-003.1.cwl"))
+            .resolve()
+            .as_uri()
+        )
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    with pytest.raises(ValidationException):
+        uri = (
+            Path(get_data("testdata/cond-single-source-wf-004.1.cwl"))
+            .resolve()
+            .as_uri()
+        )
+        cwl_obj = load_document_by_uri(uri)
+        cwl_utils.parser.utils.static_checker(cwl_obj)
+
+
+def test_static_checker_success() -> None:
+    """Confirm that static type checker correctly validates workflows."""
+    uri = Path(get_data("testdata/record-output-wf_v1_0.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/record-output-wf_v1_1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/record-output-wf_v1_2.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/step_valuefrom5_wf_v1_0.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/step_valuefrom5_wf_v1_1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/step_valuefrom5_wf_v1_2.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = (
+        Path(get_data("testdata/step_valuefrom5_wf_with_id_v1_0.cwl"))
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = (
+        Path(get_data("testdata/step_valuefrom5_wf_with_id_v1_1.cwl"))
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = (
+        Path(get_data("testdata/step_valuefrom5_wf_with_id_v1_2.cwl"))
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/stdout-wf_v1_0.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/stdout-wf_v1_1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/stdout-wf_v1_2.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/scatter-wf1_v1_0.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/scatter-wf1_v1_1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/scatter-wf1_v1_2.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/scatter-wf2_v1_0.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/scatter-wf2_v1_1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/scatter-wf2_v1_2.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/scatter-wf3_v1_0.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/scatter-wf3_v1_1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/scatter-wf3_v1_2.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/count-lines7-wf_v1_0.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/count-lines7-wf_v1_1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/count-lines7-wf_v1_2.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = (
+        Path(get_data("testdata/count-lines7-single-source-wf_v1_0.cwl"))
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = (
+        Path(get_data("testdata/count-lines7-single-source-wf_v1_1.cwl"))
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = (
+        Path(get_data("testdata/count-lines7-single-source-wf_v1_2.cwl"))
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/cond-wf-003.1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/cond-wf-004.1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/cond-wf-005.1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/cond-single-source-wf-005.1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    cwl_utils.parser.utils.static_checker(cwl_obj)
 
 
 def test_v1_0_file_content_64_kB() -> None:

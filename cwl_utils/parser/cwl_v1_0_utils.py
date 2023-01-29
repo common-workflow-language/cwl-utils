@@ -295,7 +295,7 @@ def type_for_step_output(
                     else:
                         output_type = cwl.ArraySchema(items=output_type, type="array")
                 return output_type
-    raise WorkflowException(
+    raise ValidationException(
         "param {} not found in {}.".format(
             sourcename,
             yaml.main.round_trip_dump(cwl.save(step_run)),
