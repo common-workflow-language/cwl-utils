@@ -3,6 +3,9 @@ Style guide:
 - Python 3.6+ compatible code
 - PEP-484 type hints
 
+It is suggested that you run `git config blame.ignoreRevsFile .git-blame-ignore-revs`
+to filter out mass-formatting commits from `git blame`.
+
 In order to contribute to the development of ``cwl-utils``, you need to install cwl-utils from source (preferably in a virtual environment):
 Here's a rough guide (improvements are welcome!) 
 - Install virtualenv via pip: ``pip install virtualenv``
