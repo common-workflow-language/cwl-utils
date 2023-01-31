@@ -6,6 +6,10 @@ import subprocess  # nosec
 from abc import ABC, abstractmethod
 from typing import List
 
+from .singularity import get_version as get_singularity_version
+from .singularity import is_version_2_6 as is_singularity_version_2_6
+from .singularity import is_version_3_or_newer as is_singularity_version_3_or_newer
+
 logging.basicConfig(level=logging.INFO)
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,27 +83,15 @@ class SingularityImagePuller(ImagePuller):
     def __init__(self, req: str, save_directory: str) -> None:
         """Create a Singularity-based software container image downloader."""
         super().__init__(req, save_directory)
-        version = subprocess.check_output(  # nosec
-            ["singularity", "--version"], universal_newlines=True
-        )
-        if version.startswith("singularity version "):
-            version = version[20:]
-        self.version = version
-
-    def _is_version_2_6(self) -> bool:
-        return self.version.startswith("2.6")
-
-    def _is_version_3_or_newer(self) -> bool:
-        return int(self.version[0]) >= 3
 
     def get_image_name(self) -> str:
         """Determine the file name appropriate to the installed version of Singularity."""
         image_name = self.req
         for char in self.CHARS_TO_REPLACE:
             image_name = image_name.replace(char, self.NEW_CHAR)
-        if self._is_version_2_6():
+        if is_singularity_version_2_6():
             suffix = ".img"
-        elif self._is_version_3_or_newer():
+        elif is_singularity_version_3_or_newer():
             suffix = ".sif"
         else:
             raise Exception(
