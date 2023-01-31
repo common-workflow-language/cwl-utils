@@ -11,23 +11,66 @@ from schema_salad.utils import yaml_no_ts
 from ..errors import GraphTargetMissingException
 from . import cwl_v1_0, cwl_v1_1, cwl_v1_2
 
+
 LoadingOptions = Union[
     cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions
 ]
 """Type union for a CWL v1.x LoadingOptions object."""
 Saveable = Union[cwl_v1_0.Saveable, cwl_v1_1.Saveable, cwl_v1_2.Saveable]
 """Type union for a CWL v1.x Savable object."""
+InputParameter = Union[
+    cwl_v1_0.InputParameter, cwl_v1_1.InputParameter, cwl_v1_2.InputParameter
+]
+"""Type union for a CWL v1.x InputParameter object."""
+OutputParameter = Union[
+    cwl_v1_0.OutputParameter, cwl_v1_1.OutputParameter, cwl_v1_2.OutputParameter
+]
+"""Type union for a CWL v1.x OutputParameter object."""
 Workflow = Union[cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow]
-"""Type union for a CWL v1.x Workflow object."""
 WorkflowTypes = (cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow)
+"""Type union for a CWL v1.x Workflow object."""
+WorkflowInputParameter = Union[
+    cwl_v1_0.InputParameter,
+    cwl_v1_1.WorkflowInputParameter,
+    cwl_v1_2.WorkflowInputParameter,
+]
+"""Type union for a CWL v1.x WorkflowInputParameter object."""
+WorkflowOutputParameter = Union[
+    cwl_v1_0.WorkflowOutputParameter,
+    cwl_v1_1.WorkflowOutputParameter,
+    cwl_v1_2.WorkflowOutputParameter,
+]
+"""Type union for a CWL v1.x WorkflowOutputParameter object."""
 WorkflowStep = Union[
     cwl_v1_0.WorkflowStep, cwl_v1_1.WorkflowStep, cwl_v1_2.WorkflowStep
 ]
 """Type union for a CWL v1.x WorkflowStep object."""
+WorkflowStepInput = Union[
+    cwl_v1_0.WorkflowStepInput, cwl_v1_1.WorkflowStepInput, cwl_v1_2.WorkflowStepInput
+]
+"""Type union for a CWL v1.x WorkflowStepInput object."""
+WorkflowStepOutput = Union[
+    cwl_v1_0.WorkflowStepOutput,
+    cwl_v1_1.WorkflowStepOutput,
+    cwl_v1_2.WorkflowStepOutput,
+]
+"""Type union for a CWL v1.x WorkflowStepOutput object."""
 CommandLineTool = Union[
     cwl_v1_0.CommandLineTool, cwl_v1_1.CommandLineTool, cwl_v1_2.CommandLineTool
 ]
 """Type union for a CWL v1.x CommandLineTool object."""
+CommandLineBinding = Union[
+    cwl_v1_0.CommandLineBinding,
+    cwl_v1_1.CommandLineBinding,
+    cwl_v1_2.CommandLineBinding,
+]
+"""Type union for a CWL v1.x CommandLineBinding object."""
+CommandOutputParameter = Union[
+    cwl_v1_0.CommandOutputParameter,
+    cwl_v1_1.CommandOutputParameter,
+    cwl_v1_2.CommandOutputParameter,
+]
+"""Type union for a CWL v1.x CommandOutputParameter object."""
 ExpressionTool = Union[
     cwl_v1_0.ExpressionTool, cwl_v1_1.ExpressionTool, cwl_v1_2.ExpressionTool
 ]
@@ -35,14 +78,30 @@ ExpressionTool = Union[
 DockerRequirement = Union[
     cwl_v1_0.DockerRequirement, cwl_v1_1.DockerRequirement, cwl_v1_2.DockerRequirement
 ]
-"""Type union for a CWL v1.x DockerRequirement object."""
 DockerRequirementTypes = (
     cwl_v1_0.DockerRequirement,
     cwl_v1_1.DockerRequirement,
     cwl_v1_2.DockerRequirement,
 )
+"""Type union for a CWL v1.x DockerRequirement object."""
 Process = Union[Workflow, CommandLineTool, ExpressionTool, cwl_v1_2.Operation]
 """Type Union for a CWL v1.x Process object."""
+ArraySchema = Union[cwl_v1_0.ArraySchema, cwl_v1_1.ArraySchema, cwl_v1_2.ArraySchema]
+"""Type Union for a CWL v1.x ArraySchema object."""
+EnumSchema = Union[cwl_v1_0.EnumSchema, cwl_v1_1.EnumSchema, cwl_v1_2.EnumSchema]
+"""Type Union for a CWL v1.x EnumSchema object."""
+RecordSchema = Union[
+    cwl_v1_0.RecordSchema, cwl_v1_1.RecordSchema, cwl_v1_2.RecordSchema
+]
+"""Type Union for a CWL v1.x RecordSchema object."""
+File = Union[cwl_v1_0.File, cwl_v1_1.File, cwl_v1_2.File]
+"""Type Union for a CWL v1.x File object."""
+SecondaryFileSchema = Union[cwl_v1_1.SecondaryFileSchema, cwl_v1_2.SecondaryFileSchema]
+"""Type Union for a CWL v1.x SecondaryFileSchema object."""
+Directory = Union[cwl_v1_0.Directory, cwl_v1_1.Directory, cwl_v1_2.Directory]
+"""Type Union for a CWL v1.x Directory object."""
+Dirent = Union[cwl_v1_0.Dirent, cwl_v1_1.Dirent, cwl_v1_2.Dirent]
+"""Type Union for a CWL v1.x Dirent object."""
 
 _Loader = Union[cwl_v1_0._Loader, cwl_v1_1._Loader, cwl_v1_2._Loader]
 
