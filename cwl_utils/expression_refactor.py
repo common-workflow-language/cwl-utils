@@ -110,7 +110,6 @@ def run(args: List[str]) -> int:
 
 def refactor(args: argparse.Namespace) -> int:
     """Primary processing loop."""
-
     return_code = 0
     yaml = YAML(typ="rt")
     yaml.preserve_quotes = True  # type: ignore[assignment]

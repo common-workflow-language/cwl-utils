@@ -3,7 +3,7 @@
 #  Copyright (c) 2020 Seven Bridges
 #  See https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/LICENSE
 """
-Valid forms of user defined types stored in external file
+Valid forms of user defined types stored in external file.
 
 A single dictionary (tests/types/singletype.yml)
 A list of dictionaries (e.g. tests/types/recursive.yml)

@@ -3,6 +3,8 @@
 #  Copyright (c) 2020 Seven Bridges
 #  See https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/LICENSE
 """
+CWL document packing functions.
+
 The link resolution is as follows:
 
 We always have two components: the base and the link

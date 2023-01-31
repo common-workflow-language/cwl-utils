@@ -41,9 +41,7 @@ class ImagePuller(ABC):
 
 
 class DockerImagePuller(ImagePuller):
-    """
-    Pull docker image with Docker
-    """
+    """Pull docker image with Docker."""
 
     def get_image_name(self) -> str:
         """Get the name of the tarball."""
@@ -73,9 +71,7 @@ class DockerImagePuller(ImagePuller):
 
 
 class SingularityImagePuller(ImagePuller):
-    """
-    Pull docker image with Singularity
-    """
+    """Pull docker image with Singularity."""
 
     CHARS_TO_REPLACE = ["/"]
     NEW_CHAR = "_"
