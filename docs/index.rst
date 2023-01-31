@@ -13,6 +13,7 @@ Modules
    :maxdepth: 2
    :caption: Contents:
 
+   autoapi/index
 
 Included Utility Programs
 =========================

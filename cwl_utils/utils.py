@@ -32,7 +32,10 @@ _USERNS = None
 
 
 def _is_github_symbolic_link(base_url: urllib.parse.ParseResult, contents: str) -> bool:
-    """Look for remote path with contents that is a single line with no new
+    """
+    Test if link is a GitHub style symbolic link.
+
+    Look for remote path with contents that is a single line with no new
     line with an extension.
 
     https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
@@ -82,7 +85,7 @@ def bytes2str_in_dicts(
 def load_linked_file(
     base_url: urllib.parse.ParseResult, link: str, is_import: bool = False
 ) -> Tuple[Any, urllib.parse.ParseResult]:
-    """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py"""
+    """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py ."""
     new_url = resolved_path(base_url, link)
 
     if new_url.scheme in ["file://", ""]:
@@ -123,7 +126,7 @@ def load_linked_file(
 def normalize_to_map(
     obj: Union[List[Any], Dict[str, Any]], key_field: str
 ) -> Dict[str, Any]:
-    """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py"""
+    """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py ."""
     if isinstance(obj, dict):
         return deepcopy(obj)
     elif isinstance(obj, list):
@@ -144,7 +147,7 @@ def normalize_to_map(
 def normalize_to_list(
     obj: Union[List[Any], Dict[str, Any]], key_field: str, value_field: Optional[str]
 ) -> List[Any]:
-    """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py"""
+    """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py ."""
     if isinstance(obj, list):
         return deepcopy(obj)
     elif isinstance(obj, dict):
@@ -165,14 +168,18 @@ def resolved_path(
     base_url: urllib.parse.ParseResult, link: str
 ) -> urllib.parse.ParseResult:
     """
-    Given a base_url ("this document") and a link ("string in this document")
-    return a new url (urllib.parse.ParseResult) that allows us to retrieve the
-    linked document. This function will
+    Derive a resolved path.
+
+    This function will
     1. Resolve the path, which means dot and double dot components are resolved
     2. Use the OS appropriate path resolution for local paths, and network
-       appropriate resolution for network paths
+    appropriate resolution for network paths
 
     From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
+
+    :param base_url: "this document"
+    :param link: "string in this document"
+    :returns: new URL that allows us to retrieve the linked document
     """
     link_url = urllib.parse.urlparse(link)
     # The link will always Posix
