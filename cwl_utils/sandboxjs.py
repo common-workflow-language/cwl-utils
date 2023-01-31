@@ -230,8 +230,8 @@ class NodeJSEngine(JSEngine):
         stdout_buf = BytesIO()
         stderr_buf = BytesIO()
 
-        rselect = [nodejs.stdout, nodejs.stderr]  # type: List[BytesIO]
-        wselect = [nodejs.stdin]  # type: List[BytesIO]
+        rselect: List[BytesIO] = [nodejs.stdout, nodejs.stderr]
+        wselect: List[BytesIO] = [nodejs.stdin]
 
         def process_finished() -> bool:
             return stdout_buf.getvalue().decode("utf-8").endswith(
@@ -492,7 +492,7 @@ class NodeJSEngine(JSEngine):
             if not m:
                 return current_value
             next_segment_str = m.group(1)
-            key = None  # type: Optional[Union[str, int]]
+            key: Optional[Union[str, int]] = None
             if next_segment_str[0] == ".":
                 key = next_segment_str[1:]
             elif next_segment_str[1] in ("'", '"'):
@@ -511,7 +511,7 @@ class NodeJSEngine(JSEngine):
                     )
                 if key not in current_value:
                     raise WorkflowException(
-                        f"{parsed_string} does not contain key '{key}'"
+                        f"{parsed_string} does not contain key {key!r}."
                     )
             else:
                 try:
@@ -535,10 +535,10 @@ class NodeJSEngine(JSEngine):
                         remaining_string[m.end(1) :],
                         cast(CWLOutputType, current_value[cast(str, key)]),
                     )
-                except KeyError:
+                except KeyError as exc:
                     raise WorkflowException(
-                        f"{parsed_string} doesn't have property {key}"
-                    )
+                        f"{parsed_string!r} doesn't have property {key!r}."
+                    ) from exc
             elif isinstance(current_value, list) and isinstance(key, int):
                 try:
                     return self.regex_eval(
@@ -546,12 +546,14 @@ class NodeJSEngine(JSEngine):
                         remaining_string[m.end(1) :],
                         current_value[key],
                     )
-                except KeyError:
+                except KeyError as exc:
                     raise WorkflowException(
-                        f"{parsed_string} doesn't have property {key}"
-                    )
+                        f"{parsed_string!r} doesn't have property {key!r}."
+                    ) from exc
             else:
-                raise WorkflowException(f"{parsed_string} doesn't have property {key}")
+                raise WorkflowException(
+                    f"{parsed_string!r} doesn't have property {key!r}."
+                )
         else:
             return current_value
 

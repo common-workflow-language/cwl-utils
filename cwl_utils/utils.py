@@ -94,7 +94,7 @@ def load_linked_file(
             )
         except urllib.error.HTTPError as e:
             _logger.error("Could not find linked file: %s", new_url.geturl())
-            raise SystemExit(e)
+            raise SystemExit(e) from e
 
     if _is_github_symbolic_link(new_url, contents):
         # This is an exception for symbolic links on github
@@ -109,10 +109,10 @@ def load_linked_file(
             _node = fast_yaml.load(contents)
         except ParserError as e:
             e.context = f"\n===\nMalformed file: {new_url.geturl()}\n===\n" + e.context
-            raise SystemExit(e)
+            raise SystemExit(e) from e
         except ScannerError as e:
             e.problem = f"\n===\nMalformed file: {new_url.geturl()}\n===\n" + e.problem
-            raise SystemExit(e)
+            raise SystemExit(e) from e
 
     else:
         _node = contents

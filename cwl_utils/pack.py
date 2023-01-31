@@ -13,9 +13,7 @@ used to fetch data
 From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
 """
 
-
 import logging
-import os
 import sys
 import urllib.parse
 import urllib.request
@@ -216,7 +214,6 @@ def resolve_steps(
     if cwl.get("class") != "Workflow":
         return cwl
 
-    workflow_id = cwl.get("id", os.path.basename(base_url.path))
     for _, v in enumerate(cwl["steps"]):
         if isinstance(v, dict):
             sys.stderr.write(

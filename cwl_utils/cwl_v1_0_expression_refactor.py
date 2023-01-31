@@ -350,7 +350,7 @@ def generate_etool_from_expr(
         elif self_type.type:
             new_type = clean_type_ids(self_type.type)
         else:
-            raise WorkflowException(f"Don't know how to make type from '{self_type}'.")
+            raise WorkflowException(f"Don't know how to make type from {self_type!r}.")
         inputs.append(
             cwl.InputParameter(
                 id="self",
@@ -652,7 +652,8 @@ def process_workflow_reqs_and_hints(
     """
     # TODO: consolidate the generated etools/cltools into a single "_expression_workflow_reqs" step
     # TODO: support resourceReq.* references to Workflow.inputs?
-    #       ^ By refactoring replace_expr_etool to allow multiple inputs, and connecting all workflow inputs to the generated step
+    #       ^ By refactoring replace_expr_etool to allow multiple inputs,
+    #         and connecting all workflow inputs to the generated step
     modified = False
     inputs = empty_inputs(workflow)
     generated_res_reqs: List[Tuple[str, Union[int, str]]] = []
@@ -837,7 +838,8 @@ def process_workflow_reqs_and_hints(
                                                     raise_type=WorkflowException,
                                                 ).makeError(
                                                     f"Entry {index},"
-                                                    + "Invalid CWL, if 'entry' is a string, then entryName must be specified."
+                                                    + "Invalid CWL, if 'entry' "
+                                                    "is a string, then entryName must be specified."
                                                 )
                                             expr = (
                                                 '${return {"class": "File", "basename": "'
@@ -979,7 +981,8 @@ def process_level_reqs(
     # - Replace the CWL Expression inplace with a CWL parameter reference
     # - Don't create a new Requirement, nor delete the existing Requirement
     # - the Process is passed to replace_expr_with_etool for later searching for JS expressionLibs
-    # - in addition to adding the input to the step for the ETool/CTool result, add it to the Process.inputs as well
+    # - in addition to adding the input to the step for the ETool/CTool result,
+    #   add it to the Process.inputs as well
     if not process.requirements:
         return False
     modified = False
@@ -1122,7 +1125,7 @@ def process_level_reqs(
                                         entryname = (
                                             entry.entryname
                                             if entryname_expr
-                                            else f'"{entry.entryname}"'
+                                            else f'"{entry.entryname}"'  # noqa: B907
                                         )
                                         new_expression = (
                                             "${var result; var entryname = "
@@ -1914,7 +1917,7 @@ def workflow_step_to_InputParameters(
                 for p in param:
                     if not p.type:
                         raise WorkflowException(
-                            f"Don't know how to get type id for '{p}'."
+                            f"Don't know how to get type id for {p!r}."
                         )
                     p.id = inp_id
                     p.type = clean_type_ids(p.type)
@@ -1922,7 +1925,7 @@ def workflow_step_to_InputParameters(
             else:
                 if not param.type:
                     raise WorkflowException(
-                        f"Don't know how to get type id for '{param}'."
+                        f"Don't know how to get type id for {param!r}."
                     )
                 param.id = inp_id
                 param.type = clean_type_ids(param.type)

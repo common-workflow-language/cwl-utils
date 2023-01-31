@@ -109,8 +109,8 @@ codespell:
 	codespell -w $(shell git ls-files | grep -v mypy-stubs)
 
 ## format                 : check/fix all code indentation and formatting (runs black)
-format: $(PYSOURCES)
-	black $^
+format: $(PYSOURCES) FORCE
+	black $(PYSOURCES)
 
 format-check: $(PYSOURCES)
 	black --diff --check $^

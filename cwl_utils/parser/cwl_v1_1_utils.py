@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0
-import copy
 import hashlib
 import logging
 from collections import namedtuple
@@ -71,12 +70,12 @@ def _compare_type(type1: Any, type2: Any) -> bool:
         }
         if fields1.keys() != fields2.keys():
             return False
-        return all((_compare_type(fields1[k], fields2[k]) for k in fields1.keys()))
+        return all(_compare_type(fields1[k], fields2[k]) for k in fields1.keys())
     elif isinstance(type1, MutableSequence) and isinstance(type2, MutableSequence):
         if len(type1) != len(type2):
             return False
         for t1 in type1:
-            if not any((_compare_type(t1, t2) for t2 in type2)):
+            if not any(_compare_type(t1, t2) for t2 in type2):
                 return False
         return True
     else:
@@ -343,11 +342,9 @@ def type_for_source(
         return new_type
     new_type = []
     for p, sc in zip(params, scatter_context):
-        if isinstance(p, str) and not any((_compare_type(t, p) for t in new_type)):
+        if isinstance(p, str) and not any(_compare_type(t, p) for t in new_type):
             cur_type = p
-        elif hasattr(p, "type") and not any(
-            (_compare_type(t, p.type) for t in new_type)
-        ):
+        elif hasattr(p, "type") and not any(_compare_type(t, p.type) for t in new_type):
             cur_type = p.type
         else:
             cur_type = None
@@ -449,7 +446,7 @@ def param_for_source_id(
         "param {} not found in {}\n{}.".format(
             sourcename,
             yaml.main.round_trip_dump(cwl.save(process)),
-            " or\n {}".format(yaml.main.round_trip_dump(cwl.save(parent)))
+            f" or\n {yaml.main.round_trip_dump(cwl.save(parent))}"
             if parent is not None
             else "",
         )

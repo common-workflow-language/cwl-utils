@@ -22,8 +22,14 @@ from typing import (
 from ruamel.yaml.main import YAML
 from ruamel.yaml.scalarstring import walk_tree
 
+from cwl_utils import (
+    cwl_v1_0_expression_refactor,
+    cwl_v1_1_expression_refactor,
+    cwl_v1_2_expression_refactor,
+)
 from cwl_utils.errors import WorkflowException
 from cwl_utils.loghandler import _logger as _cwlutilslogger
+from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
 
 if TYPE_CHECKING:
     from typing_extensions import Protocol
@@ -35,13 +41,6 @@ defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
 _logger.addHandler(defaultStreamHandler)
 _logger.setLevel(logging.INFO)
 _cwlutilslogger.setLevel(100)
-
-from cwl_utils import (
-    cwl_v1_0_expression_refactor,
-    cwl_v1_1_expression_refactor,
-    cwl_v1_2_expression_refactor,
-)
-from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
 
 save_type = Optional[
     Union[MutableMapping[str, Any], MutableSequence[Any], int, float, bool, str]
@@ -81,7 +80,8 @@ def arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--skip-some2",
-        help="Don't process CommandLineTool.outputEval or CommandLineTool.requirements.InitialWorkDirRequirement.",
+        help="Don't process CommandLineTool.outputEval or "
+        "CommandLineTool.requirements.InitialWorkDirRequirement.",
         action="store_true",
     )
     parser.add_argument("dir", help="Directory in which to save converted files")

@@ -183,7 +183,7 @@ var runtime=$(runtime);"""
         contents += "\n" + "\n".join(expressionLib)
     contents += (
         """
-    var ret = function(){"""
+var ret = function(){"""
         + escape_expression_field(etool.expression.strip()[2:-1])
         + """}();
 process.stdout.write(JSON.stringify(ret));"""
@@ -389,7 +389,7 @@ def generate_etool_from_expr(
         expression += "\n  var self=inputs.self;"
     expression += (
         """
-      return {"result": function(){"""
+  return {"result": function(){"""
         + expr[2:-2]
         + """}()};
  }"""
@@ -747,7 +747,8 @@ def process_workflow_reqs_and_hints(
     """
     # TODO: consolidate the generated etools/cltools into a single "_expression_workflow_reqs" step
     # TODO: support resourceReq.* references to Workflow.inputs?
-    #       ^ By refactoring replace_expr_etool to allow multiple inputs, and connecting all workflow inputs to the generated step
+    #       ^ By refactoring replace_expr_etool to allow multiple inputs,
+    #         and connecting all workflow inputs to the generated step
     modified = False
     inputs = empty_inputs(workflow)
     generated_res_reqs: List[Tuple[str, Union[int, str]]] = []
@@ -932,7 +933,8 @@ def process_workflow_reqs_and_hints(
                                                     raise_type=WorkflowException,
                                                 ).makeError(
                                                     f"Entry {index},"
-                                                    + "Invalid CWL, if 'entry' is a string, then entryName must be specified."
+                                                    + "Invalid CWL, if 'entry' "
+                                                    "is a string, then entryName must be specified."
                                                 )
                                             expr = (
                                                 '${return {"class": "File", "basename": "'
@@ -1074,7 +1076,8 @@ def process_level_reqs(
     # - Replace the CWL Expression inplace with a CWL parameter reference
     # - Don't create a new Requirement, nor delete the existing Requirement
     # - the Process is passed to replace_expr_with_etool for later searching for JS expressionLibs
-    # - in addition to adding the input to the step for the ETool/CTool result, add it to the Process.inputs as well
+    # - in addition to adding the input to the step for the ETool/CTool result,
+    #   add it to the Process.inputs as well
     if not process.requirements:
         return False
     modified = False
@@ -1217,7 +1220,7 @@ def process_level_reqs(
                                         entryname = (
                                             entry.entryname
                                             if entryname_expr
-                                            else f'"{entry.entryname}"'
+                                            else f'"{entry.entryname}"'  # noqa: B907
                                         )
                                         new_expression = (
                                             "${var result; var entryname = "
@@ -1811,7 +1814,7 @@ def generate_etool_from_expr2(
         expression += f"\n  var self=inputs.{self_name};"
     expression += (
         """
-      return {"result": function(){"""
+  return {"result": function(){"""
         + expr[2:-2]
         + """}()};
  }"""

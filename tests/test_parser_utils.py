@@ -356,7 +356,7 @@ def test_v1_0_type_for_source_with_multiple_entries_merge_nested() -> None:
 
 
 def test_v1_0_type_for_source_with_multiple_entries_merge_flattened() -> None:
-    """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.0."""
+    """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.0."""  # noqa: B950
     uri = Path(get_data("testdata/count-lines7-wf_v1_0.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
@@ -679,7 +679,7 @@ def test_v1_1_type_for_source_with_multiple_entries_merge_nested() -> None:
 
 
 def test_v1_1_type_for_source_with_multiple_entries_merge_flattened() -> None:
-    """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.1."""
+    """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.1."""  # noqa: B950
     uri = Path(get_data("testdata/count-lines7-wf_v1_1.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
@@ -1002,7 +1002,7 @@ def test_v1_2_type_for_source_with_multiple_entries_merge_nested() -> None:
 
 
 def test_v1_2_type_for_source_with_multiple_entries_merge_flattened() -> None:
-    """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.2."""
+    """Test that the type is correctly inferred from a list of source ids and merge_flattened with CWL v1.2."""  # noqa: B950
     uri = Path(get_data("testdata/count-lines7-wf_v1_2.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
@@ -1062,7 +1062,7 @@ def test_v1_2_type_for_source_with_multiple_entries_first_non_null() -> None:
 
 
 def test_v1_2_type_for_source_with_multiple_entries_the_only_non_null() -> None:
-    """Test that the type is correctly inferred from a list of source ids and the_only_non_null with CWL v1.2."""
+    """Test that the type is correctly inferred from a list of source ids and the_only_non_null with CWL v1.2."""  # noqa: B950
     uri = Path(get_data("testdata/cond-wf-004.1.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
@@ -1099,7 +1099,7 @@ def test_v1_2_type_for_source_with_single_entry_first_non_null() -> None:
 
 
 def test_v1_2_type_for_source_with_single_entry_the_only_non_null() -> None:
-    """Test that the type is correctly inferred from a single source id and the_only_non_null with CWL v1.2."""
+    """Test that the type is correctly inferred from a single source id and the_only_non_null with CWL v1.2."""  # noqa: B950
     uri = Path(get_data("testdata/cond-single-source-wf-004.1.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(

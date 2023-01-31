@@ -171,7 +171,7 @@ def _inline_type(
 
         if path not in user_defined_types:
             raise RuntimeError(
-                f"Could not find type '{path}' in {str(user_defined_types)}"
+                f"Could not find type {path!r} in {user_defined_types!r}."
             )
         else:
             resolve_type = deepcopy(user_defined_types[path])

@@ -16,7 +16,7 @@ needs_pytest = {"pytest", "test", "ptr"}.intersection(sys.argv)
 pytest_runner: List[str] = ["pytest < 8", "pytest-runner"] if needs_pytest else []
 setup(
     name="cwl-utils",
-    version=__version__,  # type: ignore
+    version=__version__,  # type: ignore  # noqa: F821
     long_description=open(README).read(),
     long_description_content_type="text/x-rst",
     author="Common workflow language working group",
