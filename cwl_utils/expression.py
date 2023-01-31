@@ -206,7 +206,7 @@ def interpolate(
     w = scanner(scan)
     while w:
         if convert_to_expression:
-            parts.append(f'"{scan[0: w[0]]}" + ')
+            parts.append(f'"{scan[0: w[0]]}" + ')  # noqa: B907
         else:
             parts.append(scan[0 : w[0]])
 
@@ -227,7 +227,8 @@ def interpolate(
                 parts.append(
                     "function(){var item ="
                     + scan[w[0] : w[1]][2:-1]
-                    + '; if (typeof(item) === "string"){ return item; } else { return JSON.stringify(item); }}() + '
+                    + '; if (typeof(item) === "string"){ return item; } '
+                    "else { return JSON.stringify(item); }}() + "
                 )
         elif scan[w[0]] == "\\":
             if escaping_behavior == 1:
@@ -254,7 +255,7 @@ def interpolate(
         scan = scan[w[1] :]
         w = scanner(scan)
     if convert_to_expression:
-        parts.append(f'"{scan}"')
+        parts.append(f'"{scan}"')  # noqa: B907
         parts.append(";}")
     else:
         parts.append(scan)

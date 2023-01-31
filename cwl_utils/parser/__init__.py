@@ -16,7 +16,7 @@ LoadingOptions = Union[
 ]
 """Type union for a CWL v1.x LoadingOptions object."""
 Saveable = Union[cwl_v1_0.Saveable, cwl_v1_1.Saveable, cwl_v1_2.Saveable]
-"""Type union for a CWL v1.x Savable object."""
+"""Type union for a CWL v1.x Saveable object."""
 InputParameter = Union[
     cwl_v1_0.InputParameter, cwl_v1_1.InputParameter, cwl_v1_2.InputParameter
 ]

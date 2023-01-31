@@ -18,7 +18,10 @@ from cwl_utils.parser import (
 from .util import get_data
 
 TEST_v1_0_CWL = get_data("testdata/md5sum.cwl")
-TEST_v1_0_CWL_REMOTE = "https://raw.githubusercontent.com/common-workflow-language/cwl-utils/main/testdata/md5sum.cwl"
+TEST_v1_0_CWL_REMOTE = (
+    "https://raw.githubusercontent.com/"
+    "common-workflow-language/cwl-utils/main/testdata/md5sum.cwl"
+)
 TEST_v1_2_CWL = get_data("testdata/workflow_input_format_expr_v1_2.cwl")
 yaml = YAML(typ="rt")
 yaml.preserve_quotes = True  # type: ignore[assignment]
@@ -107,7 +110,7 @@ def test_get_default_id_from_graph() -> None:
 
 
 def test_get_default_id_from_graph_without_main() -> None:
-    """Test that loading the default id of a CWL document with $graph property and no `#main` id throws an error."""
+    """Test that loading the default id of a CWL document with $graph property and no `#main` id throws an error."""  # noqa: B950
     with raises(GraphTargetMissingException):
         uri = Path(get_data("testdata/js-expr-req-wf.cwl")).resolve().as_uri()
         load_document_by_uri(uri)

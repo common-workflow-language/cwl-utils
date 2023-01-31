@@ -1,5 +1,4 @@
 """Test sandboxjs.py and related code."""
-import logging
 import os
 import shutil
 import threading
@@ -10,7 +9,7 @@ import pytest
 
 from cwl_utils import expression, sandboxjs
 
-from .util import get_data, needs_podman, needs_singularity
+from .util import needs_podman, needs_singularity
 
 node_versions = [
     ("v0.8.26\n", False),

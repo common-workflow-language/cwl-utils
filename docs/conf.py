@@ -15,6 +15,8 @@ import sys
 import time
 from datetime import datetime
 
+from pkg_resources import get_distribution
+
 sys.path.insert(0, os.path.abspath(".."))
 
 
@@ -79,8 +81,6 @@ html_theme_options = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
-
-from pkg_resources import get_distribution
 
 release = get_distribution("cwl-utils").version
 version = ".".join(release.split(".")[:2])

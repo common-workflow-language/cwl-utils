@@ -13,17 +13,16 @@ from cwlupgrader import main as cwlupgrader
 from ruamel import yaml
 from schema_salad.sourceline import add_lc_filename
 
+from cwl_utils import cwl_v1_2_expression_refactor
 from cwl_utils.loghandler import _logger as _cwlutilslogger
 from cwl_utils.pack import pack
+from cwl_utils.parser.cwl_v1_2 import load_document_by_yaml, save
 
 _logger = logging.getLogger("cwl-normalizer")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
 _logger.addHandler(defaultStreamHandler)
 _logger.setLevel(logging.INFO)
 _cwlutilslogger.setLevel(100)
-
-from cwl_utils import cwl_v1_2_expression_refactor
-from cwl_utils.parser.cwl_v1_2 import load_document_by_yaml, save
 
 
 def arg_parser() -> argparse.ArgumentParser:
@@ -44,7 +43,8 @@ def arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--skip-some2",
-        help="Don't process CommandLineTool.outputEval or CommandLineTool.requirements.InitialWorkDirRequirement.",
+        help="Don't process CommandLineTool.outputEval or "
+        "CommandLineTool.requirements.InitialWorkDirRequirement.",
         action="store_true",
     )
     parser.add_argument(

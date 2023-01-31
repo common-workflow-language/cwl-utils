@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for cwl-docker-extract."""
-from pathlib import Path
 from shutil import which
 from tempfile import TemporaryDirectory
 

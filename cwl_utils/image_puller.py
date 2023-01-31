@@ -36,7 +36,7 @@ class ImagePuller(ABC):
             )
         except subprocess.CalledProcessError as err:
             if err.output:
-                raise subprocess.SubprocessError(err.output)
+                raise subprocess.SubprocessError(err.output) from err
             raise err
 
 
@@ -95,14 +95,12 @@ class SingularityImagePuller(ImagePuller):
             suffix = ".sif"
         else:
             raise Exception(
-                "Don't know how to handle this version of singularity: {}.".format(
-                    self.version
-                )
+                f"Don't know how to handle this version of singularity: {get_singularity_version()}."
             )
         return f"{image_name}{suffix}"
 
     def save_docker_image(self) -> None:
-        """Pull down the Docker format software container image and save it in the Singularity image format."""
+        """Pull down the Docker container image in the Singularity image format."""
         _LOGGER.info(f"Pulling {self.req} with Singularity...")
         cmd_pull = [
             "singularity",

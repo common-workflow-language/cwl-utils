@@ -48,7 +48,7 @@ def test_v1_0_workflow_top_level_sf_expr() -> None:
 
 
 def test_v1_0_workflow_top_level_sf_expr_array() -> None:
-    """Test for the correct error when converting a secondaryFiles expression (array form) in a workflow level input."""
+    """Test correct error when converting a secondaryFiles expression (array form) in a workflow level input."""  # noqa: B950
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
         result, modified = traverse0(
             parser.load_document(get_data("testdata/workflow_input_sf_expr_array.cwl")),
@@ -86,7 +86,7 @@ def test_v1_1_workflow_top_level_sf_expr() -> None:
 
 
 def test_v1_1_workflow_top_level_sf_expr_array() -> None:
-    """Test for the correct error when converting a secondaryFiles expression (array form) in a workflow level input."""
+    """Test for the correct error when converting a secondaryFiles expression (array form) in a workflow level input."""  # noqa: B950
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
         result, modified = traverse1(
             parser1.load_document(
@@ -126,7 +126,7 @@ def test_v1_2_workflow_top_level_sf_expr() -> None:
 
 
 def test_v1_2_workflow_top_level_sf_expr_array() -> None:
-    """Test for the correct error when converting a secondaryFiles expression (array form) in a workflow level input."""
+    """Test for the correct error when converting a secondaryFiles expression (array form) in a workflow level input."""  # noqa: B950
     with raises(WorkflowException, match=r".*secondaryFiles.*"):
         result, modified = traverse2(
             parser2.load_document(
