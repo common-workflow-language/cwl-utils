@@ -3,7 +3,7 @@ import copy
 import hashlib
 import logging
 from collections import namedtuple
-from typing import Any, Dict, IO, List, MutableSequence, Optional, Tuple, Union, cast
+from typing import IO, Any, Dict, List, MutableSequence, Optional, Tuple, Union, cast
 
 from ruamel import yaml
 from schema_salad.exceptions import ValidationException

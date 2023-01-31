@@ -9,6 +9,7 @@ from schema_salad.sourceline import SourceLine, strip_dup_lineno
 from schema_salad.utils import json_dumps
 
 import cwl_utils
+
 from . import (
     Process,
     Workflow,
