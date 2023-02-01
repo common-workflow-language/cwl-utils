@@ -154,7 +154,7 @@ def test_singularity_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
             )
             == 42 * 23
         )
-        assert (cache_path / "node_slim.sif").exists()
+        assert (cache_path / "node_alpine.sif").exists()
 
 
 def test_caches_js_processes(mocker: Any) -> None:
