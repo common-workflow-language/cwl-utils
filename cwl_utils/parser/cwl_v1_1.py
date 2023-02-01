@@ -134,9 +134,7 @@ class LoadingOptions:
             )
             self.fetcher: Fetcher = DefaultFetcher({}, session)
 
-        self.cache = (
-            self.fetcher.cache if isinstance(self.fetcher, MemoryCachingFetcher) else {}
-        )
+        self.cache = self.fetcher.cache if isinstance(self.fetcher, MemoryCachingFetcher) else {}
 
         self.vocab = _vocab
         self.rvocab = _rvocab
@@ -168,9 +166,7 @@ class LoadingOptions:
                 try:
                     content = self.fetcher.fetch_text(fetchurl)
                 except Exception as e:
-                    _logger.warning(
-                        "Could not load extension schema %s: %s", fetchurl, str(e)
-                    )
+                    _logger.warning("Could not load extension schema %s: %s", fetchurl, str(e))
                     continue
                 newGraph = Graph()
                 err_msg = "unknown error"
@@ -183,9 +179,7 @@ class LoadingOptions:
                     except (xml.sax.SAXParseException, TypeError, BadSyntax) as e:
                         err_msg = str(e)
                 else:
-                    _logger.warning(
-                        "Could not load extension schema %s: %s", fetchurl, err_msg
-                    )
+                    _logger.warning("Could not load extension schema %s: %s", fetchurl, err_msg)
         self.cache[key] = graph
         return graph
 
@@ -228,17 +222,13 @@ def load_field(val, fieldtype, baseuri, loadingOptions):
         elif "$include" in val:
             if loadingOptions.fileuri is None:
                 raise SchemaSaladException("Cannot load $import without fileuri")
-            url = loadingOptions.fetcher.urljoin(
-                loadingOptions.fileuri, val["$include"]
-            )
+            url = loadingOptions.fetcher.urljoin(loadingOptions.fileuri, val["$include"])
             val = loadingOptions.fetcher.fetch_text(url)
             loadingOptions.includes.append(url)
     return fieldtype.load(val, baseuri, loadingOptions)
 
 
-save_type = Optional[
-    Union[MutableMapping[str, Any], MutableSequence[Any], int, float, bool, str]
-]
+save_type = Optional[Union[MutableMapping[str, Any], MutableSequence[Any], int, float, bool, str]]
 
 
 def save(
@@ -250,16 +240,11 @@ def save(
     if isinstance(val, Saveable):
         return val.save(top=top, base_url=base_url, relative_uris=relative_uris)
     if isinstance(val, MutableSequence):
-        return [
-            save(v, top=False, base_url=base_url, relative_uris=relative_uris)
-            for v in val
-        ]
+        return [save(v, top=False, base_url=base_url, relative_uris=relative_uris) for v in val]
     if isinstance(val, MutableMapping):
         newdict = {}
         for key in val:
-            newdict[key] = save(
-                val[key], top=False, base_url=base_url, relative_uris=relative_uris
-            )
+            newdict[key] = save(val[key], top=False, base_url=base_url, relative_uris=relative_uris)
         return newdict
     if val is None or isinstance(val, (int, float, bool, str)):
         return val
@@ -317,10 +302,7 @@ def expand_url(
     split = urlsplit(url)
 
     if (
-        (
-            bool(split.scheme)
-            and split.scheme in loadingOptions.fetcher.supported_schemes()
-        )
+        (bool(split.scheme) and split.scheme in loadingOptions.fetcher.supported_schemes())
         or url.startswith("$(")
         or url.startswith("${")
     ):
@@ -360,7 +342,7 @@ def expand_url(
             if url in loadingOptions.rvocab:
                 return loadingOptions.rvocab[url]
         else:
-            raise ValidationException(f"Term '{url}' not in vocabulary")
+            raise ValidationException(f"Term {url!r} not in vocabulary")
 
     return url
 
@@ -411,9 +393,7 @@ class _ArrayLoader(_Loader):
         errors = []  # type: List[SchemaSaladException]
         for i in range(0, len(doc)):
             try:
-                lf = load_field(
-                    doc[i], _UnionLoader((self, self.items)), baseuri, loadingOptions
-                )
+                lf = load_field(doc[i], _UnionLoader((self, self.items)), baseuri, loadingOptions)
                 if isinstance(lf, MutableSequence):
                     r.extend(lf)
                 else:
@@ -429,8 +409,7 @@ class _ArrayLoader(_Loader):
 
 
 class _EnumLoader(_Loader):
-    def __init__(self, symbols, name):
-        # type: (Sequence[str], str) -> None
+    def __init__(self, symbols: Sequence[str], name: str) -> None:
         self.symbols = symbols
         self.name = name
 
@@ -467,9 +446,7 @@ class _SecondaryDSLLoader(_Loader):
                         new_dict["pattern"] = dict_copy.pop("pattern")
                     else:
                         raise ValidationException(
-                            "Missing pattern in secondaryFiles specification entry: {}".format(
-                                d
-                            )
+                            f"Missing pattern in secondaryFiles specification entry: {d}"
                         )
                     new_dict["required"] = (
                         dict_copy.pop("required") if "required" in dict_copy else None
@@ -494,19 +471,13 @@ class _SecondaryDSLLoader(_Loader):
                 new_dict["pattern"] = doc_copy.pop("pattern")
             else:
                 raise ValidationException(
-                    "Missing pattern in secondaryFiles specification entry: {}".format(
-                        doc
-                    )
+                    f"Missing pattern in secondaryFiles specification entry: {doc}"
                 )
-            new_dict["required"] = (
-                doc_copy.pop("required") if "required" in doc_copy else None
-            )
+            new_dict["required"] = doc_copy.pop("required") if "required" in doc_copy else None
 
             if len(doc_copy):
                 raise ValidationException(
-                    "Unallowed values in secondaryFiles specification entry: {}".format(
-                        doc_copy
-                    )
+                    f"Unallowed values in secondaryFiles specification entry: {doc_copy}"
                 )
             r.append(new_dict)
 
@@ -547,8 +518,7 @@ class _ExpressionLoader(_Loader):
 
 
 class _UnionLoader(_Loader):
-    def __init__(self, alternates):
-        # type: (Sequence[_Loader]) -> None
+    def __init__(self, alternates: Sequence[_Loader]) -> None:
         self.alternates = alternates
 
     def load(self, doc, baseuri, loadingOptions, docRoot=None):
@@ -623,9 +593,7 @@ class _TypeDSLLoader(_Loader):
         if m:
             group1 = m.group(1)
             assert group1 is not None  # nosec
-            first = expand_url(
-                group1, baseuri, loadingOptions, False, True, self.refScope
-            )
+            first = expand_url(group1, baseuri, loadingOptions, False, True, self.refScope)
             second = third = None
             if bool(m.group(2)):
                 second = {"type": "array", "items": first}
@@ -734,11 +702,7 @@ def _document_load(
             addl_metadata=addl_metadata,
         )
 
-        doc = {
-            k: v
-            for k, v in doc.items()
-            if k not in ("$namespaces", "$schemas", "$base")
-        }
+        doc = {k: v for k, v in doc.items() if k not in ("$namespaces", "$schemas", "$base")}
 
         if "$graph" in doc:
             loadingOptions.idx[baseuri] = (
@@ -780,10 +744,7 @@ def _document_load_by_url(
     doc_url, frg = urldefrag(url)
 
     text = loadingOptions.fetcher.fetch_text(doc_url)
-    if isinstance(text, bytes):
-        textIO = StringIO(text.decode("utf-8"))
-    else:
-        textIO = StringIO(text)
+    textIO = StringIO(text)
     textIO.name = str(doc_url)
     yaml = yaml_no_ts()
     result = yaml.load(textIO)
@@ -835,10 +796,7 @@ def save_relative_uri(
 ) -> Any:
     """Convert any URI to a relative one, obeying the scoping rules."""
     if isinstance(uri, MutableSequence):
-        return [
-            save_relative_uri(u, base_url, scoped_id, ref_scope, relative_uris)
-            for u in uri
-        ]
+        return [save_relative_uri(u, base_url, scoped_id, ref_scope, relative_uris) for u in uri]
     elif isinstance(uri, str):
         if not relative_uris or uri == base_url:
             return uri
@@ -1378,7 +1336,7 @@ class ArraySchema(Saveable):
         try:
             items = load_field(
                 _doc.get("items"),
-                uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_False_True_2,
+                typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
             )
@@ -1446,8 +1404,9 @@ class ArraySchema(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.items is not None:
-            u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
-            r["items"] = u
+            r["items"] = save(
+                self.items, top=False, base_url=base_url, relative_uris=relative_uris
+            )
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=base_url, relative_uris=relative_uris
@@ -3243,7 +3202,7 @@ class InputArraySchema(ArraySchema, InputSchema):
         try:
             items = load_field(
                 _doc.get("items"),
-                uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2,
+                typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
             )
@@ -3354,8 +3313,9 @@ class InputArraySchema(ArraySchema, InputSchema):
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
-            u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
-            r["items"] = u
+            r["items"] = save(
+                self.items, top=False, base_url=self.name, relative_uris=relative_uris
+            )
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=self.name, relative_uris=relative_uris
@@ -4200,7 +4160,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         try:
             items = load_field(
                 _doc.get("items"),
-                uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2,
+                typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
             )
@@ -4311,8 +4271,9 @@ class OutputArraySchema(ArraySchema, OutputSchema):
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
-            u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
-            r["items"] = u
+            r["items"] = save(
+                self.items, top=False, base_url=self.name, relative_uris=relative_uris
+            )
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=self.name, relative_uris=relative_uris
@@ -6720,7 +6681,7 @@ class CommandInputArraySchema(
         try:
             items = load_field(
                 _doc.get("items"),
-                uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2,
+                typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
             )
@@ -6852,8 +6813,9 @@ class CommandInputArraySchema(
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
-            u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
-            r["items"] = u
+            r["items"] = save(
+                self.items, top=False, base_url=self.name, relative_uris=relative_uris
+            )
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=self.name, relative_uris=relative_uris
@@ -7750,7 +7712,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         try:
             items = load_field(
                 _doc.get("items"),
-                uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2,
+                typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
             )
@@ -7863,8 +7825,9 @@ class CommandOutputArraySchema(OutputArraySchema):
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
-            u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
-            r["items"] = u
+            r["items"] = save(
+                self.items, top=False, base_url=self.name, relative_uris=relative_uris
+            )
         if self.type is not None:
             r["type"] = save(
                 self.type, top=False, base_url=self.name, relative_uris=relative_uris
@@ -14960,12 +14923,6 @@ enum_d961d79c225752b9fadb617367615ab176b47d77Loader = _EnumLoader(
 typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2 = _TypeDSLLoader(
     enum_d961d79c225752b9fadb617367615ab176b47d77Loader, 2
 )
-uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_False_True_2 = _URILoader(
-    union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype,
-    False,
-    True,
-    2,
-)
 enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader = _EnumLoader(
     ("array",), "enum_d062602be0b4b8fd33e69e29a841317b6ab665bc"
 )
@@ -15097,12 +15054,6 @@ union_of_None_type_or_array_of_InputRecordFieldLoader = _UnionLoader(
 idmap_fields_union_of_None_type_or_array_of_InputRecordFieldLoader = _IdMapLoader(
     union_of_None_type_or_array_of_InputRecordFieldLoader, "name", "type"
 )
-uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2 = _URILoader(
-    union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
-    False,
-    True,
-    2,
-)
 union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype = _UnionLoader(
     (
         CWLTypeLoader,
@@ -15138,12 +15089,6 @@ union_of_None_type_or_array_of_OutputRecordFieldLoader = _UnionLoader(
 )
 idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader = _IdMapLoader(
     union_of_None_type_or_array_of_OutputRecordFieldLoader, "name", "type"
-)
-uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2 = _URILoader(
-    union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
-    False,
-    True,
-    2,
 )
 union_of_None_type_or_FileLoader_or_DirectoryLoader_or_Any_type = _UnionLoader(
     (
@@ -15262,12 +15207,23 @@ union_of_None_type_or_CWLVersionLoader = _UnionLoader(
 uri_union_of_None_type_or_CWLVersionLoader_False_True_None = _URILoader(
     union_of_None_type_or_CWLVersionLoader, False, True, None
 )
-uri_strtype_False_True_None = _URILoader(strtype, False, True, None)
+InlineJavascriptRequirement_classLoader = _EnumLoader(
+    ("InlineJavascriptRequirement",), "InlineJavascriptRequirement_class"
+)
+uri_InlineJavascriptRequirement_classLoader_False_True_None = _URILoader(
+    InlineJavascriptRequirement_classLoader, False, True, None
+)
 union_of_None_type_or_array_of_strtype = _UnionLoader(
     (
         None_type,
         array_of_strtype,
     )
+)
+SchemaDefRequirement_classLoader = _EnumLoader(
+    ("SchemaDefRequirement",), "SchemaDefRequirement_class"
+)
+uri_SchemaDefRequirement_classLoader_False_True_None = _URILoader(
+    SchemaDefRequirement_classLoader, False, True, None
 )
 union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader = _UnionLoader(
     (
@@ -15291,6 +15247,12 @@ union_of_None_type_or_booltype_or_ExpressionLoader = _UnionLoader(
         booltype,
         ExpressionLoader,
     )
+)
+LoadListingRequirement_classLoader = _EnumLoader(
+    ("LoadListingRequirement",), "LoadListingRequirement_class"
+)
+uri_LoadListingRequirement_classLoader_False_True_None = _URILoader(
+    LoadListingRequirement_classLoader, False, True, None
 )
 union_of_None_type_or_inttype_or_ExpressionLoader = _UnionLoader(
     (
@@ -15357,12 +15319,6 @@ idmap_fields_union_of_None_type_or_array_of_CommandInputRecordFieldLoader = (
         union_of_None_type_or_array_of_CommandInputRecordFieldLoader, "name", "type"
     )
 )
-uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2 = _URILoader(
-    union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
-    False,
-    True,
-    2,
-)
 union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader(
     (
         CWLTypeLoader,
@@ -15407,12 +15363,6 @@ idmap_fields_union_of_None_type_or_array_of_CommandOutputRecordFieldLoader = (
         union_of_None_type_or_array_of_CommandOutputRecordFieldLoader, "name", "type"
     )
 )
-uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2 = _URILoader(
-    union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
-    False,
-    True,
-    2,
-)
 union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _UnionLoader(
     (
         CWLTypeLoader,
@@ -15443,6 +15393,10 @@ union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSch
 typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
+)
+CommandLineTool_classLoader = _EnumLoader(("CommandLineTool",), "CommandLineTool_class")
+uri_CommandLineTool_classLoader_False_True_None = _URILoader(
+    CommandLineTool_classLoader, False, True, None
 )
 array_of_CommandInputParameterLoader = _ArrayLoader(CommandInputParameterLoader)
 idmap_inputs_array_of_CommandInputParameterLoader = _IdMapLoader(
@@ -15475,12 +15429,30 @@ union_of_None_type_or_array_of_inttype = _UnionLoader(
         array_of_inttype,
     )
 )
+DockerRequirement_classLoader = _EnumLoader(
+    ("DockerRequirement",), "DockerRequirement_class"
+)
+uri_DockerRequirement_classLoader_False_True_None = _URILoader(
+    DockerRequirement_classLoader, False, True, None
+)
+SoftwareRequirement_classLoader = _EnumLoader(
+    ("SoftwareRequirement",), "SoftwareRequirement_class"
+)
+uri_SoftwareRequirement_classLoader_False_True_None = _URILoader(
+    SoftwareRequirement_classLoader, False, True, None
+)
 array_of_SoftwarePackageLoader = _ArrayLoader(SoftwarePackageLoader)
 idmap_packages_array_of_SoftwarePackageLoader = _IdMapLoader(
     array_of_SoftwarePackageLoader, "package", "specs"
 )
 uri_union_of_None_type_or_array_of_strtype_False_False_None = _URILoader(
     union_of_None_type_or_array_of_strtype, False, False, None
+)
+InitialWorkDirRequirement_classLoader = _EnumLoader(
+    ("InitialWorkDirRequirement",), "InitialWorkDirRequirement_class"
+)
+uri_InitialWorkDirRequirement_classLoader_False_True_None = _URILoader(
+    InitialWorkDirRequirement_classLoader, False, True, None
 )
 union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader = _UnionLoader(
     (
@@ -15501,15 +15473,51 @@ union_of_array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoad
         ExpressionLoader,
     )
 )
+EnvVarRequirement_classLoader = _EnumLoader(
+    ("EnvVarRequirement",), "EnvVarRequirement_class"
+)
+uri_EnvVarRequirement_classLoader_False_True_None = _URILoader(
+    EnvVarRequirement_classLoader, False, True, None
+)
 array_of_EnvironmentDefLoader = _ArrayLoader(EnvironmentDefLoader)
 idmap_envDef_array_of_EnvironmentDefLoader = _IdMapLoader(
     array_of_EnvironmentDefLoader, "envName", "envValue"
+)
+ShellCommandRequirement_classLoader = _EnumLoader(
+    ("ShellCommandRequirement",), "ShellCommandRequirement_class"
+)
+uri_ShellCommandRequirement_classLoader_False_True_None = _URILoader(
+    ShellCommandRequirement_classLoader, False, True, None
+)
+ResourceRequirement_classLoader = _EnumLoader(
+    ("ResourceRequirement",), "ResourceRequirement_class"
+)
+uri_ResourceRequirement_classLoader_False_True_None = _URILoader(
+    ResourceRequirement_classLoader, False, True, None
+)
+WorkReuse_classLoader = _EnumLoader(("WorkReuse",), "WorkReuse_class")
+uri_WorkReuse_classLoader_False_True_None = _URILoader(
+    WorkReuse_classLoader, False, True, None
 )
 union_of_booltype_or_ExpressionLoader = _UnionLoader(
     (
         booltype,
         ExpressionLoader,
     )
+)
+NetworkAccess_classLoader = _EnumLoader(("NetworkAccess",), "NetworkAccess_class")
+uri_NetworkAccess_classLoader_False_True_None = _URILoader(
+    NetworkAccess_classLoader, False, True, None
+)
+InplaceUpdateRequirement_classLoader = _EnumLoader(
+    ("InplaceUpdateRequirement",), "InplaceUpdateRequirement_class"
+)
+uri_InplaceUpdateRequirement_classLoader_False_True_None = _URILoader(
+    InplaceUpdateRequirement_classLoader, False, True, None
+)
+ToolTimeLimit_classLoader = _EnumLoader(("ToolTimeLimit",), "ToolTimeLimit_class")
+uri_ToolTimeLimit_classLoader_False_True_None = _URILoader(
+    ToolTimeLimit_classLoader, False, True, None
 )
 union_of_inttype_or_ExpressionLoader = _UnionLoader(
     (
@@ -15522,6 +15530,10 @@ union_of_None_type_or_InputBindingLoader = _UnionLoader(
         None_type,
         InputBindingLoader,
     )
+)
+ExpressionTool_classLoader = _EnumLoader(("ExpressionTool",), "ExpressionTool_class")
+uri_ExpressionTool_classLoader_False_True_None = _URILoader(
+    ExpressionTool_classLoader, False, True, None
 )
 array_of_WorkflowInputParameterLoader = _ArrayLoader(WorkflowInputParameterLoader)
 idmap_inputs_array_of_WorkflowInputParameterLoader = _IdMapLoader(
@@ -15607,6 +15619,10 @@ union_of_None_type_or_ScatterMethodLoader = _UnionLoader(
 uri_union_of_None_type_or_ScatterMethodLoader_False_True_None = _URILoader(
     union_of_None_type_or_ScatterMethodLoader, False, True, None
 )
+Workflow_classLoader = _EnumLoader(("Workflow",), "Workflow_class")
+uri_Workflow_classLoader_False_True_None = _URILoader(
+    Workflow_classLoader, False, True, None
+)
 array_of_WorkflowOutputParameterLoader = _ArrayLoader(WorkflowOutputParameterLoader)
 idmap_outputs_array_of_WorkflowOutputParameterLoader = _IdMapLoader(
     array_of_WorkflowOutputParameterLoader, "id", "type"
@@ -15615,6 +15631,30 @@ array_of_WorkflowStepLoader = _ArrayLoader(WorkflowStepLoader)
 union_of_array_of_WorkflowStepLoader = _UnionLoader((array_of_WorkflowStepLoader,))
 idmap_steps_union_of_array_of_WorkflowStepLoader = _IdMapLoader(
     union_of_array_of_WorkflowStepLoader, "id", "None"
+)
+SubworkflowFeatureRequirement_classLoader = _EnumLoader(
+    ("SubworkflowFeatureRequirement",), "SubworkflowFeatureRequirement_class"
+)
+uri_SubworkflowFeatureRequirement_classLoader_False_True_None = _URILoader(
+    SubworkflowFeatureRequirement_classLoader, False, True, None
+)
+ScatterFeatureRequirement_classLoader = _EnumLoader(
+    ("ScatterFeatureRequirement",), "ScatterFeatureRequirement_class"
+)
+uri_ScatterFeatureRequirement_classLoader_False_True_None = _URILoader(
+    ScatterFeatureRequirement_classLoader, False, True, None
+)
+MultipleInputFeatureRequirement_classLoader = _EnumLoader(
+    ("MultipleInputFeatureRequirement",), "MultipleInputFeatureRequirement_class"
+)
+uri_MultipleInputFeatureRequirement_classLoader_False_True_None = _URILoader(
+    MultipleInputFeatureRequirement_classLoader, False, True, None
+)
+StepInputExpressionRequirement_classLoader = _EnumLoader(
+    ("StepInputExpressionRequirement",), "StepInputExpressionRequirement_class"
+)
+uri_StepInputExpressionRequirement_classLoader_False_True_None = _URILoader(
+    StepInputExpressionRequirement_classLoader, False, True, None
 )
 union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader = _UnionLoader(
     (
