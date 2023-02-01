@@ -29,8 +29,8 @@ EXTRAS=
 PYSOURCES=$(filter-out $(MODULE)/parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) \
 	  $(wildcard tests/*.py) create_cwl_from_objects.py load_cwl_by_path.py \
 	  setup.py ${MODULE}/parser/cwl_v1_?_utils.py docs/conf.py
-DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox tox-pyenv \
-	isort wheel autoflake flake8-bugbear pyupgrade bandit \
+DEVPKGS=diff_cover  pylint pep257 pydocstyle flake8 tox tox-pyenv \
+	isort wheel autoflake pyupgrade bandit -lint-requirements.txt \
 	-rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \
 	   python-flake8 python-mock shellcheck
