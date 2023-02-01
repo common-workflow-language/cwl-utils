@@ -145,7 +145,6 @@ def _inline_type(
     _inline_type_name_uniq_id += 1
 
     if isinstance(v, str):
-
         # Handle syntactic sugar
         if v.endswith("[]"):
             return {

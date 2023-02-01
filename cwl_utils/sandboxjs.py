@@ -164,7 +164,6 @@ class NodeJSEngine(JSEngine):
         force_docker_pull: bool = False,
         container_engine: str = "docker",
     ) -> Tuple[int, str, str]:
-
         if not hasattr(self.localdata, "procs"):
             self.localdata.procs = {}
 
