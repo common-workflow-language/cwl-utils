@@ -307,7 +307,7 @@ class NodeJSEngine(JSEngine):
 
         if nodejs is None or nodejs is not None and required_node_version is False:
             try:
-                nodeimg = "docker.io/node:slim"
+                nodeimg = "docker.io/node:alpine"
                 if container_engine == "singularity":
                     nodeimg = f"docker://{nodeimg}"
 
@@ -322,10 +322,14 @@ class NodeJSEngine(JSEngine):
                         singularity_cache = os.environ.get("CWL_SINGULARITY_CACHE")
                         if singularity_cache:
                             singularityimgs = glob.glob(
-                                singularity_cache + "/node_slim.sif"
+                                singularity_cache + "/node_alpine.sif"
                             )
                         else:
-                            singularityimgs = glob.glob(os.getcwd() + "/node_slim.sif")
+                            singularityimgs = glob.glob(
+                                os.getcwd() + "/node_alpine.sif"
+                            )
+                        if singularityimgs:
+                            nodeimg = singularityimgs[0]
                     else:
                         raise Exception(
                             f"Unknown container_engine: {container_engine}."
@@ -338,7 +342,7 @@ class NodeJSEngine(JSEngine):
                         len(dockerimgs.split("\n")) <= 1
                     )
                     if need_singularity or need_docker or force_docker_pull:
-                        # pull node:slim docker container
+                        # pull node:alpine docker container
                         nodejs_pull_commands = [container_engine, "pull"]
                         if force_docker_pull:
                             nodejs_pull_commands.append("--force")
@@ -400,15 +404,15 @@ class NodeJSEngine(JSEngine):
                     pass
                 else:
                     raise
-            except subprocess.CalledProcessError:
-                pass
+            except subprocess.CalledProcessError as e:
+                _logger.debug("Error while attempting to run nodejs: %s", e)
 
         # docker failed and nodejs not on system
         if nodejs is None:
             raise JavascriptException(
                 "NodeJSEngine requires Node.js engine to evaluate and validate "
                 "Javascript expressions, but couldn't find it.  Tried {trynodes}, "
-                f"{container_engine} run node:slim".format(
+                f"{container_engine} run node:alpine".format(
                     trynodes=", ".join(trynodes), container_engine=container_engine
                 )
             )

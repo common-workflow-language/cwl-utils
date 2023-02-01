@@ -152,7 +152,7 @@ diff-cover.html: coverage.xml
 
 ## test                   : run the cwl-utils test suite
 test: $(PYSOURCES)
-	python -m pytest -rs ${PYTEST_EXTRA}
+	python -m pytest -rsx ${PYTEST_EXTRA}
 
 ## testcov                : run the cwl-utils test suite and collect coverage
 testcov: $(PYSOURCES)

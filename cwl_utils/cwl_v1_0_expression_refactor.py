@@ -190,7 +190,7 @@ process.stdout.write(JSON.stringify(ret));"""
     )
     listing = [cwl.Dirent(entryname="expression.js", entry=contents, writable=None)]
     iwdr = cwl.InitialWorkDirRequirement(listing)
-    containerReq = cwl.DockerRequirement(dockerPull="node:slim")
+    containerReq = cwl.DockerRequirement(dockerPull="node:alpine")
     softwareHint = cwl.SoftwareRequirement(
         packages=[cwl.SoftwarePackage(package="nodejs")]
     )
