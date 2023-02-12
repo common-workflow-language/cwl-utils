@@ -1,12 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
 import logging
+import os
 from collections import namedtuple
-from typing import IO, Any, Dict, List, MutableSequence, Optional, Tuple, Union, cast
+from io import StringIO
+from typing import (
+    Any,
+    Dict,
+    IO,
+    List,
+    MutableMapping,
+    MutableSequence,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
+from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
-from schema_salad.sourceline import SourceLine
-from schema_salad.utils import aslist, json_dumps
+from schema_salad.sourceline import SourceLine, add_lc_filename
+from schema_salad.utils import aslist, json_dumps, yaml_no_ts
 
 import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_0 as cwl
@@ -80,6 +94,64 @@ def _compare_type(type1: Any, type2: Any) -> bool:
         return True
     else:
         return bool(type1 == type2)
+
+
+def _inputfile_load(
+    doc: Union[str, MutableMapping[str, Any], MutableSequence[Any]],
+    baseuri: str,
+    loadingOptions: cwl.LoadingOptions,
+    addl_metadata_fields: Optional[MutableSequence[str]] = None,
+) -> Tuple[Any, cwl.LoadingOptions]:
+    loader = cwl.CWLInputFileLoader
+    if isinstance(doc, str):
+        url = loadingOptions.fetcher.urljoin(baseuri, doc)
+        if url in loadingOptions.idx:
+            return loadingOptions.idx[url]
+        doc_url, frg = urldefrag(url)
+        text = loadingOptions.fetcher.fetch_text(doc_url)
+        textIO = StringIO(text)
+        textIO.name = str(doc_url)
+        yaml = yaml_no_ts()
+        result = yaml.load(textIO)
+        add_lc_filename(result, doc_url)
+        loadingOptions = cwl.LoadingOptions(copyfrom=loadingOptions, fileuri=doc_url)
+        _inputfile_load(
+            result,
+            doc_url,
+            loadingOptions,
+        )
+        return loadingOptions.idx[url]
+
+    if isinstance(doc, MutableMapping):
+        addl_metadata = {}
+        if addl_metadata_fields is not None:
+            for mf in addl_metadata_fields:
+                if mf in doc:
+                    addl_metadata[mf] = doc[mf]
+
+        loadingOptions = cwl.LoadingOptions(
+            copyfrom=loadingOptions,
+            baseuri=baseuri,
+            addl_metadata=addl_metadata,
+        )
+
+        loadingOptions.idx[baseuri] = (
+            loader.load(doc, baseuri, loadingOptions, docRoot=baseuri),
+            loadingOptions,
+        )
+
+        return loadingOptions.idx[baseuri]
+
+    if isinstance(doc, MutableSequence):
+        loadingOptions.idx[baseuri] = (
+            loader.load(doc, baseuri, loadingOptions),
+            loadingOptions,
+        )
+        return loadingOptions.idx[baseuri]
+
+    raise ValidationException(
+        "Expected URI string, MutableMapping or MutableSequence, got %s" % type(doc)
+    )
 
 
 def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
@@ -238,6 +310,64 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
                 )
             out.type = "File"
             out.outputBinding = cwl.CommandOutputBinding(glob=clt.stderr)
+
+
+def load_inputfile(
+    doc: Any,
+    baseuri: Optional[str] = None,
+    loadingOptions: Optional[cwl.LoadingOptions] = None,
+) -> Any:
+    """Load a CWL v1.0 input file from a serialized YAML string or a YAML object."""
+    if baseuri is None:
+        baseuri = cwl.file_uri(os.getcwd()) + "/"
+    if loadingOptions is None:
+        loadingOptions = cwl.LoadingOptions()
+    result, metadata = _inputfile_load(
+        doc,
+        baseuri,
+        loadingOptions,
+    )
+    return result
+
+
+def load_inputfile_by_string(
+    string: Any,
+    uri: str,
+    loadingOptions: Optional[cwl.LoadingOptions] = None,
+) -> Any:
+    """Load a CWL v1.0 input file from a serialized YAML string."""
+    yaml = yaml_no_ts()
+    result = yaml.load(string)
+    add_lc_filename(result, uri)
+
+    if loadingOptions is None:
+        loadingOptions = cwl.LoadingOptions(fileuri=uri)
+
+    result, metadata = _inputfile_load(
+        result,
+        uri,
+        loadingOptions,
+    )
+    return result
+
+
+def load_inputfile_by_yaml(
+    yaml: Any,
+    uri: str,
+    loadingOptions: Optional[cwl.LoadingOptions] = None,
+) -> Any:
+    """Load a CWL v1.0 input file from a YAML object."""
+    add_lc_filename(yaml, uri)
+
+    if loadingOptions is None:
+        loadingOptions = cwl.LoadingOptions(fileuri=uri)
+
+    result, metadata = _inputfile_load(
+        yaml,
+        uri,
+        loadingOptions,
+    )
+    return result
 
 
 def merge_flatten_type(src: Any) -> Any:
