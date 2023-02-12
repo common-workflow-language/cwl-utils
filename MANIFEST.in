@@ -10,7 +10,9 @@ include cwl_utils/cwlNodeEngineJSConsole.js
 include cwl_utils/cwlNodeEngineWithContext.js
 include testdata/*.cwl
 include testdata/*.yaml
+include testdata/*.yml
 include testdata/*.input
+include testdata/*.json
 include testdata/*.ttl
 include testdata/*.owl
 include testdata/*.js

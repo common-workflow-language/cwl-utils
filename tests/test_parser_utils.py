@@ -17,7 +17,6 @@ import cwl_utils.parser.cwl_v1_2_utils
 import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
 from cwl_utils.parser import load_document_by_uri
-
 from .util import get_data
 
 
@@ -132,6 +131,36 @@ def test_v1_0_file_content_larger_than_64_kB() -> None:
         f.seek(0)
         content = cwl_utils.parser.cwl_v1_0_utils.content_limit_respected_read(f)
     assert content == text[0 : cwl_utils.parser.cwl_v1_0_utils.CONTENT_LIMIT]
+
+
+def test_v_1_0_load_inputfile_with_format() -> None:
+    """Test that File object with the `format` field is correctly loaded with CWL v1.0."""
+    uri = Path(get_data("testdata/formattest2_v1_0.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    uri = Path(get_data("testdata/formattest-job.json")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri(
+        "v1.0", uri, cwl_obj.loadingOptions
+    )
+    assert jobfile["input"].format == cwl_obj.inputs[0].format
+
+
+def test_v_1_0_load_inputfile_with_nested_array() -> None:
+    """Test that nested arrays are preserved when loading an input file with CWL v1.0."""
+    uri = Path(get_data("testdata/nested-array-job.yml")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri("v1.0", uri)
+    assert isinstance(jobfile["letters"], MutableSequence)
+    assert isinstance(jobfile["letters"][0], MutableSequence)
+    assert jobfile["letters"][0][0] == "a"
+
+
+def test_v_1_0_load_inputfile_with_secondary_files() -> None:
+    """Test that secondary files are treated as objects when loading an input file with CWL v1.0."""
+    uri = Path(get_data("testdata/dir4-job.yml")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri("v1.0", uri)
+    assert isinstance(jobfile["inf"].secondaryFiles[0], cwl_utils.parser.cwl_v1_0.File)
+    assert isinstance(
+        jobfile["inf"].secondaryFiles[1], cwl_utils.parser.cwl_v1_0.Directory
+    )
 
 
 def test_v1_0_stdout_to_file() -> None:
@@ -411,6 +440,45 @@ def test_v1_1_file_content_larger_than_64_kB() -> None:
         f.seek(0)
         content = cwl_utils.parser.cwl_v1_1_utils.content_limit_respected_read(f)
     assert content == text[0 : cwl_utils.parser.cwl_v1_1_utils.CONTENT_LIMIT]
+
+
+def test_v_1_1_load_inputfile_with_format() -> None:
+    """Test that File object with the `format` field is correctly loaded with CWL v1.1."""
+    uri = Path(get_data("testdata/formattest2_v1_1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    uri = Path(get_data("testdata/formattest-job.json")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri(
+        "v1.1", uri, cwl_obj.loadingOptions
+    )
+    assert jobfile["input"].format == cwl_obj.inputs[0].format
+
+
+def test_v_1_1_load_inputfile_with_nested_array() -> None:
+    """Test that nested arrays are preserved when loading an input file with CWL v1.1."""
+    uri = Path(get_data("testdata/nested-array-job.yml")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri("v1.1", uri)
+    assert isinstance(jobfile["letters"], MutableSequence)
+    assert isinstance(jobfile["letters"][0], MutableSequence)
+    assert jobfile["letters"][0][0] == "a"
+
+
+def test_v_1_1_load_inputfile_with_requirements() -> None:
+    """Test that an input file with the cwl:requirements directive is correctly loaded with CWL v1.1."""
+    uri = Path(get_data("testdata/env-job3.yaml")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri("v1.1", uri)
+    assert isinstance(
+        jobfile["cwl:requirements"][0], cwl_utils.parser.cwl_v1_1.EnvVarRequirement
+    )
+
+
+def test_v_1_1_load_inputfile_with_secondary_files() -> None:
+    """Test that secondary files are treated as objects when loading an input file with CWL v1.1."""
+    uri = Path(get_data("testdata/dir4-job.yml")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri("v1.1", uri)
+    assert isinstance(jobfile["inf"].secondaryFiles[0], cwl_utils.parser.cwl_v1_1.File)
+    assert isinstance(
+        jobfile["inf"].secondaryFiles[1], cwl_utils.parser.cwl_v1_1.Directory
+    )
 
 
 def test_v1_1_stdout_to_file() -> None:
@@ -734,6 +802,45 @@ def test_v1_2_file_content_larger_than_64_kB() -> None:
         f.seek(0)
         with raises(WorkflowException):
             cwl_utils.parser.cwl_v1_2_utils.content_limit_respected_read(f)
+
+
+def test_v_1_2_load_inputfile_with_format() -> None:
+    """Test that File object with the `format` field is correctly loaded with CWL v1.2."""
+    uri = Path(get_data("testdata/formattest2.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    uri = Path(get_data("testdata/formattest-job.json")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri(
+        "v1.2", uri, cwl_obj.loadingOptions
+    )
+    assert jobfile["input"].format == cwl_obj.inputs[0].format
+
+
+def test_v_1_2_load_inputfile_with_nested_array() -> None:
+    """Test that nested arrays are preserved when loading an input file with CWL v1.2."""
+    uri = Path(get_data("testdata/nested-array-job.yml")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri("v1.2", uri)
+    assert isinstance(jobfile["letters"], MutableSequence)
+    assert isinstance(jobfile["letters"][0], MutableSequence)
+    assert jobfile["letters"][0][0] == "a"
+
+
+def test_v_1_2_load_inputfile_with_requirements() -> None:
+    """Test that an input file with the cwl:requirements directive is correctly loaded with CWL v1.2."""
+    uri = Path(get_data("testdata/env-job3.yaml")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri("v1.2", uri)
+    assert isinstance(
+        jobfile["cwl:requirements"][0], cwl_utils.parser.cwl_v1_2.EnvVarRequirement
+    )
+
+
+def test_v_1_2_load_inputfile_with_secondary_files() -> None:
+    """Test that secondary files are treated as objects when loading an input file with CWL v1.2."""
+    uri = Path(get_data("testdata/dir4-job.yml")).resolve().as_uri()
+    jobfile = cwl_utils.parser.utils.load_inputfile_by_uri("v1.2", uri)
+    assert isinstance(jobfile["inf"].secondaryFiles[0], cwl_utils.parser.cwl_v1_2.File)
+    assert isinstance(
+        jobfile["inf"].secondaryFiles[1], cwl_utils.parser.cwl_v1_2.Directory
+    )
 
 
 def test_v1_2_stdout_to_file() -> None:
