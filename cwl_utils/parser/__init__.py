@@ -134,6 +134,7 @@ def cwl_version(yaml: Any) -> Optional[str]:
 def load_document_by_uri(
     path: Union[str, Path],
     loadingOptions: Optional[LoadingOptions] = None,
+    load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a URI or a path."""
     if isinstance(path, str):
@@ -153,7 +154,7 @@ def load_document_by_uri(
         loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
 
     doc = loadingOptions.fetcher.fetch_text(real_path)
-    return load_document_by_string(doc, baseuri, loadingOptions, id_)
+    return load_document_by_string(doc, baseuri, loadingOptions, id_, load_all)
 
 
 def load_document(
@@ -161,13 +162,14 @@ def load_document(
     baseuri: Optional[str] = None,
     loadingOptions: Optional[LoadingOptions] = None,
     id_: Optional[str] = None,
+    load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a serialized YAML string or a YAML object."""
     if baseuri is None:
         baseuri = cwl_v1_0.file_uri(os.getcwd()) + "/"
     if isinstance(doc, str):
         return load_document_by_string(doc, baseuri, loadingOptions, id_)
-    return load_document_by_yaml(doc, baseuri, loadingOptions, id_)
+    return load_document_by_yaml(doc, baseuri, loadingOptions, id_, load_all)
 
 
 def load_document_by_string(
@@ -175,11 +177,12 @@ def load_document_by_string(
     uri: str,
     loadingOptions: Optional[LoadingOptions] = None,
     id_: Optional[str] = None,
+    load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a serialized YAML string."""
     yaml = yaml_no_ts()
     result = yaml.load(string)
-    return load_document_by_yaml(result, uri, loadingOptions, id_)
+    return load_document_by_yaml(result, uri, loadingOptions, id_, load_all)
 
 
 def load_document_by_yaml(
@@ -187,10 +190,11 @@ def load_document_by_yaml(
     uri: str,
     loadingOptions: Optional[LoadingOptions] = None,
     id_: Optional[str] = None,
+    load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a YAML object."""
     version = cwl_version(yaml)
-    if "$graph" in yaml:
+    if "$graph" in yaml and not load_all:
         yaml = _get_id_from_graph(yaml, id_)
         yaml["cwlVersion"] = version
     if version == "v1.0":
