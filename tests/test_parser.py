@@ -114,3 +114,10 @@ def test_get_default_id_from_graph_without_main() -> None:
     with raises(GraphTargetMissingException):
         uri = Path(get_data("testdata/js-expr-req-wf.cwl")).resolve().as_uri()
         load_document_by_uri(uri)
+
+
+def test_graph_load_all() -> None:
+    """Test that we can get all object in a $graph file."""
+    uri = Path(get_data("testdata/js-expr-req-wf.cwl")).resolve().as_uri()
+    cwl_objs = load_document_by_uri(uri, load_all=True)
+    assert len(cwl_objs) == 2
