@@ -34,6 +34,7 @@ from cwl_utils.types import CWLOutputType
 from cwl_utils.utils import singularity_supports_userns
 
 default_timeout = 20
+"""Default number of seconds to wait while running a javascript engine."""
 
 seg_symbol = r"""\w+"""
 seg_single = r"""\['([^']|\\')+'\]"""
@@ -164,6 +165,13 @@ class NodeJSEngine(JSEngine):
         force_docker_pull: bool = False,
         container_engine: str = "docker",
     ) -> Tuple[int, str, str]:
+        """
+        Run a javascript text.
+
+        :param timeout: Max number of seconds to wait.
+        :returns: A tuple of the return code, stdout, and stderr of the javascript
+                  engine invocation.
+        """
         if not hasattr(self.localdata, "procs"):
             self.localdata.procs = {}
 
