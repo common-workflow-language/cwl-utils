@@ -289,6 +289,11 @@ def do_eval(
     cwlVersion: str = "",
     **kwargs: Any,
 ) -> Optional[CWLOutputType]:
+    """
+    Evaluate the given CWL expression, in context.
+
+    :param timeout: The maximum number of seconds to wait while executing.
+    """
     runtime = cast(MutableMapping[str, Union[int, str, None]], copy.deepcopy(resources))
     runtime["tmpdir"] = tmpdir if tmpdir else None
     runtime["outdir"] = outdir if outdir else None
