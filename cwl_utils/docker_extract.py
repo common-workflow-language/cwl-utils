@@ -32,6 +32,11 @@ def arg_parser() -> argparse.ArgumentParser:
         help="Use singularity to pull the image",
         action="store_true",
     )
+    parser.add_argument(
+        "--user-space-docker-cmd",
+        dest="user_space_docker_cmd",
+        default="docker",
+        help="Specify which command to use to run OCI containers.")
     return parser
 
 
@@ -51,9 +56,9 @@ def run(args: argparse.Namespace) -> int:
             print(f"Unable to save image from {req} due to lack of 'dockerPull'.")
             continue
         if args.singularity:
-            image_puller: ImagePuller = SingularityImagePuller(req.dockerPull, args.dir)
+            image_puller: ImagePuller = SingularityImagePuller(req.dockerPull, args.dir, "singularity")
         else:
-            image_puller = DockerImagePuller(req.dockerPull, args.dir)
+            image_puller = DockerImagePuller(req.dockerPull, args.dir, args.user_space_docker_cmd)
         image_puller.save_docker_image()
     return 0
 

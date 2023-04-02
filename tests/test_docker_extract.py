@@ -24,7 +24,22 @@ def test_traverse_workflow() -> None:
         assert len(reqs) == 1
         for req in reqs:
             assert req.dockerPull
-            image_puller = DockerImagePuller(req.dockerPull, tmpdir)
+            image_puller = DockerImagePuller(req.dockerPull, tmpdir, "docker")
+            image_puller.save_docker_image()
+            _ = image_puller.generate_udocker_loading_command()
+
+
+@mark.skipif(which("podman") is None, reason="podman is not available")
+def test_traverse_workflow_podman() -> None:
+    """Test container extraction tool using Podman."""
+    loaded = parser.load_document(TEST_CWL)
+
+    with TemporaryDirectory() as tmpdir:
+        reqs = set(traverse(loaded))
+        assert len(reqs) == 1
+        for req in reqs:
+            assert req.dockerPull
+            image_puller = DockerImagePuller(req.dockerPull, tmpdir, "podman")
             image_puller.save_docker_image()
             _ = image_puller.generate_udocker_loading_command()
 
@@ -39,5 +54,5 @@ def test_traverse_workflow_singularity() -> None:
         assert len(reqs) == 1
         for req in reqs:
             assert req.dockerPull
-            image_puller = SingularityImagePuller(req.dockerPull, tmpdir)
+            image_puller = SingularityImagePuller(req.dockerPull, tmpdir, "singularity")
             image_puller.save_docker_image()

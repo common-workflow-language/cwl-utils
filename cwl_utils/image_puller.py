@@ -15,10 +15,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class ImagePuller(ABC):
-    def __init__(self, req: str, save_directory: str) -> None:
+    def __init__(self, req: str, save_directory: str, cmd: str) -> None:
         """Create an ImagePuller."""
         self.req = req
         self.save_directory = save_directory
+        self.cmd = cmd
 
     @abstractmethod
     def get_image_name(self) -> str:
@@ -54,10 +55,10 @@ class DockerImagePuller(ImagePuller):
     def save_docker_image(self) -> None:
         """Download and save the software container image to disk as a docker tarball."""
         _LOGGER.info(f"Pulling {self.req} with Docker...")
-        cmd_pull = ["docker", "pull", self.req]
+        cmd_pull = [self.cmd, "pull", self.req]
         ImagePuller._run_command_pull(cmd_pull)
         cmd_save = [
-            "docker",
+            self.cmd,
             "save",
             "-o",
             os.path.join(self.save_directory, self.get_image_name()),
@@ -99,7 +100,7 @@ class SingularityImagePuller(ImagePuller):
         """Pull down the Docker container image in the Singularity image format."""
         _LOGGER.info(f"Pulling {self.req} with Singularity...")
         cmd_pull = [
-            "singularity",
+            self.cmd,
             "pull",
             "--name",
             os.path.join(self.save_directory, self.get_image_name()),
