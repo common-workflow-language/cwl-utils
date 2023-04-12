@@ -46,7 +46,11 @@ class DockerImagePuller(ImagePuller):
 
     def get_image_name(self) -> str:
         """Get the name of the tarball."""
-        return "".join(self.req.split("/")) + ".tar"
+        name = "".join(self.req.split("/")) + ".tar"
+        # Replace colons with underscores in the name.
+        # See https://github.com/containers/podman/issues/489
+        name = name.replace(":", "_")
+        return name
 
     def generate_udocker_loading_command(self) -> str:
         """Generate the udocker loading command."""
