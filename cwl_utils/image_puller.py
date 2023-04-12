@@ -77,9 +77,9 @@ class SingularityImagePuller(ImagePuller):
     CHARS_TO_REPLACE = ["/"]
     NEW_CHAR = "_"
 
-    def __init__(self, req: str, save_directory: str) -> None:
+    def __init__(self, req: str, save_directory: str, cmd: str) -> None:
         """Create a Singularity-based software container image downloader."""
-        super().__init__(req, save_directory)
+        super().__init__(req, save_directory, cmd)
 
     def get_image_name(self) -> str:
         """Determine the file name appropriate to the installed version of Singularity."""
