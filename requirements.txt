@@ -4,5 +4,5 @@ rdflib
 requests
 CacheControl
 schema-salad >= 8.3.20220825114525, < 9
-ruamel.yaml >= 0.17.6, < 0.17.22;python_version>='3.7'
-ruamel.yaml >= 0.16.12, < 0.17.22
+ruamel.yaml >= 0.17.6, < 0.17.23;python_version>='3.7'
+ruamel.yaml >= 0.16.12, < 0.17.23
