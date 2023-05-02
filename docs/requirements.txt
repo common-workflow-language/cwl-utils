@@ -1,4 +1,4 @@
-sphinx >= 2.2
+sphinx >= 2.2, <7
 sphinx-rtd-theme
 sphinx-autoapi
 sphinx-autodoc-typehints
