@@ -25,73 +25,63 @@ from .util import get_data
 def test_static_checker_fail(cwlVersion: str) -> None:
     """Confirm that static type checker raises expected exception."""
     if cwlVersion == "v1_0":
+        uri = Path(get_data("testdata/checker_wf/broken-wf.cwl")).resolve().as_uri()
+        cwl_obj = load_document_by_uri(uri)
         with pytest.raises(
             ValidationException,
             match="\nSource .* of type .* is incompatible\n.*with sink .* of type .*",
         ):
-            uri = Path(get_data("testdata/checker_wf/broken-wf.cwl")).resolve().as_uri()
-            cwl_obj = load_document_by_uri(uri)
             cwl_utils.parser.utils.static_checker(cwl_obj)
 
+        uri = Path(get_data("testdata/checker_wf/broken-wf2.cwl")).resolve().as_uri()
+        cwl_obj = load_document_by_uri(uri)
         with pytest.raises(
             ValidationException, match="param .* not found in class: CommandLineTool"
         ):
-            uri = (
-                Path(get_data("testdata/checker_wf/broken-wf2.cwl")).resolve().as_uri()
-            )
-            cwl_obj = load_document_by_uri(uri)
             cwl_utils.parser.utils.static_checker(cwl_obj)
 
+        uri = Path(get_data("testdata/checker_wf/broken-wf3.cwl")).resolve().as_uri()
+        cwl_obj = load_document_by_uri(uri)
         with pytest.raises(
             ValidationException, match="param .* not found in class: Workflow"
         ):
-            uri = (
-                Path(get_data("testdata/checker_wf/broken-wf3.cwl")).resolve().as_uri()
-            )
-            cwl_obj = load_document_by_uri(uri)
             cwl_utils.parser.utils.static_checker(cwl_obj)
 
+    uri = (
+        Path(get_data(f"testdata/count-lines6-wf_{cwlVersion}.cwl")).resolve().as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
     with pytest.raises(
         ValidationException,
         match="\nSource .* of type .* is incompatible\n.*with sink .* of type .*",
     ):
-        uri = (
-            Path(get_data(f"testdata/count-lines6-wf_{cwlVersion}.cwl"))
-            .resolve()
-            .as_uri()
-        )
-        cwl_obj = load_document_by_uri(uri)
         cwl_utils.parser.utils.static_checker(cwl_obj)
 
+    uri = (
+        Path(get_data(f"testdata/count-lines6-single-source-wf_{cwlVersion}.cwl"))
+        .resolve()
+        .as_uri()
+    )
+    cwl_obj = load_document_by_uri(uri)
     with pytest.raises(
         ValidationException,
         match="\nSource .* of type .* is incompatible\n.*with sink .* of type .*",
     ):
-        uri = (
-            Path(get_data(f"testdata/count-lines6-single-source-wf_{cwlVersion}.cwl"))
-            .resolve()
-            .as_uri()
-        )
-        cwl_obj = load_document_by_uri(uri)
         cwl_utils.parser.utils.static_checker(cwl_obj)
 
     if cwlVersion == "v1_2":
-        with pytest.raises(ValidationException, match=".* pickValue is first_non_null"):
-            uri = (
-                Path(get_data("testdata/cond-single-source-wf-003.1.cwl"))
-                .resolve()
-                .as_uri()
-            )
-            cwl_obj = load_document_by_uri(uri)
-            cwl_utils.parser.utils.static_checker(cwl_obj)
-
-    with pytest.raises(ValidationException, match=".* pickValue is the_only_non_null"):
         uri = (
-            Path(get_data("testdata/cond-single-source-wf-004.1.cwl"))
+            Path(get_data("testdata/cond-single-source-wf-003.1.cwl"))
             .resolve()
             .as_uri()
         )
         cwl_obj = load_document_by_uri(uri)
+        with pytest.raises(ValidationException, match=".* pickValue is first_non_null"):
+            cwl_utils.parser.utils.static_checker(cwl_obj)
+
+    uri = Path(get_data("testdata/cond-single-source-wf-004.1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    with pytest.raises(ValidationException, match=".* pickValue is the_only_non_null"):
         cwl_utils.parser.utils.static_checker(cwl_obj)
 
 
@@ -159,19 +149,19 @@ def test_v1_0_stdout_to_file() -> None:
 
 def test_v1_0_stdout_to_file_with_binding() -> None:
     """Test that outputBinding is not allowed with stdout shortcut with CWL v1.0."""
+    clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
+        inputs=[],
+        outputs=[
+            cwl_utils.parser.cwl_v1_0.CommandOutputParameter(
+                id="test",
+                type="stdout",
+                outputBinding=cwl_utils.parser.cwl_v1_0.CommandOutputBinding(
+                    glob="output.txt"
+                ),
+            )
+        ],
+    )
     with raises(ValidationException):
-        clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
-            inputs=[],
-            outputs=[
-                cwl_utils.parser.cwl_v1_0.CommandOutputParameter(
-                    id="test",
-                    type="stdout",
-                    outputBinding=cwl_utils.parser.cwl_v1_0.CommandOutputBinding(
-                        glob="output.txt"
-                    ),
-                )
-            ],
-        )
         cwl_utils.parser.cwl_v1_0_utils.convert_stdstreams_to_files(clt)
 
 
@@ -204,19 +194,19 @@ def test_v1_0_stderr_to_file() -> None:
 
 def test_v1_0_stderr_to_file_with_binding() -> None:
     """Test that outputBinding is not allowed with stderr shortcut with CWL v1.0."""
+    clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
+        inputs=[],
+        outputs=[
+            cwl_utils.parser.cwl_v1_0.CommandOutputParameter(
+                id="test",
+                type="stderr",
+                outputBinding=cwl_utils.parser.cwl_v1_0.CommandOutputBinding(
+                    glob="err.txt"
+                ),
+            )
+        ],
+    )
     with raises(ValidationException):
-        clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
-            inputs=[],
-            outputs=[
-                cwl_utils.parser.cwl_v1_0.CommandOutputParameter(
-                    id="test",
-                    type="stderr",
-                    outputBinding=cwl_utils.parser.cwl_v1_0.CommandOutputBinding(
-                        glob="err.txt"
-                    ),
-                )
-            ],
-        )
         cwl_utils.parser.cwl_v1_0_utils.convert_stdstreams_to_files(clt)
 
 
@@ -438,19 +428,19 @@ def test_v1_1_stdout_to_file() -> None:
 
 def test_v1_1_stdout_to_file_with_binding() -> None:
     """Test that outputBinding is not allowed with stdout shortcut with CWL v1.1."""
+    clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
+        inputs=[],
+        outputs=[
+            cwl_utils.parser.cwl_v1_1.CommandOutputParameter(
+                id="test",
+                type="stdout",
+                outputBinding=cwl_utils.parser.cwl_v1_1.CommandOutputBinding(
+                    glob="output.txt"
+                ),
+            )
+        ],
+    )
     with raises(ValidationException):
-        clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
-            inputs=[],
-            outputs=[
-                cwl_utils.parser.cwl_v1_1.CommandOutputParameter(
-                    id="test",
-                    type="stdout",
-                    outputBinding=cwl_utils.parser.cwl_v1_1.CommandOutputBinding(
-                        glob="output.txt"
-                    ),
-                )
-            ],
-        )
         cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
 
 
@@ -483,19 +473,19 @@ def test_v1_1_stderr_to_file() -> None:
 
 def test_v1_1_stderr_to_file_with_binding() -> None:
     """Test that outputBinding is not allowed with stderr shortcut with CWL v1.1."""
+    clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
+        inputs=[],
+        outputs=[
+            cwl_utils.parser.cwl_v1_1.CommandOutputParameter(
+                id="test",
+                type="stderr",
+                outputBinding=cwl_utils.parser.cwl_v1_1.CommandOutputBinding(
+                    glob="err.txt"
+                ),
+            )
+        ],
+    )
     with raises(ValidationException):
-        clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
-            inputs=[],
-            outputs=[
-                cwl_utils.parser.cwl_v1_1.CommandOutputParameter(
-                    id="test",
-                    type="stderr",
-                    outputBinding=cwl_utils.parser.cwl_v1_1.CommandOutputBinding(
-                        glob="err.txt"
-                    ),
-                )
-            ],
-        )
         cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
 
 
@@ -527,32 +517,32 @@ def test_v1_1_stdin_to_file() -> None:
 
 def test_v1_1_stdin_to_file_with_binding() -> None:
     """Test that inputBinding is not allowed with stdin shortcut with CWL v1.1."""
+    clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
+        inputs=[
+            cwl_utils.parser.cwl_v1_1.CommandInputParameter(
+                id="test",
+                type="stdin",
+                inputBinding=cwl_utils.parser.cwl_v1_1.CommandLineBinding(
+                    prefix="--test"
+                ),
+            )
+        ],
+        outputs=[],
+    )
     with raises(ValidationException):
-        clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
-            inputs=[
-                cwl_utils.parser.cwl_v1_1.CommandInputParameter(
-                    id="test",
-                    type="stdin",
-                    inputBinding=cwl_utils.parser.cwl_v1_1.CommandLineBinding(
-                        prefix="--test"
-                    ),
-                )
-            ],
-            outputs=[],
-        )
         cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
 
 
 def test_v1_1_stdin_to_file_fail_with_original() -> None:
     """Test that stdin shortcut fails when stdin parameter is defined with CWL v1.1."""
+    clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
+        inputs=[
+            cwl_utils.parser.cwl_v1_1.CommandInputParameter(id="test", type="stdin")
+        ],
+        outputs=[],
+        stdin="original.txt",
+    )
     with raises(ValidationException):
-        clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
-            inputs=[
-                cwl_utils.parser.cwl_v1_1.CommandInputParameter(id="test", type="stdin")
-            ],
-            outputs=[],
-            stdin="original.txt",
-        )
         cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
 
 
@@ -738,11 +728,11 @@ def test_v1_2_file_content_64_kB() -> None:
 
 def test_v1_2_file_content_larger_than_64_kB() -> None:
     """Test that reading file content fails for files larger than 64kB in CWL v1.0."""
-    with raises(WorkflowException):
-        text = "a" * (cwl_utils.parser.cwl_v1_2_utils.CONTENT_LIMIT + 1)
-        with tempfile.TemporaryFile() as f:
-            f.write(text.encode("utf-8"))
-            f.seek(0)
+    text = "a" * (cwl_utils.parser.cwl_v1_2_utils.CONTENT_LIMIT + 1)
+    with tempfile.TemporaryFile() as f:
+        f.write(text.encode("utf-8"))
+        f.seek(0)
+        with raises(WorkflowException):
             cwl_utils.parser.cwl_v1_2_utils.content_limit_respected_read(f)
 
 
@@ -761,19 +751,19 @@ def test_v1_2_stdout_to_file() -> None:
 
 def test_v1_2_stdout_to_file_with_binding() -> None:
     """Test that outputBinding is not allowed with stdout shortcut with CWL v1.2."""
+    clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
+        inputs=[],
+        outputs=[
+            cwl_utils.parser.cwl_v1_2.CommandOutputParameter(
+                id="test",
+                type="stdout",
+                outputBinding=cwl_utils.parser.cwl_v1_2.CommandOutputBinding(
+                    glob="output.txt"
+                ),
+            )
+        ],
+    )
     with raises(ValidationException):
-        clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
-            inputs=[],
-            outputs=[
-                cwl_utils.parser.cwl_v1_2.CommandOutputParameter(
-                    id="test",
-                    type="stdout",
-                    outputBinding=cwl_utils.parser.cwl_v1_2.CommandOutputBinding(
-                        glob="output.txt"
-                    ),
-                )
-            ],
-        )
         cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
 
 
@@ -806,19 +796,19 @@ def test_v1_2_stderr_to_file() -> None:
 
 def test_v1_2_stderr_to_file_with_binding() -> None:
     """Test that outputBinding is not allowed with stderr shortcut with CWL v1.2."""
+    clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
+        inputs=[],
+        outputs=[
+            cwl_utils.parser.cwl_v1_2.CommandOutputParameter(
+                id="test",
+                type="stderr",
+                outputBinding=cwl_utils.parser.cwl_v1_2.CommandOutputBinding(
+                    glob="err.txt"
+                ),
+            )
+        ],
+    )
     with raises(ValidationException):
-        clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
-            inputs=[],
-            outputs=[
-                cwl_utils.parser.cwl_v1_2.CommandOutputParameter(
-                    id="test",
-                    type="stderr",
-                    outputBinding=cwl_utils.parser.cwl_v1_2.CommandOutputBinding(
-                        glob="err.txt"
-                    ),
-                )
-            ],
-        )
         cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
 
 
@@ -850,32 +840,32 @@ def test_v1_2_stdin_to_file() -> None:
 
 def test_v1_2_stdin_to_file_with_binding() -> None:
     """Test that inputBinding is not allowed with stdin shortcut with CWL v1.2."""
+    clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
+        inputs=[
+            cwl_utils.parser.cwl_v1_2.CommandInputParameter(
+                id="test",
+                type="stdin",
+                inputBinding=cwl_utils.parser.cwl_v1_2.CommandLineBinding(
+                    prefix="--test"
+                ),
+            )
+        ],
+        outputs=[],
+    )
     with raises(ValidationException):
-        clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
-            inputs=[
-                cwl_utils.parser.cwl_v1_2.CommandInputParameter(
-                    id="test",
-                    type="stdin",
-                    inputBinding=cwl_utils.parser.cwl_v1_2.CommandLineBinding(
-                        prefix="--test"
-                    ),
-                )
-            ],
-            outputs=[],
-        )
         cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
 
 
 def test_v1_2_stdin_to_file_fail_with_original() -> None:
     """Test that stdin shortcut fails when stdin parameter is defined with CWL v1.2."""
+    clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
+        inputs=[
+            cwl_utils.parser.cwl_v1_2.CommandInputParameter(id="test", type="stdin")
+        ],
+        outputs=[],
+        stdin="original.txt",
+    )
     with raises(ValidationException):
-        clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
-            inputs=[
-                cwl_utils.parser.cwl_v1_2.CommandInputParameter(id="test", type="stdin")
-            ],
-            outputs=[],
-            stdin="original.txt",
-        )
         cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
 
 

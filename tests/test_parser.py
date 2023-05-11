@@ -111,8 +111,8 @@ def test_get_default_id_from_graph() -> None:
 
 def test_get_default_id_from_graph_without_main() -> None:
     """Test that loading the default id of a CWL document with $graph property and no `#main` id throws an error."""  # noqa: B950
+    uri = Path(get_data("testdata/js-expr-req-wf.cwl")).resolve().as_uri()
     with raises(GraphTargetMissingException):
-        uri = Path(get_data("testdata/js-expr-req-wf.cwl")).resolve().as_uri()
         load_document_by_uri(uri)
 
 
