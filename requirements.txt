@@ -3,7 +3,7 @@ packaging
 rdflib
 requests
 CacheControl < 0.13
-urllib3 < 2  # until CacheControl has a fixed release
+urllib3 < 3  # until CacheControl has a fixed release
 schema-salad >= 8.3.20220825114525, < 9
 ruamel.yaml >= 0.17.6, < 0.17.27;python_version>='3.7'
 ruamel.yaml >= 0.16.12, < 0.17.27
