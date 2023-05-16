@@ -89,7 +89,7 @@ def graph_split(
 ) -> None:
     """Loop over the provided packed CWL document and split it up."""
     yaml = YAML(typ="rt")
-    yaml.preserve_quotes = True  # type: ignore[assignment]
+    yaml.preserve_quotes = True
     source = yaml.load(sourceIO)
     add_lc_filename(source, sourceIO.name)
 
@@ -255,8 +255,8 @@ def yaml_dump(entry: Any, output_file: str, pretty: bool) -> None:
     """Output object as YAML."""
     yaml = YAML(typ="rt")
     yaml.default_flow_style = False
-    yaml.map_indent = 4  # type: ignore[assignment]
-    yaml.sequence_indent = 2  # type: ignore[assignment]
+    yaml.map_indent = 4
+    yaml.sequence_indent = 2
     with open(output_file, "w", encoding="utf-8") as result_handle:
         if pretty:
             result_handle.write(stringify_dict(entry))

@@ -24,7 +24,7 @@ TEST_v1_0_CWL_REMOTE = (
 )
 TEST_v1_2_CWL = get_data("testdata/workflow_input_format_expr_v1_2.cwl")
 yaml = YAML(typ="rt")
-yaml.preserve_quotes = True  # type: ignore[assignment]
+yaml.preserve_quotes = True
 
 
 def test_cwl_version() -> None:
