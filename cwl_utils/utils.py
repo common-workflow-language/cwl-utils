@@ -195,14 +195,9 @@ def resolved_path(
             if link == "":
                 return base_url
             else:
-                return base_url._replace(
-                    path=str(
-                        (
-                            pathlib.Path(base_url.path).parent / pathlib.Path(link)
-                        ).resolve()
-                    )
+                return urllib.parse.urlparse(
+                    urllib.parse.urljoin(base_url.geturl(), link_url.geturl())
                 )
-
         else:
             # Remote relative path
             return urllib.parse.urlparse(
