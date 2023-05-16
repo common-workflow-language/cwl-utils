@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+#  Copyright (c) 2023 Genomics plc
 #  Copyright (c) 2021 Michael R. Crusoe
 #  Copyright (c) 2020 Seven Bridges
 #  See https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/LICENSE
@@ -191,6 +192,12 @@ def _inline_type(
         return [_inline_type(_v, base_url, user_defined_types) for _v in v]
 
     elif isinstance(v, dict):
+        if v.get("$import") is not None:
+            imported_type, import_base_url = utils.load_linked_file(
+                base_url, v["$import"], is_import=True
+            )
+            return _inline_type(imported_type, import_base_url, user_defined_types)
+
         _type = v.get("type")
         if _type is None:
             raise errors.MissingTypeName(
