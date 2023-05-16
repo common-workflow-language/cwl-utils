@@ -112,7 +112,7 @@ def refactor(args: argparse.Namespace) -> int:
     """Primary processing loop."""
     return_code = 0
     yaml = YAML(typ="rt")
-    yaml.preserve_quotes = True  # type: ignore[assignment]
+    yaml.preserve_quotes = True
     for document in args.inputs:
         _logger.info("Processing %s.", document)
         with open(document) as doc_handle:
