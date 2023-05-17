@@ -219,7 +219,7 @@ def load_field(val, fieldtype, baseuri, loadingOptions):
             )
             loadingOptions.imports.append(url)
             return result
-        elif "$include" in val:
+        if "$include" in val:
             if loadingOptions.fileuri is None:
                 raise SchemaSaladException("Cannot load $import without fileuri")
             url = loadingOptions.fetcher.urljoin(loadingOptions.fileuri, val["$include"])
@@ -417,8 +417,7 @@ class _EnumLoader(_Loader):
         # type: (Any, str, LoadingOptions, Optional[str]) -> Any
         if doc in self.symbols:
             return doc
-        else:
-            raise ValidationException(f"Expected one of {self.symbols}")
+        raise ValidationException(f"Expected one of {self.symbols}")
 
     def __repr__(self):  # type: () -> str
         return self.name
@@ -775,8 +774,7 @@ def file_uri(path, split_frag=False):  # type: (str, bool) -> str
         frag = ""
     if urlpath.startswith("//"):
         return f"file:{urlpath}{frag}"
-    else:
-        return f"file://{urlpath}{frag}"
+    return f"file://{urlpath}{frag}"
 
 
 def prefix_url(url: str, namespaces: Dict[str, str]) -> str:
@@ -820,8 +818,7 @@ def save_relative_uri(
 
             if urisplit.fragment.startswith(basefrag):
                 return urisplit.fragment[len(basefrag) :]
-            else:
-                return urisplit.fragment
+            return urisplit.fragment
         return uri
     else:
         return save(uri, top=False, base_url=base_url, relative_uris=relative_uris)
@@ -905,7 +902,7 @@ class RecordField(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `name` field is not valid because:",
+                        "the 'name' field is not valid because:",
                         SourceLine(_doc, "name", str),
                         [e],
                     )
@@ -932,7 +929,7 @@ class RecordField(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -949,7 +946,7 @@ class RecordField(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -1071,7 +1068,7 @@ class RecordSchema(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `fields` field is not valid because:",
+                        "the 'fields' field is not valid because:",
                         SourceLine(_doc, "fields", str),
                         [e],
                     )
@@ -1088,7 +1085,7 @@ class RecordSchema(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -1209,7 +1206,7 @@ class EnumSchema(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `symbols` field is not valid because:",
+                    "the 'symbols' field is not valid because:",
                     SourceLine(_doc, "symbols", str),
                     [e],
                 )
@@ -1224,7 +1221,7 @@ class EnumSchema(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -1339,7 +1336,7 @@ class ArraySchema(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `items` field is not valid because:",
+                    "the 'items' field is not valid because:",
                     SourceLine(_doc, "items", str),
                     [e],
                 )
@@ -1354,7 +1351,7 @@ class ArraySchema(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -1592,7 +1589,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `location` field is not valid because:",
+                        "the 'location' field is not valid because:",
                         SourceLine(_doc, "location", str),
                         [e],
                     )
@@ -1610,7 +1607,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `path` field is not valid because:",
+                        "the 'path' field is not valid because:",
                         SourceLine(_doc, "path", str),
                         [e],
                     )
@@ -1628,7 +1625,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `basename` field is not valid because:",
+                        "the 'basename' field is not valid because:",
                         SourceLine(_doc, "basename", str),
                         [e],
                     )
@@ -1646,7 +1643,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `dirname` field is not valid because:",
+                        "the 'dirname' field is not valid because:",
                         SourceLine(_doc, "dirname", str),
                         [e],
                     )
@@ -1664,7 +1661,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `nameroot` field is not valid because:",
+                        "the 'nameroot' field is not valid because:",
                         SourceLine(_doc, "nameroot", str),
                         [e],
                     )
@@ -1682,7 +1679,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `nameext` field is not valid because:",
+                        "the 'nameext' field is not valid because:",
                         SourceLine(_doc, "nameext", str),
                         [e],
                     )
@@ -1700,7 +1697,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `checksum` field is not valid because:",
+                        "the 'checksum' field is not valid because:",
                         SourceLine(_doc, "checksum", str),
                         [e],
                     )
@@ -1718,7 +1715,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `size` field is not valid because:",
+                        "the 'size' field is not valid because:",
                         SourceLine(_doc, "size", str),
                         [e],
                     )
@@ -1736,7 +1733,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
+                        "the 'secondaryFiles' field is not valid because:",
                         SourceLine(_doc, "secondaryFiles", str),
                         [e],
                     )
@@ -1754,7 +1751,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `format` field is not valid because:",
+                        "the 'format' field is not valid because:",
                         SourceLine(_doc, "format", str),
                         [e],
                     )
@@ -1772,7 +1769,7 @@ class File(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `contents` field is not valid because:",
+                        "the 'contents' field is not valid because:",
                         SourceLine(_doc, "contents", str),
                         [e],
                     )
@@ -2017,7 +2014,7 @@ class Directory(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `location` field is not valid because:",
+                        "the 'location' field is not valid because:",
                         SourceLine(_doc, "location", str),
                         [e],
                     )
@@ -2035,7 +2032,7 @@ class Directory(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `path` field is not valid because:",
+                        "the 'path' field is not valid because:",
                         SourceLine(_doc, "path", str),
                         [e],
                     )
@@ -2053,7 +2050,7 @@ class Directory(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `basename` field is not valid because:",
+                        "the 'basename' field is not valid because:",
                         SourceLine(_doc, "basename", str),
                         [e],
                     )
@@ -2071,7 +2068,7 @@ class Directory(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `listing` field is not valid because:",
+                        "the 'listing' field is not valid because:",
                         SourceLine(_doc, "listing", str),
                         [e],
                     )
@@ -2241,7 +2238,7 @@ class InputRecordField(RecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `name` field is not valid because:",
+                        "the 'name' field is not valid because:",
                         SourceLine(_doc, "name", str),
                         [e],
                     )
@@ -2268,7 +2265,7 @@ class InputRecordField(RecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -2285,7 +2282,7 @@ class InputRecordField(RecordField):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -2301,7 +2298,7 @@ class InputRecordField(RecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `inputBinding` field is not valid because:",
+                        "the 'inputBinding' field is not valid because:",
                         SourceLine(_doc, "inputBinding", str),
                         [e],
                     )
@@ -2319,7 +2316,7 @@ class InputRecordField(RecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -2465,7 +2462,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `name` field is not valid because:",
+                        "the 'name' field is not valid because:",
                         SourceLine(_doc, "name", str),
                         [e],
                     )
@@ -2492,7 +2489,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `fields` field is not valid because:",
+                        "the 'fields' field is not valid because:",
                         SourceLine(_doc, "fields", str),
                         [e],
                     )
@@ -2509,7 +2506,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -2525,7 +2522,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -2666,7 +2663,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `name` field is not valid because:",
+                        "the 'name' field is not valid because:",
                         SourceLine(_doc, "name", str),
                         [e],
                     )
@@ -2692,7 +2689,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `symbols` field is not valid because:",
+                    "the 'symbols' field is not valid because:",
                     SourceLine(_doc, "symbols", str),
                     [e],
                 )
@@ -2707,7 +2704,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -2723,7 +2720,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -2741,7 +2738,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `inputBinding` field is not valid because:",
+                        "the 'inputBinding' field is not valid because:",
                         SourceLine(_doc, "inputBinding", str),
                         [e],
                     )
@@ -2885,7 +2882,7 @@ class InputArraySchema(ArraySchema, InputSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `items` field is not valid because:",
+                    "the 'items' field is not valid because:",
                     SourceLine(_doc, "items", str),
                     [e],
                 )
@@ -2900,7 +2897,7 @@ class InputArraySchema(ArraySchema, InputSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -2916,7 +2913,7 @@ class InputArraySchema(ArraySchema, InputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -2934,7 +2931,7 @@ class InputArraySchema(ArraySchema, InputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `inputBinding` field is not valid because:",
+                        "the 'inputBinding' field is not valid because:",
                         SourceLine(_doc, "inputBinding", str),
                         [e],
                     )
@@ -3075,7 +3072,7 @@ class OutputRecordField(RecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `name` field is not valid because:",
+                        "the 'name' field is not valid because:",
                         SourceLine(_doc, "name", str),
                         [e],
                     )
@@ -3102,7 +3099,7 @@ class OutputRecordField(RecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -3119,7 +3116,7 @@ class OutputRecordField(RecordField):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -3135,7 +3132,7 @@ class OutputRecordField(RecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputBinding` field is not valid because:",
+                        "the 'outputBinding' field is not valid because:",
                         SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
@@ -3273,7 +3270,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `fields` field is not valid because:",
+                        "the 'fields' field is not valid because:",
                         SourceLine(_doc, "fields", str),
                         [e],
                     )
@@ -3290,7 +3287,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -3306,7 +3303,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -3438,7 +3435,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `symbols` field is not valid because:",
+                    "the 'symbols' field is not valid because:",
                     SourceLine(_doc, "symbols", str),
                     [e],
                 )
@@ -3453,7 +3450,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -3469,7 +3466,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -3487,7 +3484,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputBinding` field is not valid because:",
+                        "the 'outputBinding' field is not valid because:",
                         SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
@@ -3626,7 +3623,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `items` field is not valid because:",
+                    "the 'items' field is not valid because:",
                     SourceLine(_doc, "items", str),
                     [e],
                 )
@@ -3641,7 +3638,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -3657,7 +3654,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -3675,7 +3672,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputBinding` field is not valid because:",
+                        "the 'outputBinding' field is not valid because:",
                         SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
@@ -3843,7 +3840,7 @@ class InputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -3870,7 +3867,7 @@ class InputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -3888,7 +3885,7 @@ class InputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
+                        "the 'secondaryFiles' field is not valid because:",
                         SourceLine(_doc, "secondaryFiles", str),
                         [e],
                     )
@@ -3906,7 +3903,7 @@ class InputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `streamable` field is not valid because:",
+                        "the 'streamable' field is not valid because:",
                         SourceLine(_doc, "streamable", str),
                         [e],
                     )
@@ -3924,7 +3921,7 @@ class InputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -3942,7 +3939,7 @@ class InputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `format` field is not valid because:",
+                        "the 'format' field is not valid because:",
                         SourceLine(_doc, "format", str),
                         [e],
                     )
@@ -3960,7 +3957,7 @@ class InputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `inputBinding` field is not valid because:",
+                        "the 'inputBinding' field is not valid because:",
                         SourceLine(_doc, "inputBinding", str),
                         [e],
                     )
@@ -3978,7 +3975,7 @@ class InputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `default` field is not valid because:",
+                        "the 'default' field is not valid because:",
                         SourceLine(_doc, "default", str),
                         [e],
                     )
@@ -3996,7 +3993,7 @@ class InputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `type` field is not valid because:",
+                        "the 'type' field is not valid because:",
                         SourceLine(_doc, "type", str),
                         [e],
                     )
@@ -4198,7 +4195,7 @@ class OutputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -4225,7 +4222,7 @@ class OutputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -4243,7 +4240,7 @@ class OutputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
+                        "the 'secondaryFiles' field is not valid because:",
                         SourceLine(_doc, "secondaryFiles", str),
                         [e],
                     )
@@ -4261,7 +4258,7 @@ class OutputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `streamable` field is not valid because:",
+                        "the 'streamable' field is not valid because:",
                         SourceLine(_doc, "streamable", str),
                         [e],
                     )
@@ -4279,7 +4276,7 @@ class OutputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -4297,7 +4294,7 @@ class OutputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputBinding` field is not valid because:",
+                        "the 'outputBinding' field is not valid because:",
                         SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
@@ -4315,7 +4312,7 @@ class OutputParameter(Parameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `format` field is not valid because:",
+                        "the 'format' field is not valid because:",
                         SourceLine(_doc, "format", str),
                         [e],
                     )
@@ -4516,7 +4513,7 @@ class InlineJavascriptRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `expressionLib` field is not valid because:",
+                        "the 'expressionLib' field is not valid because:",
                         SourceLine(_doc, "expressionLib", str),
                         [e],
                     )
@@ -4650,7 +4647,7 @@ class SchemaDefRequirement(ProcessRequirement):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `types` field is not valid because:",
+                    "the 'types' field is not valid because:",
                     SourceLine(_doc, "types", str),
                     [e],
                 )
@@ -4772,7 +4769,7 @@ class EnvironmentDef(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `envName` field is not valid because:",
+                    "the 'envName' field is not valid because:",
                     SourceLine(_doc, "envName", str),
                     [e],
                 )
@@ -4787,7 +4784,7 @@ class EnvironmentDef(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `envValue` field is not valid because:",
+                    "the 'envValue' field is not valid because:",
                     SourceLine(_doc, "envValue", str),
                     [e],
                 )
@@ -4971,7 +4968,7 @@ class CommandLineBinding(InputBinding):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `loadContents` field is not valid because:",
+                        "the 'loadContents' field is not valid because:",
                         SourceLine(_doc, "loadContents", str),
                         [e],
                     )
@@ -4989,7 +4986,7 @@ class CommandLineBinding(InputBinding):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `position` field is not valid because:",
+                        "the 'position' field is not valid because:",
                         SourceLine(_doc, "position", str),
                         [e],
                     )
@@ -5007,7 +5004,7 @@ class CommandLineBinding(InputBinding):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `prefix` field is not valid because:",
+                        "the 'prefix' field is not valid because:",
                         SourceLine(_doc, "prefix", str),
                         [e],
                     )
@@ -5025,7 +5022,7 @@ class CommandLineBinding(InputBinding):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `separate` field is not valid because:",
+                        "the 'separate' field is not valid because:",
                         SourceLine(_doc, "separate", str),
                         [e],
                     )
@@ -5043,7 +5040,7 @@ class CommandLineBinding(InputBinding):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `itemSeparator` field is not valid because:",
+                        "the 'itemSeparator' field is not valid because:",
                         SourceLine(_doc, "itemSeparator", str),
                         [e],
                     )
@@ -5061,7 +5058,7 @@ class CommandLineBinding(InputBinding):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `valueFrom` field is not valid because:",
+                        "the 'valueFrom' field is not valid because:",
                         SourceLine(_doc, "valueFrom", str),
                         [e],
                     )
@@ -5079,7 +5076,7 @@ class CommandLineBinding(InputBinding):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `shellQuote` field is not valid because:",
+                        "the 'shellQuote' field is not valid because:",
                         SourceLine(_doc, "shellQuote", str),
                         [e],
                     )
@@ -5265,7 +5262,7 @@ class CommandOutputBinding(OutputBinding):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `glob` field is not valid because:",
+                        "the 'glob' field is not valid because:",
                         SourceLine(_doc, "glob", str),
                         [e],
                     )
@@ -5283,7 +5280,7 @@ class CommandOutputBinding(OutputBinding):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `loadContents` field is not valid because:",
+                        "the 'loadContents' field is not valid because:",
                         SourceLine(_doc, "loadContents", str),
                         [e],
                     )
@@ -5301,7 +5298,7 @@ class CommandOutputBinding(OutputBinding):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputEval` field is not valid because:",
+                        "the 'outputEval' field is not valid because:",
                         SourceLine(_doc, "outputEval", str),
                         [e],
                     )
@@ -5443,7 +5440,7 @@ class CommandInputRecordField(InputRecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `name` field is not valid because:",
+                        "the 'name' field is not valid because:",
                         SourceLine(_doc, "name", str),
                         [e],
                     )
@@ -5470,7 +5467,7 @@ class CommandInputRecordField(InputRecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -5487,7 +5484,7 @@ class CommandInputRecordField(InputRecordField):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -5503,7 +5500,7 @@ class CommandInputRecordField(InputRecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `inputBinding` field is not valid because:",
+                        "the 'inputBinding' field is not valid because:",
                         SourceLine(_doc, "inputBinding", str),
                         [e],
                     )
@@ -5521,7 +5518,7 @@ class CommandInputRecordField(InputRecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -5669,7 +5666,7 @@ class CommandInputRecordSchema(InputRecordSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `name` field is not valid because:",
+                        "the 'name' field is not valid because:",
                         SourceLine(_doc, "name", str),
                         [e],
                     )
@@ -5696,7 +5693,7 @@ class CommandInputRecordSchema(InputRecordSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `fields` field is not valid because:",
+                        "the 'fields' field is not valid because:",
                         SourceLine(_doc, "fields", str),
                         [e],
                     )
@@ -5713,7 +5710,7 @@ class CommandInputRecordSchema(InputRecordSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -5729,7 +5726,7 @@ class CommandInputRecordSchema(InputRecordSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -5872,7 +5869,7 @@ class CommandInputEnumSchema(InputEnumSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `name` field is not valid because:",
+                        "the 'name' field is not valid because:",
                         SourceLine(_doc, "name", str),
                         [e],
                     )
@@ -5898,7 +5895,7 @@ class CommandInputEnumSchema(InputEnumSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `symbols` field is not valid because:",
+                    "the 'symbols' field is not valid because:",
                     SourceLine(_doc, "symbols", str),
                     [e],
                 )
@@ -5913,7 +5910,7 @@ class CommandInputEnumSchema(InputEnumSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -5929,7 +5926,7 @@ class CommandInputEnumSchema(InputEnumSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -5947,7 +5944,7 @@ class CommandInputEnumSchema(InputEnumSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `inputBinding` field is not valid because:",
+                        "the 'inputBinding' field is not valid because:",
                         SourceLine(_doc, "inputBinding", str),
                         [e],
                     )
@@ -6093,7 +6090,7 @@ class CommandInputArraySchema(InputArraySchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `items` field is not valid because:",
+                    "the 'items' field is not valid because:",
                     SourceLine(_doc, "items", str),
                     [e],
                 )
@@ -6108,7 +6105,7 @@ class CommandInputArraySchema(InputArraySchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -6124,7 +6121,7 @@ class CommandInputArraySchema(InputArraySchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -6142,7 +6139,7 @@ class CommandInputArraySchema(InputArraySchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `inputBinding` field is not valid because:",
+                        "the 'inputBinding' field is not valid because:",
                         SourceLine(_doc, "inputBinding", str),
                         [e],
                     )
@@ -6285,7 +6282,7 @@ class CommandOutputRecordField(OutputRecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `name` field is not valid because:",
+                        "the 'name' field is not valid because:",
                         SourceLine(_doc, "name", str),
                         [e],
                     )
@@ -6312,7 +6309,7 @@ class CommandOutputRecordField(OutputRecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -6329,7 +6326,7 @@ class CommandOutputRecordField(OutputRecordField):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -6345,7 +6342,7 @@ class CommandOutputRecordField(OutputRecordField):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputBinding` field is not valid because:",
+                        "the 'outputBinding' field is not valid because:",
                         SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
@@ -6488,7 +6485,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `name` field is not valid because:",
+                        "the 'name' field is not valid because:",
                         SourceLine(_doc, "name", str),
                         [e],
                     )
@@ -6515,7 +6512,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `fields` field is not valid because:",
+                        "the 'fields' field is not valid because:",
                         SourceLine(_doc, "fields", str),
                         [e],
                     )
@@ -6532,7 +6529,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -6548,7 +6545,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -6687,7 +6684,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `symbols` field is not valid because:",
+                    "the 'symbols' field is not valid because:",
                     SourceLine(_doc, "symbols", str),
                     [e],
                 )
@@ -6702,7 +6699,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -6718,7 +6715,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -6736,7 +6733,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputBinding` field is not valid because:",
+                        "the 'outputBinding' field is not valid because:",
                         SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
@@ -6877,7 +6874,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `items` field is not valid because:",
+                    "the 'items' field is not valid because:",
                     SourceLine(_doc, "items", str),
                     [e],
                 )
@@ -6892,7 +6889,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `type` field is not valid because:",
+                    "the 'type' field is not valid because:",
                     SourceLine(_doc, "type", str),
                     [e],
                 )
@@ -6908,7 +6905,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -6926,7 +6923,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputBinding` field is not valid because:",
+                        "the 'outputBinding' field is not valid because:",
                         SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
@@ -7100,7 +7097,7 @@ class CommandInputParameter(InputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -7127,7 +7124,7 @@ class CommandInputParameter(InputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -7145,7 +7142,7 @@ class CommandInputParameter(InputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
+                        "the 'secondaryFiles' field is not valid because:",
                         SourceLine(_doc, "secondaryFiles", str),
                         [e],
                     )
@@ -7163,7 +7160,7 @@ class CommandInputParameter(InputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `streamable` field is not valid because:",
+                        "the 'streamable' field is not valid because:",
                         SourceLine(_doc, "streamable", str),
                         [e],
                     )
@@ -7181,7 +7178,7 @@ class CommandInputParameter(InputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -7199,7 +7196,7 @@ class CommandInputParameter(InputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `format` field is not valid because:",
+                        "the 'format' field is not valid because:",
                         SourceLine(_doc, "format", str),
                         [e],
                     )
@@ -7217,7 +7214,7 @@ class CommandInputParameter(InputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `inputBinding` field is not valid because:",
+                        "the 'inputBinding' field is not valid because:",
                         SourceLine(_doc, "inputBinding", str),
                         [e],
                     )
@@ -7235,7 +7232,7 @@ class CommandInputParameter(InputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `default` field is not valid because:",
+                        "the 'default' field is not valid because:",
                         SourceLine(_doc, "default", str),
                         [e],
                     )
@@ -7253,7 +7250,7 @@ class CommandInputParameter(InputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `type` field is not valid because:",
+                        "the 'type' field is not valid because:",
                         SourceLine(_doc, "type", str),
                         [e],
                     )
@@ -7463,7 +7460,7 @@ class CommandOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -7490,7 +7487,7 @@ class CommandOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -7508,7 +7505,7 @@ class CommandOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
+                        "the 'secondaryFiles' field is not valid because:",
                         SourceLine(_doc, "secondaryFiles", str),
                         [e],
                     )
@@ -7526,7 +7523,7 @@ class CommandOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `streamable` field is not valid because:",
+                        "the 'streamable' field is not valid because:",
                         SourceLine(_doc, "streamable", str),
                         [e],
                     )
@@ -7544,7 +7541,7 @@ class CommandOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -7562,7 +7559,7 @@ class CommandOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputBinding` field is not valid because:",
+                        "the 'outputBinding' field is not valid because:",
                         SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
@@ -7580,7 +7577,7 @@ class CommandOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `format` field is not valid because:",
+                        "the 'format' field is not valid because:",
                         SourceLine(_doc, "format", str),
                         [e],
                     )
@@ -7598,7 +7595,7 @@ class CommandOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `type` field is not valid because:",
+                        "the 'type' field is not valid because:",
                         SourceLine(_doc, "type", str),
                         [e],
                     )
@@ -7844,7 +7841,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -7870,7 +7867,7 @@ class CommandLineTool(Process):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `inputs` field is not valid because:",
+                    "the 'inputs' field is not valid because:",
                     SourceLine(_doc, "inputs", str),
                     [e],
                 )
@@ -7885,7 +7882,7 @@ class CommandLineTool(Process):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `outputs` field is not valid because:",
+                    "the 'outputs' field is not valid because:",
                     SourceLine(_doc, "outputs", str),
                     [e],
                 )
@@ -7901,7 +7898,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `requirements` field is not valid because:",
+                        "the 'requirements' field is not valid because:",
                         SourceLine(_doc, "requirements", str),
                         [e],
                     )
@@ -7919,7 +7916,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `hints` field is not valid because:",
+                        "the 'hints' field is not valid because:",
                         SourceLine(_doc, "hints", str),
                         [e],
                     )
@@ -7937,7 +7934,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -7955,7 +7952,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -7973,7 +7970,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `cwlVersion` field is not valid because:",
+                        "the 'cwlVersion' field is not valid because:",
                         SourceLine(_doc, "cwlVersion", str),
                         [e],
                     )
@@ -7991,7 +7988,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `baseCommand` field is not valid because:",
+                        "the 'baseCommand' field is not valid because:",
                         SourceLine(_doc, "baseCommand", str),
                         [e],
                     )
@@ -8009,7 +8006,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `arguments` field is not valid because:",
+                        "the 'arguments' field is not valid because:",
                         SourceLine(_doc, "arguments", str),
                         [e],
                     )
@@ -8027,7 +8024,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `stdin` field is not valid because:",
+                        "the 'stdin' field is not valid because:",
                         SourceLine(_doc, "stdin", str),
                         [e],
                     )
@@ -8045,7 +8042,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `stderr` field is not valid because:",
+                        "the 'stderr' field is not valid because:",
                         SourceLine(_doc, "stderr", str),
                         [e],
                     )
@@ -8063,7 +8060,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `stdout` field is not valid because:",
+                        "the 'stdout' field is not valid because:",
                         SourceLine(_doc, "stdout", str),
                         [e],
                     )
@@ -8081,7 +8078,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `successCodes` field is not valid because:",
+                        "the 'successCodes' field is not valid because:",
                         SourceLine(_doc, "successCodes", str),
                         [e],
                     )
@@ -8099,7 +8096,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `temporaryFailCodes` field is not valid because:",
+                        "the 'temporaryFailCodes' field is not valid because:",
                         SourceLine(_doc, "temporaryFailCodes", str),
                         [e],
                     )
@@ -8117,7 +8114,7 @@ class CommandLineTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `permanentFailCodes` field is not valid because:",
+                        "the 'permanentFailCodes' field is not valid because:",
                         SourceLine(_doc, "permanentFailCodes", str),
                         [e],
                     )
@@ -8410,7 +8407,7 @@ class DockerRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `dockerPull` field is not valid because:",
+                        "the 'dockerPull' field is not valid because:",
                         SourceLine(_doc, "dockerPull", str),
                         [e],
                     )
@@ -8428,7 +8425,7 @@ class DockerRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `dockerLoad` field is not valid because:",
+                        "the 'dockerLoad' field is not valid because:",
                         SourceLine(_doc, "dockerLoad", str),
                         [e],
                     )
@@ -8446,7 +8443,7 @@ class DockerRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `dockerFile` field is not valid because:",
+                        "the 'dockerFile' field is not valid because:",
                         SourceLine(_doc, "dockerFile", str),
                         [e],
                     )
@@ -8464,7 +8461,7 @@ class DockerRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `dockerImport` field is not valid because:",
+                        "the 'dockerImport' field is not valid because:",
                         SourceLine(_doc, "dockerImport", str),
                         [e],
                     )
@@ -8482,7 +8479,7 @@ class DockerRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `dockerImageId` field is not valid because:",
+                        "the 'dockerImageId' field is not valid because:",
                         SourceLine(_doc, "dockerImageId", str),
                         [e],
                     )
@@ -8500,7 +8497,7 @@ class DockerRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `dockerOutputDirectory` field is not valid because:",
+                        "the 'dockerOutputDirectory' field is not valid because:",
                         SourceLine(_doc, "dockerOutputDirectory", str),
                         [e],
                     )
@@ -8677,7 +8674,7 @@ class SoftwareRequirement(ProcessRequirement):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `packages` field is not valid because:",
+                    "the 'packages' field is not valid because:",
                     SourceLine(_doc, "packages", str),
                     [e],
                 )
@@ -8796,7 +8793,7 @@ class SoftwarePackage(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `package` field is not valid because:",
+                    "the 'package' field is not valid because:",
                     SourceLine(_doc, "package", str),
                     [e],
                 )
@@ -8812,7 +8809,7 @@ class SoftwarePackage(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `version` field is not valid because:",
+                        "the 'version' field is not valid because:",
                         SourceLine(_doc, "version", str),
                         [e],
                     )
@@ -8830,7 +8827,7 @@ class SoftwarePackage(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `specs` field is not valid because:",
+                        "the 'specs' field is not valid because:",
                         SourceLine(_doc, "specs", str),
                         [e],
                     )
@@ -8967,7 +8964,7 @@ class Dirent(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `entryname` field is not valid because:",
+                        "the 'entryname' field is not valid because:",
                         SourceLine(_doc, "entryname", str),
                         [e],
                     )
@@ -8984,7 +8981,7 @@ class Dirent(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `entry` field is not valid because:",
+                    "the 'entry' field is not valid because:",
                     SourceLine(_doc, "entry", str),
                     [e],
                 )
@@ -9000,7 +8997,7 @@ class Dirent(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `writable` field is not valid because:",
+                        "the 'writable' field is not valid because:",
                         SourceLine(_doc, "writable", str),
                         [e],
                     )
@@ -9133,7 +9130,7 @@ class InitialWorkDirRequirement(ProcessRequirement):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `listing` field is not valid because:",
+                    "the 'listing' field is not valid because:",
                     SourceLine(_doc, "listing", str),
                     [e],
                 )
@@ -9257,7 +9254,7 @@ class EnvVarRequirement(ProcessRequirement):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `envDef` field is not valid because:",
+                    "the 'envDef' field is not valid because:",
                     SourceLine(_doc, "envDef", str),
                     [e],
                 )
@@ -9539,7 +9536,7 @@ class ResourceRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `coresMin` field is not valid because:",
+                        "the 'coresMin' field is not valid because:",
                         SourceLine(_doc, "coresMin", str),
                         [e],
                     )
@@ -9557,7 +9554,7 @@ class ResourceRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `coresMax` field is not valid because:",
+                        "the 'coresMax' field is not valid because:",
                         SourceLine(_doc, "coresMax", str),
                         [e],
                     )
@@ -9575,7 +9572,7 @@ class ResourceRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `ramMin` field is not valid because:",
+                        "the 'ramMin' field is not valid because:",
                         SourceLine(_doc, "ramMin", str),
                         [e],
                     )
@@ -9593,7 +9590,7 @@ class ResourceRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `ramMax` field is not valid because:",
+                        "the 'ramMax' field is not valid because:",
                         SourceLine(_doc, "ramMax", str),
                         [e],
                     )
@@ -9611,7 +9608,7 @@ class ResourceRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `tmpdirMin` field is not valid because:",
+                        "the 'tmpdirMin' field is not valid because:",
                         SourceLine(_doc, "tmpdirMin", str),
                         [e],
                     )
@@ -9629,7 +9626,7 @@ class ResourceRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `tmpdirMax` field is not valid because:",
+                        "the 'tmpdirMax' field is not valid because:",
                         SourceLine(_doc, "tmpdirMax", str),
                         [e],
                     )
@@ -9647,7 +9644,7 @@ class ResourceRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outdirMin` field is not valid because:",
+                        "the 'outdirMin' field is not valid because:",
                         SourceLine(_doc, "outdirMin", str),
                         [e],
                     )
@@ -9665,7 +9662,7 @@ class ResourceRequirement(ProcessRequirement):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outdirMax` field is not valid because:",
+                        "the 'outdirMax' field is not valid because:",
                         SourceLine(_doc, "outdirMax", str),
                         [e],
                     )
@@ -9872,7 +9869,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -9899,7 +9896,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -9917,7 +9914,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
+                        "the 'secondaryFiles' field is not valid because:",
                         SourceLine(_doc, "secondaryFiles", str),
                         [e],
                     )
@@ -9935,7 +9932,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `streamable` field is not valid because:",
+                        "the 'streamable' field is not valid because:",
                         SourceLine(_doc, "streamable", str),
                         [e],
                     )
@@ -9953,7 +9950,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -9971,7 +9968,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputBinding` field is not valid because:",
+                        "the 'outputBinding' field is not valid because:",
                         SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
@@ -9989,7 +9986,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `format` field is not valid because:",
+                        "the 'format' field is not valid because:",
                         SourceLine(_doc, "format", str),
                         [e],
                     )
@@ -10007,7 +10004,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `type` field is not valid because:",
+                        "the 'type' field is not valid because:",
                         SourceLine(_doc, "type", str),
                         [e],
                     )
@@ -10225,7 +10222,7 @@ class ExpressionTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -10251,7 +10248,7 @@ class ExpressionTool(Process):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `inputs` field is not valid because:",
+                    "the 'inputs' field is not valid because:",
                     SourceLine(_doc, "inputs", str),
                     [e],
                 )
@@ -10266,7 +10263,7 @@ class ExpressionTool(Process):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `outputs` field is not valid because:",
+                    "the 'outputs' field is not valid because:",
                     SourceLine(_doc, "outputs", str),
                     [e],
                 )
@@ -10282,7 +10279,7 @@ class ExpressionTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `requirements` field is not valid because:",
+                        "the 'requirements' field is not valid because:",
                         SourceLine(_doc, "requirements", str),
                         [e],
                     )
@@ -10300,7 +10297,7 @@ class ExpressionTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `hints` field is not valid because:",
+                        "the 'hints' field is not valid because:",
                         SourceLine(_doc, "hints", str),
                         [e],
                     )
@@ -10318,7 +10315,7 @@ class ExpressionTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -10336,7 +10333,7 @@ class ExpressionTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -10354,7 +10351,7 @@ class ExpressionTool(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `cwlVersion` field is not valid because:",
+                        "the 'cwlVersion' field is not valid because:",
                         SourceLine(_doc, "cwlVersion", str),
                         [e],
                     )
@@ -10371,7 +10368,7 @@ class ExpressionTool(Process):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `expression` field is not valid because:",
+                    "the 'expression' field is not valid because:",
                     SourceLine(_doc, "expression", str),
                     [e],
                 )
@@ -10590,7 +10587,7 @@ class WorkflowOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -10617,7 +10614,7 @@ class WorkflowOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -10635,7 +10632,7 @@ class WorkflowOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `secondaryFiles` field is not valid because:",
+                        "the 'secondaryFiles' field is not valid because:",
                         SourceLine(_doc, "secondaryFiles", str),
                         [e],
                     )
@@ -10653,7 +10650,7 @@ class WorkflowOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `streamable` field is not valid because:",
+                        "the 'streamable' field is not valid because:",
                         SourceLine(_doc, "streamable", str),
                         [e],
                     )
@@ -10671,7 +10668,7 @@ class WorkflowOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -10689,7 +10686,7 @@ class WorkflowOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputBinding` field is not valid because:",
+                        "the 'outputBinding' field is not valid because:",
                         SourceLine(_doc, "outputBinding", str),
                         [e],
                     )
@@ -10707,7 +10704,7 @@ class WorkflowOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `format` field is not valid because:",
+                        "the 'format' field is not valid because:",
                         SourceLine(_doc, "format", str),
                         [e],
                     )
@@ -10725,7 +10722,7 @@ class WorkflowOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `outputSource` field is not valid because:",
+                        "the 'outputSource' field is not valid because:",
                         SourceLine(_doc, "outputSource", str),
                         [e],
                     )
@@ -10743,7 +10740,7 @@ class WorkflowOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `linkMerge` field is not valid because:",
+                        "the 'linkMerge' field is not valid because:",
                         SourceLine(_doc, "linkMerge", str),
                         [e],
                     )
@@ -10761,7 +10758,7 @@ class WorkflowOutputParameter(OutputParameter):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `type` field is not valid because:",
+                        "the 'type' field is not valid because:",
                         SourceLine(_doc, "type", str),
                         [e],
                     )
@@ -11003,7 +11000,7 @@ class WorkflowStepInput(Sink):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -11030,7 +11027,7 @@ class WorkflowStepInput(Sink):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `source` field is not valid because:",
+                        "the 'source' field is not valid because:",
                         SourceLine(_doc, "source", str),
                         [e],
                     )
@@ -11048,7 +11045,7 @@ class WorkflowStepInput(Sink):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `linkMerge` field is not valid because:",
+                        "the 'linkMerge' field is not valid because:",
                         SourceLine(_doc, "linkMerge", str),
                         [e],
                     )
@@ -11066,7 +11063,7 @@ class WorkflowStepInput(Sink):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `default` field is not valid because:",
+                        "the 'default' field is not valid because:",
                         SourceLine(_doc, "default", str),
                         [e],
                     )
@@ -11084,7 +11081,7 @@ class WorkflowStepInput(Sink):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `valueFrom` field is not valid because:",
+                        "the 'valueFrom' field is not valid because:",
                         SourceLine(_doc, "valueFrom", str),
                         [e],
                     )
@@ -11223,7 +11220,7 @@ class WorkflowStepOutput(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -11443,7 +11440,7 @@ class WorkflowStep(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -11469,7 +11466,7 @@ class WorkflowStep(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `in` field is not valid because:",
+                    "the 'in' field is not valid because:",
                     SourceLine(_doc, "in", str),
                     [e],
                 )
@@ -11484,7 +11481,7 @@ class WorkflowStep(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `out` field is not valid because:",
+                    "the 'out' field is not valid because:",
                     SourceLine(_doc, "out", str),
                     [e],
                 )
@@ -11500,7 +11497,7 @@ class WorkflowStep(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `requirements` field is not valid because:",
+                        "the 'requirements' field is not valid because:",
                         SourceLine(_doc, "requirements", str),
                         [e],
                     )
@@ -11518,7 +11515,7 @@ class WorkflowStep(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `hints` field is not valid because:",
+                        "the 'hints' field is not valid because:",
                         SourceLine(_doc, "hints", str),
                         [e],
                     )
@@ -11536,7 +11533,7 @@ class WorkflowStep(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -11554,7 +11551,7 @@ class WorkflowStep(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -11571,7 +11568,7 @@ class WorkflowStep(Saveable):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `run` field is not valid because:",
+                    "the 'run' field is not valid because:",
                     SourceLine(_doc, "run", str),
                     [e],
                 )
@@ -11587,7 +11584,7 @@ class WorkflowStep(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `scatter` field is not valid because:",
+                        "the 'scatter' field is not valid because:",
                         SourceLine(_doc, "scatter", str),
                         [e],
                     )
@@ -11605,7 +11602,7 @@ class WorkflowStep(Saveable):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `scatterMethod` field is not valid because:",
+                        "the 'scatterMethod' field is not valid because:",
                         SourceLine(_doc, "scatterMethod", str),
                         [e],
                     )
@@ -11870,7 +11867,7 @@ class Workflow(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `id` field is not valid because:",
+                        "the 'id' field is not valid because:",
                         SourceLine(_doc, "id", str),
                         [e],
                     )
@@ -11896,7 +11893,7 @@ class Workflow(Process):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `inputs` field is not valid because:",
+                    "the 'inputs' field is not valid because:",
                     SourceLine(_doc, "inputs", str),
                     [e],
                 )
@@ -11911,7 +11908,7 @@ class Workflow(Process):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `outputs` field is not valid because:",
+                    "the 'outputs' field is not valid because:",
                     SourceLine(_doc, "outputs", str),
                     [e],
                 )
@@ -11927,7 +11924,7 @@ class Workflow(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `requirements` field is not valid because:",
+                        "the 'requirements' field is not valid because:",
                         SourceLine(_doc, "requirements", str),
                         [e],
                     )
@@ -11945,7 +11942,7 @@ class Workflow(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `hints` field is not valid because:",
+                        "the 'hints' field is not valid because:",
                         SourceLine(_doc, "hints", str),
                         [e],
                     )
@@ -11963,7 +11960,7 @@ class Workflow(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `label` field is not valid because:",
+                        "the 'label' field is not valid because:",
                         SourceLine(_doc, "label", str),
                         [e],
                     )
@@ -11981,7 +11978,7 @@ class Workflow(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `doc` field is not valid because:",
+                        "the 'doc' field is not valid because:",
                         SourceLine(_doc, "doc", str),
                         [e],
                     )
@@ -11999,7 +11996,7 @@ class Workflow(Process):
             except ValidationException as e:
                 _errors__.append(
                     ValidationException(
-                        "the `cwlVersion` field is not valid because:",
+                        "the 'cwlVersion' field is not valid because:",
                         SourceLine(_doc, "cwlVersion", str),
                         [e],
                     )
@@ -12016,7 +12013,7 @@ class Workflow(Process):
         except ValidationException as e:
             _errors__.append(
                 ValidationException(
-                    "the `steps` field is not valid because:",
+                    "the 'steps' field is not valid because:",
                     SourceLine(_doc, "steps", str),
                     [e],
                 )
@@ -12750,7 +12747,23 @@ PrimitiveTypeLoader = _EnumLoader(
     ),
     "PrimitiveType",
 )
+"""
+Salad data types are based on Avro schema declarations.  Refer to the
+[Avro schema declaration documentation](https://avro.apache.org/docs/current/spec.html#schemas) for
+detailed information.
+
+null: no value
+boolean: a binary value
+int: 32-bit signed integer
+long: 64-bit signed integer
+float: single precision (32-bit) IEEE 754 floating-point number
+double: double precision (64-bit) IEEE 754 floating-point number
+string: Unicode character sequence
+"""
 AnyLoader = _EnumLoader(("Any",), "Any")
+"""
+The **Any** type validates for any non-null value.
+"""
 RecordFieldLoader = _RecordLoader(RecordField)
 RecordSchemaLoader = _RecordLoader(RecordSchema)
 EnumSchemaLoader = _RecordLoader(EnumSchema)
@@ -12772,6 +12785,9 @@ CWLVersionLoader = _EnumLoader(
     ),
     "CWLVersion",
 )
+"""
+Version symbols for published CWL document versions.
+"""
 CWLTypeLoader = _EnumLoader(
     (
         "null",
@@ -12786,6 +12802,11 @@ CWLTypeLoader = _EnumLoader(
     ),
     "CWLType",
 )
+"""
+Extends primitive types with the concept of a file and directory as a builtin type.
+File: A File object
+Directory: A Directory object
+"""
 FileLoader = _RecordLoader(File)
 DirectoryLoader = _RecordLoader(Directory)
 ExpressionLoader = _ExpressionLoader(str)
@@ -12815,7 +12836,93 @@ CommandOutputArraySchemaLoader = _RecordLoader(CommandOutputArraySchema)
 CommandInputParameterLoader = _RecordLoader(CommandInputParameter)
 CommandOutputParameterLoader = _RecordLoader(CommandOutputParameter)
 stdoutLoader = _EnumLoader(("stdout",), "stdout")
+"""
+Only valid as a `type` for a `CommandLineTool` output with no
+`outputBinding` set.
+
+The following
+```
+outputs:
+  an_output_name:
+    type: stdout
+
+stdout: a_stdout_file
+```
+is equivalent to
+```
+outputs:
+  an_output_name:
+    type: File
+    streamable: true
+    outputBinding:
+      glob: a_stdout_file
+
+stdout: a_stdout_file
+```
+
+If there is no `stdout` name provided, a random filename will be created.
+For example, the following
+```
+outputs:
+  an_output_name:
+    type: stdout
+```
+is equivalent to
+```
+outputs:
+  an_output_name:
+    type: File
+    streamable: true
+    outputBinding:
+      glob: random_stdout_filenameABCDEFG
+
+stdout: random_stdout_filenameABCDEFG
+```
+"""
 stderrLoader = _EnumLoader(("stderr",), "stderr")
+"""
+Only valid as a `type` for a `CommandLineTool` output with no
+`outputBinding` set.
+
+The following
+```
+outputs:
+  an_output_name:
+  type: stderr
+
+stderr: a_stderr_file
+```
+is equivalent to
+```
+outputs:
+  an_output_name:
+    type: File
+    streamable: true
+    outputBinding:
+      glob: a_stderr_file
+
+stderr: a_stderr_file
+```
+
+If there is no `stderr` name provided, a random filename will be created.
+For example, the following
+```
+outputs:
+  an_output_name:
+    type: stderr
+```
+is equivalent to
+```
+outputs:
+  an_output_name:
+    type: File
+    streamable: true
+    outputBinding:
+      glob: random_stderr_filenameABCDEFG
+
+stderr: random_stderr_filenameABCDEFG
+```
+"""
 CommandLineToolLoader = _RecordLoader(CommandLineTool)
 DockerRequirementLoader = _RecordLoader(DockerRequirement)
 SoftwareRequirementLoader = _RecordLoader(SoftwareRequirement)
@@ -12834,6 +12941,9 @@ LinkMergeMethodLoader = _EnumLoader(
     ),
     "LinkMergeMethod",
 )
+"""
+The input link merge method, described in [WorkflowStepInput](#WorkflowStepInput).
+"""
 WorkflowOutputParameterLoader = _RecordLoader(WorkflowOutputParameter)
 WorkflowStepInputLoader = _RecordLoader(WorkflowStepInput)
 WorkflowStepOutputLoader = _RecordLoader(WorkflowStepOutput)
@@ -12845,6 +12955,9 @@ ScatterMethodLoader = _EnumLoader(
     ),
     "ScatterMethod",
 )
+"""
+The scatter method, as described in [workflow step scatter](#WorkflowStep).
+"""
 WorkflowStepLoader = _RecordLoader(WorkflowStep)
 WorkflowLoader = _RecordLoader(Workflow)
 SubworkflowFeatureRequirementLoader = _RecordLoader(SubworkflowFeatureRequirement)
