@@ -33,3 +33,8 @@ needs_podman = pytest.mark.skipif(
     not bool(shutil.which("podman")),
     reason="Requires the podman executable on the system path.",
 )
+
+needs_udocker = pytest.mark.skipif(
+    not bool(shutil.which("udocker")),
+    reason="Requires the udocker executable on the system path.",
+)

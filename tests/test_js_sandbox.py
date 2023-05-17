@@ -9,7 +9,7 @@ import pytest
 
 from cwl_utils import expression, sandboxjs
 
-from .util import needs_podman, needs_singularity
+from .util import needs_podman, needs_singularity, needs_udocker
 
 node_versions = [
     ("v0.8.26\n", False),
@@ -96,6 +96,32 @@ def test_value_from_two_concatenated_expressions_podman(
                 {},
                 cwlVersion="v1.0",
                 container_engine="podman",
+            )
+            == "a string"
+        )
+
+
+@needs_udocker
+def test_value_from_two_concatenated_expressions_udocker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Javascript test using udocker."""
+    new_paths = hide_nodejs(tmp_path)
+    with monkeypatch.context() as m:
+        m.setenv("PATH", new_paths)
+        js_engine = sandboxjs.get_js_engine()
+        js_engine.have_node_slim = False  # type: ignore[attr-defined]
+        js_engine.localdata = threading.local()  # type: ignore[attr-defined]
+        assert (
+            expression.do_eval(
+                '$("a ")$("string")',
+                {},
+                [{"class": "InlineJavascriptRequirement"}],
+                None,
+                None,
+                {},
+                cwlVersion="v1.0",
+                container_engine="udocker",
             )
             == "a string"
         )
