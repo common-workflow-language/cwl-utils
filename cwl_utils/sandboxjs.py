@@ -118,7 +118,7 @@ class NodeJSEngine(JSEngine):
                     try:
                         with open(cidfile[0]) as inp_stream:
                             p = subprocess.Popen(  # nosec
-                                ["docker", "kill", inp_stream.read()],
+                                [args[0], "kill", inp_stream.read()],
                                 shell=False,  # nosec
                             )
                             try:
@@ -318,6 +318,8 @@ class NodeJSEngine(JSEngine):
                 nodeimg = "docker.io/node:alpine"
                 if container_engine == "singularity":
                     nodeimg = f"docker://{nodeimg}"
+                elif container_engine == "podman":
+                    nodeimg = "docker.io/library/node:alpine"
 
                 if not self.have_node_slim:
                     singularity_cache: Optional[str] = None
@@ -338,6 +340,16 @@ class NodeJSEngine(JSEngine):
                             )
                         if singularityimgs:
                             nodeimg = singularityimgs[0]
+                    elif container_engine == "udocker":
+                        matches = re.search(
+                            re.escape(nodeimg),
+                            subprocess.check_output(  # nosec
+                                [container_engine, "images"],
+                                universal_newlines=True,
+                            ),
+                        )
+                        if matches:
+                            dockerimgs = matches[0]
                     else:
                         raise Exception(
                             f"Unknown container_engine: {container_engine}."
@@ -367,7 +379,10 @@ class NodeJSEngine(JSEngine):
                         )
                     self.have_node_slim = True
                 nodejs_commands = [container_engine]
-                if container_engine != "singularity":
+                if (
+                    container_engine != "singularity"
+                    and "udocker" not in container_engine
+                ):
                     nodejs_commands.extend(
                         [
                             "run",
@@ -379,7 +394,7 @@ class NodeJSEngine(JSEngine):
                             "--rm",
                         ]
                     )
-                else:
+                elif "singularity" in container_engine:
                     nodejs_commands.extend(
                         [
                             "exec",
@@ -387,6 +402,15 @@ class NodeJSEngine(JSEngine):
                             "--ipc",
                             "--cleanenv",
                             "--userns" if singularity_supports_userns() else "--pid",
+                        ]
+                    )
+                elif "udocker" in container_engine:
+                    nodejs_commands.extend(
+                        [
+                            "run",
+                            "--device=/dev/stdin",
+                            "--device=/dev/stdout",
+                            "--device=/dev/stderr",
                         ]
                     )
                 nodejs_commands.extend(
