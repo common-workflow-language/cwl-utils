@@ -2,7 +2,7 @@ cwl-upgrader >= 1.2.3
 packaging
 rdflib
 requests
-CacheControl < 0.13
+CacheControl < 0.14
 urllib3 < 2  # until CacheControl has a fixed release
 schema-salad >= 8.3.20220825114525, < 9
 ruamel.yaml >= 0.17.6, < 0.18;python_version>='3.7'
