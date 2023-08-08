@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         py-ver-major: [3]
-        py-ver-minor: [6, 7, 8, 9, 10, 11]
+        py-ver-minor: [6, 7, 8, 9, 10, 11, 12]
         step: [lint, unit, bandit, mypy]
         exclude:
           - py-ver-major: 3
@@ -51,6 +51,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
+          allow-prereleases: true
           python-version: ${{ env.py-semver }}
           cache: pip
           cache-dependency-path: |
