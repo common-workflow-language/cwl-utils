@@ -85,8 +85,7 @@ def _compare_type(type1: Any, type2: Any) -> bool:
 def _is_conditional_step(
     param_to_step: Dict[str, cwl.WorkflowStep], parm_id: str
 ) -> bool:
-    source_step = param_to_step.get(parm_id)
-    if source_step is not None:
+    if (source_step := param_to_step.get(parm_id)) is not None:
         if source_step.when is not None:
             return True
     return False

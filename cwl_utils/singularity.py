@@ -29,7 +29,7 @@ def get_version() -> Tuple[List[int], str]:
     global _SINGULARITY_FLAVOR  # pylint: disable=global-statement
     if _SINGULARITY_VERSION is None:
         version_output = check_output(  # nosec
-            ["singularity", "--version"], universal_newlines=True
+            ["singularity", "--version"], text=True
         ).strip()
 
         version_match = re.match(r"(.+) version ([0-9\.]+)", version_output)

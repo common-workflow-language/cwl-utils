@@ -19,7 +19,7 @@ and `CWL
 v1.2 <https://github.com/common-workflow-language/cwl-utils/blob/main/cwl_utils/parser/v1_2.py>`__
 documents.
 
-Requires Python 3.6+
+Requires Python 3.8+
 
 Installation
 ------------
