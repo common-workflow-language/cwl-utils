@@ -8,9 +8,6 @@ concurrency:
   group: tag-${{github.ref}}
   cancel-in-progress: true
 
-env:
-  singularity_version: 3.6.4
-
 jobs:
   release_to_pypi:
     name: cwl-utils release test
@@ -21,9 +18,9 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Set up Singularity
-        uses: eWaterCycle/setup-singularity@v7
-        with:
-          singularity-version: ${{ env.singularity_version }}
+        run: |
+          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v3.11.4/singularity-ce_3.11.4-jammy_amd64.deb
+          sudo apt-get install -y ./singularity-ce_3.11.4-jammy_amd64.deb
 
       - name: Set up Python
         uses: actions/setup-python@v4
