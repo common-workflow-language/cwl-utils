@@ -6,7 +6,6 @@ import copy
 import logging
 import os
 import pathlib
-import re
 import tempfile
 import uuid as _uuid__  # pylint: disable=unused-import # noqa: F401
 import xml.sax  # nosec
@@ -205,8 +204,9 @@ class Saveable(ABC):
         """Convert this object to a JSON/YAML friendly dictionary."""
 
 
-def load_field(val, fieldtype, baseuri, loadingOptions):
-    # type: (Union[str, Dict[str, str]], _Loader, str, LoadingOptions) -> Any
+def load_field(val, fieldtype, baseuri, loadingOptions, lc=None):
+    # type: (Union[str, Dict[str, str]], _Loader, str, LoadingOptions, Optional[List[Any]]) -> Any
+    """Load field."""
     if isinstance(val, MutableMapping):
         if "$import" in val:
             if loadingOptions.fileuri is None:
@@ -225,10 +225,67 @@ def load_field(val, fieldtype, baseuri, loadingOptions):
             url = loadingOptions.fetcher.urljoin(loadingOptions.fileuri, val["$include"])
             val = loadingOptions.fetcher.fetch_text(url)
             loadingOptions.includes.append(url)
-    return fieldtype.load(val, baseuri, loadingOptions)
+    return fieldtype.load(val, baseuri, loadingOptions, lc=lc)
 
 
 save_type = Optional[Union[MutableMapping[str, Any], MutableSequence[Any], int, float, bool, str]]
+
+
+def extract_type(val_type: Type[Any]) -> str:
+    """Take a type of value, and extracts the value as a string."""
+    val_str = str(val_type)
+    return val_str.split("'")[1]
+
+
+def convert_typing(val_type: str) -> str:
+    """Normalize type names to schema-salad types."""
+    if "None" in val_type:
+        return "null"
+    if "CommentedSeq" in val_type or "list" in val_type:
+        return "array"
+    if "CommentedMap" in val_type or "dict" in val_type:
+        return "object"
+    if "False" in val_type or "True" in val_type:
+        return "boolean"
+    return val_type
+
+
+def parse_errors(error_message: str) -> Tuple[str, str, str]:
+    """Parse error messages from several loaders into one error message."""
+    if not error_message.startswith("Expected"):
+        return error_message, "", ""
+    vals = error_message.split("\n")
+    if len(vals) == 1:
+        return error_message, "", ""
+    types = set()
+    for val in vals:
+        individual_vals = val.split(" ")
+        if val == "":
+            continue
+        if individual_vals[1] == "one":
+            individual_vals = val.split("(")[1].split(",")
+            for t in individual_vals:
+                types.add(t.strip(" ").strip(")\n"))
+        elif individual_vals[2] == "<class":
+            types.add(individual_vals[3].strip(">").replace("'", ""))
+        elif individual_vals[0] == "Value":
+            types.add(individual_vals[-1].strip("."))
+        else:
+            types.add(individual_vals[1].replace(",", ""))
+    types = set(val for val in types if val != "NoneType")
+    if "str" in types:
+        types = set(convert_typing(val) for val in types if "'" not in val)
+    to_print = ""
+    for val in types:
+        if "'" in val:
+            to_print = "value" if len(types) == 1 else "values"
+
+    if to_print == "":
+        to_print = "type" if len(types) == 1 else "types"
+
+    verb_tensage = "is" if len(types) == 1 else "are"
+
+    return str(types).replace("{", "(").replace("}", ")").replace("'", ""), to_print, verb_tensage
 
 
 def save(
@@ -348,14 +405,14 @@ def expand_url(
 
 
 class _Loader:
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         pass
 
 
 class _AnyLoader(_Loader):
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         if doc is not None:
             return doc
         raise ValidationException("Expected non-null")
@@ -366,13 +423,11 @@ class _PrimitiveLoader(_Loader):
         # type: (Union[type, Tuple[Type[str], Type[str]]]) -> None
         self.tp = tp
 
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         if not isinstance(doc, self.tp):
             raise ValidationException(
-                "Expected a {} but got {}".format(
-                    self.tp.__class__.__name__, doc.__class__.__name__
-                )
+                "Expected a {} but got {}".format(self.tp, doc.__class__.__name__)
             )
         return doc
 
@@ -385,21 +440,45 @@ class _ArrayLoader(_Loader):
         # type: (_Loader) -> None
         self.items = items
 
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         if not isinstance(doc, MutableSequence):
-            raise ValidationException(f"Expected a list, was {type(doc)}")
+            raise ValidationException(
+                f"Value is a {convert_typing(extract_type(type(doc)))}, "
+                f"but valid type for this field is an array."
+            )
         r = []  # type: List[Any]
         errors = []  # type: List[SchemaSaladException]
+        fields = []  # type: List[str]
+
         for i in range(0, len(doc)):
             try:
-                lf = load_field(doc[i], _UnionLoader((self, self.items)), baseuri, loadingOptions)
+                lf = load_field(
+                    doc[i], _UnionLoader(([self, self.items])), baseuri, loadingOptions, lc=lc
+                )
                 if isinstance(lf, MutableSequence):
                     r.extend(lf)
                 else:
                     r.append(lf)
+
+                if isinstance(doc[i], CommentedMap):
+                    if doc[i].get("id") is not None:
+                        if doc[i].get("id") in fields:
+                            errors.append(
+                                ValidationException(
+                                    f"Duplicate field {doc[i].get('id')!r}",
+                                    SourceLine(doc[i], "id", str),
+                                    [],
+                                )
+                            )
+                        else:
+                            fields.append(doc[i].get("id"))
+
             except ValidationException as e:
-                errors.append(e.with_sourceline(SourceLine(doc, i, str)))
+                e = ValidationException(
+                    "array item is invalid because", SourceLine(doc, i, str), [e]
+                )
+                errors.append(e)
         if errors:
             raise ValidationException("", None, errors)
         return r
@@ -413,8 +492,8 @@ class _EnumLoader(_Loader):
         self.symbols = symbols
         self.name = name
 
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         if doc in self.symbols:
             return doc
         raise ValidationException(f"Expected one of {self.symbols}")
@@ -428,8 +507,8 @@ class _SecondaryDSLLoader(_Loader):
         # type: (_Loader) -> None
         self.inner = inner
 
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         r: List[Dict[str, Any]] = []
         if isinstance(doc, MutableSequence):
             for d in doc:
@@ -487,7 +566,7 @@ class _SecondaryDSLLoader(_Loader):
                 r.append({"pattern": doc})
         else:
             raise ValidationException("Expected str or sequence of str")
-        return self.inner.load(r, baseuri, loadingOptions, docRoot)
+        return self.inner.load(r, baseuri, loadingOptions, docRoot, lc=lc)
 
 
 class _RecordLoader(_Loader):
@@ -495,10 +574,13 @@ class _RecordLoader(_Loader):
         # type: (Type[Saveable]) -> None
         self.classtype = classtype
 
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         if not isinstance(doc, MutableMapping):
-            raise ValidationException(f"Expected a dict, was {type(doc)}")
+            raise ValidationException(
+                f"Value is a {convert_typing(extract_type(type(doc)))}, "
+                f"but valid type for this field is an object."
+            )
         return self.classtype.fromDoc(doc, baseuri, loadingOptions, docRoot=docRoot)
 
     def __repr__(self):  # type: () -> str
@@ -509,10 +591,13 @@ class _ExpressionLoader(_Loader):
     def __init__(self, items: Type[str]) -> None:
         self.items = items
 
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         if not isinstance(doc, str):
-            raise ValidationException(f"Expected a str, was {type(doc)}")
+            raise ValidationException(
+                f"Value is a {convert_typing(extract_type(type(doc)))}, "
+                f"but valid type for this field is a str."
+            )
         return doc
 
 
@@ -520,15 +605,77 @@ class _UnionLoader(_Loader):
     def __init__(self, alternates: Sequence[_Loader]) -> None:
         self.alternates = alternates
 
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         errors = []
+
+        if lc is None:
+            lc = []
+
         for t in self.alternates:
             try:
-                return t.load(doc, baseuri, loadingOptions, docRoot=docRoot)
+                return t.load(doc, baseuri, loadingOptions, docRoot=docRoot, lc=lc)
             except ValidationException as e:
-                errors.append(ValidationException(f"tried {t} but", None, [e]))
-        raise ValidationException("", None, errors, "-")
+                if isinstance(t, _ArrayLoader) and len(self.alternates) > 1:
+                    continue
+                if isinstance(doc, (CommentedMap, dict)):
+                    if "class" in doc:
+                        if str(doc.get("class")) == str(t):
+                            errors.append(
+                                ValidationException(
+                                    f"Object `{baseuri.split('/')[-1]}` is not valid because:",
+                                    SourceLine(doc, next(iter(doc)), str),
+                                    [e],
+                                )
+                            )
+                    else:
+                        if "array" in str(t):
+                            continue
+                        else:
+                            if "id" in doc:
+                                id = baseuri.split("/")[-1] + "#" + str(doc.get("id"))
+                                if "id" in lc:
+                                    errors.append(
+                                        ValidationException(
+                                            f"checking object `{id}`",
+                                            SourceLine(lc, "id", str),
+                                            [e],
+                                        )
+                                    )
+                                else:
+                                    errors.append(
+                                        ValidationException(
+                                            f"checking object `{id}`",
+                                            SourceLine(lc, doc.get("id"), str),
+                                            [e],
+                                        )
+                                    )
+                            else:
+                                if not isinstance(
+                                    t, (_PrimitiveLoader)
+                                ):  # avoids 'tried <class "NoneType"> was {x}' errors
+                                    errors.append(
+                                        ValidationException(f"tried `{t}` but", None, [e])
+                                    )
+                else:
+                    # avoids "tried <class "CWLType"> but x" and instead returns the values for parsing
+                    errors.append(ValidationException("", None, [e]))
+
+        if isinstance(doc, (CommentedMap, dict)) and "class" in doc:
+            if str(doc.get("class")) not in str(self.alternates):
+                errors.append(
+                    ValidationException(
+                        "Field `class` contains undefined reference to "
+                        + "`"
+                        + "/".join(baseuri.split("/")[0:-1])
+                        + "/"
+                        + str(doc.get("class"))
+                        + "`",
+                        SourceLine(doc, "class", str),
+                        [],
+                    )
+                )
+        raise ValidationException("", None, errors, "*")
 
     def __repr__(self):  # type: () -> str
         return " | ".join(str(a) for a in self.alternates)
@@ -542,8 +689,8 @@ class _URILoader(_Loader):
         self.vocab_term = vocab_term
         self.scoped_ref = scoped_ref
 
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         if isinstance(doc, MutableSequence):
             newdoc = []
             for i in doc:
@@ -570,16 +717,24 @@ class _URILoader(_Loader):
                 self.vocab_term,
                 self.scoped_ref,
             )
-        return self.inner.load(doc, baseuri, loadingOptions)
+        if isinstance(doc, str):
+            errors = []
+            try:
+                if not loadingOptions.fetcher.check_exists(doc):
+                    errors.append(ValidationException(f"contains undefined reference to `{doc}`"))
+            except ValidationException:
+                pass
+            if len(errors) > 0:
+                raise ValidationException("", None, errors)
+        return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
 class _TypeDSLLoader(_Loader):
-    typeDSLregex = re.compile(r"^([^[?]+)(\[\])?(\?)?$")
-
-    def __init__(self, inner, refScope):
-        # type: (_Loader, Union[int, None]) -> None
+    def __init__(self, inner, refScope, salad_version):
+        # type: (_Loader, Union[int, None], str) -> None
         self.inner = inner
         self.refScope = refScope
+        self.salad_version = salad_version
 
     def resolve(
         self,
@@ -587,31 +742,38 @@ class _TypeDSLLoader(_Loader):
         baseuri,  # type: str
         loadingOptions,  # type: LoadingOptions
     ):
-        # type: (...) -> Union[List[Union[Dict[str, str], str]], Dict[str, str], str]
-        m = self.typeDSLregex.match(doc)
-        if m:
-            group1 = m.group(1)
-            assert group1 is not None  # nosec
-            first = expand_url(group1, baseuri, loadingOptions, False, True, self.refScope)
-            second = third = None
-            if bool(m.group(2)):
-                second = {"type": "array", "items": first}
-                # second = CommentedMap((("type", "array"),
-                #                       ("items", first)))
-                # second.lc.add_kv_line_col("type", lc)
-                # second.lc.add_kv_line_col("items", lc)
-                # second.lc.filename = filename
-            if bool(m.group(3)):
-                third = ["null", second or first]
-                # third = CommentedSeq(["null", second or first])
-                # third.lc.add_kv_line_col(0, lc)
-                # third.lc.add_kv_line_col(1, lc)
-                # third.lc.filename = filename
-            return third or second or first
-        return doc
+        # type: (...) -> Union[List[Union[Dict[str, Any], str]], Dict[str, Any], str]
+        doc_ = doc
+        optional = False
+        if doc_.endswith("?"):
+            optional = True
+            doc_ = doc_[0:-1]
 
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+        if doc_.endswith("[]"):
+            salad_versions = [int(v) for v in self.salad_version[1:].split(".")]
+            items = ""  # type: Union[List[Union[Dict[str, Any], str]], Dict[str, Any], str]
+            rest = doc_[0:-2]
+            if salad_versions < [1, 3]:
+                if rest.endswith("[]"):
+                    # To show the error message with the original type
+                    return doc
+                else:
+                    items = expand_url(rest, baseuri, loadingOptions, False, True, self.refScope)
+            else:
+                items = self.resolve(rest, baseuri, loadingOptions)
+                if isinstance(items, str):
+                    items = expand_url(items, baseuri, loadingOptions, False, True, self.refScope)
+            expanded = {"type": "array", "items": items}  # type: Union[Dict[str, Any], str]
+        else:
+            expanded = expand_url(doc_, baseuri, loadingOptions, False, True, self.refScope)
+
+        if optional:
+            return ["null", expanded]
+        else:
+            return expanded
+
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         if isinstance(doc, MutableSequence):
             r = []  # type: List[Any]
             for d in doc:
@@ -630,7 +792,7 @@ class _TypeDSLLoader(_Loader):
         elif isinstance(doc, str):
             doc = self.resolve(doc, baseuri, loadingOptions)
 
-        return self.inner.load(doc, baseuri, loadingOptions)
+        return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
 class _IdMapLoader(_Loader):
@@ -640,8 +802,8 @@ class _IdMapLoader(_Loader):
         self.mapSubject = mapSubject
         self.mapPredicate = mapPredicate
 
-    def load(self, doc, baseuri, loadingOptions, docRoot=None):
-        # type: (Any, str, LoadingOptions, Optional[str]) -> Any
+    def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
+        # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
         if isinstance(doc, MutableMapping):
             r = []  # type: List[Any]
             for k in sorted(doc.keys()):
@@ -664,7 +826,7 @@ class _IdMapLoader(_Loader):
                     else:
                         raise ValidationException("No mapPredicate")
             doc = r
-        return self.inner.load(doc, baseuri, loadingOptions)
+        return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
 def _document_load(
@@ -701,7 +863,13 @@ def _document_load(
             addl_metadata=addl_metadata,
         )
 
-        doc = {k: v for k, v in doc.items() if k not in ("$namespaces", "$schemas", "$base")}
+        doc = copy.copy(doc)
+        if "$namespaces" in doc:
+            doc.pop("$namespaces")
+        if "$schemas" in doc:
+            doc.pop("$schemas")
+        if "$base" in doc:
+            doc.pop("$base")
 
         if "$graph" in doc:
             loadingOptions.idx[baseuri] = (
@@ -852,12 +1020,11 @@ class RecordField(Documented):
     def __init__(
         self,
         name: Any,
-        type: Any,
+        type_: Any,
         doc: Optional[Any] = None,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -868,19 +1035,19 @@ class RecordField(Documented):
             self.loadingOptions = LoadingOptions()
         self.doc = doc
         self.name = name
-        self.type = type
+        self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, RecordField):
             return bool(
                 self.doc == other.doc
                 and self.name == other.name
-                and self.type == other.type
+                and self.type_ == other.type_
             )
         return False
 
     def __hash__(self) -> int:
-        return hash((self.doc, self.name, self.type))
+        return hash((self.doc, self.name, self.type_))
 
     @classmethod
     def fromDoc(
@@ -888,29 +1055,57 @@ class RecordField(Documented):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "RecordField":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -919,46 +1114,104 @@ class RecordField(Documented):
             if docRoot is not None:
                 name = docRoot
             else:
-                raise ValidationException("Missing name")
+                _errors__.append(ValidationException("missing name"))
         if not __original_name_is_none:
             baseuri = name
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -972,14 +1225,13 @@ class RecordField(Documented):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'RecordField'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             doc=doc,
             name=name,
-            type=type,
+            type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -1004,9 +1256,9 @@ class RecordField(Documented):
             r["doc"] = save(
                 self.doc, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
 
         # top refers to the directory level
@@ -1023,12 +1275,11 @@ class RecordField(Documented):
 class RecordSchema(Saveable):
     def __init__(
         self,
-        type: Any,
+        type_: Any,
         fields: Optional[Any] = None,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -1038,15 +1289,15 @@ class RecordSchema(Saveable):
         else:
             self.loadingOptions = LoadingOptions()
         self.fields = fields
-        self.type = type
+        self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, RecordSchema):
-            return bool(self.fields == other.fields and self.type == other.type)
+            return bool(self.fields == other.fields and self.type_ == other.type_)
         return False
 
     def __hash__(self) -> int:
-        return hash((self.fields, self.type))
+        return hash((self.fields, self.type_))
 
     @classmethod
     def fromDoc(
@@ -1054,50 +1305,109 @@ class RecordSchema(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "RecordSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "fields" in _doc:
             try:
+                if _doc.get("fields") is None:
+                    raise ValidationException("missing required field `fields`", None, [])
+
                 fields = load_field(
                     _doc.get("fields"),
                     idmap_fields_union_of_None_type_or_array_of_RecordFieldLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("fields")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'fields' field is not valid because:",
-                        SourceLine(_doc, "fields", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `fields`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `fields` field is not valid because:",
+                                SourceLine(_doc, "fields", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `fields` field is not valid because:",
+                                SourceLine(_doc, "fields", str),
+                                [e],
+                            )
+                        )
         else:
             fields = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -1111,13 +1421,12 @@ class RecordSchema(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'RecordSchema'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             fields=fields,
-            type=type,
+            type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -1138,9 +1447,9 @@ class RecordSchema(Saveable):
             r["fields"] = save(
                 self.fields, top=False, base_url=base_url, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=base_url, relative_uris=relative_uris
+                self.type_, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
         # top refers to the directory level
@@ -1163,11 +1472,10 @@ class EnumSchema(Saveable):
     def __init__(
         self,
         symbols: Any,
-        type: Any,
+        type_: Any,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -1177,15 +1485,15 @@ class EnumSchema(Saveable):
         else:
             self.loadingOptions = LoadingOptions()
         self.symbols = symbols
-        self.type = type
+        self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, EnumSchema):
-            return bool(self.symbols == other.symbols and self.type == other.type)
+            return bool(self.symbols == other.symbols and self.type_ == other.type_)
         return False
 
     def __hash__(self) -> int:
-        return hash((self.symbols, self.type))
+        return hash((self.symbols, self.type_))
 
     @classmethod
     def fromDoc(
@@ -1193,47 +1501,106 @@ class EnumSchema(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "EnumSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         try:
+            if _doc.get("symbols") is None:
+                raise ValidationException("missing required field `symbols`", None, [])
+
             symbols = load_field(
                 _doc.get("symbols"),
                 uri_array_of_strtype_True_False_None,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("symbols")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'symbols' field is not valid because:",
-                    SourceLine(_doc, "symbols", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `symbols`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("symbols"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `symbols` field is not valid because:",
+                            SourceLine(_doc, "symbols", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `symbols` field is not valid because:",
+                            SourceLine(_doc, "symbols", str),
+                            [e],
+                        )
+                    )
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -1247,13 +1614,12 @@ class EnumSchema(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'EnumSchema'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             symbols=symbols,
-            type=type,
+            type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -1273,9 +1639,9 @@ class EnumSchema(Saveable):
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, base_url, True, None, relative_uris)
             r["symbols"] = u
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=base_url, relative_uris=relative_uris
+                self.type_, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
         # top refers to the directory level
@@ -1293,11 +1659,10 @@ class ArraySchema(Saveable):
     def __init__(
         self,
         items: Any,
-        type: Any,
+        type_: Any,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -1307,15 +1672,15 @@ class ArraySchema(Saveable):
         else:
             self.loadingOptions = LoadingOptions()
         self.items = items
-        self.type = type
+        self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ArraySchema):
-            return bool(self.items == other.items and self.type == other.type)
+            return bool(self.items == other.items and self.type_ == other.type_)
         return False
 
     def __hash__(self) -> int:
-        return hash((self.items, self.type))
+        return hash((self.items, self.type_))
 
     @classmethod
     def fromDoc(
@@ -1323,47 +1688,106 @@ class ArraySchema(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "ArraySchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         try:
+            if _doc.get("items") is None:
+                raise ValidationException("missing required field `items`", None, [])
+
             items = load_field(
                 _doc.get("items"),
                 typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("items")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'items' field is not valid because:",
-                    SourceLine(_doc, "items", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `items`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `items` field is not valid because:",
+                            SourceLine(_doc, "items", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `items` field is not valid because:",
+                            SourceLine(_doc, "items", str),
+                            [e],
+                        )
+                    )
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -1377,13 +1801,12 @@ class ArraySchema(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'ArraySchema'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             items=items,
-            type=type,
+            type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -1404,9 +1827,9 @@ class ArraySchema(Saveable):
             r["items"] = save(
                 self.items, top=False, base_url=base_url, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=base_url, relative_uris=relative_uris
+                self.type_, top=False, base_url=base_url, relative_uris=relative_uris
             )
 
         # top refers to the directory level
@@ -1507,7 +1930,6 @@ class File(Saveable):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -1571,219 +1993,523 @@ class File(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "File":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "File":
-            raise ValidationException("Not a File")
+            raise ValidationException("tried `File` but")
 
         if "location" in _doc:
             try:
+                if _doc.get("location") is None:
+                    raise ValidationException("missing required field `location`", None, [])
+
                 location = load_field(
                     _doc.get("location"),
                     uri_union_of_None_type_or_strtype_False_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("location")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'location' field is not valid because:",
-                        SourceLine(_doc, "location", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `location`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("location"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `location` field is not valid because:",
+                                SourceLine(_doc, "location", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `location` field is not valid because:",
+                                SourceLine(_doc, "location", str),
+                                [e],
+                            )
+                        )
         else:
             location = None
         if "path" in _doc:
             try:
+                if _doc.get("path") is None:
+                    raise ValidationException("missing required field `path`", None, [])
+
                 path = load_field(
                     _doc.get("path"),
                     uri_union_of_None_type_or_strtype_False_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("path")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'path' field is not valid because:",
-                        SourceLine(_doc, "path", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `path`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("path"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `path` field is not valid because:",
+                                SourceLine(_doc, "path", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `path` field is not valid because:",
+                                SourceLine(_doc, "path", str),
+                                [e],
+                            )
+                        )
         else:
             path = None
         if "basename" in _doc:
             try:
+                if _doc.get("basename") is None:
+                    raise ValidationException("missing required field `basename`", None, [])
+
                 basename = load_field(
                     _doc.get("basename"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("basename")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'basename' field is not valid because:",
-                        SourceLine(_doc, "basename", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `basename`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("basename"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `basename` field is not valid because:",
+                                SourceLine(_doc, "basename", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `basename` field is not valid because:",
+                                SourceLine(_doc, "basename", str),
+                                [e],
+                            )
+                        )
         else:
             basename = None
         if "dirname" in _doc:
             try:
+                if _doc.get("dirname") is None:
+                    raise ValidationException("missing required field `dirname`", None, [])
+
                 dirname = load_field(
                     _doc.get("dirname"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("dirname")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'dirname' field is not valid because:",
-                        SourceLine(_doc, "dirname", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `dirname`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("dirname"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `dirname` field is not valid because:",
+                                SourceLine(_doc, "dirname", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `dirname` field is not valid because:",
+                                SourceLine(_doc, "dirname", str),
+                                [e],
+                            )
+                        )
         else:
             dirname = None
         if "nameroot" in _doc:
             try:
+                if _doc.get("nameroot") is None:
+                    raise ValidationException("missing required field `nameroot`", None, [])
+
                 nameroot = load_field(
                     _doc.get("nameroot"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("nameroot")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'nameroot' field is not valid because:",
-                        SourceLine(_doc, "nameroot", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `nameroot`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("nameroot"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `nameroot` field is not valid because:",
+                                SourceLine(_doc, "nameroot", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `nameroot` field is not valid because:",
+                                SourceLine(_doc, "nameroot", str),
+                                [e],
+                            )
+                        )
         else:
             nameroot = None
         if "nameext" in _doc:
             try:
+                if _doc.get("nameext") is None:
+                    raise ValidationException("missing required field `nameext`", None, [])
+
                 nameext = load_field(
                     _doc.get("nameext"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("nameext")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'nameext' field is not valid because:",
-                        SourceLine(_doc, "nameext", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `nameext`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("nameext"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `nameext` field is not valid because:",
+                                SourceLine(_doc, "nameext", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `nameext` field is not valid because:",
+                                SourceLine(_doc, "nameext", str),
+                                [e],
+                            )
+                        )
         else:
             nameext = None
         if "checksum" in _doc:
             try:
+                if _doc.get("checksum") is None:
+                    raise ValidationException("missing required field `checksum`", None, [])
+
                 checksum = load_field(
                     _doc.get("checksum"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("checksum")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'checksum' field is not valid because:",
-                        SourceLine(_doc, "checksum", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `checksum`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("checksum"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `checksum` field is not valid because:",
+                                SourceLine(_doc, "checksum", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `checksum` field is not valid because:",
+                                SourceLine(_doc, "checksum", str),
+                                [e],
+                            )
+                        )
         else:
             checksum = None
         if "size" in _doc:
             try:
+                if _doc.get("size") is None:
+                    raise ValidationException("missing required field `size`", None, [])
+
                 size = load_field(
                     _doc.get("size"),
                     union_of_None_type_or_inttype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("size")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'size' field is not valid because:",
-                        SourceLine(_doc, "size", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `size`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("size"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `size` field is not valid because:",
+                                SourceLine(_doc, "size", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `size` field is not valid because:",
+                                SourceLine(_doc, "size", str),
+                                [e],
+                            )
+                        )
         else:
             size = None
         if "secondaryFiles" in _doc:
             try:
+                if _doc.get("secondaryFiles") is None:
+                    raise ValidationException("missing required field `secondaryFiles`", None, [])
+
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("secondaryFiles")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'secondaryFiles' field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `secondaryFiles`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [e],
+                            )
+                        )
         else:
             secondaryFiles = None
         if "format" in _doc:
             try:
+                if _doc.get("format") is None:
+                    raise ValidationException("missing required field `format`", None, [])
+
                 format = load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("format")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'format' field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `format`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [e],
+                            )
+                        )
         else:
             format = None
         if "contents" in _doc:
             try:
+                if _doc.get("contents") is None:
+                    raise ValidationException("missing required field `contents`", None, [])
+
                 contents = load_field(
                     _doc.get("contents"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("contents")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'contents' field is not valid because:",
-                        SourceLine(_doc, "contents", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `contents`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("contents"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `contents` field is not valid because:",
+                                SourceLine(_doc, "contents", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `contents` field is not valid because:",
+                                SourceLine(_doc, "contents", str),
+                                [e],
+                            )
+                        )
         else:
             contents = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -1797,10 +2523,9 @@ class File(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'File'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             location=location,
             path=path,
@@ -1959,7 +2684,6 @@ class Directory(Saveable):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -1996,93 +2720,208 @@ class Directory(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "Directory":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "Directory":
-            raise ValidationException("Not a Directory")
+            raise ValidationException("tried `Directory` but")
 
         if "location" in _doc:
             try:
+                if _doc.get("location") is None:
+                    raise ValidationException("missing required field `location`", None, [])
+
                 location = load_field(
                     _doc.get("location"),
                     uri_union_of_None_type_or_strtype_False_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("location")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'location' field is not valid because:",
-                        SourceLine(_doc, "location", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `location`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("location"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `location` field is not valid because:",
+                                SourceLine(_doc, "location", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `location` field is not valid because:",
+                                SourceLine(_doc, "location", str),
+                                [e],
+                            )
+                        )
         else:
             location = None
         if "path" in _doc:
             try:
+                if _doc.get("path") is None:
+                    raise ValidationException("missing required field `path`", None, [])
+
                 path = load_field(
                     _doc.get("path"),
                     uri_union_of_None_type_or_strtype_False_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("path")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'path' field is not valid because:",
-                        SourceLine(_doc, "path", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `path`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("path"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `path` field is not valid because:",
+                                SourceLine(_doc, "path", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `path` field is not valid because:",
+                                SourceLine(_doc, "path", str),
+                                [e],
+                            )
+                        )
         else:
             path = None
         if "basename" in _doc:
             try:
+                if _doc.get("basename") is None:
+                    raise ValidationException("missing required field `basename`", None, [])
+
                 basename = load_field(
                     _doc.get("basename"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("basename")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'basename' field is not valid because:",
-                        SourceLine(_doc, "basename", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `basename`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("basename"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `basename` field is not valid because:",
+                                SourceLine(_doc, "basename", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `basename` field is not valid because:",
+                                SourceLine(_doc, "basename", str),
+                                [e],
+                            )
+                        )
         else:
             basename = None
         if "listing" in _doc:
             try:
+                if _doc.get("listing") is None:
+                    raise ValidationException("missing required field `listing`", None, [])
+
                 listing = load_field(
                     _doc.get("listing"),
                     union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("listing")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'listing' field is not valid because:",
-                        SourceLine(_doc, "listing", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `listing`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("listing"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `listing` field is not valid because:",
+                                SourceLine(_doc, "listing", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `listing` field is not valid because:",
+                                SourceLine(_doc, "listing", str),
+                                [e],
+                            )
+                        )
         else:
             listing = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -2096,10 +2935,9 @@ class Directory(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'Directory'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             location=location,
             path=path,
@@ -2189,7 +3027,6 @@ class InputBinding(Saveable):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -2214,35 +3051,67 @@ class InputBinding(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "InputBinding":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "loadContents" in _doc:
             try:
+                if _doc.get("loadContents") is None:
+                    raise ValidationException("missing required field `loadContents`", None, [])
+
                 loadContents = load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadContents")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadContents' field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadContents`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadContents"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [e],
+                            )
+                        )
         else:
             loadContents = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -2256,10 +3125,9 @@ class InputBinding(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'InputBinding'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             loadContents=loadContents,
             extension_fields=extension_fields,
@@ -2313,7 +3181,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
     def __init__(
         self,
         name: Any,
-        type: Any,
+        type_: Any,
         doc: Optional[Any] = None,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
@@ -2324,7 +3192,6 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -2335,7 +3202,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
             self.loadingOptions = LoadingOptions()
         self.doc = doc
         self.name = name
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.secondaryFiles = secondaryFiles
         self.streamable = streamable
@@ -2348,7 +3215,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
             return bool(
                 self.doc == other.doc
                 and self.name == other.name
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.secondaryFiles == other.secondaryFiles
                 and self.streamable == other.streamable
@@ -2363,7 +3230,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
             (
                 self.doc,
                 self.name,
-                self.type,
+                self.type_,
                 self.label,
                 self.secondaryFiles,
                 self.streamable,
@@ -2379,29 +3246,57 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "InputRecordField":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -2410,154 +3305,374 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
             if docRoot is not None:
                 name = docRoot
             else:
-                raise ValidationException("Missing name")
+                _errors__.append(ValidationException("missing name"))
         if not __original_name_is_none:
             baseuri = name
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "secondaryFiles" in _doc:
             try:
+                if _doc.get("secondaryFiles") is None:
+                    raise ValidationException("missing required field `secondaryFiles`", None, [])
+
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("secondaryFiles")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'secondaryFiles' field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `secondaryFiles`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [e],
+                            )
+                        )
         else:
             secondaryFiles = None
         if "streamable" in _doc:
             try:
+                if _doc.get("streamable") is None:
+                    raise ValidationException("missing required field `streamable`", None, [])
+
                 streamable = load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("streamable")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'streamable' field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `streamable`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [e],
+                            )
+                        )
         else:
             streamable = None
         if "format" in _doc:
             try:
+                if _doc.get("format") is None:
+                    raise ValidationException("missing required field `format`", None, [])
+
                 format = load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("format")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'format' field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `format`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [e],
+                            )
+                        )
         else:
             format = None
         if "loadContents" in _doc:
             try:
+                if _doc.get("loadContents") is None:
+                    raise ValidationException("missing required field `loadContents`", None, [])
+
                 loadContents = load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadContents")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadContents' field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadContents`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadContents"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [e],
+                            )
+                        )
         else:
             loadContents = None
         if "loadListing" in _doc:
             try:
+                if _doc.get("loadListing") is None:
+                    raise ValidationException("missing required field `loadListing`", None, [])
+
                 loadListing = load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadListing")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadListing' field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadListing`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadListing"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [e],
+                            )
+                        )
         else:
             loadListing = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -2571,14 +3686,13 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'InputRecordField'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             doc=doc,
             name=name,
-            type=type,
+            type_=type_,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -2609,9 +3723,9 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
             r["doc"] = save(
                 self.doc, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -2675,7 +3789,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
 class InputRecordSchema(RecordSchema, InputSchema):
     def __init__(
         self,
-        type: Any,
+        type_: Any,
         fields: Optional[Any] = None,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
@@ -2683,7 +3797,6 @@ class InputRecordSchema(RecordSchema, InputSchema):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -2693,7 +3806,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
         else:
             self.loadingOptions = LoadingOptions()
         self.fields = fields
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -2702,7 +3815,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
         if isinstance(other, InputRecordSchema):
             return bool(
                 self.fields == other.fields
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -2710,7 +3823,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
         return False
 
     def __hash__(self) -> int:
-        return hash((self.fields, self.type, self.label, self.doc, self.name))
+        return hash((self.fields, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -2718,29 +3831,57 @@ class InputRecordSchema(RecordSchema, InputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "InputRecordSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -2754,77 +3895,189 @@ class InputRecordSchema(RecordSchema, InputSchema):
             baseuri = name
         if "fields" in _doc:
             try:
+                if _doc.get("fields") is None:
+                    raise ValidationException("missing required field `fields`", None, [])
+
                 fields = load_field(
                     _doc.get("fields"),
                     idmap_fields_union_of_None_type_or_array_of_InputRecordFieldLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("fields")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'fields' field is not valid because:",
-                        SourceLine(_doc, "fields", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `fields`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `fields` field is not valid because:",
+                                SourceLine(_doc, "fields", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `fields` field is not valid because:",
+                                SourceLine(_doc, "fields", str),
+                                [e],
+                            )
+                        )
         else:
             fields = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -2838,13 +4091,12 @@ class InputRecordSchema(RecordSchema, InputSchema):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'InputRecordSchema'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             fields=fields,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -2872,9 +4124,9 @@ class InputRecordSchema(RecordSchema, InputSchema):
             r["fields"] = save(
                 self.fields, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -2900,14 +4152,13 @@ class InputEnumSchema(EnumSchema, InputSchema):
     def __init__(
         self,
         symbols: Any,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -2917,7 +4168,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
         else:
             self.loadingOptions = LoadingOptions()
         self.symbols = symbols
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -2926,7 +4177,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
         if isinstance(other, InputEnumSchema):
             return bool(
                 self.symbols == other.symbols
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -2934,7 +4185,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
         return False
 
     def __hash__(self) -> int:
-        return hash((self.symbols, self.type, self.label, self.doc, self.name))
+        return hash((self.symbols, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -2942,29 +4193,57 @@ class InputEnumSchema(EnumSchema, InputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "InputEnumSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -2977,75 +4256,187 @@ class InputEnumSchema(EnumSchema, InputSchema):
         if not __original_name_is_none:
             baseuri = name
         try:
+            if _doc.get("symbols") is None:
+                raise ValidationException("missing required field `symbols`", None, [])
+
             symbols = load_field(
                 _doc.get("symbols"),
                 uri_array_of_strtype_True_False_None,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("symbols")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'symbols' field is not valid because:",
-                    SourceLine(_doc, "symbols", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `symbols`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("symbols"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `symbols` field is not valid because:",
+                            SourceLine(_doc, "symbols", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `symbols` field is not valid because:",
+                            SourceLine(_doc, "symbols", str),
+                            [e],
+                        )
+                    )
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -3059,13 +4450,12 @@ class InputEnumSchema(EnumSchema, InputSchema):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'InputEnumSchema'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             symbols=symbols,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -3092,9 +4482,9 @@ class InputEnumSchema(EnumSchema, InputSchema):
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
             r["symbols"] = u
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -3120,14 +4510,13 @@ class InputArraySchema(ArraySchema, InputSchema):
     def __init__(
         self,
         items: Any,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -3137,7 +4526,7 @@ class InputArraySchema(ArraySchema, InputSchema):
         else:
             self.loadingOptions = LoadingOptions()
         self.items = items
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -3146,7 +4535,7 @@ class InputArraySchema(ArraySchema, InputSchema):
         if isinstance(other, InputArraySchema):
             return bool(
                 self.items == other.items
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -3154,7 +4543,7 @@ class InputArraySchema(ArraySchema, InputSchema):
         return False
 
     def __hash__(self) -> int:
-        return hash((self.items, self.type, self.label, self.doc, self.name))
+        return hash((self.items, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -3162,29 +4551,57 @@ class InputArraySchema(ArraySchema, InputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "InputArraySchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -3197,75 +4614,187 @@ class InputArraySchema(ArraySchema, InputSchema):
         if not __original_name_is_none:
             baseuri = name
         try:
+            if _doc.get("items") is None:
+                raise ValidationException("missing required field `items`", None, [])
+
             items = load_field(
                 _doc.get("items"),
                 typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("items")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'items' field is not valid because:",
-                    SourceLine(_doc, "items", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `items`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `items` field is not valid because:",
+                            SourceLine(_doc, "items", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `items` field is not valid because:",
+                            SourceLine(_doc, "items", str),
+                            [e],
+                        )
+                    )
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -3279,13 +4808,12 @@ class InputArraySchema(ArraySchema, InputSchema):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'InputArraySchema'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             items=items,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -3313,9 +4841,9 @@ class InputArraySchema(ArraySchema, InputSchema):
             r["items"] = save(
                 self.items, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -3341,7 +4869,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
     def __init__(
         self,
         name: Any,
-        type: Any,
+        type_: Any,
         doc: Optional[Any] = None,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
@@ -3350,7 +4878,6 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -3361,7 +4888,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
             self.loadingOptions = LoadingOptions()
         self.doc = doc
         self.name = name
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.secondaryFiles = secondaryFiles
         self.streamable = streamable
@@ -3372,7 +4899,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
             return bool(
                 self.doc == other.doc
                 and self.name == other.name
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.secondaryFiles == other.secondaryFiles
                 and self.streamable == other.streamable
@@ -3385,7 +4912,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
             (
                 self.doc,
                 self.name,
-                self.type,
+                self.type_,
                 self.label,
                 self.secondaryFiles,
                 self.streamable,
@@ -3399,29 +4926,57 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "OutputRecordField":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -3430,118 +4985,284 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
             if docRoot is not None:
                 name = docRoot
             else:
-                raise ValidationException("Missing name")
+                _errors__.append(ValidationException("missing name"))
         if not __original_name_is_none:
             baseuri = name
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "secondaryFiles" in _doc:
             try:
+                if _doc.get("secondaryFiles") is None:
+                    raise ValidationException("missing required field `secondaryFiles`", None, [])
+
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("secondaryFiles")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'secondaryFiles' field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `secondaryFiles`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [e],
+                            )
+                        )
         else:
             secondaryFiles = None
         if "streamable" in _doc:
             try:
+                if _doc.get("streamable") is None:
+                    raise ValidationException("missing required field `streamable`", None, [])
+
                 streamable = load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("streamable")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'streamable' field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `streamable`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [e],
+                            )
+                        )
         else:
             streamable = None
         if "format" in _doc:
             try:
+                if _doc.get("format") is None:
+                    raise ValidationException("missing required field `format`", None, [])
+
                 format = load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("format")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'format' field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `format`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [e],
+                            )
+                        )
         else:
             format = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -3555,14 +5276,13 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'OutputRecordField'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             doc=doc,
             name=name,
-            type=type,
+            type_=type_,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -3591,9 +5311,9 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
             r["doc"] = save(
                 self.doc, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -3633,7 +5353,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
 class OutputRecordSchema(RecordSchema, OutputSchema):
     def __init__(
         self,
-        type: Any,
+        type_: Any,
         fields: Optional[Any] = None,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
@@ -3641,7 +5361,6 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -3651,7 +5370,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
         else:
             self.loadingOptions = LoadingOptions()
         self.fields = fields
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -3660,7 +5379,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
         if isinstance(other, OutputRecordSchema):
             return bool(
                 self.fields == other.fields
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -3668,7 +5387,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
         return False
 
     def __hash__(self) -> int:
-        return hash((self.fields, self.type, self.label, self.doc, self.name))
+        return hash((self.fields, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -3676,29 +5395,57 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "OutputRecordSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -3712,77 +5459,189 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
             baseuri = name
         if "fields" in _doc:
             try:
+                if _doc.get("fields") is None:
+                    raise ValidationException("missing required field `fields`", None, [])
+
                 fields = load_field(
                     _doc.get("fields"),
                     idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("fields")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'fields' field is not valid because:",
-                        SourceLine(_doc, "fields", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `fields`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `fields` field is not valid because:",
+                                SourceLine(_doc, "fields", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `fields` field is not valid because:",
+                                SourceLine(_doc, "fields", str),
+                                [e],
+                            )
+                        )
         else:
             fields = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -3796,13 +5655,12 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'OutputRecordSchema'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             fields=fields,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -3830,9 +5688,9 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
             r["fields"] = save(
                 self.fields, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -3858,14 +5716,13 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
     def __init__(
         self,
         symbols: Any,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -3875,7 +5732,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         else:
             self.loadingOptions = LoadingOptions()
         self.symbols = symbols
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -3884,7 +5741,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         if isinstance(other, OutputEnumSchema):
             return bool(
                 self.symbols == other.symbols
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -3892,7 +5749,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         return False
 
     def __hash__(self) -> int:
-        return hash((self.symbols, self.type, self.label, self.doc, self.name))
+        return hash((self.symbols, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -3900,29 +5757,57 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "OutputEnumSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -3935,75 +5820,187 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         if not __original_name_is_none:
             baseuri = name
         try:
+            if _doc.get("symbols") is None:
+                raise ValidationException("missing required field `symbols`", None, [])
+
             symbols = load_field(
                 _doc.get("symbols"),
                 uri_array_of_strtype_True_False_None,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("symbols")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'symbols' field is not valid because:",
-                    SourceLine(_doc, "symbols", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `symbols`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("symbols"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `symbols` field is not valid because:",
+                            SourceLine(_doc, "symbols", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `symbols` field is not valid because:",
+                            SourceLine(_doc, "symbols", str),
+                            [e],
+                        )
+                    )
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -4017,13 +6014,12 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'OutputEnumSchema'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             symbols=symbols,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -4050,9 +6046,9 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
             r["symbols"] = u
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -4078,14 +6074,13 @@ class OutputArraySchema(ArraySchema, OutputSchema):
     def __init__(
         self,
         items: Any,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -4095,7 +6090,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         else:
             self.loadingOptions = LoadingOptions()
         self.items = items
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -4104,7 +6099,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         if isinstance(other, OutputArraySchema):
             return bool(
                 self.items == other.items
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -4112,7 +6107,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         return False
 
     def __hash__(self) -> int:
-        return hash((self.items, self.type, self.label, self.doc, self.name))
+        return hash((self.items, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -4120,29 +6115,57 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "OutputArraySchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -4155,75 +6178,187 @@ class OutputArraySchema(ArraySchema, OutputSchema):
         if not __original_name_is_none:
             baseuri = name
         try:
+            if _doc.get("items") is None:
+                raise ValidationException("missing required field `items`", None, [])
+
             items = load_field(
                 _doc.get("items"),
                 typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("items")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'items' field is not valid because:",
-                    SourceLine(_doc, "items", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `items`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `items` field is not valid because:",
+                            SourceLine(_doc, "items", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `items` field is not valid because:",
+                            SourceLine(_doc, "items", str),
+                            [e],
+                        )
+                    )
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -4237,13 +6372,12 @@ class OutputArraySchema(ArraySchema, OutputSchema):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'OutputArraySchema'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             items=items,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -4271,9 +6405,9 @@ class OutputArraySchema(ArraySchema, OutputSchema):
             r["items"] = save(
                 self.items, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -4343,7 +6477,6 @@ class InlineJavascriptRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -4372,39 +6505,73 @@ class InlineJavascriptRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "InlineJavascriptRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "InlineJavascriptRequirement":
-            raise ValidationException("Not a InlineJavascriptRequirement")
+            raise ValidationException("tried `InlineJavascriptRequirement` but")
 
         if "expressionLib" in _doc:
             try:
+                if _doc.get("expressionLib") is None:
+                    raise ValidationException("missing required field `expressionLib`", None, [])
+
                 expressionLib = load_field(
                     _doc.get("expressionLib"),
                     union_of_None_type_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("expressionLib")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'expressionLib' field is not valid because:",
-                        SourceLine(_doc, "expressionLib", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `expressionLib`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("expressionLib"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `expressionLib` field is not valid because:",
+                                SourceLine(_doc, "expressionLib", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `expressionLib` field is not valid because:",
+                                SourceLine(_doc, "expressionLib", str),
+                                [e],
+                            )
+                        )
         else:
             expressionLib = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -4418,12 +6585,9 @@ class InlineJavascriptRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'InlineJavascriptRequirement'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             expressionLib=expressionLib,
             extension_fields=extension_fields,
@@ -4485,7 +6649,6 @@ class SchemaDefRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -4511,36 +6674,70 @@ class SchemaDefRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "SchemaDefRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "SchemaDefRequirement":
-            raise ValidationException("Not a SchemaDefRequirement")
+            raise ValidationException("tried `SchemaDefRequirement` but")
 
         try:
+            if _doc.get("types") is None:
+                raise ValidationException("missing required field `types`", None, [])
+
             types = load_field(
                 _doc.get("types"),
                 array_of_union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("types")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'types' field is not valid because:",
-                    SourceLine(_doc, "types", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `types`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("types"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `types` field is not valid because:",
+                            SourceLine(_doc, "types", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `types` field is not valid because:",
+                            SourceLine(_doc, "types", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -4554,10 +6751,9 @@ class SchemaDefRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'SchemaDefRequirement'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             types=types,
             extension_fields=extension_fields,
@@ -4602,7 +6798,6 @@ class SecondaryFileSchema(Saveable):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -4630,50 +6825,109 @@ class SecondaryFileSchema(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "SecondaryFileSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         try:
+            if _doc.get("pattern") is None:
+                raise ValidationException("missing required field `pattern`", None, [])
+
             pattern = load_field(
                 _doc.get("pattern"),
                 union_of_strtype_or_ExpressionLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("pattern")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'pattern' field is not valid because:",
-                    SourceLine(_doc, "pattern", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `pattern`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("pattern"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `pattern` field is not valid because:",
+                            SourceLine(_doc, "pattern", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `pattern` field is not valid because:",
+                            SourceLine(_doc, "pattern", str),
+                            [e],
+                        )
+                    )
         if "required" in _doc:
             try:
+                if _doc.get("required") is None:
+                    raise ValidationException("missing required field `required`", None, [])
+
                 required = load_field(
                     _doc.get("required"),
                     union_of_None_type_or_booltype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("required")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'required' field is not valid because:",
-                        SourceLine(_doc, "required", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `required`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("required"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `required` field is not valid because:",
+                                SourceLine(_doc, "required", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `required` field is not valid because:",
+                                SourceLine(_doc, "required", str),
+                                [e],
+                            )
+                        )
         else:
             required = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -4687,10 +6941,9 @@ class SecondaryFileSchema(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'SecondaryFileSchema'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             pattern=pattern,
             required=required,
@@ -4743,7 +6996,6 @@ class LoadListingRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -4771,39 +7023,73 @@ class LoadListingRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "LoadListingRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "LoadListingRequirement":
-            raise ValidationException("Not a LoadListingRequirement")
+            raise ValidationException("tried `LoadListingRequirement` but")
 
         if "loadListing" in _doc:
             try:
+                if _doc.get("loadListing") is None:
+                    raise ValidationException("missing required field `loadListing`", None, [])
+
                 loadListing = load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadListing")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadListing' field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadListing`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadListing"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [e],
+                            )
+                        )
         else:
             loadListing = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -4817,12 +7103,9 @@ class LoadListingRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'LoadListingRequirement'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             loadListing=loadListing,
             extension_fields=extension_fields,
@@ -4877,7 +7160,6 @@ class EnvironmentDef(Saveable):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -4905,47 +7187,106 @@ class EnvironmentDef(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "EnvironmentDef":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         try:
+            if _doc.get("envName") is None:
+                raise ValidationException("missing required field `envName`", None, [])
+
             envName = load_field(
                 _doc.get("envName"),
                 strtype,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("envName")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'envName' field is not valid because:",
-                    SourceLine(_doc, "envName", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `envName`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("envName"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `envName` field is not valid because:",
+                            SourceLine(_doc, "envName", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `envName` field is not valid because:",
+                            SourceLine(_doc, "envName", str),
+                            [e],
+                        )
+                    )
         try:
+            if _doc.get("envValue") is None:
+                raise ValidationException("missing required field `envValue`", None, [])
+
             envValue = load_field(
                 _doc.get("envValue"),
                 union_of_strtype_or_ExpressionLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("envValue")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'envValue' field is not valid because:",
-                    SourceLine(_doc, "envValue", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `envValue`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("envValue"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `envValue` field is not valid because:",
+                            SourceLine(_doc, "envValue", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `envValue` field is not valid because:",
+                            SourceLine(_doc, "envValue", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -4959,10 +7300,9 @@ class EnvironmentDef(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'EnvironmentDef'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             envName=envName,
             envValue=envValue,
@@ -5054,7 +7394,6 @@ class CommandLineBinding(InputBinding):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -5103,143 +7442,337 @@ class CommandLineBinding(InputBinding):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandLineBinding":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "loadContents" in _doc:
             try:
+                if _doc.get("loadContents") is None:
+                    raise ValidationException("missing required field `loadContents`", None, [])
+
                 loadContents = load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadContents")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadContents' field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadContents`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadContents"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [e],
+                            )
+                        )
         else:
             loadContents = None
         if "position" in _doc:
             try:
+                if _doc.get("position") is None:
+                    raise ValidationException("missing required field `position`", None, [])
+
                 position = load_field(
                     _doc.get("position"),
                     union_of_None_type_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("position")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'position' field is not valid because:",
-                        SourceLine(_doc, "position", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `position`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("position"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `position` field is not valid because:",
+                                SourceLine(_doc, "position", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `position` field is not valid because:",
+                                SourceLine(_doc, "position", str),
+                                [e],
+                            )
+                        )
         else:
             position = None
         if "prefix" in _doc:
             try:
+                if _doc.get("prefix") is None:
+                    raise ValidationException("missing required field `prefix`", None, [])
+
                 prefix = load_field(
                     _doc.get("prefix"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("prefix")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'prefix' field is not valid because:",
-                        SourceLine(_doc, "prefix", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `prefix`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("prefix"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `prefix` field is not valid because:",
+                                SourceLine(_doc, "prefix", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `prefix` field is not valid because:",
+                                SourceLine(_doc, "prefix", str),
+                                [e],
+                            )
+                        )
         else:
             prefix = None
         if "separate" in _doc:
             try:
+                if _doc.get("separate") is None:
+                    raise ValidationException("missing required field `separate`", None, [])
+
                 separate = load_field(
                     _doc.get("separate"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("separate")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'separate' field is not valid because:",
-                        SourceLine(_doc, "separate", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `separate`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("separate"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `separate` field is not valid because:",
+                                SourceLine(_doc, "separate", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `separate` field is not valid because:",
+                                SourceLine(_doc, "separate", str),
+                                [e],
+                            )
+                        )
         else:
             separate = None
         if "itemSeparator" in _doc:
             try:
+                if _doc.get("itemSeparator") is None:
+                    raise ValidationException("missing required field `itemSeparator`", None, [])
+
                 itemSeparator = load_field(
                     _doc.get("itemSeparator"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("itemSeparator")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'itemSeparator' field is not valid because:",
-                        SourceLine(_doc, "itemSeparator", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `itemSeparator`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("itemSeparator"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `itemSeparator` field is not valid because:",
+                                SourceLine(_doc, "itemSeparator", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `itemSeparator` field is not valid because:",
+                                SourceLine(_doc, "itemSeparator", str),
+                                [e],
+                            )
+                        )
         else:
             itemSeparator = None
         if "valueFrom" in _doc:
             try:
+                if _doc.get("valueFrom") is None:
+                    raise ValidationException("missing required field `valueFrom`", None, [])
+
                 valueFrom = load_field(
                     _doc.get("valueFrom"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("valueFrom")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'valueFrom' field is not valid because:",
-                        SourceLine(_doc, "valueFrom", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `valueFrom`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("valueFrom"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `valueFrom` field is not valid because:",
+                                SourceLine(_doc, "valueFrom", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `valueFrom` field is not valid because:",
+                                SourceLine(_doc, "valueFrom", str),
+                                [e],
+                            )
+                        )
         else:
             valueFrom = None
         if "shellQuote" in _doc:
             try:
+                if _doc.get("shellQuote") is None:
+                    raise ValidationException("missing required field `shellQuote`", None, [])
+
                 shellQuote = load_field(
                     _doc.get("shellQuote"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("shellQuote")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'shellQuote' field is not valid because:",
-                        SourceLine(_doc, "shellQuote", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `shellQuote`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("shellQuote"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `shellQuote` field is not valid because:",
+                                SourceLine(_doc, "shellQuote", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `shellQuote` field is not valid because:",
+                                SourceLine(_doc, "shellQuote", str),
+                                [e],
+                            )
+                        )
         else:
             shellQuote = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -5253,10 +7786,9 @@ class CommandLineBinding(InputBinding):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'CommandLineBinding'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             loadContents=loadContents,
             position=position,
@@ -5367,7 +7899,6 @@ class CommandOutputBinding(LoadContents):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -5400,89 +7931,202 @@ class CommandOutputBinding(LoadContents):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandOutputBinding":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "loadContents" in _doc:
             try:
+                if _doc.get("loadContents") is None:
+                    raise ValidationException("missing required field `loadContents`", None, [])
+
                 loadContents = load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadContents")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadContents' field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadContents`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadContents"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [e],
+                            )
+                        )
         else:
             loadContents = None
         if "loadListing" in _doc:
             try:
+                if _doc.get("loadListing") is None:
+                    raise ValidationException("missing required field `loadListing`", None, [])
+
                 loadListing = load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadListing")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadListing' field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadListing`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadListing"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [e],
+                            )
+                        )
         else:
             loadListing = None
         if "glob" in _doc:
             try:
+                if _doc.get("glob") is None:
+                    raise ValidationException("missing required field `glob`", None, [])
+
                 glob = load_field(
                     _doc.get("glob"),
                     union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("glob")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'glob' field is not valid because:",
-                        SourceLine(_doc, "glob", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `glob`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("glob"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `glob` field is not valid because:",
+                                SourceLine(_doc, "glob", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `glob` field is not valid because:",
+                                SourceLine(_doc, "glob", str),
+                                [e],
+                            )
+                        )
         else:
             glob = None
         if "outputEval" in _doc:
             try:
+                if _doc.get("outputEval") is None:
+                    raise ValidationException("missing required field `outputEval`", None, [])
+
                 outputEval = load_field(
                     _doc.get("outputEval"),
                     union_of_None_type_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("outputEval")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'outputEval' field is not valid because:",
-                        SourceLine(_doc, "outputEval", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `outputEval`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("outputEval"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `outputEval` field is not valid because:",
+                                SourceLine(_doc, "outputEval", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `outputEval` field is not valid because:",
+                                SourceLine(_doc, "outputEval", str),
+                                [e],
+                            )
+                        )
         else:
             outputEval = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -5496,10 +8140,9 @@ class CommandOutputBinding(LoadContents):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'CommandOutputBinding'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             loadContents=loadContents,
             loadListing=loadListing,
@@ -5565,7 +8208,6 @@ class CommandLineBindable(Saveable):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -5590,35 +8232,67 @@ class CommandLineBindable(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandLineBindable":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "inputBinding" in _doc:
             try:
+                if _doc.get("inputBinding") is None:
+                    raise ValidationException("missing required field `inputBinding`", None, [])
+
                 inputBinding = load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("inputBinding")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'inputBinding' field is not valid because:",
-                        SourceLine(_doc, "inputBinding", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `inputBinding`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [e],
+                            )
+                        )
         else:
             inputBinding = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -5632,10 +8306,9 @@ class CommandLineBindable(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'CommandLineBindable'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             inputBinding=inputBinding,
             extension_fields=extension_fields,
@@ -5677,7 +8350,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
     def __init__(
         self,
         name: Any,
-        type: Any,
+        type_: Any,
         doc: Optional[Any] = None,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
@@ -5689,7 +8362,6 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -5700,7 +8372,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             self.loadingOptions = LoadingOptions()
         self.doc = doc
         self.name = name
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.secondaryFiles = secondaryFiles
         self.streamable = streamable
@@ -5714,7 +8386,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             return bool(
                 self.doc == other.doc
                 and self.name == other.name
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.secondaryFiles == other.secondaryFiles
                 and self.streamable == other.streamable
@@ -5730,7 +8402,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             (
                 self.doc,
                 self.name,
-                self.type,
+                self.type_,
                 self.label,
                 self.secondaryFiles,
                 self.streamable,
@@ -5747,29 +8419,57 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandInputRecordField":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -5778,172 +8478,419 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             if docRoot is not None:
                 name = docRoot
             else:
-                raise ValidationException("Missing name")
+                _errors__.append(ValidationException("missing name"))
         if not __original_name_is_none:
             baseuri = name
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "secondaryFiles" in _doc:
             try:
+                if _doc.get("secondaryFiles") is None:
+                    raise ValidationException("missing required field `secondaryFiles`", None, [])
+
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("secondaryFiles")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'secondaryFiles' field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `secondaryFiles`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [e],
+                            )
+                        )
         else:
             secondaryFiles = None
         if "streamable" in _doc:
             try:
+                if _doc.get("streamable") is None:
+                    raise ValidationException("missing required field `streamable`", None, [])
+
                 streamable = load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("streamable")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'streamable' field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `streamable`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [e],
+                            )
+                        )
         else:
             streamable = None
         if "format" in _doc:
             try:
+                if _doc.get("format") is None:
+                    raise ValidationException("missing required field `format`", None, [])
+
                 format = load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("format")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'format' field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `format`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [e],
+                            )
+                        )
         else:
             format = None
         if "loadContents" in _doc:
             try:
+                if _doc.get("loadContents") is None:
+                    raise ValidationException("missing required field `loadContents`", None, [])
+
                 loadContents = load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadContents")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadContents' field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadContents`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadContents"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [e],
+                            )
+                        )
         else:
             loadContents = None
         if "loadListing" in _doc:
             try:
+                if _doc.get("loadListing") is None:
+                    raise ValidationException("missing required field `loadListing`", None, [])
+
                 loadListing = load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadListing")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadListing' field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadListing`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadListing"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [e],
+                            )
+                        )
         else:
             loadListing = None
         if "inputBinding" in _doc:
             try:
+                if _doc.get("inputBinding") is None:
+                    raise ValidationException("missing required field `inputBinding`", None, [])
+
                 inputBinding = load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("inputBinding")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'inputBinding' field is not valid because:",
-                        SourceLine(_doc, "inputBinding", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `inputBinding`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [e],
+                            )
+                        )
         else:
             inputBinding = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -5957,16 +8904,13 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'CommandInputRecordField'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             doc=doc,
             name=name,
-            type=type,
+            type_=type_,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -5998,9 +8942,9 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             r["doc"] = save(
                 self.doc, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -6074,7 +9018,7 @@ class CommandInputRecordSchema(
 ):
     def __init__(
         self,
-        type: Any,
+        type_: Any,
         fields: Optional[Any] = None,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
@@ -6083,7 +9027,6 @@ class CommandInputRecordSchema(
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -6093,7 +9036,7 @@ class CommandInputRecordSchema(
         else:
             self.loadingOptions = LoadingOptions()
         self.fields = fields
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -6103,7 +9046,7 @@ class CommandInputRecordSchema(
         if isinstance(other, CommandInputRecordSchema):
             return bool(
                 self.fields == other.fields
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -6113,7 +9056,14 @@ class CommandInputRecordSchema(
 
     def __hash__(self) -> int:
         return hash(
-            (self.fields, self.type, self.label, self.doc, self.name, self.inputBinding)
+            (
+                self.fields,
+                self.type_,
+                self.label,
+                self.doc,
+                self.name,
+                self.inputBinding,
+            )
         )
 
     @classmethod
@@ -6122,29 +9072,57 @@ class CommandInputRecordSchema(
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandInputRecordSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -6158,95 +9136,234 @@ class CommandInputRecordSchema(
             baseuri = name
         if "fields" in _doc:
             try:
+                if _doc.get("fields") is None:
+                    raise ValidationException("missing required field `fields`", None, [])
+
                 fields = load_field(
                     _doc.get("fields"),
                     idmap_fields_union_of_None_type_or_array_of_CommandInputRecordFieldLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("fields")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'fields' field is not valid because:",
-                        SourceLine(_doc, "fields", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `fields`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `fields` field is not valid because:",
+                                SourceLine(_doc, "fields", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `fields` field is not valid because:",
+                                SourceLine(_doc, "fields", str),
+                                [e],
+                            )
+                        )
         else:
             fields = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         if "inputBinding" in _doc:
             try:
+                if _doc.get("inputBinding") is None:
+                    raise ValidationException("missing required field `inputBinding`", None, [])
+
                 inputBinding = load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("inputBinding")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'inputBinding' field is not valid because:",
-                        SourceLine(_doc, "inputBinding", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `inputBinding`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [e],
+                            )
+                        )
         else:
             inputBinding = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -6260,15 +9377,12 @@ class CommandInputRecordSchema(
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'CommandInputRecordSchema'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             fields=fields,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -6297,9 +9411,9 @@ class CommandInputRecordSchema(
             r["fields"] = save(
                 self.fields, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -6332,7 +9446,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
     def __init__(
         self,
         symbols: Any,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
@@ -6340,7 +9454,6 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -6350,7 +9463,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         else:
             self.loadingOptions = LoadingOptions()
         self.symbols = symbols
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -6360,7 +9473,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         if isinstance(other, CommandInputEnumSchema):
             return bool(
                 self.symbols == other.symbols
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -6372,7 +9485,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         return hash(
             (
                 self.symbols,
-                self.type,
+                self.type_,
                 self.label,
                 self.doc,
                 self.name,
@@ -6386,29 +9499,57 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandInputEnumSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -6421,93 +9562,232 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         if not __original_name_is_none:
             baseuri = name
         try:
+            if _doc.get("symbols") is None:
+                raise ValidationException("missing required field `symbols`", None, [])
+
             symbols = load_field(
                 _doc.get("symbols"),
                 uri_array_of_strtype_True_False_None,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("symbols")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'symbols' field is not valid because:",
-                    SourceLine(_doc, "symbols", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `symbols`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("symbols"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `symbols` field is not valid because:",
+                            SourceLine(_doc, "symbols", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `symbols` field is not valid because:",
+                            SourceLine(_doc, "symbols", str),
+                            [e],
+                        )
+                    )
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         if "inputBinding" in _doc:
             try:
+                if _doc.get("inputBinding") is None:
+                    raise ValidationException("missing required field `inputBinding`", None, [])
+
                 inputBinding = load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("inputBinding")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'inputBinding' field is not valid because:",
-                        SourceLine(_doc, "inputBinding", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `inputBinding`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [e],
+                            )
+                        )
         else:
             inputBinding = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -6521,15 +9801,12 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'CommandInputEnumSchema'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             symbols=symbols,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -6557,9 +9834,9 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
             r["symbols"] = u
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -6594,7 +9871,7 @@ class CommandInputArraySchema(
     def __init__(
         self,
         items: Any,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
@@ -6602,7 +9879,6 @@ class CommandInputArraySchema(
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -6612,7 +9888,7 @@ class CommandInputArraySchema(
         else:
             self.loadingOptions = LoadingOptions()
         self.items = items
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -6622,7 +9898,7 @@ class CommandInputArraySchema(
         if isinstance(other, CommandInputArraySchema):
             return bool(
                 self.items == other.items
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -6632,7 +9908,7 @@ class CommandInputArraySchema(
 
     def __hash__(self) -> int:
         return hash(
-            (self.items, self.type, self.label, self.doc, self.name, self.inputBinding)
+            (self.items, self.type_, self.label, self.doc, self.name, self.inputBinding)
         )
 
     @classmethod
@@ -6641,29 +9917,57 @@ class CommandInputArraySchema(
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandInputArraySchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -6676,93 +9980,232 @@ class CommandInputArraySchema(
         if not __original_name_is_none:
             baseuri = name
         try:
+            if _doc.get("items") is None:
+                raise ValidationException("missing required field `items`", None, [])
+
             items = load_field(
                 _doc.get("items"),
                 typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("items")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'items' field is not valid because:",
-                    SourceLine(_doc, "items", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `items`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `items` field is not valid because:",
+                            SourceLine(_doc, "items", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `items` field is not valid because:",
+                            SourceLine(_doc, "items", str),
+                            [e],
+                        )
+                    )
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         if "inputBinding" in _doc:
             try:
+                if _doc.get("inputBinding") is None:
+                    raise ValidationException("missing required field `inputBinding`", None, [])
+
                 inputBinding = load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("inputBinding")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'inputBinding' field is not valid because:",
-                        SourceLine(_doc, "inputBinding", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `inputBinding`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [e],
+                            )
+                        )
         else:
             inputBinding = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -6776,15 +10219,12 @@ class CommandInputArraySchema(
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'CommandInputArraySchema'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             items=items,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -6813,9 +10253,9 @@ class CommandInputArraySchema(
             r["items"] = save(
                 self.items, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -6848,7 +10288,7 @@ class CommandOutputRecordField(OutputRecordField):
     def __init__(
         self,
         name: Any,
-        type: Any,
+        type_: Any,
         doc: Optional[Any] = None,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
@@ -6858,7 +10298,6 @@ class CommandOutputRecordField(OutputRecordField):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -6869,7 +10308,7 @@ class CommandOutputRecordField(OutputRecordField):
             self.loadingOptions = LoadingOptions()
         self.doc = doc
         self.name = name
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.secondaryFiles = secondaryFiles
         self.streamable = streamable
@@ -6881,7 +10320,7 @@ class CommandOutputRecordField(OutputRecordField):
             return bool(
                 self.doc == other.doc
                 and self.name == other.name
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.secondaryFiles == other.secondaryFiles
                 and self.streamable == other.streamable
@@ -6895,7 +10334,7 @@ class CommandOutputRecordField(OutputRecordField):
             (
                 self.doc,
                 self.name,
-                self.type,
+                self.type_,
                 self.label,
                 self.secondaryFiles,
                 self.streamable,
@@ -6910,29 +10349,57 @@ class CommandOutputRecordField(OutputRecordField):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandOutputRecordField":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -6941,136 +10408,329 @@ class CommandOutputRecordField(OutputRecordField):
             if docRoot is not None:
                 name = docRoot
             else:
-                raise ValidationException("Missing name")
+                _errors__.append(ValidationException("missing name"))
         if not __original_name_is_none:
             baseuri = name
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "secondaryFiles" in _doc:
             try:
+                if _doc.get("secondaryFiles") is None:
+                    raise ValidationException("missing required field `secondaryFiles`", None, [])
+
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("secondaryFiles")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'secondaryFiles' field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `secondaryFiles`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [e],
+                            )
+                        )
         else:
             secondaryFiles = None
         if "streamable" in _doc:
             try:
+                if _doc.get("streamable") is None:
+                    raise ValidationException("missing required field `streamable`", None, [])
+
                 streamable = load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("streamable")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'streamable' field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `streamable`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [e],
+                            )
+                        )
         else:
             streamable = None
         if "format" in _doc:
             try:
+                if _doc.get("format") is None:
+                    raise ValidationException("missing required field `format`", None, [])
+
                 format = load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("format")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'format' field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `format`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [e],
+                            )
+                        )
         else:
             format = None
         if "outputBinding" in _doc:
             try:
+                if _doc.get("outputBinding") is None:
+                    raise ValidationException("missing required field `outputBinding`", None, [])
+
                 outputBinding = load_field(
                     _doc.get("outputBinding"),
                     union_of_None_type_or_CommandOutputBindingLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("outputBinding")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'outputBinding' field is not valid because:",
-                        SourceLine(_doc, "outputBinding", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `outputBinding`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `outputBinding` field is not valid because:",
+                                SourceLine(_doc, "outputBinding", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `outputBinding` field is not valid because:",
+                                SourceLine(_doc, "outputBinding", str),
+                                [e],
+                            )
+                        )
         else:
             outputBinding = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -7084,16 +10744,13 @@ class CommandOutputRecordField(OutputRecordField):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'CommandOutputRecordField'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             doc=doc,
             name=name,
-            type=type,
+            type_=type_,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -7123,9 +10780,9 @@ class CommandOutputRecordField(OutputRecordField):
             r["doc"] = save(
                 self.doc, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -7181,7 +10838,7 @@ class CommandOutputRecordField(OutputRecordField):
 class CommandOutputRecordSchema(OutputRecordSchema):
     def __init__(
         self,
-        type: Any,
+        type_: Any,
         fields: Optional[Any] = None,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
@@ -7189,7 +10846,6 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -7199,7 +10855,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         else:
             self.loadingOptions = LoadingOptions()
         self.fields = fields
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -7208,7 +10864,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         if isinstance(other, CommandOutputRecordSchema):
             return bool(
                 self.fields == other.fields
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -7216,7 +10872,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         return False
 
     def __hash__(self) -> int:
-        return hash((self.fields, self.type, self.label, self.doc, self.name))
+        return hash((self.fields, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -7224,29 +10880,57 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandOutputRecordSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -7260,77 +10944,189 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             baseuri = name
         if "fields" in _doc:
             try:
+                if _doc.get("fields") is None:
+                    raise ValidationException("missing required field `fields`", None, [])
+
                 fields = load_field(
                     _doc.get("fields"),
                     idmap_fields_union_of_None_type_or_array_of_CommandOutputRecordFieldLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("fields")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'fields' field is not valid because:",
-                        SourceLine(_doc, "fields", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `fields`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `fields` field is not valid because:",
+                                SourceLine(_doc, "fields", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `fields` field is not valid because:",
+                                SourceLine(_doc, "fields", str),
+                                [e],
+                            )
+                        )
         else:
             fields = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -7344,15 +11140,12 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'CommandOutputRecordSchema'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             fields=fields,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -7380,9 +11173,9 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             r["fields"] = save(
                 self.fields, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -7408,14 +11201,13 @@ class CommandOutputEnumSchema(OutputEnumSchema):
     def __init__(
         self,
         symbols: Any,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -7425,7 +11217,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         else:
             self.loadingOptions = LoadingOptions()
         self.symbols = symbols
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -7434,7 +11226,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         if isinstance(other, CommandOutputEnumSchema):
             return bool(
                 self.symbols == other.symbols
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -7442,7 +11234,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         return False
 
     def __hash__(self) -> int:
-        return hash((self.symbols, self.type, self.label, self.doc, self.name))
+        return hash((self.symbols, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -7450,29 +11242,57 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandOutputEnumSchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -7485,75 +11305,187 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         if not __original_name_is_none:
             baseuri = name
         try:
+            if _doc.get("symbols") is None:
+                raise ValidationException("missing required field `symbols`", None, [])
+
             symbols = load_field(
                 _doc.get("symbols"),
                 uri_array_of_strtype_True_False_None,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("symbols")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'symbols' field is not valid because:",
-                    SourceLine(_doc, "symbols", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `symbols`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("symbols"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `symbols` field is not valid because:",
+                            SourceLine(_doc, "symbols", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `symbols` field is not valid because:",
+                            SourceLine(_doc, "symbols", str),
+                            [e],
+                        )
+                    )
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -7567,15 +11499,12 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'CommandOutputEnumSchema'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             symbols=symbols,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -7602,9 +11531,9 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
             r["symbols"] = u
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -7630,14 +11559,13 @@ class CommandOutputArraySchema(OutputArraySchema):
     def __init__(
         self,
         items: Any,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -7647,7 +11575,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         else:
             self.loadingOptions = LoadingOptions()
         self.items = items
-        self.type = type
+        self.type_ = type_
         self.label = label
         self.doc = doc
         self.name = name
@@ -7656,7 +11584,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         if isinstance(other, CommandOutputArraySchema):
             return bool(
                 self.items == other.items
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
                 and self.name == other.name
@@ -7664,7 +11592,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         return False
 
     def __hash__(self) -> int:
-        return hash((self.items, self.type, self.label, self.doc, self.name))
+        return hash((self.items, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -7672,29 +11600,57 @@ class CommandOutputArraySchema(OutputArraySchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandOutputArraySchema":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "name" in _doc:
             try:
+                if _doc.get("name") is None:
+                    raise ValidationException("missing required field `name`", None, [])
+
                 name = load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("name")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'name' field is not valid because:",
-                        SourceLine(_doc, "name", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `name`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `name` field is not valid because:",
+                                SourceLine(_doc, "name", str),
+                                [e],
+                            )
+                        )
         else:
             name = None
 
@@ -7707,75 +11663,187 @@ class CommandOutputArraySchema(OutputArraySchema):
         if not __original_name_is_none:
             baseuri = name
         try:
+            if _doc.get("items") is None:
+                raise ValidationException("missing required field `items`", None, [])
+
             items = load_field(
                 _doc.get("items"),
                 typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("items")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'items' field is not valid because:",
-                    SourceLine(_doc, "items", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `items`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `items` field is not valid because:",
+                            SourceLine(_doc, "items", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `items` field is not valid because:",
+                            SourceLine(_doc, "items", str),
+                            [e],
+                        )
+                    )
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -7789,15 +11857,12 @@ class CommandOutputArraySchema(OutputArraySchema):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'CommandOutputArraySchema'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             items=items,
-            type=type,
+            type_=type_,
             label=label,
             doc=doc,
             name=name,
@@ -7825,9 +11890,9 @@ class CommandOutputArraySchema(OutputArraySchema):
             r["items"] = save(
                 self.items, top=False, base_url=self.name, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.name, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.name, relative_uris=relative_uris
             )
         if self.label is not None:
             r["label"] = save(
@@ -7856,7 +11921,7 @@ class CommandInputParameter(InputParameter):
 
     def __init__(
         self,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
@@ -7870,7 +11935,6 @@ class CommandInputParameter(InputParameter):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -7888,7 +11952,7 @@ class CommandInputParameter(InputParameter):
         self.loadContents = loadContents
         self.loadListing = loadListing
         self.default = default
-        self.type = type
+        self.type_ = type_
         self.inputBinding = inputBinding
 
     def __eq__(self, other: Any) -> bool:
@@ -7903,7 +11967,7 @@ class CommandInputParameter(InputParameter):
                 and self.loadContents == other.loadContents
                 and self.loadListing == other.loadListing
                 and self.default == other.default
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.inputBinding == other.inputBinding
             )
         return False
@@ -7920,7 +11984,7 @@ class CommandInputParameter(InputParameter):
                 self.loadContents,
                 self.loadListing,
                 self.default,
-                self.type,
+                self.type_,
                 self.inputBinding,
             )
         )
@@ -7931,29 +11995,57 @@ class CommandInputParameter(InputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandInputParameter":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -7967,185 +12059,459 @@ class CommandInputParameter(InputParameter):
             baseuri = id
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "secondaryFiles" in _doc:
             try:
+                if _doc.get("secondaryFiles") is None:
+                    raise ValidationException("missing required field `secondaryFiles`", None, [])
+
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("secondaryFiles")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'secondaryFiles' field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `secondaryFiles`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [e],
+                            )
+                        )
         else:
             secondaryFiles = None
         if "streamable" in _doc:
             try:
+                if _doc.get("streamable") is None:
+                    raise ValidationException("missing required field `streamable`", None, [])
+
                 streamable = load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("streamable")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'streamable' field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `streamable`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [e],
+                            )
+                        )
         else:
             streamable = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         if "format" in _doc:
             try:
+                if _doc.get("format") is None:
+                    raise ValidationException("missing required field `format`", None, [])
+
                 format = load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("format")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'format' field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `format`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [e],
+                            )
+                        )
         else:
             format = None
         if "loadContents" in _doc:
             try:
+                if _doc.get("loadContents") is None:
+                    raise ValidationException("missing required field `loadContents`", None, [])
+
                 loadContents = load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadContents")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadContents' field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadContents`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadContents"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [e],
+                            )
+                        )
         else:
             loadContents = None
         if "loadListing" in _doc:
             try:
+                if _doc.get("loadListing") is None:
+                    raise ValidationException("missing required field `loadListing`", None, [])
+
                 loadListing = load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadListing")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadListing' field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadListing`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadListing"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [e],
+                            )
+                        )
         else:
             loadListing = None
         if "default" in _doc:
             try:
+                if _doc.get("default") is None:
+                    raise ValidationException("missing required field `default`", None, [])
+
                 default = load_field(
                     _doc.get("default"),
                     union_of_None_type_or_FileLoader_or_DirectoryLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("default")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'default' field is not valid because:",
-                        SourceLine(_doc, "default", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `default`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("default"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `default` field is not valid because:",
+                                SourceLine(_doc, "default", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `default` field is not valid because:",
+                                SourceLine(_doc, "default", str),
+                                [e],
+                            )
+                        )
         else:
             default = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "inputBinding" in _doc:
             try:
+                if _doc.get("inputBinding") is None:
+                    raise ValidationException("missing required field `inputBinding`", None, [])
+
                 inputBinding = load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("inputBinding")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'inputBinding' field is not valid because:",
-                        SourceLine(_doc, "inputBinding", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `inputBinding`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [e],
+                            )
+                        )
         else:
             inputBinding = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -8159,10 +12525,9 @@ class CommandInputParameter(InputParameter):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'CommandInputParameter'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
@@ -8173,7 +12538,7 @@ class CommandInputParameter(InputParameter):
             loadContents=loadContents,
             loadListing=loadListing,
             default=default,
-            type=type,
+            type_=type_,
             inputBinding=inputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -8238,9 +12603,9 @@ class CommandInputParameter(InputParameter):
             r["default"] = save(
                 self.default, top=False, base_url=self.id, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.id, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.id, relative_uris=relative_uris
             )
         if self.inputBinding is not None:
             r["inputBinding"] = save(
@@ -8282,7 +12647,7 @@ class CommandOutputParameter(OutputParameter):
 
     def __init__(
         self,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
@@ -8293,7 +12658,6 @@ class CommandOutputParameter(OutputParameter):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -8308,7 +12672,7 @@ class CommandOutputParameter(OutputParameter):
         self.doc = doc
         self.id = id
         self.format = format
-        self.type = type
+        self.type_ = type_
         self.outputBinding = outputBinding
 
     def __eq__(self, other: Any) -> bool:
@@ -8320,7 +12684,7 @@ class CommandOutputParameter(OutputParameter):
                 and self.doc == other.doc
                 and self.id == other.id
                 and self.format == other.format
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.outputBinding == other.outputBinding
             )
         return False
@@ -8334,7 +12698,7 @@ class CommandOutputParameter(OutputParameter):
                 self.doc,
                 self.id,
                 self.format,
-                self.type,
+                self.type_,
                 self.outputBinding,
             )
         )
@@ -8345,29 +12709,57 @@ class CommandOutputParameter(OutputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandOutputParameter":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -8381,131 +12773,324 @@ class CommandOutputParameter(OutputParameter):
             baseuri = id
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "secondaryFiles" in _doc:
             try:
+                if _doc.get("secondaryFiles") is None:
+                    raise ValidationException("missing required field `secondaryFiles`", None, [])
+
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("secondaryFiles")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'secondaryFiles' field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `secondaryFiles`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [e],
+                            )
+                        )
         else:
             secondaryFiles = None
         if "streamable" in _doc:
             try:
+                if _doc.get("streamable") is None:
+                    raise ValidationException("missing required field `streamable`", None, [])
+
                 streamable = load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("streamable")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'streamable' field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `streamable`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [e],
+                            )
+                        )
         else:
             streamable = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         if "format" in _doc:
             try:
+                if _doc.get("format") is None:
+                    raise ValidationException("missing required field `format`", None, [])
+
                 format = load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("format")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'format' field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `format`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [e],
+                            )
+                        )
         else:
             format = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "outputBinding" in _doc:
             try:
+                if _doc.get("outputBinding") is None:
+                    raise ValidationException("missing required field `outputBinding`", None, [])
+
                 outputBinding = load_field(
                     _doc.get("outputBinding"),
                     union_of_None_type_or_CommandOutputBindingLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("outputBinding")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'outputBinding' field is not valid because:",
-                        SourceLine(_doc, "outputBinding", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `outputBinding`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `outputBinding` field is not valid because:",
+                                SourceLine(_doc, "outputBinding", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `outputBinding` field is not valid because:",
+                                SourceLine(_doc, "outputBinding", str),
+                                [e],
+                            )
+                        )
         else:
             outputBinding = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -8519,12 +13104,9 @@ class CommandOutputParameter(OutputParameter):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'CommandOutputParameter'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
@@ -8532,7 +13114,7 @@ class CommandOutputParameter(OutputParameter):
             doc=doc,
             id=id,
             format=format,
-            type=type,
+            type_=type_,
             outputBinding=outputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -8579,9 +13161,9 @@ class CommandOutputParameter(OutputParameter):
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
             r["format"] = u
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.id, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.id, relative_uris=relative_uris
             )
         if self.outputBinding is not None:
             r["outputBinding"] = save(
@@ -8640,7 +13222,6 @@ class CommandLineTool(Process):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -8719,33 +13300,63 @@ class CommandLineTool(Process):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "CommandLineTool":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "CommandLineTool":
-            raise ValidationException("Not a CommandLineTool")
+            raise ValidationException("tried `CommandLineTool` but")
 
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -8759,272 +13370,681 @@ class CommandLineTool(Process):
             baseuri = id
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         try:
+            if _doc.get("inputs") is None:
+                raise ValidationException("missing required field `inputs`", None, [])
+
             inputs = load_field(
                 _doc.get("inputs"),
                 idmap_inputs_array_of_CommandInputParameterLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("inputs")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'inputs' field is not valid because:",
-                    SourceLine(_doc, "inputs", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `inputs`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("inputs"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `inputs` field is not valid because:",
+                            SourceLine(_doc, "inputs", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `inputs` field is not valid because:",
+                            SourceLine(_doc, "inputs", str),
+                            [e],
+                        )
+                    )
         try:
+            if _doc.get("outputs") is None:
+                raise ValidationException("missing required field `outputs`", None, [])
+
             outputs = load_field(
                 _doc.get("outputs"),
                 idmap_outputs_array_of_CommandOutputParameterLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("outputs")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'outputs' field is not valid because:",
-                    SourceLine(_doc, "outputs", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `outputs`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("outputs"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `outputs` field is not valid because:",
+                            SourceLine(_doc, "outputs", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `outputs` field is not valid because:",
+                            SourceLine(_doc, "outputs", str),
+                            [e],
+                        )
+                    )
         if "requirements" in _doc:
             try:
+                if _doc.get("requirements") is None:
+                    raise ValidationException("missing required field `requirements`", None, [])
+
                 requirements = load_field(
                     _doc.get("requirements"),
                     idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("requirements")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'requirements' field is not valid because:",
-                        SourceLine(_doc, "requirements", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `requirements`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("requirements"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `requirements` field is not valid because:",
+                                SourceLine(_doc, "requirements", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `requirements` field is not valid because:",
+                                SourceLine(_doc, "requirements", str),
+                                [e],
+                            )
+                        )
         else:
             requirements = None
         if "hints" in _doc:
             try:
+                if _doc.get("hints") is None:
+                    raise ValidationException("missing required field `hints`", None, [])
+
                 hints = load_field(
                     _doc.get("hints"),
                     idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("hints")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'hints' field is not valid because:",
-                        SourceLine(_doc, "hints", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `hints`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("hints"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `hints` field is not valid because:",
+                                SourceLine(_doc, "hints", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `hints` field is not valid because:",
+                                SourceLine(_doc, "hints", str),
+                                [e],
+                            )
+                        )
         else:
             hints = None
         if "cwlVersion" in _doc:
             try:
+                if _doc.get("cwlVersion") is None:
+                    raise ValidationException("missing required field `cwlVersion`", None, [])
+
                 cwlVersion = load_field(
                     _doc.get("cwlVersion"),
                     uri_union_of_None_type_or_CWLVersionLoader_False_True_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("cwlVersion")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'cwlVersion' field is not valid because:",
-                        SourceLine(_doc, "cwlVersion", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `cwlVersion`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("cwlVersion"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `cwlVersion` field is not valid because:",
+                                SourceLine(_doc, "cwlVersion", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `cwlVersion` field is not valid because:",
+                                SourceLine(_doc, "cwlVersion", str),
+                                [e],
+                            )
+                        )
         else:
             cwlVersion = None
         if "baseCommand" in _doc:
             try:
+                if _doc.get("baseCommand") is None:
+                    raise ValidationException("missing required field `baseCommand`", None, [])
+
                 baseCommand = load_field(
                     _doc.get("baseCommand"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("baseCommand")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'baseCommand' field is not valid because:",
-                        SourceLine(_doc, "baseCommand", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `baseCommand`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("baseCommand"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `baseCommand` field is not valid because:",
+                                SourceLine(_doc, "baseCommand", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `baseCommand` field is not valid because:",
+                                SourceLine(_doc, "baseCommand", str),
+                                [e],
+                            )
+                        )
         else:
             baseCommand = None
         if "arguments" in _doc:
             try:
+                if _doc.get("arguments") is None:
+                    raise ValidationException("missing required field `arguments`", None, [])
+
                 arguments = load_field(
                     _doc.get("arguments"),
                     union_of_None_type_or_array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("arguments")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'arguments' field is not valid because:",
-                        SourceLine(_doc, "arguments", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `arguments`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("arguments"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `arguments` field is not valid because:",
+                                SourceLine(_doc, "arguments", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `arguments` field is not valid because:",
+                                SourceLine(_doc, "arguments", str),
+                                [e],
+                            )
+                        )
         else:
             arguments = None
         if "stdin" in _doc:
             try:
+                if _doc.get("stdin") is None:
+                    raise ValidationException("missing required field `stdin`", None, [])
+
                 stdin = load_field(
                     _doc.get("stdin"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("stdin")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'stdin' field is not valid because:",
-                        SourceLine(_doc, "stdin", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `stdin`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("stdin"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `stdin` field is not valid because:",
+                                SourceLine(_doc, "stdin", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `stdin` field is not valid because:",
+                                SourceLine(_doc, "stdin", str),
+                                [e],
+                            )
+                        )
         else:
             stdin = None
         if "stderr" in _doc:
             try:
+                if _doc.get("stderr") is None:
+                    raise ValidationException("missing required field `stderr`", None, [])
+
                 stderr = load_field(
                     _doc.get("stderr"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("stderr")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'stderr' field is not valid because:",
-                        SourceLine(_doc, "stderr", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `stderr`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("stderr"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `stderr` field is not valid because:",
+                                SourceLine(_doc, "stderr", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `stderr` field is not valid because:",
+                                SourceLine(_doc, "stderr", str),
+                                [e],
+                            )
+                        )
         else:
             stderr = None
         if "stdout" in _doc:
             try:
+                if _doc.get("stdout") is None:
+                    raise ValidationException("missing required field `stdout`", None, [])
+
                 stdout = load_field(
                     _doc.get("stdout"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("stdout")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'stdout' field is not valid because:",
-                        SourceLine(_doc, "stdout", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `stdout`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("stdout"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `stdout` field is not valid because:",
+                                SourceLine(_doc, "stdout", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `stdout` field is not valid because:",
+                                SourceLine(_doc, "stdout", str),
+                                [e],
+                            )
+                        )
         else:
             stdout = None
         if "successCodes" in _doc:
             try:
+                if _doc.get("successCodes") is None:
+                    raise ValidationException("missing required field `successCodes`", None, [])
+
                 successCodes = load_field(
                     _doc.get("successCodes"),
                     union_of_None_type_or_array_of_inttype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("successCodes")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'successCodes' field is not valid because:",
-                        SourceLine(_doc, "successCodes", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `successCodes`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("successCodes"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `successCodes` field is not valid because:",
+                                SourceLine(_doc, "successCodes", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `successCodes` field is not valid because:",
+                                SourceLine(_doc, "successCodes", str),
+                                [e],
+                            )
+                        )
         else:
             successCodes = None
         if "temporaryFailCodes" in _doc:
             try:
+                if _doc.get("temporaryFailCodes") is None:
+                    raise ValidationException("missing required field `temporaryFailCodes`", None, [])
+
                 temporaryFailCodes = load_field(
                     _doc.get("temporaryFailCodes"),
                     union_of_None_type_or_array_of_inttype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("temporaryFailCodes")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'temporaryFailCodes' field is not valid because:",
-                        SourceLine(_doc, "temporaryFailCodes", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `temporaryFailCodes`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("temporaryFailCodes"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `temporaryFailCodes` field is not valid because:",
+                                SourceLine(_doc, "temporaryFailCodes", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `temporaryFailCodes` field is not valid because:",
+                                SourceLine(_doc, "temporaryFailCodes", str),
+                                [e],
+                            )
+                        )
         else:
             temporaryFailCodes = None
         if "permanentFailCodes" in _doc:
             try:
+                if _doc.get("permanentFailCodes") is None:
+                    raise ValidationException("missing required field `permanentFailCodes`", None, [])
+
                 permanentFailCodes = load_field(
                     _doc.get("permanentFailCodes"),
                     union_of_None_type_or_array_of_inttype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("permanentFailCodes")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'permanentFailCodes' field is not valid because:",
-                        SourceLine(_doc, "permanentFailCodes", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `permanentFailCodes`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("permanentFailCodes"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `permanentFailCodes` field is not valid because:",
+                                SourceLine(_doc, "permanentFailCodes", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `permanentFailCodes` field is not valid because:",
+                                SourceLine(_doc, "permanentFailCodes", str),
+                                [e],
+                            )
+                        )
         else:
             permanentFailCodes = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -9038,10 +14058,9 @@ class CommandLineTool(Process):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'CommandLineTool'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             id=id,
             label=label,
@@ -9254,7 +14273,6 @@ class DockerRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -9303,129 +14321,298 @@ class DockerRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "DockerRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "DockerRequirement":
-            raise ValidationException("Not a DockerRequirement")
+            raise ValidationException("tried `DockerRequirement` but")
 
         if "dockerPull" in _doc:
             try:
+                if _doc.get("dockerPull") is None:
+                    raise ValidationException("missing required field `dockerPull`", None, [])
+
                 dockerPull = load_field(
                     _doc.get("dockerPull"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("dockerPull")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'dockerPull' field is not valid because:",
-                        SourceLine(_doc, "dockerPull", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `dockerPull`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("dockerPull"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerPull` field is not valid because:",
+                                SourceLine(_doc, "dockerPull", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerPull` field is not valid because:",
+                                SourceLine(_doc, "dockerPull", str),
+                                [e],
+                            )
+                        )
         else:
             dockerPull = None
         if "dockerLoad" in _doc:
             try:
+                if _doc.get("dockerLoad") is None:
+                    raise ValidationException("missing required field `dockerLoad`", None, [])
+
                 dockerLoad = load_field(
                     _doc.get("dockerLoad"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("dockerLoad")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'dockerLoad' field is not valid because:",
-                        SourceLine(_doc, "dockerLoad", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `dockerLoad`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("dockerLoad"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerLoad` field is not valid because:",
+                                SourceLine(_doc, "dockerLoad", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerLoad` field is not valid because:",
+                                SourceLine(_doc, "dockerLoad", str),
+                                [e],
+                            )
+                        )
         else:
             dockerLoad = None
         if "dockerFile" in _doc:
             try:
+                if _doc.get("dockerFile") is None:
+                    raise ValidationException("missing required field `dockerFile`", None, [])
+
                 dockerFile = load_field(
                     _doc.get("dockerFile"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("dockerFile")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'dockerFile' field is not valid because:",
-                        SourceLine(_doc, "dockerFile", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `dockerFile`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("dockerFile"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerFile` field is not valid because:",
+                                SourceLine(_doc, "dockerFile", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerFile` field is not valid because:",
+                                SourceLine(_doc, "dockerFile", str),
+                                [e],
+                            )
+                        )
         else:
             dockerFile = None
         if "dockerImport" in _doc:
             try:
+                if _doc.get("dockerImport") is None:
+                    raise ValidationException("missing required field `dockerImport`", None, [])
+
                 dockerImport = load_field(
                     _doc.get("dockerImport"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("dockerImport")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'dockerImport' field is not valid because:",
-                        SourceLine(_doc, "dockerImport", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `dockerImport`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("dockerImport"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerImport` field is not valid because:",
+                                SourceLine(_doc, "dockerImport", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerImport` field is not valid because:",
+                                SourceLine(_doc, "dockerImport", str),
+                                [e],
+                            )
+                        )
         else:
             dockerImport = None
         if "dockerImageId" in _doc:
             try:
+                if _doc.get("dockerImageId") is None:
+                    raise ValidationException("missing required field `dockerImageId`", None, [])
+
                 dockerImageId = load_field(
                     _doc.get("dockerImageId"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("dockerImageId")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'dockerImageId' field is not valid because:",
-                        SourceLine(_doc, "dockerImageId", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `dockerImageId`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("dockerImageId"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerImageId` field is not valid because:",
+                                SourceLine(_doc, "dockerImageId", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerImageId` field is not valid because:",
+                                SourceLine(_doc, "dockerImageId", str),
+                                [e],
+                            )
+                        )
         else:
             dockerImageId = None
         if "dockerOutputDirectory" in _doc:
             try:
+                if _doc.get("dockerOutputDirectory") is None:
+                    raise ValidationException("missing required field `dockerOutputDirectory`", None, [])
+
                 dockerOutputDirectory = load_field(
                     _doc.get("dockerOutputDirectory"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("dockerOutputDirectory")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'dockerOutputDirectory' field is not valid because:",
-                        SourceLine(_doc, "dockerOutputDirectory", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `dockerOutputDirectory`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("dockerOutputDirectory"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerOutputDirectory` field is not valid because:",
+                                SourceLine(_doc, "dockerOutputDirectory", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `dockerOutputDirectory` field is not valid because:",
+                                SourceLine(_doc, "dockerOutputDirectory", str),
+                                [e],
+                            )
+                        )
         else:
             dockerOutputDirectory = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -9439,10 +14626,9 @@ class DockerRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'DockerRequirement'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             dockerPull=dockerPull,
             dockerLoad=dockerLoad,
@@ -9545,7 +14731,6 @@ class SoftwareRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -9571,36 +14756,70 @@ class SoftwareRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "SoftwareRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "SoftwareRequirement":
-            raise ValidationException("Not a SoftwareRequirement")
+            raise ValidationException("tried `SoftwareRequirement` but")
 
         try:
+            if _doc.get("packages") is None:
+                raise ValidationException("missing required field `packages`", None, [])
+
             packages = load_field(
                 _doc.get("packages"),
                 idmap_packages_array_of_SoftwarePackageLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("packages")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'packages' field is not valid because:",
-                    SourceLine(_doc, "packages", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `packages`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("packages"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `packages` field is not valid because:",
+                            SourceLine(_doc, "packages", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `packages` field is not valid because:",
+                            SourceLine(_doc, "packages", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -9614,10 +14833,9 @@ class SoftwareRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'SoftwareRequirement'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             packages=packages,
             extension_fields=extension_fields,
@@ -9663,7 +14881,6 @@ class SoftwarePackage(Saveable):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -9694,68 +14911,154 @@ class SoftwarePackage(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "SoftwarePackage":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         try:
+            if _doc.get("package") is None:
+                raise ValidationException("missing required field `package`", None, [])
+
             package = load_field(
                 _doc.get("package"),
                 strtype,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("package")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'package' field is not valid because:",
-                    SourceLine(_doc, "package", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `package`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("package"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `package` field is not valid because:",
+                            SourceLine(_doc, "package", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `package` field is not valid because:",
+                            SourceLine(_doc, "package", str),
+                            [e],
+                        )
+                    )
         if "version" in _doc:
             try:
+                if _doc.get("version") is None:
+                    raise ValidationException("missing required field `version`", None, [])
+
                 version = load_field(
                     _doc.get("version"),
                     union_of_None_type_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("version")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'version' field is not valid because:",
-                        SourceLine(_doc, "version", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `version`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("version"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `version` field is not valid because:",
+                                SourceLine(_doc, "version", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `version` field is not valid because:",
+                                SourceLine(_doc, "version", str),
+                                [e],
+                            )
+                        )
         else:
             version = None
         if "specs" in _doc:
             try:
+                if _doc.get("specs") is None:
+                    raise ValidationException("missing required field `specs`", None, [])
+
                 specs = load_field(
                     _doc.get("specs"),
                     uri_union_of_None_type_or_array_of_strtype_False_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("specs")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'specs' field is not valid because:",
-                        SourceLine(_doc, "specs", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `specs`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("specs"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `specs` field is not valid because:",
+                                SourceLine(_doc, "specs", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `specs` field is not valid because:",
+                                SourceLine(_doc, "specs", str),
+                                [e],
+                            )
+                        )
         else:
             specs = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -9769,10 +15072,9 @@ class SoftwarePackage(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'SoftwarePackage'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             package=package,
             version=version,
@@ -9833,7 +15135,6 @@ class Dirent(Saveable):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -9864,68 +15165,154 @@ class Dirent(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "Dirent":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "entryname" in _doc:
             try:
+                if _doc.get("entryname") is None:
+                    raise ValidationException("missing required field `entryname`", None, [])
+
                 entryname = load_field(
                     _doc.get("entryname"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("entryname")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'entryname' field is not valid because:",
-                        SourceLine(_doc, "entryname", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `entryname`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("entryname"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `entryname` field is not valid because:",
+                                SourceLine(_doc, "entryname", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `entryname` field is not valid because:",
+                                SourceLine(_doc, "entryname", str),
+                                [e],
+                            )
+                        )
         else:
             entryname = None
         try:
+            if _doc.get("entry") is None:
+                raise ValidationException("missing required field `entry`", None, [])
+
             entry = load_field(
                 _doc.get("entry"),
                 union_of_strtype_or_ExpressionLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("entry")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'entry' field is not valid because:",
-                    SourceLine(_doc, "entry", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `entry`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("entry"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `entry` field is not valid because:",
+                            SourceLine(_doc, "entry", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `entry` field is not valid because:",
+                            SourceLine(_doc, "entry", str),
+                            [e],
+                        )
+                    )
         if "writable" in _doc:
             try:
+                if _doc.get("writable") is None:
+                    raise ValidationException("missing required field `writable`", None, [])
+
                 writable = load_field(
                     _doc.get("writable"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("writable")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'writable' field is not valid because:",
-                        SourceLine(_doc, "writable", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `writable`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("writable"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `writable` field is not valid because:",
+                                SourceLine(_doc, "writable", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `writable` field is not valid because:",
+                                SourceLine(_doc, "writable", str),
+                                [e],
+                            )
+                        )
         else:
             writable = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -9939,10 +15326,9 @@ class Dirent(Saveable):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'Dirent'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             entryname=entryname,
             entry=entry,
@@ -10001,7 +15387,6 @@ class InitialWorkDirRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -10027,36 +15412,70 @@ class InitialWorkDirRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "InitialWorkDirRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "InitialWorkDirRequirement":
-            raise ValidationException("Not a InitialWorkDirRequirement")
+            raise ValidationException("tried `InitialWorkDirRequirement` but")
 
         try:
+            if _doc.get("listing") is None:
+                raise ValidationException("missing required field `listing`", None, [])
+
             listing = load_field(
                 _doc.get("listing"),
                 union_of_array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader_or_ExpressionLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("listing")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'listing' field is not valid because:",
-                    SourceLine(_doc, "listing", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `listing`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("listing"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `listing` field is not valid because:",
+                            SourceLine(_doc, "listing", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `listing` field is not valid because:",
+                            SourceLine(_doc, "listing", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -10070,12 +15489,9 @@ class InitialWorkDirRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'InitialWorkDirRequirement'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             listing=listing,
             extension_fields=extension_fields,
@@ -10125,7 +15541,6 @@ class EnvVarRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -10151,36 +15566,70 @@ class EnvVarRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "EnvVarRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "EnvVarRequirement":
-            raise ValidationException("Not a EnvVarRequirement")
+            raise ValidationException("tried `EnvVarRequirement` but")
 
         try:
+            if _doc.get("envDef") is None:
+                raise ValidationException("missing required field `envDef`", None, [])
+
             envDef = load_field(
                 _doc.get("envDef"),
                 idmap_envDef_array_of_EnvironmentDefLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("envDef")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'envDef' field is not valid because:",
-                    SourceLine(_doc, "envDef", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `envDef`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("envDef"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `envDef` field is not valid because:",
+                            SourceLine(_doc, "envDef", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `envDef` field is not valid because:",
+                            SourceLine(_doc, "envDef", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -10194,10 +15643,9 @@ class EnvVarRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'EnvVarRequirement'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             envDef=envDef,
             extension_fields=extension_fields,
@@ -10251,7 +15699,6 @@ class ShellCommandRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -10276,21 +15723,28 @@ class ShellCommandRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "ShellCommandRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "ShellCommandRequirement":
-            raise ValidationException("Not a ShellCommandRequirement")
+            raise ValidationException("tried `ShellCommandRequirement` but")
 
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -10302,12 +15756,9 @@ class ShellCommandRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'ShellCommandRequirement'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -10377,7 +15828,6 @@ class ResourceRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -10432,165 +15882,388 @@ class ResourceRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "ResourceRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "ResourceRequirement":
-            raise ValidationException("Not a ResourceRequirement")
+            raise ValidationException("tried `ResourceRequirement` but")
 
         if "coresMin" in _doc:
             try:
+                if _doc.get("coresMin") is None:
+                    raise ValidationException("missing required field `coresMin`", None, [])
+
                 coresMin = load_field(
                     _doc.get("coresMin"),
                     union_of_None_type_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("coresMin")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'coresMin' field is not valid because:",
-                        SourceLine(_doc, "coresMin", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `coresMin`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("coresMin"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `coresMin` field is not valid because:",
+                                SourceLine(_doc, "coresMin", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `coresMin` field is not valid because:",
+                                SourceLine(_doc, "coresMin", str),
+                                [e],
+                            )
+                        )
         else:
             coresMin = None
         if "coresMax" in _doc:
             try:
+                if _doc.get("coresMax") is None:
+                    raise ValidationException("missing required field `coresMax`", None, [])
+
                 coresMax = load_field(
                     _doc.get("coresMax"),
                     union_of_None_type_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("coresMax")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'coresMax' field is not valid because:",
-                        SourceLine(_doc, "coresMax", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `coresMax`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("coresMax"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `coresMax` field is not valid because:",
+                                SourceLine(_doc, "coresMax", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `coresMax` field is not valid because:",
+                                SourceLine(_doc, "coresMax", str),
+                                [e],
+                            )
+                        )
         else:
             coresMax = None
         if "ramMin" in _doc:
             try:
+                if _doc.get("ramMin") is None:
+                    raise ValidationException("missing required field `ramMin`", None, [])
+
                 ramMin = load_field(
                     _doc.get("ramMin"),
                     union_of_None_type_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("ramMin")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'ramMin' field is not valid because:",
-                        SourceLine(_doc, "ramMin", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `ramMin`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("ramMin"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `ramMin` field is not valid because:",
+                                SourceLine(_doc, "ramMin", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `ramMin` field is not valid because:",
+                                SourceLine(_doc, "ramMin", str),
+                                [e],
+                            )
+                        )
         else:
             ramMin = None
         if "ramMax" in _doc:
             try:
+                if _doc.get("ramMax") is None:
+                    raise ValidationException("missing required field `ramMax`", None, [])
+
                 ramMax = load_field(
                     _doc.get("ramMax"),
                     union_of_None_type_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("ramMax")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'ramMax' field is not valid because:",
-                        SourceLine(_doc, "ramMax", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `ramMax`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("ramMax"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `ramMax` field is not valid because:",
+                                SourceLine(_doc, "ramMax", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `ramMax` field is not valid because:",
+                                SourceLine(_doc, "ramMax", str),
+                                [e],
+                            )
+                        )
         else:
             ramMax = None
         if "tmpdirMin" in _doc:
             try:
+                if _doc.get("tmpdirMin") is None:
+                    raise ValidationException("missing required field `tmpdirMin`", None, [])
+
                 tmpdirMin = load_field(
                     _doc.get("tmpdirMin"),
                     union_of_None_type_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("tmpdirMin")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'tmpdirMin' field is not valid because:",
-                        SourceLine(_doc, "tmpdirMin", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `tmpdirMin`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("tmpdirMin"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `tmpdirMin` field is not valid because:",
+                                SourceLine(_doc, "tmpdirMin", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `tmpdirMin` field is not valid because:",
+                                SourceLine(_doc, "tmpdirMin", str),
+                                [e],
+                            )
+                        )
         else:
             tmpdirMin = None
         if "tmpdirMax" in _doc:
             try:
+                if _doc.get("tmpdirMax") is None:
+                    raise ValidationException("missing required field `tmpdirMax`", None, [])
+
                 tmpdirMax = load_field(
                     _doc.get("tmpdirMax"),
                     union_of_None_type_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("tmpdirMax")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'tmpdirMax' field is not valid because:",
-                        SourceLine(_doc, "tmpdirMax", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `tmpdirMax`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("tmpdirMax"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `tmpdirMax` field is not valid because:",
+                                SourceLine(_doc, "tmpdirMax", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `tmpdirMax` field is not valid because:",
+                                SourceLine(_doc, "tmpdirMax", str),
+                                [e],
+                            )
+                        )
         else:
             tmpdirMax = None
         if "outdirMin" in _doc:
             try:
+                if _doc.get("outdirMin") is None:
+                    raise ValidationException("missing required field `outdirMin`", None, [])
+
                 outdirMin = load_field(
                     _doc.get("outdirMin"),
                     union_of_None_type_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("outdirMin")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'outdirMin' field is not valid because:",
-                        SourceLine(_doc, "outdirMin", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `outdirMin`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("outdirMin"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `outdirMin` field is not valid because:",
+                                SourceLine(_doc, "outdirMin", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `outdirMin` field is not valid because:",
+                                SourceLine(_doc, "outdirMin", str),
+                                [e],
+                            )
+                        )
         else:
             outdirMin = None
         if "outdirMax" in _doc:
             try:
+                if _doc.get("outdirMax") is None:
+                    raise ValidationException("missing required field `outdirMax`", None, [])
+
                 outdirMax = load_field(
                     _doc.get("outdirMax"),
                     union_of_None_type_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("outdirMax")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'outdirMax' field is not valid because:",
-                        SourceLine(_doc, "outdirMax", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `outdirMax`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("outdirMax"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `outdirMax` field is not valid because:",
+                                SourceLine(_doc, "outdirMax", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `outdirMax` field is not valid because:",
+                                SourceLine(_doc, "outdirMax", str),
+                                [e],
+                            )
+                        )
         else:
             outdirMax = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -10604,10 +16277,9 @@ class ResourceRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'ResourceRequirement'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             coresMin=coresMin,
             coresMax=coresMax,
@@ -10723,7 +16395,6 @@ class WorkReuse(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -10751,36 +16422,70 @@ class WorkReuse(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "WorkReuse":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "WorkReuse":
-            raise ValidationException("Not a WorkReuse")
+            raise ValidationException("tried `WorkReuse` but")
 
         try:
+            if _doc.get("enableReuse") is None:
+                raise ValidationException("missing required field `enableReuse`", None, [])
+
             enableReuse = load_field(
                 _doc.get("enableReuse"),
                 union_of_booltype_or_ExpressionLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("enableReuse")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'enableReuse' field is not valid because:",
-                    SourceLine(_doc, "enableReuse", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `enableReuse`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("enableReuse"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `enableReuse` field is not valid because:",
+                            SourceLine(_doc, "enableReuse", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `enableReuse` field is not valid because:",
+                            SourceLine(_doc, "enableReuse", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -10794,10 +16499,9 @@ class WorkReuse(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'WorkReuse'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             enableReuse=enableReuse,
             extension_fields=extension_fields,
@@ -10863,7 +16567,6 @@ class NetworkAccess(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -10892,36 +16595,70 @@ class NetworkAccess(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "NetworkAccess":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "NetworkAccess":
-            raise ValidationException("Not a NetworkAccess")
+            raise ValidationException("tried `NetworkAccess` but")
 
         try:
+            if _doc.get("networkAccess") is None:
+                raise ValidationException("missing required field `networkAccess`", None, [])
+
             networkAccess = load_field(
                 _doc.get("networkAccess"),
                 union_of_booltype_or_ExpressionLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("networkAccess")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'networkAccess' field is not valid because:",
-                    SourceLine(_doc, "networkAccess", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `networkAccess`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("networkAccess"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `networkAccess` field is not valid because:",
+                            SourceLine(_doc, "networkAccess", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `networkAccess` field is not valid because:",
+                            SourceLine(_doc, "networkAccess", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -10935,10 +16672,9 @@ class NetworkAccess(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'NetworkAccess'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             networkAccess=networkAccess,
             extension_fields=extension_fields,
@@ -11019,7 +16755,6 @@ class InplaceUpdateRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -11048,36 +16783,70 @@ class InplaceUpdateRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "InplaceUpdateRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "InplaceUpdateRequirement":
-            raise ValidationException("Not a InplaceUpdateRequirement")
+            raise ValidationException("tried `InplaceUpdateRequirement` but")
 
         try:
+            if _doc.get("inplaceUpdate") is None:
+                raise ValidationException("missing required field `inplaceUpdate`", None, [])
+
             inplaceUpdate = load_field(
                 _doc.get("inplaceUpdate"),
                 booltype,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("inplaceUpdate")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'inplaceUpdate' field is not valid because:",
-                    SourceLine(_doc, "inplaceUpdate", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `inplaceUpdate`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("inplaceUpdate"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `inplaceUpdate` field is not valid because:",
+                            SourceLine(_doc, "inplaceUpdate", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `inplaceUpdate` field is not valid because:",
+                            SourceLine(_doc, "inplaceUpdate", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -11091,12 +16860,9 @@ class InplaceUpdateRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'InplaceUpdateRequirement'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             inplaceUpdate=inplaceUpdate,
             extension_fields=extension_fields,
@@ -11154,7 +16920,6 @@ class ToolTimeLimit(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -11182,36 +16947,70 @@ class ToolTimeLimit(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "ToolTimeLimit":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "ToolTimeLimit":
-            raise ValidationException("Not a ToolTimeLimit")
+            raise ValidationException("tried `ToolTimeLimit` but")
 
         try:
+            if _doc.get("timelimit") is None:
+                raise ValidationException("missing required field `timelimit`", None, [])
+
             timelimit = load_field(
                 _doc.get("timelimit"),
                 union_of_inttype_or_ExpressionLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("timelimit")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'timelimit' field is not valid because:",
-                    SourceLine(_doc, "timelimit", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `timelimit`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("timelimit"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `timelimit` field is not valid because:",
+                            SourceLine(_doc, "timelimit", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `timelimit` field is not valid because:",
+                            SourceLine(_doc, "timelimit", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -11225,10 +17024,9 @@ class ToolTimeLimit(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'ToolTimeLimit'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             timelimit=timelimit,
             extension_fields=extension_fields,
@@ -11271,7 +17069,7 @@ class ToolTimeLimit(ProcessRequirement):
 class ExpressionToolOutputParameter(OutputParameter):
     def __init__(
         self,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
@@ -11281,7 +17079,6 @@ class ExpressionToolOutputParameter(OutputParameter):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -11296,7 +17093,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         self.doc = doc
         self.id = id
         self.format = format
-        self.type = type
+        self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ExpressionToolOutputParameter):
@@ -11307,7 +17104,7 @@ class ExpressionToolOutputParameter(OutputParameter):
                 and self.doc == other.doc
                 and self.id == other.id
                 and self.format == other.format
-                and self.type == other.type
+                and self.type_ == other.type_
             )
         return False
 
@@ -11320,7 +17117,7 @@ class ExpressionToolOutputParameter(OutputParameter):
                 self.doc,
                 self.id,
                 self.format,
-                self.type,
+                self.type_,
             )
         )
 
@@ -11330,29 +17127,57 @@ class ExpressionToolOutputParameter(OutputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "ExpressionToolOutputParameter":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -11366,113 +17191,279 @@ class ExpressionToolOutputParameter(OutputParameter):
             baseuri = id
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "secondaryFiles" in _doc:
             try:
+                if _doc.get("secondaryFiles") is None:
+                    raise ValidationException("missing required field `secondaryFiles`", None, [])
+
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("secondaryFiles")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'secondaryFiles' field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `secondaryFiles`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [e],
+                            )
+                        )
         else:
             secondaryFiles = None
         if "streamable" in _doc:
             try:
+                if _doc.get("streamable") is None:
+                    raise ValidationException("missing required field `streamable`", None, [])
+
                 streamable = load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("streamable")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'streamable' field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `streamable`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [e],
+                            )
+                        )
         else:
             streamable = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         if "format" in _doc:
             try:
+                if _doc.get("format") is None:
+                    raise ValidationException("missing required field `format`", None, [])
+
                 format = load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("format")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'format' field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `format`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [e],
+                            )
+                        )
         else:
             format = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -11486,12 +17477,9 @@ class ExpressionToolOutputParameter(OutputParameter):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'ExpressionToolOutputParameter'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
@@ -11499,7 +17487,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             doc=doc,
             id=id,
             format=format,
-            type=type,
+            type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -11545,9 +17533,9 @@ class ExpressionToolOutputParameter(OutputParameter):
         if self.format is not None:
             u = save_relative_uri(self.format, self.id, True, None, relative_uris)
             r["format"] = u
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.id, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
         # top refers to the directory level
@@ -11566,7 +17554,7 @@ class ExpressionToolOutputParameter(OutputParameter):
 class WorkflowInputParameter(InputParameter):
     def __init__(
         self,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
@@ -11580,7 +17568,6 @@ class WorkflowInputParameter(InputParameter):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -11598,7 +17585,7 @@ class WorkflowInputParameter(InputParameter):
         self.loadContents = loadContents
         self.loadListing = loadListing
         self.default = default
-        self.type = type
+        self.type_ = type_
         self.inputBinding = inputBinding
 
     def __eq__(self, other: Any) -> bool:
@@ -11613,7 +17600,7 @@ class WorkflowInputParameter(InputParameter):
                 and self.loadContents == other.loadContents
                 and self.loadListing == other.loadListing
                 and self.default == other.default
-                and self.type == other.type
+                and self.type_ == other.type_
                 and self.inputBinding == other.inputBinding
             )
         return False
@@ -11630,7 +17617,7 @@ class WorkflowInputParameter(InputParameter):
                 self.loadContents,
                 self.loadListing,
                 self.default,
-                self.type,
+                self.type_,
                 self.inputBinding,
             )
         )
@@ -11641,29 +17628,57 @@ class WorkflowInputParameter(InputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "WorkflowInputParameter":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -11677,185 +17692,459 @@ class WorkflowInputParameter(InputParameter):
             baseuri = id
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "secondaryFiles" in _doc:
             try:
+                if _doc.get("secondaryFiles") is None:
+                    raise ValidationException("missing required field `secondaryFiles`", None, [])
+
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("secondaryFiles")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'secondaryFiles' field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `secondaryFiles`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [e],
+                            )
+                        )
         else:
             secondaryFiles = None
         if "streamable" in _doc:
             try:
+                if _doc.get("streamable") is None:
+                    raise ValidationException("missing required field `streamable`", None, [])
+
                 streamable = load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("streamable")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'streamable' field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `streamable`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [e],
+                            )
+                        )
         else:
             streamable = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         if "format" in _doc:
             try:
+                if _doc.get("format") is None:
+                    raise ValidationException("missing required field `format`", None, [])
+
                 format = load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("format")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'format' field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `format`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [e],
+                            )
+                        )
         else:
             format = None
         if "loadContents" in _doc:
             try:
+                if _doc.get("loadContents") is None:
+                    raise ValidationException("missing required field `loadContents`", None, [])
+
                 loadContents = load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadContents")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadContents' field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadContents`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadContents"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [e],
+                            )
+                        )
         else:
             loadContents = None
         if "loadListing" in _doc:
             try:
+                if _doc.get("loadListing") is None:
+                    raise ValidationException("missing required field `loadListing`", None, [])
+
                 loadListing = load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadListing")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadListing' field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadListing`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadListing"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [e],
+                            )
+                        )
         else:
             loadListing = None
         if "default" in _doc:
             try:
+                if _doc.get("default") is None:
+                    raise ValidationException("missing required field `default`", None, [])
+
                 default = load_field(
                     _doc.get("default"),
                     union_of_None_type_or_FileLoader_or_DirectoryLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("default")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'default' field is not valid because:",
-                        SourceLine(_doc, "default", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `default`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("default"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `default` field is not valid because:",
+                                SourceLine(_doc, "default", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `default` field is not valid because:",
+                                SourceLine(_doc, "default", str),
+                                [e],
+                            )
+                        )
         else:
             default = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         if "inputBinding" in _doc:
             try:
+                if _doc.get("inputBinding") is None:
+                    raise ValidationException("missing required field `inputBinding`", None, [])
+
                 inputBinding = load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_InputBindingLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("inputBinding")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'inputBinding' field is not valid because:",
-                        SourceLine(_doc, "inputBinding", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `inputBinding`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `inputBinding` field is not valid because:",
+                                SourceLine(_doc, "inputBinding", str),
+                                [e],
+                            )
+                        )
         else:
             inputBinding = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -11869,12 +18158,9 @@ class WorkflowInputParameter(InputParameter):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'WorkflowInputParameter'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
@@ -11885,7 +18171,7 @@ class WorkflowInputParameter(InputParameter):
             loadContents=loadContents,
             loadListing=loadListing,
             default=default,
-            type=type,
+            type_=type_,
             inputBinding=inputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -11950,9 +18236,9 @@ class WorkflowInputParameter(InputParameter):
             r["default"] = save(
                 self.default, top=False, base_url=self.id, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.id, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.id, relative_uris=relative_uris
             )
         if self.inputBinding is not None:
             r["inputBinding"] = save(
@@ -12013,7 +18299,6 @@ class ExpressionTool(Process):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -12071,33 +18356,63 @@ class ExpressionTool(Process):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "ExpressionTool":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "ExpressionTool":
-            raise ValidationException("Not a ExpressionTool")
+            raise ValidationException("tried `ExpressionTool` but")
 
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -12111,143 +18426,363 @@ class ExpressionTool(Process):
             baseuri = id
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         try:
+            if _doc.get("inputs") is None:
+                raise ValidationException("missing required field `inputs`", None, [])
+
             inputs = load_field(
                 _doc.get("inputs"),
                 idmap_inputs_array_of_WorkflowInputParameterLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("inputs")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'inputs' field is not valid because:",
-                    SourceLine(_doc, "inputs", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `inputs`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("inputs"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `inputs` field is not valid because:",
+                            SourceLine(_doc, "inputs", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `inputs` field is not valid because:",
+                            SourceLine(_doc, "inputs", str),
+                            [e],
+                        )
+                    )
         try:
+            if _doc.get("outputs") is None:
+                raise ValidationException("missing required field `outputs`", None, [])
+
             outputs = load_field(
                 _doc.get("outputs"),
                 idmap_outputs_array_of_ExpressionToolOutputParameterLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("outputs")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'outputs' field is not valid because:",
-                    SourceLine(_doc, "outputs", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `outputs`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("outputs"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `outputs` field is not valid because:",
+                            SourceLine(_doc, "outputs", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `outputs` field is not valid because:",
+                            SourceLine(_doc, "outputs", str),
+                            [e],
+                        )
+                    )
         if "requirements" in _doc:
             try:
+                if _doc.get("requirements") is None:
+                    raise ValidationException("missing required field `requirements`", None, [])
+
                 requirements = load_field(
                     _doc.get("requirements"),
                     idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("requirements")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'requirements' field is not valid because:",
-                        SourceLine(_doc, "requirements", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `requirements`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("requirements"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `requirements` field is not valid because:",
+                                SourceLine(_doc, "requirements", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `requirements` field is not valid because:",
+                                SourceLine(_doc, "requirements", str),
+                                [e],
+                            )
+                        )
         else:
             requirements = None
         if "hints" in _doc:
             try:
+                if _doc.get("hints") is None:
+                    raise ValidationException("missing required field `hints`", None, [])
+
                 hints = load_field(
                     _doc.get("hints"),
                     idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("hints")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'hints' field is not valid because:",
-                        SourceLine(_doc, "hints", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `hints`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("hints"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `hints` field is not valid because:",
+                                SourceLine(_doc, "hints", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `hints` field is not valid because:",
+                                SourceLine(_doc, "hints", str),
+                                [e],
+                            )
+                        )
         else:
             hints = None
         if "cwlVersion" in _doc:
             try:
+                if _doc.get("cwlVersion") is None:
+                    raise ValidationException("missing required field `cwlVersion`", None, [])
+
                 cwlVersion = load_field(
                     _doc.get("cwlVersion"),
                     uri_union_of_None_type_or_CWLVersionLoader_False_True_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("cwlVersion")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'cwlVersion' field is not valid because:",
-                        SourceLine(_doc, "cwlVersion", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `cwlVersion`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("cwlVersion"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `cwlVersion` field is not valid because:",
+                                SourceLine(_doc, "cwlVersion", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `cwlVersion` field is not valid because:",
+                                SourceLine(_doc, "cwlVersion", str),
+                                [e],
+                            )
+                        )
         else:
             cwlVersion = None
         try:
+            if _doc.get("expression") is None:
+                raise ValidationException("missing required field `expression`", None, [])
+
             expression = load_field(
                 _doc.get("expression"),
                 ExpressionLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("expression")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'expression' field is not valid because:",
-                    SourceLine(_doc, "expression", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `expression`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("expression"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `expression` field is not valid because:",
+                            SourceLine(_doc, "expression", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `expression` field is not valid because:",
+                            SourceLine(_doc, "expression", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -12261,10 +18796,9 @@ class ExpressionTool(Process):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'ExpressionTool'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             id=id,
             label=label,
@@ -12370,7 +18904,7 @@ class WorkflowOutputParameter(OutputParameter):
 
     def __init__(
         self,
-        type: Any,
+        type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
@@ -12382,7 +18916,6 @@ class WorkflowOutputParameter(OutputParameter):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -12399,7 +18932,7 @@ class WorkflowOutputParameter(OutputParameter):
         self.format = format
         self.outputSource = outputSource
         self.linkMerge = linkMerge
-        self.type = type
+        self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, WorkflowOutputParameter):
@@ -12412,7 +18945,7 @@ class WorkflowOutputParameter(OutputParameter):
                 and self.format == other.format
                 and self.outputSource == other.outputSource
                 and self.linkMerge == other.linkMerge
-                and self.type == other.type
+                and self.type_ == other.type_
             )
         return False
 
@@ -12427,7 +18960,7 @@ class WorkflowOutputParameter(OutputParameter):
                 self.format,
                 self.outputSource,
                 self.linkMerge,
-                self.type,
+                self.type_,
             )
         )
 
@@ -12437,29 +18970,57 @@ class WorkflowOutputParameter(OutputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "WorkflowOutputParameter":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -12473,149 +19034,369 @@ class WorkflowOutputParameter(OutputParameter):
             baseuri = id
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "secondaryFiles" in _doc:
             try:
+                if _doc.get("secondaryFiles") is None:
+                    raise ValidationException("missing required field `secondaryFiles`", None, [])
+
                 secondaryFiles = load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("secondaryFiles")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'secondaryFiles' field is not valid because:",
-                        SourceLine(_doc, "secondaryFiles", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `secondaryFiles`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `secondaryFiles` field is not valid because:",
+                                SourceLine(_doc, "secondaryFiles", str),
+                                [e],
+                            )
+                        )
         else:
             secondaryFiles = None
         if "streamable" in _doc:
             try:
+                if _doc.get("streamable") is None:
+                    raise ValidationException("missing required field `streamable`", None, [])
+
                 streamable = load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("streamable")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'streamable' field is not valid because:",
-                        SourceLine(_doc, "streamable", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `streamable`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `streamable` field is not valid because:",
+                                SourceLine(_doc, "streamable", str),
+                                [e],
+                            )
+                        )
         else:
             streamable = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         if "format" in _doc:
             try:
+                if _doc.get("format") is None:
+                    raise ValidationException("missing required field `format`", None, [])
+
                 format = load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("format")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'format' field is not valid because:",
-                        SourceLine(_doc, "format", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `format`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `format` field is not valid because:",
+                                SourceLine(_doc, "format", str),
+                                [e],
+                            )
+                        )
         else:
             format = None
         if "outputSource" in _doc:
             try:
+                if _doc.get("outputSource") is None:
+                    raise ValidationException("missing required field `outputSource`", None, [])
+
                 outputSource = load_field(
                     _doc.get("outputSource"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("outputSource")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'outputSource' field is not valid because:",
-                        SourceLine(_doc, "outputSource", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `outputSource`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("outputSource"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `outputSource` field is not valid because:",
+                                SourceLine(_doc, "outputSource", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `outputSource` field is not valid because:",
+                                SourceLine(_doc, "outputSource", str),
+                                [e],
+                            )
+                        )
         else:
             outputSource = None
         if "linkMerge" in _doc:
             try:
+                if _doc.get("linkMerge") is None:
+                    raise ValidationException("missing required field `linkMerge`", None, [])
+
                 linkMerge = load_field(
                     _doc.get("linkMerge"),
                     union_of_None_type_or_LinkMergeMethodLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("linkMerge")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'linkMerge' field is not valid because:",
-                        SourceLine(_doc, "linkMerge", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `linkMerge`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("linkMerge"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `linkMerge` field is not valid because:",
+                                SourceLine(_doc, "linkMerge", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `linkMerge` field is not valid because:",
+                                SourceLine(_doc, "linkMerge", str),
+                                [e],
+                            )
+                        )
         else:
             linkMerge = None
         try:
-            type = load_field(
+            if _doc.get("type") is None:
+                raise ValidationException("missing required field `type`", None, [])
+
+            type_ = load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("type")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'type' field is not valid because:",
-                    SourceLine(_doc, "type", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `type`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `type` field is not valid because:",
+                            SourceLine(_doc, "type", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -12629,12 +19410,9 @@ class WorkflowOutputParameter(OutputParameter):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'WorkflowOutputParameter'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             label=label,
             secondaryFiles=secondaryFiles,
@@ -12644,7 +19422,7 @@ class WorkflowOutputParameter(OutputParameter):
             format=format,
             outputSource=outputSource,
             linkMerge=linkMerge,
-            type=type,
+            type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
@@ -12697,9 +19475,9 @@ class WorkflowOutputParameter(OutputParameter):
             r["linkMerge"] = save(
                 self.linkMerge, top=False, base_url=self.id, relative_uris=relative_uris
             )
-        if self.type is not None:
+        if self.type_ is not None:
             r["type"] = save(
-                self.type, top=False, base_url=self.id, relative_uris=relative_uris
+                self.type_, top=False, base_url=self.id, relative_uris=relative_uris
             )
 
         # top refers to the directory level
@@ -12790,7 +19568,6 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -12842,29 +19619,57 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "WorkflowStepInput":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -12878,134 +19683,327 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
             baseuri = id
         if "source" in _doc:
             try:
+                if _doc.get("source") is None:
+                    raise ValidationException("missing required field `source`", None, [])
+
                 source = load_field(
                     _doc.get("source"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("source")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'source' field is not valid because:",
-                        SourceLine(_doc, "source", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `source`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("source"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `source` field is not valid because:",
+                                SourceLine(_doc, "source", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `source` field is not valid because:",
+                                SourceLine(_doc, "source", str),
+                                [e],
+                            )
+                        )
         else:
             source = None
         if "linkMerge" in _doc:
             try:
+                if _doc.get("linkMerge") is None:
+                    raise ValidationException("missing required field `linkMerge`", None, [])
+
                 linkMerge = load_field(
                     _doc.get("linkMerge"),
                     union_of_None_type_or_LinkMergeMethodLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("linkMerge")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'linkMerge' field is not valid because:",
-                        SourceLine(_doc, "linkMerge", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `linkMerge`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("linkMerge"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `linkMerge` field is not valid because:",
+                                SourceLine(_doc, "linkMerge", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `linkMerge` field is not valid because:",
+                                SourceLine(_doc, "linkMerge", str),
+                                [e],
+                            )
+                        )
         else:
             linkMerge = None
         if "loadContents" in _doc:
             try:
+                if _doc.get("loadContents") is None:
+                    raise ValidationException("missing required field `loadContents`", None, [])
+
                 loadContents = load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadContents")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadContents' field is not valid because:",
-                        SourceLine(_doc, "loadContents", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadContents`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadContents"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadContents` field is not valid because:",
+                                SourceLine(_doc, "loadContents", str),
+                                [e],
+                            )
+                        )
         else:
             loadContents = None
         if "loadListing" in _doc:
             try:
+                if _doc.get("loadListing") is None:
+                    raise ValidationException("missing required field `loadListing`", None, [])
+
                 loadListing = load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("loadListing")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'loadListing' field is not valid because:",
-                        SourceLine(_doc, "loadListing", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `loadListing`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("loadListing"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `loadListing` field is not valid because:",
+                                SourceLine(_doc, "loadListing", str),
+                                [e],
+                            )
+                        )
         else:
             loadListing = None
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "default" in _doc:
             try:
+                if _doc.get("default") is None:
+                    raise ValidationException("missing required field `default`", None, [])
+
                 default = load_field(
                     _doc.get("default"),
                     union_of_None_type_or_FileLoader_or_DirectoryLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("default")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'default' field is not valid because:",
-                        SourceLine(_doc, "default", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `default`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("default"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `default` field is not valid because:",
+                                SourceLine(_doc, "default", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `default` field is not valid because:",
+                                SourceLine(_doc, "default", str),
+                                [e],
+                            )
+                        )
         else:
             default = None
         if "valueFrom" in _doc:
             try:
+                if _doc.get("valueFrom") is None:
+                    raise ValidationException("missing required field `valueFrom`", None, [])
+
                 valueFrom = load_field(
                     _doc.get("valueFrom"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("valueFrom")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'valueFrom' field is not valid because:",
-                        SourceLine(_doc, "valueFrom", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `valueFrom`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("valueFrom"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `valueFrom` field is not valid because:",
+                                SourceLine(_doc, "valueFrom", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `valueFrom` field is not valid because:",
+                                SourceLine(_doc, "valueFrom", str),
+                                [e],
+                            )
+                        )
         else:
             valueFrom = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -13019,10 +20017,9 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'WorkflowStepInput'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             id=id,
             source=source,
@@ -13127,7 +20124,6 @@ class WorkflowStepOutput(Identified):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -13152,29 +20148,57 @@ class WorkflowStepOutput(Identified):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "WorkflowStepOutput":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -13189,7 +20213,11 @@ class WorkflowStepOutput(Identified):
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -13201,10 +20229,9 @@ class WorkflowStepOutput(Identified):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'WorkflowStepOutput'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             id=id,
             extension_fields=extension_fields,
@@ -13314,7 +20341,6 @@ class WorkflowStep(Identified, Labeled, Documented):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -13372,29 +20398,57 @@ class WorkflowStep(Identified, Labeled, Documented):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "WorkflowStep":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -13408,163 +20462,410 @@ class WorkflowStep(Identified, Labeled, Documented):
             baseuri = id
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         try:
+            if _doc.get("in") is None:
+                raise ValidationException("missing required field `in`", None, [])
+
             in_ = load_field(
                 _doc.get("in"),
                 idmap_in__array_of_WorkflowStepInputLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("in")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'in' field is not valid because:",
-                    SourceLine(_doc, "in", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `in`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("in"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `in` field is not valid because:",
+                            SourceLine(_doc, "in", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `in` field is not valid because:",
+                            SourceLine(_doc, "in", str),
+                            [e],
+                        )
+                    )
         try:
+            if _doc.get("out") is None:
+                raise ValidationException("missing required field `out`", None, [])
+
             out = load_field(
                 _doc.get("out"),
                 uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("out")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'out' field is not valid because:",
-                    SourceLine(_doc, "out", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `out`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("out"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `out` field is not valid because:",
+                            SourceLine(_doc, "out", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `out` field is not valid because:",
+                            SourceLine(_doc, "out", str),
+                            [e],
+                        )
+                    )
         if "requirements" in _doc:
             try:
+                if _doc.get("requirements") is None:
+                    raise ValidationException("missing required field `requirements`", None, [])
+
                 requirements = load_field(
                     _doc.get("requirements"),
                     idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("requirements")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'requirements' field is not valid because:",
-                        SourceLine(_doc, "requirements", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `requirements`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("requirements"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `requirements` field is not valid because:",
+                                SourceLine(_doc, "requirements", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `requirements` field is not valid because:",
+                                SourceLine(_doc, "requirements", str),
+                                [e],
+                            )
+                        )
         else:
             requirements = None
         if "hints" in _doc:
             try:
+                if _doc.get("hints") is None:
+                    raise ValidationException("missing required field `hints`", None, [])
+
                 hints = load_field(
                     _doc.get("hints"),
                     idmap_hints_union_of_None_type_or_array_of_Any_type,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("hints")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'hints' field is not valid because:",
-                        SourceLine(_doc, "hints", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `hints`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("hints"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `hints` field is not valid because:",
+                                SourceLine(_doc, "hints", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `hints` field is not valid because:",
+                                SourceLine(_doc, "hints", str),
+                                [e],
+                            )
+                        )
         else:
             hints = None
 
         subscope_baseuri = expand_url('run', baseuri, loadingOptions, True)
         try:
+            if _doc.get("run") is None:
+                raise ValidationException("missing required field `run`", None, [])
+
             run = load_field(
                 _doc.get("run"),
                 uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_False_False_None,
                 subscope_baseuri,
                 loadingOptions,
+                lc=_doc.get("run")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'run' field is not valid because:",
-                    SourceLine(_doc, "run", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `run`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("run"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `run` field is not valid because:",
+                            SourceLine(_doc, "run", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `run` field is not valid because:",
+                            SourceLine(_doc, "run", str),
+                            [e],
+                        )
+                    )
         if "scatter" in _doc:
             try:
+                if _doc.get("scatter") is None:
+                    raise ValidationException("missing required field `scatter`", None, [])
+
                 scatter = load_field(
                     _doc.get("scatter"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("scatter")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'scatter' field is not valid because:",
-                        SourceLine(_doc, "scatter", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `scatter`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("scatter"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `scatter` field is not valid because:",
+                                SourceLine(_doc, "scatter", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `scatter` field is not valid because:",
+                                SourceLine(_doc, "scatter", str),
+                                [e],
+                            )
+                        )
         else:
             scatter = None
         if "scatterMethod" in _doc:
             try:
+                if _doc.get("scatterMethod") is None:
+                    raise ValidationException("missing required field `scatterMethod`", None, [])
+
                 scatterMethod = load_field(
                     _doc.get("scatterMethod"),
                     uri_union_of_None_type_or_ScatterMethodLoader_False_True_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("scatterMethod")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'scatterMethod' field is not valid because:",
-                        SourceLine(_doc, "scatterMethod", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `scatterMethod`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("scatterMethod"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `scatterMethod` field is not valid because:",
+                                SourceLine(_doc, "scatterMethod", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `scatterMethod` field is not valid because:",
+                                SourceLine(_doc, "scatterMethod", str),
+                                [e],
+                            )
+                        )
         else:
             scatterMethod = None
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -13578,10 +20879,9 @@ class WorkflowStep(Identified, Labeled, Documented):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'WorkflowStep'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             id=id,
             label=label,
@@ -13739,7 +21039,6 @@ class Workflow(Process):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -13797,33 +21096,63 @@ class Workflow(Process):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "Workflow":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "Workflow":
-            raise ValidationException("Not a Workflow")
+            raise ValidationException("tried `Workflow` but")
 
         if "id" in _doc:
             try:
+                if _doc.get("id") is None:
+                    raise ValidationException("missing required field `id`", None, [])
+
                 id = load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("id")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'id' field is not valid because:",
-                        SourceLine(_doc, "id", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                            )
+                        )
         else:
             id = None
 
@@ -13837,143 +21166,363 @@ class Workflow(Process):
             baseuri = id
         if "label" in _doc:
             try:
+                if _doc.get("label") is None:
+                    raise ValidationException("missing required field `label`", None, [])
+
                 label = load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("label")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'label' field is not valid because:",
-                        SourceLine(_doc, "label", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                            )
+                        )
         else:
             label = None
         if "doc" in _doc:
             try:
+                if _doc.get("doc") is None:
+                    raise ValidationException("missing required field `doc`", None, [])
+
                 doc = load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("doc")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'doc' field is not valid because:",
-                        SourceLine(_doc, "doc", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                            )
+                        )
         else:
             doc = None
         try:
+            if _doc.get("inputs") is None:
+                raise ValidationException("missing required field `inputs`", None, [])
+
             inputs = load_field(
                 _doc.get("inputs"),
                 idmap_inputs_array_of_WorkflowInputParameterLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("inputs")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'inputs' field is not valid because:",
-                    SourceLine(_doc, "inputs", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `inputs`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("inputs"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `inputs` field is not valid because:",
+                            SourceLine(_doc, "inputs", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `inputs` field is not valid because:",
+                            SourceLine(_doc, "inputs", str),
+                            [e],
+                        )
+                    )
         try:
+            if _doc.get("outputs") is None:
+                raise ValidationException("missing required field `outputs`", None, [])
+
             outputs = load_field(
                 _doc.get("outputs"),
                 idmap_outputs_array_of_WorkflowOutputParameterLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("outputs")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'outputs' field is not valid because:",
-                    SourceLine(_doc, "outputs", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `outputs`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("outputs"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `outputs` field is not valid because:",
+                            SourceLine(_doc, "outputs", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `outputs` field is not valid because:",
+                            SourceLine(_doc, "outputs", str),
+                            [e],
+                        )
+                    )
         if "requirements" in _doc:
             try:
+                if _doc.get("requirements") is None:
+                    raise ValidationException("missing required field `requirements`", None, [])
+
                 requirements = load_field(
                     _doc.get("requirements"),
                     idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("requirements")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'requirements' field is not valid because:",
-                        SourceLine(_doc, "requirements", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `requirements`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("requirements"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `requirements` field is not valid because:",
+                                SourceLine(_doc, "requirements", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `requirements` field is not valid because:",
+                                SourceLine(_doc, "requirements", str),
+                                [e],
+                            )
+                        )
         else:
             requirements = None
         if "hints" in _doc:
             try:
+                if _doc.get("hints") is None:
+                    raise ValidationException("missing required field `hints`", None, [])
+
                 hints = load_field(
                     _doc.get("hints"),
                     idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("hints")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'hints' field is not valid because:",
-                        SourceLine(_doc, "hints", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `hints`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("hints"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `hints` field is not valid because:",
+                                SourceLine(_doc, "hints", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `hints` field is not valid because:",
+                                SourceLine(_doc, "hints", str),
+                                [e],
+                            )
+                        )
         else:
             hints = None
         if "cwlVersion" in _doc:
             try:
+                if _doc.get("cwlVersion") is None:
+                    raise ValidationException("missing required field `cwlVersion`", None, [])
+
                 cwlVersion = load_field(
                     _doc.get("cwlVersion"),
                     uri_union_of_None_type_or_CWLVersionLoader_False_True_None,
                     baseuri,
                     loadingOptions,
+                    lc=_doc.get("cwlVersion")
                 )
+
             except ValidationException as e:
-                _errors__.append(
-                    ValidationException(
-                        "the 'cwlVersion' field is not valid because:",
-                        SourceLine(_doc, "cwlVersion", str),
-                        [e],
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `cwlVersion`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
                     )
-                )
+                else:
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(_doc.get("cwlVersion"))))
+                        _errors__.append(
+                            ValidationException(
+                                "the `cwlVersion` field is not valid because:",
+                                SourceLine(_doc, "cwlVersion", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `cwlVersion` field is not valid because:",
+                                SourceLine(_doc, "cwlVersion", str),
+                                [e],
+                            )
+                        )
         else:
             cwlVersion = None
         try:
+            if _doc.get("steps") is None:
+                raise ValidationException("missing required field `steps`", None, [])
+
             steps = load_field(
                 _doc.get("steps"),
                 idmap_steps_union_of_array_of_WorkflowStepLoader,
                 baseuri,
                 loadingOptions,
+                lc=_doc.get("steps")
             )
+
         except ValidationException as e:
-            _errors__.append(
-                ValidationException(
-                    "the 'steps' field is not valid because:",
-                    SourceLine(_doc, "steps", str),
-                    [e],
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `steps`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
                 )
-            )
+            else:
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(_doc.get("steps"))))
+                    _errors__.append(
+                        ValidationException(
+                            "the `steps` field is not valid because:",
+                            SourceLine(_doc, "steps", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `steps` field is not valid because:",
+                            SourceLine(_doc, "steps", str),
+                            [e],
+                        )
+                    )
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -13987,10 +21536,9 @@ class Workflow(Process):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException("Trying 'Workflow'", None, _errors__)
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             id=id,
             label=label,
@@ -14094,7 +21642,6 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -14119,21 +21666,28 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "SubworkflowFeatureRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "SubworkflowFeatureRequirement":
-            raise ValidationException("Not a SubworkflowFeatureRequirement")
+            raise ValidationException("tried `SubworkflowFeatureRequirement` but")
 
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -14145,12 +21699,9 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'SubworkflowFeatureRequirement'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -14194,7 +21745,6 @@ class ScatterFeatureRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -14219,21 +21769,28 @@ class ScatterFeatureRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "ScatterFeatureRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "ScatterFeatureRequirement":
-            raise ValidationException("Not a ScatterFeatureRequirement")
+            raise ValidationException("tried `ScatterFeatureRequirement` but")
 
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -14245,12 +21802,9 @@ class ScatterFeatureRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'ScatterFeatureRequirement'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -14294,7 +21848,6 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -14319,21 +21872,28 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "MultipleInputFeatureRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "MultipleInputFeatureRequirement":
-            raise ValidationException("Not a MultipleInputFeatureRequirement")
+            raise ValidationException("tried `MultipleInputFeatureRequirement` but")
 
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -14345,12 +21905,9 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'MultipleInputFeatureRequirement'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -14394,7 +21951,6 @@ class StepInputExpressionRequirement(ProcessRequirement):
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
-
         if extension_fields:
             self.extension_fields = extension_fields
         else:
@@ -14419,21 +21975,28 @@ class StepInputExpressionRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
+        docRoot: Optional[str] = None
     ) -> "StepInputExpressionRequirement":
         _doc = copy.copy(doc)
+
         if hasattr(doc, "lc"):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
 
+        if "class" not in _doc:
+            raise ValidationException("Missing 'class' field")
         if _doc.get("class") != "StepInputExpressionRequirement":
-            raise ValidationException("Not a StepInputExpressionRequirement")
+            raise ValidationException("tried `StepInputExpressionRequirement` but")
 
         extension_fields: Dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
-                if ":" in k:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
                     ex = expand_url(
                         k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
@@ -14445,12 +22008,9 @@ class StepInputExpressionRequirement(ProcessRequirement):
                             SourceLine(_doc, k, str),
                         )
                     )
-                    break
 
         if _errors__:
-            raise ValidationException(
-                "Trying 'StepInputExpressionRequirement'", None, _errors__
-            )
+            raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
@@ -15041,6 +22601,7 @@ union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArrayS
 typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype,
     2,
+    "v1.1",
 )
 array_of_RecordFieldLoader = _ArrayLoader(RecordFieldLoader)
 union_of_None_type_or_array_of_RecordFieldLoader = _UnionLoader(
@@ -15056,20 +22617,20 @@ enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader = _EnumLoader(
     ("record",), "enum_d9cba076fca539106791a4f46d198c7fcfbdb779"
 )
 typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2 = _TypeDSLLoader(
-    enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader, 2
+    enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader, 2, "v1.1"
 )
 uri_array_of_strtype_True_False_None = _URILoader(array_of_strtype, True, False, None)
 enum_d961d79c225752b9fadb617367615ab176b47d77Loader = _EnumLoader(
     ("enum",), "enum_d961d79c225752b9fadb617367615ab176b47d77"
 )
 typedsl_enum_d961d79c225752b9fadb617367615ab176b47d77Loader_2 = _TypeDSLLoader(
-    enum_d961d79c225752b9fadb617367615ab176b47d77Loader, 2
+    enum_d961d79c225752b9fadb617367615ab176b47d77Loader, 2, "v1.1"
 )
 enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader = _EnumLoader(
     ("array",), "enum_d062602be0b4b8fd33e69e29a841317b6ab665bc"
 )
 typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2 = _TypeDSLLoader(
-    enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader, 2
+    enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader, 2, "v1.1"
 )
 File_classLoader = _EnumLoader(("File",), "File_class")
 uri_File_classLoader_False_True_None = _URILoader(File_classLoader, False, True, None)
@@ -15185,6 +22746,7 @@ union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_In
 typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     2,
+    "v1.1",
 )
 array_of_InputRecordFieldLoader = _ArrayLoader(InputRecordFieldLoader)
 union_of_None_type_or_array_of_InputRecordFieldLoader = _UnionLoader(
@@ -15221,6 +22783,7 @@ union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_
 typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
     2,
+    "v1.1",
 )
 array_of_OutputRecordFieldLoader = _ArrayLoader(OutputRecordFieldLoader)
 union_of_None_type_or_array_of_OutputRecordFieldLoader = _UnionLoader(
@@ -15448,6 +23011,7 @@ union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSche
 typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
+    "v1.1",
 )
 array_of_CommandInputRecordFieldLoader = _ArrayLoader(CommandInputRecordFieldLoader)
 union_of_None_type_or_array_of_CommandInputRecordFieldLoader = _UnionLoader(
@@ -15486,6 +23050,7 @@ union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSc
 typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
+    "v1.1",
 )
 union_of_None_type_or_CommandOutputBindingLoader = _UnionLoader(
     (
@@ -15519,6 +23084,7 @@ union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_Comma
 typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
+    "v1.1",
 )
 union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader(
     (
@@ -15535,6 +23101,7 @@ union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSch
 typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
+    "v1.1",
 )
 CommandLineTool_classLoader = _EnumLoader(("CommandLineTool",), "CommandLineTool_class")
 uri_CommandLineTool_classLoader_False_True_None = _URILoader(
