@@ -139,7 +139,7 @@ def test_v1_0_stdout_to_file() -> None:
     clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_0.CommandOutputParameter(id="test", type="stdout")
+            cwl_utils.parser.cwl_v1_0.CommandOutputParameter(id="test", type_="stdout")
         ],
     )
     cwl_utils.parser.cwl_v1_0_utils.convert_stdstreams_to_files(clt)
@@ -154,7 +154,7 @@ def test_v1_0_stdout_to_file_with_binding() -> None:
         outputs=[
             cwl_utils.parser.cwl_v1_0.CommandOutputParameter(
                 id="test",
-                type="stdout",
+                type_="stdout",
                 outputBinding=cwl_utils.parser.cwl_v1_0.CommandOutputBinding(
                     glob="output.txt"
                 ),
@@ -170,7 +170,7 @@ def test_v1_0_stdout_to_file_preserve_original() -> None:
     clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_0.CommandOutputParameter(id="test", type="stdout")
+            cwl_utils.parser.cwl_v1_0.CommandOutputParameter(id="test", type_="stdout")
         ],
         stdout="original.txt",
     )
@@ -184,7 +184,7 @@ def test_v1_0_stderr_to_file() -> None:
     clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_0.CommandOutputParameter(id="test", type="stderr")
+            cwl_utils.parser.cwl_v1_0.CommandOutputParameter(id="test", type_="stderr")
         ],
     )
     cwl_utils.parser.cwl_v1_0_utils.convert_stdstreams_to_files(clt)
@@ -199,7 +199,7 @@ def test_v1_0_stderr_to_file_with_binding() -> None:
         outputs=[
             cwl_utils.parser.cwl_v1_0.CommandOutputParameter(
                 id="test",
-                type="stderr",
+                type_="stderr",
                 outputBinding=cwl_utils.parser.cwl_v1_0.CommandOutputBinding(
                     glob="err.txt"
                 ),
@@ -215,7 +215,7 @@ def test_v1_0_stderr_to_file_preserve_original() -> None:
     clt = cwl_utils.parser.cwl_v1_0.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_0.CommandOutputParameter(id="test", type="stderr")
+            cwl_utils.parser.cwl_v1_0.CommandOutputParameter(id="test", type_="stderr")
         ],
         stderr="original.txt",
     )
@@ -229,7 +229,7 @@ def test_v1_0_type_compare_list() -> None:
     uri = Path(get_data("testdata/echo_v1_0.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert cwl_utils.parser.cwl_v1_0_utils._compare_type(
-        cwl_obj.inputs[0].type, cwl_obj.inputs[0].type
+        cwl_obj.inputs[0].type_, cwl_obj.inputs[0].type_
     )
 
 
@@ -291,8 +291,8 @@ def test_v1_0_type_output_source_record() -> None:
         MutableSequence[cwl_utils.parser.cwl_v1_0.RecordField], source_type.fields
     )
     assert len(fields) == 2
-    assert fields[0].type == "File"
-    assert fields[1].type == "File"
+    assert fields[0].type_ == "File"
+    assert fields[1].type_ == "File"
 
 
 def test_v1_0_type_for_output_source_with_single_scatter_step() -> None:
@@ -418,7 +418,7 @@ def test_v1_1_stdout_to_file() -> None:
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_1.CommandOutputParameter(id="test", type="stdout")
+            cwl_utils.parser.cwl_v1_1.CommandOutputParameter(id="test", type_="stdout")
         ],
     )
     cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
@@ -433,7 +433,7 @@ def test_v1_1_stdout_to_file_with_binding() -> None:
         outputs=[
             cwl_utils.parser.cwl_v1_1.CommandOutputParameter(
                 id="test",
-                type="stdout",
+                type_="stdout",
                 outputBinding=cwl_utils.parser.cwl_v1_1.CommandOutputBinding(
                     glob="output.txt"
                 ),
@@ -449,7 +449,7 @@ def test_v1_1_stdout_to_file_preserve_original() -> None:
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_1.CommandOutputParameter(id="test", type="stdout")
+            cwl_utils.parser.cwl_v1_1.CommandOutputParameter(id="test", type_="stdout")
         ],
         stdout="original.txt",
     )
@@ -463,7 +463,7 @@ def test_v1_1_stderr_to_file() -> None:
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_1.CommandOutputParameter(id="test", type="stderr")
+            cwl_utils.parser.cwl_v1_1.CommandOutputParameter(id="test", type_="stderr")
         ],
     )
     cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
@@ -478,7 +478,7 @@ def test_v1_1_stderr_to_file_with_binding() -> None:
         outputs=[
             cwl_utils.parser.cwl_v1_1.CommandOutputParameter(
                 id="test",
-                type="stderr",
+                type_="stderr",
                 outputBinding=cwl_utils.parser.cwl_v1_1.CommandOutputBinding(
                     glob="err.txt"
                 ),
@@ -494,7 +494,7 @@ def test_v1_1_stderr_to_file_preserve_original() -> None:
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_1.CommandOutputParameter(id="test", type="stderr")
+            cwl_utils.parser.cwl_v1_1.CommandOutputParameter(id="test", type_="stderr")
         ],
         stderr="original.txt",
     )
@@ -507,7 +507,7 @@ def test_v1_1_stdin_to_file() -> None:
     """Test that stdin shortcut is converted to stdin parameter with CWL v1.1."""
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[
-            cwl_utils.parser.cwl_v1_1.CommandInputParameter(id="test", type="stdin")
+            cwl_utils.parser.cwl_v1_1.CommandInputParameter(id="test", type_="stdin")
         ],
         outputs=[],
     )
@@ -521,7 +521,7 @@ def test_v1_1_stdin_to_file_with_binding() -> None:
         inputs=[
             cwl_utils.parser.cwl_v1_1.CommandInputParameter(
                 id="test",
-                type="stdin",
+                type_="stdin",
                 inputBinding=cwl_utils.parser.cwl_v1_1.CommandLineBinding(
                     prefix="--test"
                 ),
@@ -537,7 +537,7 @@ def test_v1_1_stdin_to_file_fail_with_original() -> None:
     """Test that stdin shortcut fails when stdin parameter is defined with CWL v1.1."""
     clt = cwl_utils.parser.cwl_v1_1.CommandLineTool(
         inputs=[
-            cwl_utils.parser.cwl_v1_1.CommandInputParameter(id="test", type="stdin")
+            cwl_utils.parser.cwl_v1_1.CommandInputParameter(id="test", type_="stdin")
         ],
         outputs=[],
         stdin="original.txt",
@@ -551,7 +551,7 @@ def test_v1_1_type_compare_list() -> None:
     uri = Path(get_data("testdata/echo_v1_1.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert cwl_utils.parser.cwl_v1_1_utils._compare_type(
-        cwl_obj.inputs[0].type, cwl_obj.inputs[0].type
+        cwl_obj.inputs[0].type_, cwl_obj.inputs[0].type_
     )
 
 
@@ -613,8 +613,8 @@ def test_v1_1_type_output_source_record() -> None:
         MutableSequence[cwl_utils.parser.cwl_v1_1.RecordField], source_type.fields
     )
     assert len(fields) == 2
-    assert fields[0].type == "File"
-    assert fields[1].type == "File"
+    assert fields[0].type_ == "File"
+    assert fields[1].type_ == "File"
 
 
 def test_v1_1_type_for_output_source_with_single_scatter_step() -> None:
@@ -741,7 +741,7 @@ def test_v1_2_stdout_to_file() -> None:
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_2.CommandOutputParameter(id="test", type="stdout")
+            cwl_utils.parser.cwl_v1_2.CommandOutputParameter(id="test", type_="stdout")
         ],
     )
     cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
@@ -756,7 +756,7 @@ def test_v1_2_stdout_to_file_with_binding() -> None:
         outputs=[
             cwl_utils.parser.cwl_v1_2.CommandOutputParameter(
                 id="test",
-                type="stdout",
+                type_="stdout",
                 outputBinding=cwl_utils.parser.cwl_v1_2.CommandOutputBinding(
                     glob="output.txt"
                 ),
@@ -772,7 +772,7 @@ def test_v1_2_stdout_to_file_preserve_original() -> None:
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_2.CommandOutputParameter(id="test", type="stdout")
+            cwl_utils.parser.cwl_v1_2.CommandOutputParameter(id="test", type_="stdout")
         ],
         stdout="original.txt",
     )
@@ -786,7 +786,7 @@ def test_v1_2_stderr_to_file() -> None:
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_2.CommandOutputParameter(id="test", type="stderr")
+            cwl_utils.parser.cwl_v1_2.CommandOutputParameter(id="test", type_="stderr")
         ],
     )
     cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
@@ -801,7 +801,7 @@ def test_v1_2_stderr_to_file_with_binding() -> None:
         outputs=[
             cwl_utils.parser.cwl_v1_2.CommandOutputParameter(
                 id="test",
-                type="stderr",
+                type_="stderr",
                 outputBinding=cwl_utils.parser.cwl_v1_2.CommandOutputBinding(
                     glob="err.txt"
                 ),
@@ -817,7 +817,7 @@ def test_v1_2_stderr_to_file_preserve_original() -> None:
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[],
         outputs=[
-            cwl_utils.parser.cwl_v1_2.CommandOutputParameter(id="test", type="stderr")
+            cwl_utils.parser.cwl_v1_2.CommandOutputParameter(id="test", type_="stderr")
         ],
         stderr="original.txt",
     )
@@ -830,7 +830,7 @@ def test_v1_2_stdin_to_file() -> None:
     """Test that stdin shortcut is converted to stdin parameter with CWL v1.2."""
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[
-            cwl_utils.parser.cwl_v1_2.CommandInputParameter(id="test", type="stdin")
+            cwl_utils.parser.cwl_v1_2.CommandInputParameter(id="test", type_="stdin")
         ],
         outputs=[],
     )
@@ -844,7 +844,7 @@ def test_v1_2_stdin_to_file_with_binding() -> None:
         inputs=[
             cwl_utils.parser.cwl_v1_2.CommandInputParameter(
                 id="test",
-                type="stdin",
+                type_="stdin",
                 inputBinding=cwl_utils.parser.cwl_v1_2.CommandLineBinding(
                     prefix="--test"
                 ),
@@ -860,7 +860,7 @@ def test_v1_2_stdin_to_file_fail_with_original() -> None:
     """Test that stdin shortcut fails when stdin parameter is defined with CWL v1.2."""
     clt = cwl_utils.parser.cwl_v1_2.CommandLineTool(
         inputs=[
-            cwl_utils.parser.cwl_v1_2.CommandInputParameter(id="test", type="stdin")
+            cwl_utils.parser.cwl_v1_2.CommandInputParameter(id="test", type_="stdin")
         ],
         outputs=[],
         stdin="original.txt",
@@ -874,7 +874,7 @@ def test_v1_2_type_compare_list() -> None:
     uri = Path(get_data("testdata/echo_v1_2.cwl")).resolve().as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert cwl_utils.parser.cwl_v1_2_utils._compare_type(
-        cwl_obj.inputs[0].type, cwl_obj.inputs[0].type
+        cwl_obj.inputs[0].type_, cwl_obj.inputs[0].type_
     )
 
 
@@ -936,8 +936,8 @@ def test_v1_2_type_output_source_record() -> None:
         MutableSequence[cwl_utils.parser.cwl_v1_2.RecordField], source_type.fields
     )
     assert len(fields) == 2
-    assert fields[0].type == "File"
-    assert fields[1].type == "File"
+    assert fields[0].type_ == "File"
+    assert fields[1].type_ == "File"
 
 
 def test_v1_2_type_for_output_source_with_single_scatter_step() -> None:
