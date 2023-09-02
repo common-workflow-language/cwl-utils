@@ -145,7 +145,7 @@ class NodeJSEngine(JSEngine):
         """
         # parse nodejs version into int Tuple: 'v4.2.6\n' -> [4, 2, 6]
         current_version_str = subprocess.check_output(  # nosec
-            [working_alias, "-v"], universal_newlines=True
+            [working_alias, "-v"], text=True
         )
         current_version = [
             int(v) for v in current_version_str.strip().strip("v").split(".")
@@ -294,7 +294,7 @@ class NodeJSEngine(JSEngine):
                 if (
                     subprocess.check_output(  # nosec
                         [n, "--eval", "process.stdout.write('t')"],
-                        universal_newlines=True,
+                        text=True,
                     )
                     != "t"
                 ):
@@ -326,7 +326,7 @@ class NodeJSEngine(JSEngine):
                     if container_engine in ("docker", "podman"):
                         dockerimgs = subprocess.check_output(  # nosec
                             [container_engine, "images", "-q", nodeimg],
-                            universal_newlines=True,
+                            text=True,
                         )
                     elif container_engine == "singularity":
                         singularity_cache = os.environ.get("CWL_SINGULARITY_CACHE")
@@ -345,7 +345,7 @@ class NodeJSEngine(JSEngine):
                             re.escape(nodeimg),
                             subprocess.check_output(  # nosec
                                 [container_engine, "images"],
-                                universal_newlines=True,
+                                text=True,
                             ),
                         )
                         if matches:
@@ -369,7 +369,7 @@ class NodeJSEngine(JSEngine):
                         nodejs_pull_commands.append(nodeimg)
                         cwd = singularity_cache if singularity_cache else os.getcwd()
                         nodejsimg = subprocess.check_output(  # nosec
-                            nodejs_pull_commands, universal_newlines=True, cwd=cwd
+                            nodejs_pull_commands, text=True, cwd=cwd
                         )
                         _logger.debug(
                             "Pulled Docker image %s %s using %s",

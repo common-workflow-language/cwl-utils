@@ -116,10 +116,9 @@ def evaluator(
     **kwargs: Any,
 ) -> Optional[CWLOutputType]:
     js_engine = js_engine or get_js_engine()
-    match = param_re.match(ex)
     expression_parse_exception = None
 
-    if match is not None:
+    if (match := param_re.match(ex)) is not None:
         first_symbol = match.group(1)
         first_symbol_end = match.end(1)
 

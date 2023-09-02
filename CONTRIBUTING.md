@@ -1,6 +1,6 @@
 Style guide:
 - PEP-8 / format with ``black`` via ``make format``
-- Python 3.6+ compatible code
+- Python 3.8+ compatible code
 - PEP-484 type hints
 
 It is suggested that you run `git config blame.ignoreRevsFile .git-blame-ignore-revs`

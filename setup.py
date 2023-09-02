@@ -23,7 +23,7 @@ setup(
     author_email="common-workflow-language@googlegroups.com",
     url="https://github.com/common-workflow-language/cwl-utils",
     license="Apache 2.0",
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     setup_requires=pytest_runner,
     packages=["cwl_utils", "cwl_utils.parser", "cwl_utils.tests", "cwl_utils.testdata"],
     package_dir={
@@ -55,8 +55,6 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: POSIX",
         "Operating System :: MacOS :: MacOS X",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",

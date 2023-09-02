@@ -30,8 +30,8 @@ PYSOURCES=$(filter-out $(MODULE)/parser/cwl_v%,$(shell find $(MODULE) -name "*.p
 	  $(wildcard tests/*.py) create_cwl_from_objects.py load_cwl_by_path.py \
 	  setup.py ${MODULE}/parser/cwl_v1_?_utils.py docs/conf.py
 DEVPKGS=diff_cover  pylint pep257 pydocstyle flake8 tox tox-pyenv \
-	isort wheel autoflake pyupgrade bandit -rlint-requirements.txt \
-	-rtest-requirements.txt -rmypy-requirements.txt
+	isort wheel autoflake pyupgrade bandit auto-walrus \
+	-rlint-requirements.txt -rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \
 	   python-flake8 python-mock shellcheck
 VERSION=v$(shell echo $$(tail -n 1 cwl_utils/__meta__.py | awk '{print $$3}'))
@@ -173,14 +173,12 @@ mypy3: mypy
 mypy: $(filter-out setup.py,${PYSOURCES})
 	MYPYPATH=$$MYPYPATH:mypy-stubs mypy $^
 
-mypy_3.6: $(filter-out setup.py,${PYSOURCES})
-	MYPYPATH=$$MYPYPATH:mypy-stubs mypy --python-version 3.6 $^
-
 shellcheck: FORCE
 	shellcheck release-test.sh
 
 pyupgrade: $(PYSOURCES)
-	pyupgrade --exit-zero-even-if-changed --py36-plus $^
+	pyupgrade --exit-zero-even-if-changed --py38-plus $^
+	auto-walrus $^
 
 release-test: FORCE
 	git diff-index --quiet HEAD -- || ( echo You have uncommitted changes, please commit them and try again; false )
