@@ -10,6 +10,9 @@ concurrency:
   group: build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  apptainer_version: 1.1.8
+
 jobs:
 
   tox:
@@ -34,9 +37,9 @@ jobs:
 
       - name: Set up Singularity
         if: ${{ matrix.step == 'unit' || matrix.step == 'mypy' }}
-        run: |
-          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v3.10.4/singularity-ce_3.10.4-focal_amd64.deb
-          sudo apt-get install -y ./singularity-ce_3.10.4-focal_amd64.deb
+        uses: eWaterCycle/setup-apptainer@v2
+        with:
+          apptainer-version: ${{ env.apptainer_version }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -108,24 +111,16 @@ jobs:
 
   release_test:
     name: cwl-utils release test
+
     runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Singularity
-        run: |
-          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v3.10.4/singularity-ce_3.10.4-jammy_amd64.deb
-          sudo apt-get install -y ./singularity-ce_3.10.4-jammy_amd64.deb
-
-      - name: pull some containers
-        run: |
-          export CWL_SINGULARITY_CACHE=$(echo $GITHUB_WORKSPACE)/singularity_cache
-          mkdir -p ${CWL_SINGULARITY_CACHE}
-          singularity pull --name ${CWL_SINGULARITY_CACHE}/node_alpine.sif docker://docker.io/node:alpine
-          ls -lh ${CWL_SINGULARITY_CACHE}
-          echo ${CWL_SINGULARITY_CACHE}
-          echo "CWL_SINGULARITY_CACHE=${CWL_SINGULARITY_CACHE}" >> $GITHUB_ENV
+      - name: Set up Apptainer
+        uses: eWaterCycle/setup-apptainer@2
+        with:
+          apptainer-version: ${{ env.apptainer_version }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
