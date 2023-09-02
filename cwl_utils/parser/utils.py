@@ -103,8 +103,8 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
     }
     type_dict = {
         **type_dict,
-        **{param.id: param.type for param in workflow.inputs},
-        **{param.id: param.type for param in workflow.outputs},
+        **{param.id: param.type_ for param in workflow.inputs},
+        **{param.id: param.type_ for param in workflow.outputs},
     }
 
     parser: ModuleType
@@ -147,7 +147,7 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         sink = warning.sink
         linkMerge = warning.linkMerge
         msg = (
-            SourceLine(src, "type").makeError(
+            SourceLine(src, "type_").makeError(
                 "Source '%s' of type %s may be incompatible"
                 % (
                     parser.shortname(src.id),
@@ -155,7 +155,7 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
                 )
             )
             + "\n"
-            + SourceLine(sink, "type").makeError(
+            + SourceLine(sink, "type_").makeError(
                 "  with sink '%s' of type %s"
                 % (
                     parser.shortname(sink.id),
@@ -181,12 +181,12 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         extra_message = exception.message
 
         msg = (
-            SourceLine(src, "type").makeError(
+            SourceLine(src, "type_").makeError(
                 "Source '%s' of type %s is incompatible"
                 % (parser.shortname(src.id), json_dumps(parser.save(type_dict[src.id])))
             )
             + "\n"
-            + SourceLine(sink, "type").makeError(
+            + SourceLine(sink, "type_").makeError(
                 "  with sink '%s' of type %s"
                 % (
                     parser.shortname(sink.id),
