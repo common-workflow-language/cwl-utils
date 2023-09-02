@@ -35,8 +35,8 @@ jobs:
       - name: Set up Singularity
         if: ${{ matrix.step == 'unit' || matrix.step == 'mypy' }}
         run: |
-          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v3.10.4/singularity-ce_3.10.4-focal_amd64.deb
-          sudo apt-get install -y ./singularity-ce_3.10.4-focal_amd64.deb
+          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v3.11.4/singularity-ce_3.11.4-jammy_amd64.deb
+          sudo apt-get install -y ./singularity-ce_3.11.4-jammy_amd64.deb
 
       - name: Set up Python
         uses: actions/setup-python@v4
