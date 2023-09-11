@@ -39,7 +39,7 @@ def test_load_document() -> None:
     """Test load_document for a CommandLineTool."""
     with open(TEST_v1_0_CWL) as cwl_h:
         yaml_obj = yaml.load(cwl_h)
-    cwl_obj = load_document(yaml_obj)
+    cwl_obj = load_document(yaml_obj, Path(TEST_v1_0_CWL).resolve().as_uri())
     assert cwl_obj.cwlVersion == "v1.0"
     assert cwl_obj.inputs[0].id.endswith("input_file")
 
@@ -64,12 +64,12 @@ def test_save() -> None:
     """Test save for a list of Process objects with different cwlVersions."""
     with open(TEST_v1_0_CWL) as cwl_h:
         yaml_obj10 = yaml.load(cwl_h)
-    cwl_obj10 = load_document(yaml_obj10)
+    cwl_obj10 = load_document(yaml_obj10, Path(TEST_v1_0_CWL).resolve().as_uri())
     assert cwl_obj10.cwlVersion == "v1.0"
 
     with open(TEST_v1_2_CWL) as cwl_h:
         yaml_obj12 = yaml.load(cwl_h)
-    cwl_obj12 = load_document(yaml_obj12)
+    cwl_obj12 = load_document(yaml_obj12, Path(TEST_v1_2_CWL).resolve().as_uri())
     assert cwl_obj12.cwlVersion == "v1.2"
 
     saved_obj = save([cwl_obj10, cwl_obj12])

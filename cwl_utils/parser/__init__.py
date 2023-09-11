@@ -160,24 +160,27 @@ def load_document_by_uri(
     load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a URI or a path."""
+    base_uri = ""
+    real_uri = ""
     if isinstance(path, str):
         uri = urlparse(path)
         id_ = uri.fragment or None
         if not uri.scheme or uri.scheme == "file":
-            real_path = Path(unquote_plus(uri.path)).resolve().as_uri()
+            real_uri = Path(unquote_plus(uri.path)).resolve().as_uri()
+            base_uri = Path(unquote_plus(uri.path)).resolve().parent.as_uri()
         else:
-            real_path = path
+            real_uri = path
+            base_uri = os.path.dirname(path)
     else:
-        real_path = path.resolve().as_uri()
+        real_uri = path.resolve().as_uri()
+        base_uri = path.resolve().parent.as_uri()
         id_ = path.resolve().name.split("#")[1] if "#" in path.resolve().name else None
 
-    baseuri = str(real_path)
-
     if loadingOptions is None:
-        loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
+        loadingOptions = cwl_v1_2.LoadingOptions(fileuri=real_uri, baseuri=base_uri)
 
-    doc = loadingOptions.fetcher.fetch_text(real_path)
-    return load_document_by_string(doc, baseuri, loadingOptions, id_, load_all)
+    doc = loadingOptions.fetcher.fetch_text(real_uri)
+    return load_document_by_string(doc, real_uri, loadingOptions, id_, load_all)
 
 
 def load_document(
