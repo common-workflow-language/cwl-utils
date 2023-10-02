@@ -21,10 +21,10 @@ def arg_parser() -> argparse.ArgumentParser:
         description="Save container images specified in a CWL document (Workflow or CommandLineTool). "
         "For CWL Workflows, all steps will also be searched (recursively)."
     )
-    parser.add_argument("dir", help="Directory in which to save images")
     parser.add_argument(
         "input", help="Input CWL document (CWL Workflow or CWL CommandLineTool)"
     )
+    parser.add_argument("--dir", help="Directory in which to save images")
     parser.add_argument(
         "-s",
         "--singularity",
@@ -45,7 +45,12 @@ def arg_parser() -> argparse.ArgumentParser:
 
 def run(args: argparse.Namespace) -> List[cwl.DockerRequirement]:
     """Extract the docker reqs and download them using Singularity or Docker."""
-    os.makedirs(args.dir, exist_ok=True)
+    if args.singularity and not args.dir:
+        print("Error! Must specify --dir if using --singularity")
+        sys.exit(1)
+
+    if args.dir:
+        os.makedirs(args.dir, exist_ok=True)
 
     top = cwl.load_document_by_uri(args.input)
     reqs: List[cwl.DockerRequirement] = []
