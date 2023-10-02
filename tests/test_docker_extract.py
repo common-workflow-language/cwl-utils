@@ -23,7 +23,7 @@ from .util import get_data, needs_docker, needs_podman, needs_singularity
 def test_container_extraction(target: str, engine: str, tmp_path: Path) -> None:
     """Test container extraction tool."""
 
-    args = [str(tmp_path), get_data(target), "--container-engine", engine]
+    args = ["--dir", str(tmp_path), get_data(target), "--container-engine", engine]
     if engine == "singularity":
         args.append("--singularity")
     reqs = run(arg_parser().parse_args(args))
@@ -43,6 +43,7 @@ def test_container_extraction_force(engine: str, tmp_path: Path) -> None:
     """Test force pull container extraction."""
 
     args = [
+        "--dir",
         str(tmp_path),
         get_data("testdata/md5sum.cwl"),
         "--container-engine",
@@ -54,6 +55,7 @@ def test_container_extraction_force(engine: str, tmp_path: Path) -> None:
     assert len(reqs) == 1
     assert len(list(tmp_path.iterdir())) == 1
     args = [
+        "--dir",
         str(tmp_path),
         get_data("testdata/md5sum.cwl"),
         "--container-engine",
@@ -81,6 +83,7 @@ def test_container_extraction_no_dockerPull(
     """Test container extraction tool when dockerPull is missing."""
 
     args = [
+        "--dir",
         str(tmp_path),
         get_data("testdata/debian_image_id.cwl"),
         "--container-engine",
@@ -113,6 +116,7 @@ def test_container_extraction_embedded_step(engine: str, tmp_path: Path) -> None
     """Test container extraction tool."""
 
     args = [
+        "--dir",
         str(tmp_path),
         get_data("testdata/workflows/count-lines16-wf.cwl"),
         "--container-engine",

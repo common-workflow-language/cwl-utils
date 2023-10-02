@@ -5,7 +5,7 @@ import os
 import subprocess  # nosec
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Union
 
 from .singularity import get_version as get_singularity_version
 from .singularity import is_version_2_6 as is_singularity_version_2_6
@@ -17,7 +17,11 @@ _LOGGER = logging.getLogger(__name__)
 
 class ImagePuller(ABC):
     def __init__(
-        self, req: str, save_directory: Union[str, Path], cmd: str, force_pull: bool
+        self,
+        req: str,
+        save_directory: Optional[Union[str, Path]],
+        cmd: str,
+        force_pull: bool,
     ) -> None:
         """Create an ImagePuller."""
         self.req = req
@@ -62,22 +66,24 @@ class DockerImagePuller(ImagePuller):
 
     def save_docker_image(self) -> None:
         """Download and save the software container image to disk as a docker tarball."""
-        _LOGGER.info(f"Pulling {self.req} with Docker...")
+        _LOGGER.info(f"Pulling {self.req} with {self.cmd}...")
         cmd_pull = [self.cmd, "pull", self.req]
         ImagePuller._run_command_pull(cmd_pull)
-        dest = os.path.join(self.save_directory, self.get_image_name())
-        if self.force_pull:
-            os.remove(dest)
-        cmd_save = [
-            self.cmd,
-            "save",
-            "-o",
-            dest,
-            self.req,
-        ]
-        subprocess.run(cmd_save, check=True)  # nosec
-        _LOGGER.info(f"Image successfully pulled: {dest!r}.")
-        print(self.generate_udocker_loading_command())
+        _LOGGER.info(f"Image successfully pulled: {self.req}")
+        if self.save_directory:
+            dest = os.path.join(self.save_directory, self.get_image_name())
+            if self.save_directory and self.force_pull:
+                os.remove(dest)
+            cmd_save = [
+                self.cmd,
+                "save",
+                "-o",
+                dest,
+                self.req,
+            ]
+            subprocess.run(cmd_save, check=True)  # nosec
+            _LOGGER.info(f"Image successfully saved: {dest!r}.")
+            print(self.generate_udocker_loading_command())
 
 
 class SingularityImagePuller(ImagePuller):
@@ -103,8 +109,11 @@ class SingularityImagePuller(ImagePuller):
 
     def save_docker_image(self) -> None:
         """Pull down the Docker software container image and save it in the Singularity image format."""
+        save_directory: Union[str, Path]
+        if self.save_directory:
+            save_directory = self.save_directory
         if (
-            os.path.exists(os.path.join(self.save_directory, self.get_image_name()))
+            os.path.exists(os.path.join(save_directory, self.get_image_name()))
             and not self.force_pull
         ):
             _LOGGER.info(f"Already cached {self.req} with Singularity.")
@@ -119,11 +128,11 @@ class SingularityImagePuller(ImagePuller):
         cmd_pull.extend(
             [
                 "--name",
-                os.path.join(self.save_directory, self.get_image_name()),
+                os.path.join(save_directory, self.get_image_name()),
                 f"docker://{self.req}",
             ]
         )
         ImagePuller._run_command_pull(cmd_pull)
         _LOGGER.info(
-            f"Image successfully pulled: {self.save_directory}/{self.get_image_name()}"
+            f"Image successfully pulled: {save_directory}/{self.get_image_name()}"
         )

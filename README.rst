@@ -49,7 +49,11 @@ the software container images in Docker format.
 
 .. code:: bash
 
-   cwl-docker-extract DIRECTORY path_to_my_workflow.cwl
+   cwl-docker-extract path_to_my_workflow.cwl
+
+.. code:: bash
+
+   cwl-docker-extract --dir DIRECTORY path_to_my_workflow.cwl
 
 Or you can use the Singularity software container engine to download and
 save the software container images and convert them to the Singularity
@@ -57,7 +61,7 @@ format at the same time.
 
 .. code:: bash
 
-   cwl-docker-extract --singularity DIRECTORY path_to_my_workflow.cwl
+   cwl-docker-extract --singularity --dir DIRECTORY path_to_my_workflow.cwl
 
 
 Print all referenced software packages
