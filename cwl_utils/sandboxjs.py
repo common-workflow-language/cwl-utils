@@ -25,7 +25,7 @@ from typing import (
     cast,
 )
 
-from pkg_resources import resource_stream
+from importlib_resources import files
 from schema_salad.utils import json_dumps
 
 from cwl_utils.errors import JavascriptException, WorkflowException
@@ -196,8 +196,7 @@ class NodeJSEngine(JSEngine):
             nodejs = self.localdata.procs.get(js_engine)
 
         if nodejs is None or nodejs.poll() is not None:
-            res = resource_stream(__name__, js_engine)
-            js_engine_code = res.read().decode("utf-8")
+            js_engine_code = files("cwl_utils").joinpath(js_engine).read_text("utf-8")
 
             created_new_process = True
 

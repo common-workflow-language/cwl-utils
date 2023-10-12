@@ -6,6 +6,8 @@
 
 # -- Path setup --------------------------------------------------------------
 
+import importlib.metadata
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -13,17 +15,15 @@
 import os
 import sys
 import time
-from datetime import datetime
-
-from pkg_resources import get_distribution
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.abspath(".."))
 
 
 # -- Project information -----------------------------------------------------
 
-build_date = datetime.utcfromtimestamp(
-    int(os.environ.get("SOURCE_DATE_EPOCH", time.time()))
+build_date = datetime.fromtimestamp(
+    int(os.environ.get("SOURCE_DATE_EPOCH", time.time())), timezone.utc
 )
 project = "cwl-utils: Python utilities Common Workflow Language documents"
 copyright = f"2019 — {build_date.year} CWL Community"
@@ -82,7 +82,7 @@ html_theme_options = {
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
-release = get_distribution("cwl-utils").version
+release = importlib.metadata.version("cwl_utils")
 version = ".".join(release.split(".")[:2])
 
 autoapi_dirs = ["../cwl_utils"]
