@@ -338,6 +338,8 @@ def load_inputfile(
         baseuri = cwl.file_uri(os.getcwd()) + "/"
     if loadingOptions is None:
         loadingOptions = cwl.LoadingOptions()
+
+    loadingOptions = cwl.LoadingOptions(copyfrom=loadingOptions, no_link_check=True)
     result, metadata = _inputfile_load(
         doc,
         baseuri,
@@ -359,6 +361,7 @@ def load_inputfile_by_string(
     if loadingOptions is None:
         loadingOptions = cwl.LoadingOptions(fileuri=uri)
 
+    loadingOptions = cwl.LoadingOptions(copyfrom=loadingOptions, no_link_check=True)
     result, metadata = _inputfile_load(
         result,
         uri,
@@ -378,6 +381,7 @@ def load_inputfile_by_yaml(
     if loadingOptions is None:
         loadingOptions = cwl.LoadingOptions(fileuri=uri)
 
+    loadingOptions = cwl.LoadingOptions(copyfrom=loadingOptions, no_link_check=True)
     result, metadata = _inputfile_load(
         yaml,
         uri,
