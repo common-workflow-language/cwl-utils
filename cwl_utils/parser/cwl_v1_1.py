@@ -73,6 +73,7 @@ class LoadingOptions:
         idx: Optional[IdxType] = None,
         imports: Optional[List[str]] = None,
         includes: Optional[List[str]] = None,
+        no_link_check: bool = False,
     ) -> None:
         """Create a LoadingOptions object."""
         self.original_doc = original_doc
@@ -116,6 +117,8 @@ class LoadingOptions:
             self.includes = includes
         else:
             self.includes = copyfrom.includes if copyfrom is not None else []
+
+        self.no_link_check = no_link_check
 
         if fetcher is not None:
             self.fetcher = fetcher
@@ -682,15 +685,20 @@ class _UnionLoader(_Loader):
 
 
 class _URILoader(_Loader):
-    def __init__(self, inner, scoped_id, vocab_term, scoped_ref):
-        # type: (_Loader, bool, bool, Union[int, None]) -> None
+    def __init__(self, inner, scoped_id, vocab_term, scoped_ref, no_link_check):
+        # type: (_Loader, bool, bool, Union[int, None], Union[bool, None]) -> None
         self.inner = inner
         self.scoped_id = scoped_id
         self.vocab_term = vocab_term
         self.scoped_ref = scoped_ref
+        self.no_link_check = no_link_check
 
     def load(self, doc, baseuri, loadingOptions, docRoot=None, lc=None):
         # type: (Any, str, LoadingOptions, Optional[str], Optional[List[Any]]) -> Any
+        if self.no_link_check is not None:
+            loadingOptions = LoadingOptions(
+                copyfrom=loadingOptions, no_link_check=self.no_link_check
+            )
         if isinstance(doc, MutableSequence):
             newdoc = []
             for i in doc:
@@ -718,14 +726,17 @@ class _URILoader(_Loader):
                 self.scoped_ref,
             )
         if isinstance(doc, str):
-            errors = []
-            try:
-                if not loadingOptions.fetcher.check_exists(doc):
-                    errors.append(ValidationException(f"contains undefined reference to `{doc}`"))
-            except ValidationException:
-                pass
-            if len(errors) > 0:
-                raise ValidationException("", None, errors)
+            if not loadingOptions.no_link_check:
+                errors = []
+                try:
+                    if not loadingOptions.fetcher.check_exists(doc):
+                        errors.append(
+                            ValidationException(f"contains undefined reference to `{doc}`")
+                        )
+                except ValidationException:
+                    pass
+                if len(errors) > 0:
+                    raise ValidationException("", None, errors)
         return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
@@ -1070,7 +1081,7 @@ class RecordField(Documented):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_strtype_True_False_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -1515,7 +1526,7 @@ class EnumSchema(Saveable):
 
             symbols = load_field(
                 _doc.get("symbols"),
-                uri_array_of_strtype_True_False_None,
+                uri_array_of_strtype_True_False_None_None,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("symbols")
@@ -2014,7 +2025,7 @@ class File(Saveable):
 
                 location = load_field(
                     _doc.get("location"),
-                    uri_union_of_None_type_or_strtype_False_False_None,
+                    uri_union_of_None_type_or_strtype_False_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("location")
@@ -2059,7 +2070,7 @@ class File(Saveable):
 
                 path = load_field(
                     _doc.get("path"),
-                    uri_union_of_None_type_or_strtype_False_False_None,
+                    uri_union_of_None_type_or_strtype_False_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("path")
@@ -2419,7 +2430,7 @@ class File(Saveable):
 
                 format = load_field(
                     _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("format")
@@ -2741,7 +2752,7 @@ class Directory(Saveable):
 
                 location = load_field(
                     _doc.get("location"),
-                    uri_union_of_None_type_or_strtype_False_False_None,
+                    uri_union_of_None_type_or_strtype_False_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("location")
@@ -2786,7 +2797,7 @@ class Directory(Saveable):
 
                 path = load_field(
                     _doc.get("path"),
-                    uri_union_of_None_type_or_strtype_False_False_None,
+                    uri_union_of_None_type_or_strtype_False_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("path")
@@ -3261,7 +3272,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_strtype_True_False_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -3537,7 +3548,7 @@ class InputRecordField(RecordField, FieldBase, InputFormat, LoadContents):
 
                 format = load_field(
                     _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
+                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("format")
@@ -3846,7 +3857,7 @@ class InputRecordSchema(RecordSchema, InputSchema):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -4208,7 +4219,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -4261,7 +4272,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
 
             symbols = load_field(
                 _doc.get("symbols"),
-                uri_array_of_strtype_True_False_None,
+                uri_array_of_strtype_True_False_None_None,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("symbols")
@@ -4566,7 +4577,7 @@ class InputArraySchema(ArraySchema, InputSchema):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -4941,7 +4952,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_strtype_True_False_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -5217,7 +5228,7 @@ class OutputRecordField(RecordField, FieldBase, OutputFormat):
 
                 format = load_field(
                     _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
+                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("format")
@@ -5410,7 +5421,7 @@ class OutputRecordSchema(RecordSchema, OutputSchema):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -5772,7 +5783,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -5825,7 +5836,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
 
             symbols = load_field(
                 _doc.get("symbols"),
-                uri_array_of_strtype_True_False_None,
+                uri_array_of_strtype_True_False_None_None,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("symbols")
@@ -6130,7 +6141,7 @@ class OutputArraySchema(ArraySchema, OutputSchema):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -8434,7 +8445,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_strtype_True_False_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -8710,7 +8721,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
 
                 format = load_field(
                     _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
+                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("format")
@@ -9087,7 +9098,7 @@ class CommandInputRecordSchema(
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -9514,7 +9525,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -9567,7 +9578,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
 
             symbols = load_field(
                 _doc.get("symbols"),
-                uri_array_of_strtype_True_False_None,
+                uri_array_of_strtype_True_False_None_None,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("symbols")
@@ -9932,7 +9943,7 @@ class CommandInputArraySchema(
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -10364,7 +10375,7 @@ class CommandOutputRecordField(OutputRecordField):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_strtype_True_False_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -10640,7 +10651,7 @@ class CommandOutputRecordField(OutputRecordField):
 
                 format = load_field(
                     _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
+                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("format")
@@ -10895,7 +10906,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -11257,7 +11268,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -11310,7 +11321,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
 
             symbols = load_field(
                 _doc.get("symbols"),
-                uri_array_of_strtype_True_False_None,
+                uri_array_of_strtype_True_False_None_None,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("symbols")
@@ -11615,7 +11626,7 @@ class CommandOutputArraySchema(OutputArraySchema):
 
                 name = load_field(
                     _doc.get("name"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("name")
@@ -12010,7 +12021,7 @@ class CommandInputParameter(InputParameter):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -12244,7 +12255,7 @@ class CommandInputParameter(InputParameter):
 
                 format = load_field(
                     _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
+                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("format")
@@ -12724,7 +12735,7 @@ class CommandOutputParameter(OutputParameter):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -12958,7 +12969,7 @@ class CommandOutputParameter(OutputParameter):
 
                 format = load_field(
                     _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
+                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("format")
@@ -13321,7 +13332,7 @@ class CommandLineTool(Process):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -13639,7 +13650,7 @@ class CommandLineTool(Process):
 
                 cwlVersion = load_field(
                     _doc.get("cwlVersion"),
-                    uri_union_of_None_type_or_CWLVersionLoader_False_True_None,
+                    uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("cwlVersion")
@@ -15013,7 +15024,7 @@ class SoftwarePackage(Saveable):
 
                 specs = load_field(
                     _doc.get("specs"),
-                    uri_union_of_None_type_or_array_of_strtype_False_False_None,
+                    uri_union_of_None_type_or_array_of_strtype_False_False_None_True,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("specs")
@@ -17142,7 +17153,7 @@ class ExpressionToolOutputParameter(OutputParameter):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -17376,7 +17387,7 @@ class ExpressionToolOutputParameter(OutputParameter):
 
                 format = load_field(
                     _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
+                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("format")
@@ -17643,7 +17654,7 @@ class WorkflowInputParameter(InputParameter):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -17877,7 +17888,7 @@ class WorkflowInputParameter(InputParameter):
 
                 format = load_field(
                     _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None,
+                    uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("format")
@@ -18377,7 +18388,7 @@ class ExpressionTool(Process):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -18695,7 +18706,7 @@ class ExpressionTool(Process):
 
                 cwlVersion = load_field(
                     _doc.get("cwlVersion"),
-                    uri_union_of_None_type_or_CWLVersionLoader_False_True_None,
+                    uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("cwlVersion")
@@ -18985,7 +18996,7 @@ class WorkflowOutputParameter(OutputParameter):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -19219,7 +19230,7 @@ class WorkflowOutputParameter(OutputParameter):
 
                 format = load_field(
                     _doc.get("format"),
-                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None,
+                    uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("format")
@@ -19264,7 +19275,7 @@ class WorkflowOutputParameter(OutputParameter):
 
                 outputSource = load_field(
                     _doc.get("outputSource"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1,
+                    uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("outputSource")
@@ -19634,7 +19645,7 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -19688,7 +19699,7 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
 
                 source = load_field(
                     _doc.get("source"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2,
+                    uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("source")
@@ -20163,7 +20174,7 @@ class WorkflowStepOutput(Identified):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -20413,7 +20424,7 @@ class WorkflowStep(Identified, Labeled, Documented):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -20598,7 +20609,7 @@ class WorkflowStep(Identified, Labeled, Documented):
 
             out = load_field(
                 _doc.get("out"),
-                uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None,
+                uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None_None,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("out")
@@ -20732,7 +20743,7 @@ class WorkflowStep(Identified, Labeled, Documented):
 
             run = load_field(
                 _doc.get("run"),
-                uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_False_False_None,
+                uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_False_False_None_None,
                 subscope_baseuri,
                 loadingOptions,
                 lc=_doc.get("run")
@@ -20775,7 +20786,7 @@ class WorkflowStep(Identified, Labeled, Documented):
 
                 scatter = load_field(
                     _doc.get("scatter"),
-                    uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0,
+                    uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("scatter")
@@ -20820,7 +20831,7 @@ class WorkflowStep(Identified, Labeled, Documented):
 
                 scatterMethod = load_field(
                     _doc.get("scatterMethod"),
-                    uri_union_of_None_type_or_ScatterMethodLoader_False_True_None,
+                    uri_union_of_None_type_or_ScatterMethodLoader_False_True_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("scatterMethod")
@@ -21117,7 +21128,7 @@ class Workflow(Process):
 
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None,
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -21435,7 +21446,7 @@ class Workflow(Process):
 
                 cwlVersion = load_field(
                     _doc.get("cwlVersion"),
-                    uri_union_of_None_type_or_CWLVersionLoader_False_True_None,
+                    uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("cwlVersion")
@@ -22575,7 +22586,7 @@ union_of_None_type_or_strtype_or_array_of_strtype = _UnionLoader(
         array_of_strtype,
     )
 )
-uri_strtype_True_False_None = _URILoader(strtype, True, False, None)
+uri_strtype_True_False_None_None = _URILoader(strtype, True, False, None, None)
 union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_strtype = _UnionLoader(
     (
         PrimitiveTypeLoader,
@@ -22619,7 +22630,9 @@ enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader = _EnumLoader(
 typedsl_enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader_2 = _TypeDSLLoader(
     enum_d9cba076fca539106791a4f46d198c7fcfbdb779Loader, 2, "v1.1"
 )
-uri_array_of_strtype_True_False_None = _URILoader(array_of_strtype, True, False, None)
+uri_array_of_strtype_True_False_None_None = _URILoader(
+    array_of_strtype, True, False, None, None
+)
 enum_d961d79c225752b9fadb617367615ab176b47d77Loader = _EnumLoader(
     ("enum",), "enum_d961d79c225752b9fadb617367615ab176b47d77"
 )
@@ -22633,15 +22646,17 @@ typedsl_enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader_2 = _TypeDSLLoader(
     enum_d062602be0b4b8fd33e69e29a841317b6ab665bcLoader, 2, "v1.1"
 )
 File_classLoader = _EnumLoader(("File",), "File_class")
-uri_File_classLoader_False_True_None = _URILoader(File_classLoader, False, True, None)
+uri_File_classLoader_False_True_None_None = _URILoader(
+    File_classLoader, False, True, None, None
+)
 union_of_None_type_or_strtype = _UnionLoader(
     (
         None_type,
         strtype,
     )
 )
-uri_union_of_None_type_or_strtype_False_False_None = _URILoader(
-    union_of_None_type_or_strtype, False, False, None
+uri_union_of_None_type_or_strtype_False_False_None_None = _URILoader(
+    union_of_None_type_or_strtype, False, False, None, None
 )
 union_of_None_type_or_inttype = _UnionLoader(
     (
@@ -22667,12 +22682,12 @@ union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader = _UnionLo
 secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader = _SecondaryDSLLoader(
     union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader
 )
-uri_union_of_None_type_or_strtype_True_False_None = _URILoader(
-    union_of_None_type_or_strtype, True, False, None
+uri_union_of_None_type_or_strtype_True_False_None_None = _URILoader(
+    union_of_None_type_or_strtype, True, False, None, None
 )
 Directory_classLoader = _EnumLoader(("Directory",), "Directory_class")
-uri_Directory_classLoader_False_True_None = _URILoader(
-    Directory_classLoader, False, True, None
+uri_Directory_classLoader_False_True_None_None = _URILoader(
+    Directory_classLoader, False, True, None, None
 )
 union_of_None_type_or_booltype = _UnionLoader(
     (
@@ -22705,10 +22720,11 @@ union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader = _UnionLo
         ExpressionLoader,
     )
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None = _URILoader(
+uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_None = _URILoader(
     union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader,
     True,
     False,
+    None,
     None,
 )
 union_of_None_type_or_strtype_or_ExpressionLoader = _UnionLoader(
@@ -22718,8 +22734,8 @@ union_of_None_type_or_strtype_or_ExpressionLoader = _UnionLoader(
         ExpressionLoader,
     )
 )
-uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None = _URILoader(
-    union_of_None_type_or_strtype_or_ExpressionLoader, True, False, None
+uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_None = _URILoader(
+    union_of_None_type_or_strtype_or_ExpressionLoader, True, False, None, None
 )
 union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype = _UnionLoader(
     (
@@ -22909,14 +22925,14 @@ union_of_None_type_or_CWLVersionLoader = _UnionLoader(
         CWLVersionLoader,
     )
 )
-uri_union_of_None_type_or_CWLVersionLoader_False_True_None = _URILoader(
-    union_of_None_type_or_CWLVersionLoader, False, True, None
+uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None = _URILoader(
+    union_of_None_type_or_CWLVersionLoader, False, True, None, None
 )
 InlineJavascriptRequirement_classLoader = _EnumLoader(
     ("InlineJavascriptRequirement",), "InlineJavascriptRequirement_class"
 )
-uri_InlineJavascriptRequirement_classLoader_False_True_None = _URILoader(
-    InlineJavascriptRequirement_classLoader, False, True, None
+uri_InlineJavascriptRequirement_classLoader_False_True_None_None = _URILoader(
+    InlineJavascriptRequirement_classLoader, False, True, None, None
 )
 union_of_None_type_or_array_of_strtype = _UnionLoader(
     (
@@ -22927,8 +22943,8 @@ union_of_None_type_or_array_of_strtype = _UnionLoader(
 SchemaDefRequirement_classLoader = _EnumLoader(
     ("SchemaDefRequirement",), "SchemaDefRequirement_class"
 )
-uri_SchemaDefRequirement_classLoader_False_True_None = _URILoader(
-    SchemaDefRequirement_classLoader, False, True, None
+uri_SchemaDefRequirement_classLoader_False_True_None_None = _URILoader(
+    SchemaDefRequirement_classLoader, False, True, None, None
 )
 union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader = _UnionLoader(
     (
@@ -22956,8 +22972,8 @@ union_of_None_type_or_booltype_or_ExpressionLoader = _UnionLoader(
 LoadListingRequirement_classLoader = _EnumLoader(
     ("LoadListingRequirement",), "LoadListingRequirement_class"
 )
-uri_LoadListingRequirement_classLoader_False_True_None = _URILoader(
-    LoadListingRequirement_classLoader, False, True, None
+uri_LoadListingRequirement_classLoader_False_True_None_None = _URILoader(
+    LoadListingRequirement_classLoader, False, True, None, None
 )
 union_of_None_type_or_inttype_or_ExpressionLoader = _UnionLoader(
     (
@@ -23104,8 +23120,8 @@ typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputR
     "v1.1",
 )
 CommandLineTool_classLoader = _EnumLoader(("CommandLineTool",), "CommandLineTool_class")
-uri_CommandLineTool_classLoader_False_True_None = _URILoader(
-    CommandLineTool_classLoader, False, True, None
+uri_CommandLineTool_classLoader_False_True_None_None = _URILoader(
+    CommandLineTool_classLoader, False, True, None, None
 )
 array_of_CommandInputParameterLoader = _ArrayLoader(CommandInputParameterLoader)
 idmap_inputs_array_of_CommandInputParameterLoader = _IdMapLoader(
@@ -23141,27 +23157,27 @@ union_of_None_type_or_array_of_inttype = _UnionLoader(
 DockerRequirement_classLoader = _EnumLoader(
     ("DockerRequirement",), "DockerRequirement_class"
 )
-uri_DockerRequirement_classLoader_False_True_None = _URILoader(
-    DockerRequirement_classLoader, False, True, None
+uri_DockerRequirement_classLoader_False_True_None_None = _URILoader(
+    DockerRequirement_classLoader, False, True, None, None
 )
 SoftwareRequirement_classLoader = _EnumLoader(
     ("SoftwareRequirement",), "SoftwareRequirement_class"
 )
-uri_SoftwareRequirement_classLoader_False_True_None = _URILoader(
-    SoftwareRequirement_classLoader, False, True, None
+uri_SoftwareRequirement_classLoader_False_True_None_None = _URILoader(
+    SoftwareRequirement_classLoader, False, True, None, None
 )
 array_of_SoftwarePackageLoader = _ArrayLoader(SoftwarePackageLoader)
 idmap_packages_array_of_SoftwarePackageLoader = _IdMapLoader(
     array_of_SoftwarePackageLoader, "package", "specs"
 )
-uri_union_of_None_type_or_array_of_strtype_False_False_None = _URILoader(
-    union_of_None_type_or_array_of_strtype, False, False, None
+uri_union_of_None_type_or_array_of_strtype_False_False_None_True = _URILoader(
+    union_of_None_type_or_array_of_strtype, False, False, None, True
 )
 InitialWorkDirRequirement_classLoader = _EnumLoader(
     ("InitialWorkDirRequirement",), "InitialWorkDirRequirement_class"
 )
-uri_InitialWorkDirRequirement_classLoader_False_True_None = _URILoader(
-    InitialWorkDirRequirement_classLoader, False, True, None
+uri_InitialWorkDirRequirement_classLoader_False_True_None_None = _URILoader(
+    InitialWorkDirRequirement_classLoader, False, True, None, None
 )
 union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader = _UnionLoader(
     (
@@ -23185,8 +23201,8 @@ union_of_array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoad
 EnvVarRequirement_classLoader = _EnumLoader(
     ("EnvVarRequirement",), "EnvVarRequirement_class"
 )
-uri_EnvVarRequirement_classLoader_False_True_None = _URILoader(
-    EnvVarRequirement_classLoader, False, True, None
+uri_EnvVarRequirement_classLoader_False_True_None_None = _URILoader(
+    EnvVarRequirement_classLoader, False, True, None, None
 )
 array_of_EnvironmentDefLoader = _ArrayLoader(EnvironmentDefLoader)
 idmap_envDef_array_of_EnvironmentDefLoader = _IdMapLoader(
@@ -23195,18 +23211,18 @@ idmap_envDef_array_of_EnvironmentDefLoader = _IdMapLoader(
 ShellCommandRequirement_classLoader = _EnumLoader(
     ("ShellCommandRequirement",), "ShellCommandRequirement_class"
 )
-uri_ShellCommandRequirement_classLoader_False_True_None = _URILoader(
-    ShellCommandRequirement_classLoader, False, True, None
+uri_ShellCommandRequirement_classLoader_False_True_None_None = _URILoader(
+    ShellCommandRequirement_classLoader, False, True, None, None
 )
 ResourceRequirement_classLoader = _EnumLoader(
     ("ResourceRequirement",), "ResourceRequirement_class"
 )
-uri_ResourceRequirement_classLoader_False_True_None = _URILoader(
-    ResourceRequirement_classLoader, False, True, None
+uri_ResourceRequirement_classLoader_False_True_None_None = _URILoader(
+    ResourceRequirement_classLoader, False, True, None, None
 )
 WorkReuse_classLoader = _EnumLoader(("WorkReuse",), "WorkReuse_class")
-uri_WorkReuse_classLoader_False_True_None = _URILoader(
-    WorkReuse_classLoader, False, True, None
+uri_WorkReuse_classLoader_False_True_None_None = _URILoader(
+    WorkReuse_classLoader, False, True, None, None
 )
 union_of_booltype_or_ExpressionLoader = _UnionLoader(
     (
@@ -23215,18 +23231,18 @@ union_of_booltype_or_ExpressionLoader = _UnionLoader(
     )
 )
 NetworkAccess_classLoader = _EnumLoader(("NetworkAccess",), "NetworkAccess_class")
-uri_NetworkAccess_classLoader_False_True_None = _URILoader(
-    NetworkAccess_classLoader, False, True, None
+uri_NetworkAccess_classLoader_False_True_None_None = _URILoader(
+    NetworkAccess_classLoader, False, True, None, None
 )
 InplaceUpdateRequirement_classLoader = _EnumLoader(
     ("InplaceUpdateRequirement",), "InplaceUpdateRequirement_class"
 )
-uri_InplaceUpdateRequirement_classLoader_False_True_None = _URILoader(
-    InplaceUpdateRequirement_classLoader, False, True, None
+uri_InplaceUpdateRequirement_classLoader_False_True_None_None = _URILoader(
+    InplaceUpdateRequirement_classLoader, False, True, None, None
 )
 ToolTimeLimit_classLoader = _EnumLoader(("ToolTimeLimit",), "ToolTimeLimit_class")
-uri_ToolTimeLimit_classLoader_False_True_None = _URILoader(
-    ToolTimeLimit_classLoader, False, True, None
+uri_ToolTimeLimit_classLoader_False_True_None_None = _URILoader(
+    ToolTimeLimit_classLoader, False, True, None, None
 )
 union_of_inttype_or_ExpressionLoader = _UnionLoader(
     (
@@ -23241,8 +23257,8 @@ union_of_None_type_or_InputBindingLoader = _UnionLoader(
     )
 )
 ExpressionTool_classLoader = _EnumLoader(("ExpressionTool",), "ExpressionTool_class")
-uri_ExpressionTool_classLoader_False_True_None = _URILoader(
-    ExpressionTool_classLoader, False, True, None
+uri_ExpressionTool_classLoader_False_True_None_None = _URILoader(
+    ExpressionTool_classLoader, False, True, None, None
 )
 array_of_WorkflowInputParameterLoader = _ArrayLoader(WorkflowInputParameterLoader)
 idmap_inputs_array_of_WorkflowInputParameterLoader = _IdMapLoader(
@@ -23254,8 +23270,8 @@ array_of_ExpressionToolOutputParameterLoader = _ArrayLoader(
 idmap_outputs_array_of_ExpressionToolOutputParameterLoader = _IdMapLoader(
     array_of_ExpressionToolOutputParameterLoader, "id", "type"
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1 = _URILoader(
-    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 1
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1_None = _URILoader(
+    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 1, None
 )
 union_of_None_type_or_LinkMergeMethodLoader = _UnionLoader(
     (
@@ -23263,8 +23279,8 @@ union_of_None_type_or_LinkMergeMethodLoader = _UnionLoader(
         LinkMergeMethodLoader,
     )
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2 = _URILoader(
-    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None = _URILoader(
+    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2, None
 )
 array_of_WorkflowStepInputLoader = _ArrayLoader(WorkflowStepInputLoader)
 idmap_in__array_of_WorkflowStepInputLoader = _IdMapLoader(
@@ -23282,13 +23298,12 @@ array_of_union_of_strtype_or_WorkflowStepOutputLoader = _ArrayLoader(
 union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader = _UnionLoader(
     (array_of_union_of_strtype_or_WorkflowStepOutputLoader,)
 )
-uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None = (
-    _URILoader(
-        union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader,
-        True,
-        False,
-        None,
-    )
+uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None_None = _URILoader(
+    union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader,
+    True,
+    False,
+    None,
+    None,
 )
 array_of_Any_type = _ArrayLoader(Any_type)
 union_of_None_type_or_array_of_Any_type = _UnionLoader(
@@ -23310,14 +23325,15 @@ union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoa
         )
     )
 )
-uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_False_False_None = _URILoader(
+uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_False_False_None_None = _URILoader(
     union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
     False,
     False,
     None,
+    None,
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0 = _URILoader(
-    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0_None = _URILoader(
+    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0, None
 )
 union_of_None_type_or_ScatterMethodLoader = _UnionLoader(
     (
@@ -23325,12 +23341,12 @@ union_of_None_type_or_ScatterMethodLoader = _UnionLoader(
         ScatterMethodLoader,
     )
 )
-uri_union_of_None_type_or_ScatterMethodLoader_False_True_None = _URILoader(
-    union_of_None_type_or_ScatterMethodLoader, False, True, None
+uri_union_of_None_type_or_ScatterMethodLoader_False_True_None_None = _URILoader(
+    union_of_None_type_or_ScatterMethodLoader, False, True, None, None
 )
 Workflow_classLoader = _EnumLoader(("Workflow",), "Workflow_class")
-uri_Workflow_classLoader_False_True_None = _URILoader(
-    Workflow_classLoader, False, True, None
+uri_Workflow_classLoader_False_True_None_None = _URILoader(
+    Workflow_classLoader, False, True, None, None
 )
 array_of_WorkflowOutputParameterLoader = _ArrayLoader(WorkflowOutputParameterLoader)
 idmap_outputs_array_of_WorkflowOutputParameterLoader = _IdMapLoader(
@@ -23344,26 +23360,26 @@ idmap_steps_union_of_array_of_WorkflowStepLoader = _IdMapLoader(
 SubworkflowFeatureRequirement_classLoader = _EnumLoader(
     ("SubworkflowFeatureRequirement",), "SubworkflowFeatureRequirement_class"
 )
-uri_SubworkflowFeatureRequirement_classLoader_False_True_None = _URILoader(
-    SubworkflowFeatureRequirement_classLoader, False, True, None
+uri_SubworkflowFeatureRequirement_classLoader_False_True_None_None = _URILoader(
+    SubworkflowFeatureRequirement_classLoader, False, True, None, None
 )
 ScatterFeatureRequirement_classLoader = _EnumLoader(
     ("ScatterFeatureRequirement",), "ScatterFeatureRequirement_class"
 )
-uri_ScatterFeatureRequirement_classLoader_False_True_None = _URILoader(
-    ScatterFeatureRequirement_classLoader, False, True, None
+uri_ScatterFeatureRequirement_classLoader_False_True_None_None = _URILoader(
+    ScatterFeatureRequirement_classLoader, False, True, None, None
 )
 MultipleInputFeatureRequirement_classLoader = _EnumLoader(
     ("MultipleInputFeatureRequirement",), "MultipleInputFeatureRequirement_class"
 )
-uri_MultipleInputFeatureRequirement_classLoader_False_True_None = _URILoader(
-    MultipleInputFeatureRequirement_classLoader, False, True, None
+uri_MultipleInputFeatureRequirement_classLoader_False_True_None_None = _URILoader(
+    MultipleInputFeatureRequirement_classLoader, False, True, None, None
 )
 StepInputExpressionRequirement_classLoader = _EnumLoader(
     ("StepInputExpressionRequirement",), "StepInputExpressionRequirement_class"
 )
-uri_StepInputExpressionRequirement_classLoader_False_True_None = _URILoader(
-    StepInputExpressionRequirement_classLoader, False, True, None
+uri_StepInputExpressionRequirement_classLoader_False_True_None_None = _URILoader(
+    StepInputExpressionRequirement_classLoader, False, True, None, None
 )
 union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader = _UnionLoader(
     (
