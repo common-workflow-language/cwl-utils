@@ -75,7 +75,7 @@ class LoadingOptions:
         idx: Optional[IdxType] = None,
         imports: Optional[List[str]] = None,
         includes: Optional[List[str]] = None,
-        no_link_check: Optional[bool] = None,
+        no_link_check: bool = False,
     ) -> None:
         """Create a LoadingOptions object."""
         self.original_doc = original_doc
@@ -120,10 +120,7 @@ class LoadingOptions:
         else:
             self.includes = copyfrom.includes if copyfrom is not None else []
 
-        if no_link_check is not None:
-            self.no_link_check = no_link_check
-        else:
-            self.no_link_check = copyfrom.no_link_check if copyfrom is not None else False
+        self.no_link_check = no_link_check
 
         if fetcher is not None:
             self.fetcher = fetcher
