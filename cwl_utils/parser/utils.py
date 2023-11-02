@@ -12,6 +12,7 @@ from schema_salad.sourceline import SourceLine, strip_dup_lineno
 from schema_salad.utils import json_dumps, yaml_no_ts
 
 import cwl_utils
+import cwl_utils.parser
 from . import (
     LoadingOptions,
     Process,
@@ -54,10 +55,22 @@ def load_inputfile_by_uri(
     else:
         real_path = path.resolve().as_uri()
 
+    if version is None:
+        raise ValidationException("could not get the cwlVersion")
+
     baseuri = str(real_path)
 
     if loadingOptions is None:
-        loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
+        if version == "v1.0":
+            loadingOptions = cwl_v1_0.LoadingOptions(fileuri=baseuri)
+        elif version == "v1.1":
+            loadingOptions = cwl_v1_1.LoadingOptions(fileuri=baseuri)
+        elif version == "v1.2":
+            loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
+        else:
+            raise ValidationException(
+                f"Version error. Did not recognise {version} as a CWL version"
+            )
 
     doc = loadingOptions.fetcher.fetch_text(real_path)
     return load_inputfile_by_string(version, doc, baseuri, loadingOptions)
@@ -185,8 +198,8 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
     }
     type_dict = {
         **type_dict,
-        **{param.id: param.type for param in workflow.inputs},
-        **{param.id: param.type for param in workflow.outputs},
+        **{param.id: param.type_ for param in workflow.inputs},
+        **{param.id: param.type_ for param in workflow.outputs},
     }
 
     parser: ModuleType

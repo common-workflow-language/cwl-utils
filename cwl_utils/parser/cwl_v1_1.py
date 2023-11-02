@@ -61,6 +61,7 @@ class LoadingOptions:
     imports: List[str]
     includes: List[str]
     no_link_check: Optional[bool]
+    container: Optional[str]
 
     def __init__(
         self,
@@ -75,7 +76,8 @@ class LoadingOptions:
         idx: Optional[IdxType] = None,
         imports: Optional[List[str]] = None,
         includes: Optional[List[str]] = None,
-        no_link_check: bool = False,
+        no_link_check: Optional[bool] = None,
+        container: Optional[str] = None,
     ) -> None:
         """Create a LoadingOptions object."""
         self.original_doc = original_doc
@@ -120,7 +122,15 @@ class LoadingOptions:
         else:
             self.includes = copyfrom.includes if copyfrom is not None else []
 
-        self.no_link_check = no_link_check
+        if no_link_check is not None:
+            self.no_link_check = no_link_check
+        else:
+            self.no_link_check = copyfrom.no_link_check if copyfrom is not None else False
+
+        if container is not None:
+            self.container = container
+        else:
+            self.container = copyfrom.container if copyfrom is not None else None
 
         if fetcher is not None:
             self.fetcher = fetcher
@@ -462,9 +472,8 @@ class _PrimitiveLoader(_Loader):
 
 
 class _ArrayLoader(_Loader):
-    def __init__(self, items: _Loader, flatten: bool = True) -> None:
+    def __init__(self, items: _Loader) -> None:
         self.items = items
-        self.flatten = flatten
 
     def load(
         self,
@@ -487,7 +496,8 @@ class _ArrayLoader(_Loader):
                 lf = load_field(
                     doc[i], _UnionLoader(([self, self.items])), baseuri, loadingOptions, lc=lc
                 )
-                if self.flatten and isinstance(lf, MutableSequence):
+                flatten = loadingOptions.container != "@list"
+                if flatten and isinstance(lf, MutableSequence):
                     r.extend(lf)
                 else:
                     r.append(lf)
@@ -519,9 +529,17 @@ class _ArrayLoader(_Loader):
 
 
 class _MapLoader(_Loader):
-    def __init__(self, values: _Loader, name: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        values: _Loader,
+        name: Optional[str] = None,
+        container: Optional[str] = None,
+        no_link_check: Optional[bool] = None,
+    ) -> None:
         self.values = values
         self.name = name
+        self.container = container
+        self.no_link_check = no_link_check
 
     def load(
         self,
@@ -533,6 +551,10 @@ class _MapLoader(_Loader):
     ) -> Any:
         if not isinstance(doc, MutableMapping):
             raise ValidationException(f"Expected a map, was {type(doc)}")
+        if self.container is not None or self.no_link_check is not None:
+            loadingOptions = LoadingOptions(
+                copyfrom=loadingOptions, container=self.container, no_link_check=self.no_link_check
+            )
         r: Dict[str, Any] = {}
         errors: List[SchemaSaladException] = []
         for k, v in doc.items():
@@ -643,8 +665,15 @@ class _SecondaryDSLLoader(_Loader):
 
 
 class _RecordLoader(_Loader):
-    def __init__(self, classtype: Type[Saveable]) -> None:
+    def __init__(
+        self,
+        classtype: Type[Saveable],
+        container: Optional[str] = None,
+        no_link_check: Optional[bool] = None,
+    ) -> None:
         self.classtype = classtype
+        self.container = container
+        self.no_link_check = no_link_check
 
     def load(
         self,
@@ -658,6 +687,10 @@ class _RecordLoader(_Loader):
             raise ValidationException(
                 f"Value is a {convert_typing(extract_type(type(doc)))}, "
                 f"but valid type for this field is an object."
+            )
+        if self.container is not None or self.no_link_check is not None:
+            loadingOptions = LoadingOptions(
+                copyfrom=loadingOptions, container=self.container, no_link_check=self.no_link_check
             )
         return self.classtype.fromDoc(doc, baseuri, loadingOptions, docRoot=docRoot)
 
@@ -1837,7 +1870,6 @@ class ArraySchema(Saveable):
         self,
         items: Any,
         type_: Any,
-        flatten: Optional[Any] = None,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
@@ -1849,21 +1881,16 @@ class ArraySchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.flatten = flatten
         self.items = items
         self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ArraySchema):
-            return bool(
-                self.flatten == other.flatten
-                and self.items == other.items
-                and self.type_ == other.type_
-            )
+            return bool(self.items == other.items and self.type_ == other.type_)
         return False
 
     def __hash__(self) -> int:
-        return hash((self.flatten, self.items, self.type_))
+        return hash((self.items, self.type_))
 
     @classmethod
     def fromDoc(
@@ -1879,48 +1906,6 @@ class ArraySchema(Saveable):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
-        if "flatten" in _doc:
-            try:
-                flatten = load_field(
-                    _doc.get("flatten"),
-                    uri_union_of_None_type_or_booltype_False_True_2_None,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("flatten")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `flatten`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("flatten"))))
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [e],
-                            )
-                        )
-        else:
-            flatten = None
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -2020,7 +2005,7 @@ class ArraySchema(Saveable):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `{}`, expected one of: `flatten`, `items`, `type`".format(
+                            "invalid field `{}`, expected one of: `items`, `type`".format(
                                 k
                             ),
                             SourceLine(_doc, k, str),
@@ -2030,7 +2015,6 @@ class ArraySchema(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            flatten=flatten,
             items=items,
             type_=type_,
             extension_fields=extension_fields,
@@ -2049,9 +2033,6 @@ class ArraySchema(Saveable):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-        if self.flatten is not None:
-            u = save_relative_uri(self.flatten, base_url, False, 2, relative_uris)
-            r["flatten"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
             r["items"] = u
@@ -2068,7 +2049,7 @@ class ArraySchema(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["flatten", "items", "type"])
+    attrs = frozenset(["items", "type"])
 
 
 class MapSchema(Saveable):
@@ -2450,7 +2431,6 @@ class CWLArraySchema(ArraySchema):
         self,
         items: Any,
         type_: Any,
-        flatten: Optional[Any] = None,
         extension_fields: Optional[Dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
@@ -2462,21 +2442,16 @@ class CWLArraySchema(ArraySchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.flatten = flatten
         self.items = items
         self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CWLArraySchema):
-            return bool(
-                self.flatten == other.flatten
-                and self.items == other.items
-                and self.type_ == other.type_
-            )
+            return bool(self.items == other.items and self.type_ == other.type_)
         return False
 
     def __hash__(self) -> int:
-        return hash((self.flatten, self.items, self.type_))
+        return hash((self.items, self.type_))
 
     @classmethod
     def fromDoc(
@@ -2492,48 +2467,6 @@ class CWLArraySchema(ArraySchema):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
-        if "flatten" in _doc:
-            try:
-                flatten = load_field(
-                    _doc.get("flatten"),
-                    uri_union_of_None_type_or_booltype_False_True_2_None,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("flatten")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `flatten`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("flatten"))))
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [e],
-                            )
-                        )
-        else:
-            flatten = None
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -2633,7 +2566,7 @@ class CWLArraySchema(ArraySchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `{}`, expected one of: `flatten`, `items`, `type`".format(
+                            "invalid field `{}`, expected one of: `items`, `type`".format(
                                 k
                             ),
                             SourceLine(_doc, k, str),
@@ -2643,7 +2576,6 @@ class CWLArraySchema(ArraySchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            flatten=flatten,
             items=items,
             type_=type_,
             extension_fields=extension_fields,
@@ -2662,9 +2594,6 @@ class CWLArraySchema(ArraySchema):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-        if self.flatten is not None:
-            u = save_relative_uri(self.flatten, base_url, False, 2, relative_uris)
-            r["flatten"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, base_url, False, 2, relative_uris)
             r["items"] = u
@@ -2681,7 +2610,7 @@ class CWLArraySchema(ArraySchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["flatten", "items", "type"])
+    attrs = frozenset(["items", "type"])
 
 
 class CWLRecordField(RecordField):
@@ -5697,7 +5626,6 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         self,
         items: Any,
         type_: Any,
-        flatten: Optional[Any] = None,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
@@ -5712,7 +5640,6 @@ class InputArraySchema(CWLArraySchema, InputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.flatten = flatten
         self.items = items
         self.type_ = type_
         self.label = label
@@ -5722,8 +5649,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InputArraySchema):
             return bool(
-                self.flatten == other.flatten
-                and self.items == other.items
+                self.items == other.items
                 and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
@@ -5732,9 +5658,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         return False
 
     def __hash__(self) -> int:
-        return hash(
-            (self.flatten, self.items, self.type_, self.label, self.doc, self.name)
-        )
+        return hash((self.items, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -5801,48 +5725,6 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                 name = "_:" + str(_uuid__.uuid4())
         if not __original_name_is_none:
             baseuri = name
-        if "flatten" in _doc:
-            try:
-                flatten = load_field(
-                    _doc.get("flatten"),
-                    uri_union_of_None_type_or_booltype_False_True_2_None,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("flatten")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `flatten`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("flatten"))))
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [e],
-                            )
-                        )
-        else:
-            flatten = None
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -6026,7 +5908,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `{}`, expected one of: `flatten`, `items`, `type`, `label`, `doc`, `name`".format(
+                            "invalid field `{}`, expected one of: `items`, `type`, `label`, `doc`, `name`".format(
                                 k
                             ),
                             SourceLine(_doc, k, str),
@@ -6036,7 +5918,6 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            flatten=flatten,
             items=items,
             type_=type_,
             label=label,
@@ -6062,9 +5943,6 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
             r["name"] = u
-        if self.flatten is not None:
-            u = save_relative_uri(self.flatten, self.name, False, 2, relative_uris)
-            r["flatten"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
             r["items"] = u
@@ -6089,7 +5967,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["flatten", "items", "type", "label", "doc", "name"])
+    attrs = frozenset(["items", "type", "label", "doc", "name"])
 
 
 class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
@@ -7263,7 +7141,6 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         self,
         items: Any,
         type_: Any,
-        flatten: Optional[Any] = None,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
@@ -7278,7 +7155,6 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.flatten = flatten
         self.items = items
         self.type_ = type_
         self.label = label
@@ -7288,8 +7164,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, OutputArraySchema):
             return bool(
-                self.flatten == other.flatten
-                and self.items == other.items
+                self.items == other.items
                 and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
@@ -7298,9 +7173,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         return False
 
     def __hash__(self) -> int:
-        return hash(
-            (self.flatten, self.items, self.type_, self.label, self.doc, self.name)
-        )
+        return hash((self.items, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -7367,48 +7240,6 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                 name = "_:" + str(_uuid__.uuid4())
         if not __original_name_is_none:
             baseuri = name
-        if "flatten" in _doc:
-            try:
-                flatten = load_field(
-                    _doc.get("flatten"),
-                    uri_union_of_None_type_or_booltype_False_True_2_None,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("flatten")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `flatten`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("flatten"))))
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [e],
-                            )
-                        )
-        else:
-            flatten = None
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -7592,7 +7423,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `{}`, expected one of: `flatten`, `items`, `type`, `label`, `doc`, `name`".format(
+                            "invalid field `{}`, expected one of: `items`, `type`, `label`, `doc`, `name`".format(
                                 k
                             ),
                             SourceLine(_doc, k, str),
@@ -7602,7 +7433,6 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            flatten=flatten,
             items=items,
             type_=type_,
             label=label,
@@ -7628,9 +7458,6 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
             r["name"] = u
-        if self.flatten is not None:
-            u = save_relative_uri(self.flatten, self.name, False, 2, relative_uris)
-            r["flatten"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
             r["items"] = u
@@ -7655,7 +7482,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["flatten", "items", "type", "label", "doc", "name"])
+    attrs = frozenset(["items", "type", "label", "doc", "name"])
 
 
 class InputParameter(Parameter, InputFormat, LoadContents):
@@ -11002,7 +10829,6 @@ class CommandInputArraySchema(
         self,
         items: Any,
         type_: Any,
-        flatten: Optional[Any] = None,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
@@ -11018,7 +10844,6 @@ class CommandInputArraySchema(
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.flatten = flatten
         self.items = items
         self.type_ = type_
         self.label = label
@@ -11029,8 +10854,7 @@ class CommandInputArraySchema(
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandInputArraySchema):
             return bool(
-                self.flatten == other.flatten
-                and self.items == other.items
+                self.items == other.items
                 and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
@@ -11041,15 +10865,7 @@ class CommandInputArraySchema(
 
     def __hash__(self) -> int:
         return hash(
-            (
-                self.flatten,
-                self.items,
-                self.type_,
-                self.label,
-                self.doc,
-                self.name,
-                self.inputBinding,
-            )
+            (self.items, self.type_, self.label, self.doc, self.name, self.inputBinding)
         )
 
     @classmethod
@@ -11117,48 +10933,6 @@ class CommandInputArraySchema(
                 name = "_:" + str(_uuid__.uuid4())
         if not __original_name_is_none:
             baseuri = name
-        if "flatten" in _doc:
-            try:
-                flatten = load_field(
-                    _doc.get("flatten"),
-                    uri_union_of_None_type_or_booltype_False_True_2_None,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("flatten")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `flatten`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("flatten"))))
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [e],
-                            )
-                        )
-        else:
-            flatten = None
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -11384,7 +11158,7 @@ class CommandInputArraySchema(
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `{}`, expected one of: `flatten`, `items`, `type`, `label`, `doc`, `name`, `inputBinding`".format(
+                            "invalid field `{}`, expected one of: `items`, `type`, `label`, `doc`, `name`, `inputBinding`".format(
                                 k
                             ),
                             SourceLine(_doc, k, str),
@@ -11394,7 +11168,6 @@ class CommandInputArraySchema(
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            flatten=flatten,
             items=items,
             type_=type_,
             label=label,
@@ -11421,9 +11194,6 @@ class CommandInputArraySchema(
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
             r["name"] = u
-        if self.flatten is not None:
-            u = save_relative_uri(self.flatten, self.name, False, 2, relative_uris)
-            r["flatten"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
             r["items"] = u
@@ -11455,9 +11225,7 @@ class CommandInputArraySchema(
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
-        ["flatten", "items", "type", "label", "doc", "name", "inputBinding"]
-    )
+    attrs = frozenset(["items", "type", "label", "doc", "name", "inputBinding"])
 
 
 class CommandOutputRecordField(OutputRecordField):
@@ -12694,7 +12462,6 @@ class CommandOutputArraySchema(OutputArraySchema):
         self,
         items: Any,
         type_: Any,
-        flatten: Optional[Any] = None,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         name: Optional[Any] = None,
@@ -12709,7 +12476,6 @@ class CommandOutputArraySchema(OutputArraySchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.flatten = flatten
         self.items = items
         self.type_ = type_
         self.label = label
@@ -12719,8 +12485,7 @@ class CommandOutputArraySchema(OutputArraySchema):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandOutputArraySchema):
             return bool(
-                self.flatten == other.flatten
-                and self.items == other.items
+                self.items == other.items
                 and self.type_ == other.type_
                 and self.label == other.label
                 and self.doc == other.doc
@@ -12729,9 +12494,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         return False
 
     def __hash__(self) -> int:
-        return hash(
-            (self.flatten, self.items, self.type_, self.label, self.doc, self.name)
-        )
+        return hash((self.items, self.type_, self.label, self.doc, self.name))
 
     @classmethod
     def fromDoc(
@@ -12798,48 +12561,6 @@ class CommandOutputArraySchema(OutputArraySchema):
                 name = "_:" + str(_uuid__.uuid4())
         if not __original_name_is_none:
             baseuri = name
-        if "flatten" in _doc:
-            try:
-                flatten = load_field(
-                    _doc.get("flatten"),
-                    uri_union_of_None_type_or_booltype_False_True_2_None,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("flatten")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `flatten`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("flatten"))))
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `flatten` field is not valid because:",
-                                SourceLine(_doc, "flatten", str),
-                                [e],
-                            )
-                        )
-        else:
-            flatten = None
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -13023,7 +12744,7 @@ class CommandOutputArraySchema(OutputArraySchema):
                 else:
                     _errors__.append(
                         ValidationException(
-                            "invalid field `{}`, expected one of: `flatten`, `items`, `type`, `label`, `doc`, `name`".format(
+                            "invalid field `{}`, expected one of: `items`, `type`, `label`, `doc`, `name`".format(
                                 k
                             ),
                             SourceLine(_doc, k, str),
@@ -13033,7 +12754,6 @@ class CommandOutputArraySchema(OutputArraySchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            flatten=flatten,
             items=items,
             type_=type_,
             label=label,
@@ -13059,9 +12779,6 @@ class CommandOutputArraySchema(OutputArraySchema):
         if self.name is not None:
             u = save_relative_uri(self.name, base_url, True, None, relative_uris)
             r["name"] = u
-        if self.flatten is not None:
-            u = save_relative_uri(self.flatten, self.name, False, 2, relative_uris)
-            r["flatten"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
             r["items"] = u
@@ -13086,7 +12803,7 @@ class CommandOutputArraySchema(OutputArraySchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["flatten", "items", "type", "label", "doc", "name"])
+    attrs = frozenset(["items", "type", "label", "doc", "name"])
 
 
 class CommandInputParameter(InputParameter):
@@ -23211,12 +22928,12 @@ AnyLoader = _EnumLoader(("Any",), "Any")
 """
 The **Any** type validates for any non-null value.
 """
-RecordFieldLoader = _RecordLoader(RecordField)
-RecordSchemaLoader = _RecordLoader(RecordSchema)
-EnumSchemaLoader = _RecordLoader(EnumSchema)
-ArraySchemaLoader = _RecordLoader(ArraySchema)
-MapSchemaLoader = _RecordLoader(MapSchema)
-UnionSchemaLoader = _RecordLoader(UnionSchema)
+RecordFieldLoader = _RecordLoader(RecordField, None, None)
+RecordSchemaLoader = _RecordLoader(RecordSchema, None, None)
+EnumSchemaLoader = _RecordLoader(EnumSchema, None, None)
+ArraySchemaLoader = _RecordLoader(ArraySchema, None, None)
+MapSchemaLoader = _RecordLoader(MapSchema, None, None)
+UnionSchemaLoader = _RecordLoader(UnionSchema, None, None)
 CWLTypeLoader = _EnumLoader(
     (
         "null",
@@ -23236,11 +22953,11 @@ Extends primitive types with the concept of a file and directory as a builtin ty
 File: A File object
 Directory: A Directory object
 """
-CWLArraySchemaLoader = _RecordLoader(CWLArraySchema)
-CWLRecordFieldLoader = _RecordLoader(CWLRecordField)
-CWLRecordSchemaLoader = _RecordLoader(CWLRecordSchema)
-FileLoader = _RecordLoader(File)
-DirectoryLoader = _RecordLoader(Directory)
+CWLArraySchemaLoader = _RecordLoader(CWLArraySchema, None, None)
+CWLRecordFieldLoader = _RecordLoader(CWLRecordField, None, None)
+CWLRecordSchemaLoader = _RecordLoader(CWLRecordSchema, None, None)
+FileLoader = _RecordLoader(File, None, None)
+DirectoryLoader = _RecordLoader(Directory, None, None)
 CWLObjectTypeLoader = _UnionLoader((), "CWLObjectTypeLoader")
 union_of_None_type_or_CWLObjectTypeLoader = _UnionLoader(
     (
@@ -23249,28 +22966,36 @@ union_of_None_type_or_CWLObjectTypeLoader = _UnionLoader(
     )
 )
 array_of_union_of_None_type_or_CWLObjectTypeLoader = _ArrayLoader(
-    union_of_None_type_or_CWLObjectTypeLoader, False
-)
-map_of_union_of_None_type_or_CWLObjectTypeLoader = _MapLoader(
     union_of_None_type_or_CWLObjectTypeLoader
 )
-InlineJavascriptRequirementLoader = _RecordLoader(InlineJavascriptRequirement)
-SchemaDefRequirementLoader = _RecordLoader(SchemaDefRequirement)
-LoadListingRequirementLoader = _RecordLoader(LoadListingRequirement)
-DockerRequirementLoader = _RecordLoader(DockerRequirement)
-SoftwareRequirementLoader = _RecordLoader(SoftwareRequirement)
-InitialWorkDirRequirementLoader = _RecordLoader(InitialWorkDirRequirement)
-EnvVarRequirementLoader = _RecordLoader(EnvVarRequirement)
-ShellCommandRequirementLoader = _RecordLoader(ShellCommandRequirement)
-ResourceRequirementLoader = _RecordLoader(ResourceRequirement)
-WorkReuseLoader = _RecordLoader(WorkReuse)
-NetworkAccessLoader = _RecordLoader(NetworkAccess)
-InplaceUpdateRequirementLoader = _RecordLoader(InplaceUpdateRequirement)
-ToolTimeLimitLoader = _RecordLoader(ToolTimeLimit)
-SubworkflowFeatureRequirementLoader = _RecordLoader(SubworkflowFeatureRequirement)
-ScatterFeatureRequirementLoader = _RecordLoader(ScatterFeatureRequirement)
-MultipleInputFeatureRequirementLoader = _RecordLoader(MultipleInputFeatureRequirement)
-StepInputExpressionRequirementLoader = _RecordLoader(StepInputExpressionRequirement)
+map_of_union_of_None_type_or_CWLObjectTypeLoader = _MapLoader(
+    union_of_None_type_or_CWLObjectTypeLoader, "None", None, None
+)
+InlineJavascriptRequirementLoader = _RecordLoader(
+    InlineJavascriptRequirement, None, None
+)
+SchemaDefRequirementLoader = _RecordLoader(SchemaDefRequirement, None, None)
+LoadListingRequirementLoader = _RecordLoader(LoadListingRequirement, None, None)
+DockerRequirementLoader = _RecordLoader(DockerRequirement, None, None)
+SoftwareRequirementLoader = _RecordLoader(SoftwareRequirement, None, None)
+InitialWorkDirRequirementLoader = _RecordLoader(InitialWorkDirRequirement, None, None)
+EnvVarRequirementLoader = _RecordLoader(EnvVarRequirement, None, None)
+ShellCommandRequirementLoader = _RecordLoader(ShellCommandRequirement, None, None)
+ResourceRequirementLoader = _RecordLoader(ResourceRequirement, None, None)
+WorkReuseLoader = _RecordLoader(WorkReuse, None, None)
+NetworkAccessLoader = _RecordLoader(NetworkAccess, None, None)
+InplaceUpdateRequirementLoader = _RecordLoader(InplaceUpdateRequirement, None, None)
+ToolTimeLimitLoader = _RecordLoader(ToolTimeLimit, None, None)
+SubworkflowFeatureRequirementLoader = _RecordLoader(
+    SubworkflowFeatureRequirement, None, None
+)
+ScatterFeatureRequirementLoader = _RecordLoader(ScatterFeatureRequirement, None, None)
+MultipleInputFeatureRequirementLoader = _RecordLoader(
+    MultipleInputFeatureRequirement, None, None
+)
+StepInputExpressionRequirementLoader = _RecordLoader(
+    StepInputExpressionRequirement, None, None
+)
 union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _UnionLoader(
     (
         InlineJavascriptRequirementLoader,
@@ -23293,8 +23018,7 @@ union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_Load
     )
 )
 array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _ArrayLoader(
-    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
-    True,
+    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader
 )
 union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_CWLObjectTypeLoader = _UnionLoader(
     (
@@ -23304,7 +23028,10 @@ union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_Sch
     )
 )
 map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_CWLObjectTypeLoader = _MapLoader(
-    union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_CWLObjectTypeLoader
+    union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_CWLObjectTypeLoader,
+    "CWLInputFile",
+    "@list",
+    True,
 )
 CWLInputFileLoader = map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_CWLObjectTypeLoader
 CWLVersionLoader = _EnumLoader(
@@ -23346,30 +23073,30 @@ shallow_listing: Only load the top level listing, do not recurse into subdirecto
 deep_listing: Load the directory listing and recursively load all subdirectories as well.
 """
 ExpressionLoader = _ExpressionLoader(str)
-InputBindingLoader = _RecordLoader(InputBinding)
-InputRecordFieldLoader = _RecordLoader(InputRecordField)
-InputRecordSchemaLoader = _RecordLoader(InputRecordSchema)
-InputEnumSchemaLoader = _RecordLoader(InputEnumSchema)
-InputArraySchemaLoader = _RecordLoader(InputArraySchema)
-OutputRecordFieldLoader = _RecordLoader(OutputRecordField)
-OutputRecordSchemaLoader = _RecordLoader(OutputRecordSchema)
-OutputEnumSchemaLoader = _RecordLoader(OutputEnumSchema)
-OutputArraySchemaLoader = _RecordLoader(OutputArraySchema)
-SecondaryFileSchemaLoader = _RecordLoader(SecondaryFileSchema)
-EnvironmentDefLoader = _RecordLoader(EnvironmentDef)
-CommandLineBindingLoader = _RecordLoader(CommandLineBinding)
-CommandOutputBindingLoader = _RecordLoader(CommandOutputBinding)
-CommandLineBindableLoader = _RecordLoader(CommandLineBindable)
-CommandInputRecordFieldLoader = _RecordLoader(CommandInputRecordField)
-CommandInputRecordSchemaLoader = _RecordLoader(CommandInputRecordSchema)
-CommandInputEnumSchemaLoader = _RecordLoader(CommandInputEnumSchema)
-CommandInputArraySchemaLoader = _RecordLoader(CommandInputArraySchema)
-CommandOutputRecordFieldLoader = _RecordLoader(CommandOutputRecordField)
-CommandOutputRecordSchemaLoader = _RecordLoader(CommandOutputRecordSchema)
-CommandOutputEnumSchemaLoader = _RecordLoader(CommandOutputEnumSchema)
-CommandOutputArraySchemaLoader = _RecordLoader(CommandOutputArraySchema)
-CommandInputParameterLoader = _RecordLoader(CommandInputParameter)
-CommandOutputParameterLoader = _RecordLoader(CommandOutputParameter)
+InputBindingLoader = _RecordLoader(InputBinding, None, None)
+InputRecordFieldLoader = _RecordLoader(InputRecordField, None, None)
+InputRecordSchemaLoader = _RecordLoader(InputRecordSchema, None, None)
+InputEnumSchemaLoader = _RecordLoader(InputEnumSchema, None, None)
+InputArraySchemaLoader = _RecordLoader(InputArraySchema, None, None)
+OutputRecordFieldLoader = _RecordLoader(OutputRecordField, None, None)
+OutputRecordSchemaLoader = _RecordLoader(OutputRecordSchema, None, None)
+OutputEnumSchemaLoader = _RecordLoader(OutputEnumSchema, None, None)
+OutputArraySchemaLoader = _RecordLoader(OutputArraySchema, None, None)
+SecondaryFileSchemaLoader = _RecordLoader(SecondaryFileSchema, None, None)
+EnvironmentDefLoader = _RecordLoader(EnvironmentDef, None, None)
+CommandLineBindingLoader = _RecordLoader(CommandLineBinding, None, None)
+CommandOutputBindingLoader = _RecordLoader(CommandOutputBinding, None, None)
+CommandLineBindableLoader = _RecordLoader(CommandLineBindable, None, None)
+CommandInputRecordFieldLoader = _RecordLoader(CommandInputRecordField, None, None)
+CommandInputRecordSchemaLoader = _RecordLoader(CommandInputRecordSchema, None, None)
+CommandInputEnumSchemaLoader = _RecordLoader(CommandInputEnumSchema, None, None)
+CommandInputArraySchemaLoader = _RecordLoader(CommandInputArraySchema, None, None)
+CommandOutputRecordFieldLoader = _RecordLoader(CommandOutputRecordField, None, None)
+CommandOutputRecordSchemaLoader = _RecordLoader(CommandOutputRecordSchema, None, None)
+CommandOutputEnumSchemaLoader = _RecordLoader(CommandOutputEnumSchema, None, None)
+CommandOutputArraySchemaLoader = _RecordLoader(CommandOutputArraySchema, None, None)
+CommandInputParameterLoader = _RecordLoader(CommandInputParameter, None, None)
+CommandOutputParameterLoader = _RecordLoader(CommandOutputParameter, None, None)
 stdinLoader = _EnumLoader(("stdin",), "stdin")
 """
 Only valid as a `type` for a `CommandLineTool` input with no
@@ -23480,12 +23207,14 @@ outputs:
 stderr: random_stderr_filenameABCDEFG
 ```
 """
-CommandLineToolLoader = _RecordLoader(CommandLineTool)
-SoftwarePackageLoader = _RecordLoader(SoftwarePackage)
-DirentLoader = _RecordLoader(Dirent)
-ExpressionToolOutputParameterLoader = _RecordLoader(ExpressionToolOutputParameter)
-WorkflowInputParameterLoader = _RecordLoader(WorkflowInputParameter)
-ExpressionToolLoader = _RecordLoader(ExpressionTool)
+CommandLineToolLoader = _RecordLoader(CommandLineTool, None, None)
+SoftwarePackageLoader = _RecordLoader(SoftwarePackage, None, None)
+DirentLoader = _RecordLoader(Dirent, None, None)
+ExpressionToolOutputParameterLoader = _RecordLoader(
+    ExpressionToolOutputParameter, None, None
+)
+WorkflowInputParameterLoader = _RecordLoader(WorkflowInputParameter, None, None)
+ExpressionToolLoader = _RecordLoader(ExpressionTool, None, None)
 LinkMergeMethodLoader = _EnumLoader(
     (
         "merge_nested",
@@ -23496,9 +23225,9 @@ LinkMergeMethodLoader = _EnumLoader(
 """
 The input link merge method, described in [WorkflowStepInput](#WorkflowStepInput).
 """
-WorkflowOutputParameterLoader = _RecordLoader(WorkflowOutputParameter)
-WorkflowStepInputLoader = _RecordLoader(WorkflowStepInput)
-WorkflowStepOutputLoader = _RecordLoader(WorkflowStepOutput)
+WorkflowOutputParameterLoader = _RecordLoader(WorkflowOutputParameter, None, None)
+WorkflowStepInputLoader = _RecordLoader(WorkflowStepInput, None, None)
+WorkflowStepOutputLoader = _RecordLoader(WorkflowStepOutput, None, None)
 ScatterMethodLoader = _EnumLoader(
     (
         "dotproduct",
@@ -23510,9 +23239,9 @@ ScatterMethodLoader = _EnumLoader(
 """
 The scatter method, as described in [workflow step scatter](#WorkflowStep).
 """
-WorkflowStepLoader = _RecordLoader(WorkflowStep)
-WorkflowLoader = _RecordLoader(Workflow)
-array_of_strtype = _ArrayLoader(strtype, True)
+WorkflowStepLoader = _RecordLoader(WorkflowStep, None, None)
+WorkflowLoader = _RecordLoader(Workflow, None, None)
+array_of_strtype = _ArrayLoader(strtype)
 union_of_None_type_or_strtype_or_array_of_strtype = _UnionLoader(
     (
         None_type,
@@ -23533,8 +23262,7 @@ union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArrayS
     )
 )
 array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype = _ArrayLoader(
-    union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype,
-    True,
+    union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype
 )
 union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype = _UnionLoader(
     (
@@ -23553,7 +23281,7 @@ typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_o
     2,
     "v1.1",
 )
-array_of_RecordFieldLoader = _ArrayLoader(RecordFieldLoader, True)
+array_of_RecordFieldLoader = _ArrayLoader(RecordFieldLoader)
 union_of_None_type_or_array_of_RecordFieldLoader = _UnionLoader(
     (
         None_type,
@@ -23579,15 +23307,6 @@ uri_array_of_strtype_True_False_None_None = _URILoader(
 )
 Enum_nameLoader = _EnumLoader(("enum",), "Enum_name")
 typedsl_Enum_nameLoader_2 = _TypeDSLLoader(Enum_nameLoader, 2, "v1.1")
-union_of_None_type_or_booltype = _UnionLoader(
-    (
-        None_type,
-        booltype,
-    )
-)
-uri_union_of_None_type_or_booltype_False_True_2_None = _URILoader(
-    union_of_None_type_or_booltype, False, True, 2, None
-)
 uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_False_True_2_None = _URILoader(
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype,
     False,
@@ -23611,8 +23330,7 @@ union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWL
     )
 )
 array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype = _ArrayLoader(
-    union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype,
-    True,
+    union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype
 )
 union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype = _UnionLoader(
     (
@@ -23636,7 +23354,7 @@ typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoade
     2,
     "v1.1",
 )
-array_of_CWLRecordFieldLoader = _ArrayLoader(CWLRecordFieldLoader, True)
+array_of_CWLRecordFieldLoader = _ArrayLoader(CWLRecordFieldLoader)
 union_of_None_type_or_array_of_CWLRecordFieldLoader = _UnionLoader(
     (
         None_type,
@@ -23666,7 +23384,7 @@ union_of_FileLoader_or_DirectoryLoader = _UnionLoader(
     )
 )
 array_of_union_of_FileLoader_or_DirectoryLoader = _ArrayLoader(
-    union_of_FileLoader_or_DirectoryLoader, True
+    union_of_FileLoader_or_DirectoryLoader
 )
 union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader = _UnionLoader(
     (
@@ -23689,13 +23407,19 @@ Directory_classLoader = _EnumLoader(("Directory",), "Directory_class")
 uri_Directory_classLoader_False_True_None_None = _URILoader(
     Directory_classLoader, False, True, None, None
 )
+union_of_None_type_or_booltype = _UnionLoader(
+    (
+        None_type,
+        booltype,
+    )
+)
 union_of_None_type_or_LoadListingEnumLoader = _UnionLoader(
     (
         None_type,
         LoadListingEnumLoader,
     )
 )
-array_of_SecondaryFileSchemaLoader = _ArrayLoader(SecondaryFileSchemaLoader, True)
+array_of_SecondaryFileSchemaLoader = _ArrayLoader(SecondaryFileSchemaLoader)
 union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader = _UnionLoader(
     (
         None_type,
@@ -23746,8 +23470,7 @@ union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_In
     )
 )
 array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype = _ArrayLoader(
-    union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
-    True,
+    union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype
 )
 union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype = _UnionLoader(
     (
@@ -23764,7 +23487,7 @@ typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoad
     2,
     "v1.1",
 )
-array_of_InputRecordFieldLoader = _ArrayLoader(InputRecordFieldLoader, True)
+array_of_InputRecordFieldLoader = _ArrayLoader(InputRecordFieldLoader)
 union_of_None_type_or_array_of_InputRecordFieldLoader = _UnionLoader(
     (
         None_type,
@@ -23791,8 +23514,7 @@ union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_
     )
 )
 array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype = _ArrayLoader(
-    union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
-    True,
+    union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype
 )
 union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype = _UnionLoader(
     (
@@ -23809,7 +23531,7 @@ typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLo
     2,
     "v1.1",
 )
-array_of_OutputRecordFieldLoader = _ArrayLoader(OutputRecordFieldLoader, True)
+array_of_OutputRecordFieldLoader = _ArrayLoader(OutputRecordFieldLoader)
 union_of_None_type_or_array_of_OutputRecordFieldLoader = _UnionLoader(
     (
         None_type,
@@ -23833,9 +23555,7 @@ union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader = _UnionLoa
     )
 )
 array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader = (
-    _ArrayLoader(
-        union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader, True
-    )
+    _ArrayLoader(union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader)
 )
 idmap_inputs_array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader = _IdMapLoader(
     array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader,
@@ -23850,8 +23570,7 @@ union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_
     )
 )
 array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader = _ArrayLoader(
-    union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader,
-    True,
+    union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader
 )
 idmap_outputs_array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader = _IdMapLoader(
     array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader,
@@ -23892,8 +23611,7 @@ union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_Load
     )
 )
 array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type = _ArrayLoader(
-    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
-    True,
+    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type
 )
 union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type = _UnionLoader(
     (
@@ -23941,8 +23659,7 @@ union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_Comma
     )
 )
 array_of_union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader = _ArrayLoader(
-    union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader,
-    True,
+    union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader
 )
 union_of_strtype_or_ExpressionLoader = _UnionLoader(
     (
@@ -24000,8 +23717,7 @@ union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSche
     )
 )
 array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _ArrayLoader(
-    union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
-    True,
+    union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype
 )
 union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _UnionLoader(
     (
@@ -24018,9 +23734,7 @@ typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInput
     2,
     "v1.1",
 )
-array_of_CommandInputRecordFieldLoader = _ArrayLoader(
-    CommandInputRecordFieldLoader, True
-)
+array_of_CommandInputRecordFieldLoader = _ArrayLoader(CommandInputRecordFieldLoader)
 union_of_None_type_or_array_of_CommandInputRecordFieldLoader = _UnionLoader(
     (
         None_type,
@@ -24049,8 +23763,7 @@ union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSc
     )
 )
 array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _ArrayLoader(
-    union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
-    True,
+    union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype
 )
 union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader(
     (
@@ -24073,9 +23786,7 @@ union_of_None_type_or_CommandOutputBindingLoader = _UnionLoader(
         CommandOutputBindingLoader,
     )
 )
-array_of_CommandOutputRecordFieldLoader = _ArrayLoader(
-    CommandOutputRecordFieldLoader, True
-)
+array_of_CommandOutputRecordFieldLoader = _ArrayLoader(CommandOutputRecordFieldLoader)
 union_of_None_type_or_array_of_CommandOutputRecordFieldLoader = _UnionLoader(
     (
         None_type,
@@ -24131,11 +23842,11 @@ CommandLineTool_classLoader = _EnumLoader(("CommandLineTool",), "CommandLineTool
 uri_CommandLineTool_classLoader_False_True_None_None = _URILoader(
     CommandLineTool_classLoader, False, True, None, None
 )
-array_of_CommandInputParameterLoader = _ArrayLoader(CommandInputParameterLoader, True)
+array_of_CommandInputParameterLoader = _ArrayLoader(CommandInputParameterLoader)
 idmap_inputs_array_of_CommandInputParameterLoader = _IdMapLoader(
     array_of_CommandInputParameterLoader, "id", "type"
 )
-array_of_CommandOutputParameterLoader = _ArrayLoader(CommandOutputParameterLoader, True)
+array_of_CommandOutputParameterLoader = _ArrayLoader(CommandOutputParameterLoader)
 idmap_outputs_array_of_CommandOutputParameterLoader = _IdMapLoader(
     array_of_CommandOutputParameterLoader, "id", "type"
 )
@@ -24147,7 +23858,7 @@ union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader = _UnionLoader(
     )
 )
 array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader = (
-    _ArrayLoader(union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader, True)
+    _ArrayLoader(union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader)
 )
 union_of_None_type_or_array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader = _UnionLoader(
     (
@@ -24155,7 +23866,7 @@ union_of_None_type_or_array_of_union_of_strtype_or_ExpressionLoader_or_CommandLi
         array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader,
     )
 )
-array_of_inttype = _ArrayLoader(inttype, True)
+array_of_inttype = _ArrayLoader(inttype)
 union_of_None_type_or_array_of_inttype = _UnionLoader(
     (
         None_type,
@@ -24174,7 +23885,7 @@ SoftwareRequirement_classLoader = _EnumLoader(
 uri_SoftwareRequirement_classLoader_False_True_None_None = _URILoader(
     SoftwareRequirement_classLoader, False, True, None, None
 )
-array_of_SoftwarePackageLoader = _ArrayLoader(SoftwarePackageLoader, True)
+array_of_SoftwarePackageLoader = _ArrayLoader(SoftwarePackageLoader)
 idmap_packages_array_of_SoftwarePackageLoader = _IdMapLoader(
     array_of_SoftwarePackageLoader, "package", "specs"
 )
@@ -24198,8 +23909,7 @@ union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoa
     )
 )
 array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader = _ArrayLoader(
-    union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader,
-    True,
+    union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader
 )
 union_of_array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader_or_ExpressionLoader = _UnionLoader(
     (
@@ -24213,7 +23923,7 @@ EnvVarRequirement_classLoader = _EnumLoader(
 uri_EnvVarRequirement_classLoader_False_True_None_None = _URILoader(
     EnvVarRequirement_classLoader, False, True, None, None
 )
-array_of_EnvironmentDefLoader = _ArrayLoader(EnvironmentDefLoader, True)
+array_of_EnvironmentDefLoader = _ArrayLoader(EnvironmentDefLoader)
 idmap_envDef_array_of_EnvironmentDefLoader = _IdMapLoader(
     array_of_EnvironmentDefLoader, "envName", "envValue"
 )
@@ -24269,12 +23979,12 @@ ExpressionTool_classLoader = _EnumLoader(("ExpressionTool",), "ExpressionTool_cl
 uri_ExpressionTool_classLoader_False_True_None_None = _URILoader(
     ExpressionTool_classLoader, False, True, None, None
 )
-array_of_WorkflowInputParameterLoader = _ArrayLoader(WorkflowInputParameterLoader, True)
+array_of_WorkflowInputParameterLoader = _ArrayLoader(WorkflowInputParameterLoader)
 idmap_inputs_array_of_WorkflowInputParameterLoader = _IdMapLoader(
     array_of_WorkflowInputParameterLoader, "id", "type"
 )
 array_of_ExpressionToolOutputParameterLoader = _ArrayLoader(
-    ExpressionToolOutputParameterLoader, True
+    ExpressionToolOutputParameterLoader
 )
 idmap_outputs_array_of_ExpressionToolOutputParameterLoader = _IdMapLoader(
     array_of_ExpressionToolOutputParameterLoader, "id", "type"
@@ -24291,7 +24001,7 @@ union_of_None_type_or_LinkMergeMethodLoader = _UnionLoader(
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None = _URILoader(
     union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2, None
 )
-array_of_WorkflowStepInputLoader = _ArrayLoader(WorkflowStepInputLoader, True)
+array_of_WorkflowStepInputLoader = _ArrayLoader(WorkflowStepInputLoader)
 idmap_in__array_of_WorkflowStepInputLoader = _IdMapLoader(
     array_of_WorkflowStepInputLoader, "id", "source"
 )
@@ -24302,7 +24012,7 @@ union_of_strtype_or_WorkflowStepOutputLoader = _UnionLoader(
     )
 )
 array_of_union_of_strtype_or_WorkflowStepOutputLoader = _ArrayLoader(
-    union_of_strtype_or_WorkflowStepOutputLoader, True
+    union_of_strtype_or_WorkflowStepOutputLoader
 )
 union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader = _UnionLoader(
     (array_of_union_of_strtype_or_WorkflowStepOutputLoader,)
@@ -24314,7 +24024,7 @@ uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_No
     None,
     None,
 )
-array_of_Any_type = _ArrayLoader(Any_type, True)
+array_of_Any_type = _ArrayLoader(Any_type)
 union_of_None_type_or_array_of_Any_type = _UnionLoader(
     (
         None_type,
@@ -24357,13 +24067,11 @@ Workflow_classLoader = _EnumLoader(("Workflow",), "Workflow_class")
 uri_Workflow_classLoader_False_True_None_None = _URILoader(
     Workflow_classLoader, False, True, None, None
 )
-array_of_WorkflowOutputParameterLoader = _ArrayLoader(
-    WorkflowOutputParameterLoader, True
-)
+array_of_WorkflowOutputParameterLoader = _ArrayLoader(WorkflowOutputParameterLoader)
 idmap_outputs_array_of_WorkflowOutputParameterLoader = _IdMapLoader(
     array_of_WorkflowOutputParameterLoader, "id", "type"
 )
-array_of_WorkflowStepLoader = _ArrayLoader(WorkflowStepLoader, True)
+array_of_WorkflowStepLoader = _ArrayLoader(WorkflowStepLoader)
 union_of_array_of_WorkflowStepLoader = _UnionLoader((array_of_WorkflowStepLoader,))
 idmap_steps_union_of_array_of_WorkflowStepLoader = _IdMapLoader(
     union_of_array_of_WorkflowStepLoader, "id", "None"
@@ -24401,7 +24109,7 @@ union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader = _Unio
 )
 array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader = (
     _ArrayLoader(
-        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader, True
+        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader
     )
 )
 union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader = _UnionLoader(
