@@ -183,3 +183,9 @@ def test_loading_options_missing_graph_v1_2() -> None:
     )
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
+
+
+def test_loading_format_without_schema_v1_0() -> None:
+    """Test that format fields without accompanying schemas are tolerated, CWL v1.0."""
+    uri = Path(get_data("testdata/revsort-run-1-packed.cwl")).resolve().as_uri()
+    load_document_by_uri(uri)
