@@ -9,11 +9,11 @@ from cwl_utils.parser import cwl_v1_2 as cwl
 
 def main() -> None:
     """Generate a CWL object to match "cat-tool.cwl"."""
-    inputs = [cwl.CommandInputParameter(id="file1", type_="File")]
+    inputs = [cwl.CommandInputParameter(id="file1", type="File")]
     outputs = [
         cwl.CommandOutputParameter(
             id="output",
-            type_="File",
+            type="File",
             outputBinding=cwl.CommandOutputBinding(glob="output"),
         )
     ]
