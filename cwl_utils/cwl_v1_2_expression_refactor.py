@@ -765,8 +765,8 @@ def process_workflow_reqs_and_hints(
     resourceReq: Optional[cwl.ResourceRequirement] = None
     envVarReq: Optional[cwl.EnvVarRequirement] = None
     iwdr: Optional[cwl.InitialWorkDirRequirement] = None
-    if workflow.requirements:
-        for req in workflow.requirements:
+    if workflow.requirements is not None:
+        for req in cast(List[cwl.ProcessRequirement], workflow.requirements):
             if req and isinstance(req, cwl.EnvVarRequirement):
                 if req.envDef:
                     for index, envDef in enumerate(req.envDef):
@@ -791,7 +791,7 @@ def process_workflow_reqs_and_hints(
                                     None,
                                     replace_etool,
                                 )
-                                if not envVarReq:
+                                if envVarReq is None:
                                     envVarReq = copy.deepcopy(req)
                                     prop_reqs += (cwl.EnvVarRequirement,)
                                 newEnvDef = copy.deepcopy(envDef)
