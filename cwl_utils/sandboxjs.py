@@ -8,6 +8,7 @@ import os
 import re
 import select
 import subprocess  # nosec
+import sys
 import threading
 from abc import ABC, abstractmethod
 from io import BytesIO
@@ -25,7 +26,11 @@ from typing import (
     cast,
 )
 
-from importlib_resources import files
+if sys.version_info >= (3, 9):
+    from importlib.resources import files
+else:
+    from importlib_resources import files
+
 from schema_salad.utils import json_dumps
 
 from cwl_utils.errors import JavascriptException, WorkflowException

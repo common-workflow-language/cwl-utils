@@ -5,9 +5,9 @@ import os
 from collections import namedtuple
 from io import StringIO
 from typing import (
+    IO,
     Any,
     Dict,
-    IO,
     List,
     MutableMapping,
     MutableSequence,

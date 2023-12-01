@@ -17,6 +17,7 @@ import cwl_utils.parser.cwl_v1_2_utils
 import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
 from cwl_utils.parser import load_document_by_uri
+
 from .util import get_data
 
 
