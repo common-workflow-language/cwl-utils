@@ -1,16 +1,20 @@
 """CWL parser utility functions."""
 import copy
 import logging
+import os
+from pathlib import Path
 from types import ModuleType
 from typing import Any, Dict, List, MutableSequence, Optional, Tuple, Union, cast
+from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
 from schema_salad.sourceline import SourceLine, strip_dup_lineno
-from schema_salad.utils import json_dumps
+from schema_salad.utils import json_dumps, yaml_no_ts
 
 import cwl_utils
-
+import cwl_utils.parser
 from . import (
+    LoadingOptions,
     Process,
     Workflow,
     WorkflowStep,
@@ -34,6 +38,97 @@ def convert_stdstreams_to_files(process: Process) -> None:
         cwl_v1_1_utils.convert_stdstreams_to_files(process)
     elif isinstance(process, cwl_v1_2.CommandLineTool):
         cwl_v1_2_utils.convert_stdstreams_to_files(process)
+
+
+def load_inputfile_by_uri(
+    version: str,
+    path: Union[str, Path],
+    loadingOptions: Optional[LoadingOptions] = None,
+) -> Any:
+    """Load a CWL input file from a URI or a path."""
+    if isinstance(path, str):
+        uri = urlparse(path)
+        if not uri.scheme or uri.scheme == "file":
+            real_path = Path(unquote_plus(uri.path)).resolve().as_uri()
+        else:
+            real_path = path
+    else:
+        real_path = path.resolve().as_uri()
+
+    if version is None:
+        raise ValidationException("could not get the cwlVersion")
+
+    baseuri = str(real_path)
+
+    if loadingOptions is None:
+        if version == "v1.0":
+            loadingOptions = cwl_v1_0.LoadingOptions(fileuri=baseuri)
+        elif version == "v1.1":
+            loadingOptions = cwl_v1_1.LoadingOptions(fileuri=baseuri)
+        elif version == "v1.2":
+            loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
+        else:
+            raise ValidationException(
+                f"Version error. Did not recognise {version} as a CWL version"
+            )
+
+    doc = loadingOptions.fetcher.fetch_text(real_path)
+    return load_inputfile_by_string(version, doc, baseuri, loadingOptions)
+
+
+def load_inputfile(
+    version: str,
+    doc: Any,
+    baseuri: Optional[str] = None,
+    loadingOptions: Optional[LoadingOptions] = None,
+) -> Any:
+    """Load a CWL input file from a serialized YAML string or a YAML object."""
+    if baseuri is None:
+        baseuri = cwl_v1_0.file_uri(os.getcwd()) + "/"
+    if isinstance(doc, str):
+        return load_inputfile_by_string(version, doc, baseuri, loadingOptions)
+    return load_inputfile_by_yaml(version, doc, baseuri, loadingOptions)
+
+
+def load_inputfile_by_string(
+    version: str,
+    string: str,
+    uri: str,
+    loadingOptions: Optional[LoadingOptions] = None,
+) -> Any:
+    """Load a CWL input file from a serialized YAML string."""
+    yaml = yaml_no_ts()
+    result = yaml.load(string)
+    return load_inputfile_by_yaml(version, result, uri, loadingOptions)
+
+
+def load_inputfile_by_yaml(
+    version: str,
+    yaml: Any,
+    uri: str,
+    loadingOptions: Optional[LoadingOptions] = None,
+) -> Any:
+    """Load a CWL input file from a YAML object."""
+    if version == "v1.0":
+        result = cwl_v1_0_utils.load_inputfile_by_yaml(
+            yaml, uri, cast(Optional[cwl_v1_0.LoadingOptions], loadingOptions)
+        )
+    elif version == "v1.1":
+        result = cwl_v1_1_utils.load_inputfile_by_yaml(
+            yaml, uri, cast(Optional[cwl_v1_1.LoadingOptions], loadingOptions)
+        )
+    elif version == "v1.2":
+        result = cwl_v1_2_utils.load_inputfile_by_yaml(
+            yaml, uri, cast(Optional[cwl_v1_2.LoadingOptions], loadingOptions)
+        )
+    elif version is None:
+        raise ValidationException("could not get the cwlVersion")
+    else:
+        raise ValidationException(
+            f"Version error. Did not recognise {version} as a CWL version"
+        )
+
+    return result
 
 
 def load_step(
@@ -103,8 +198,8 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
     }
     type_dict = {
         **type_dict,
-        **{param.id: param.type for param in workflow.inputs},
-        **{param.id: param.type for param in workflow.outputs},
+        **{param.id: param.type_ for param in workflow.inputs},
+        **{param.id: param.type_ for param in workflow.outputs},
     }
 
     parser: ModuleType
