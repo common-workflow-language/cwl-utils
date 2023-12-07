@@ -39,7 +39,7 @@ jobs:
           sudo apt-get install -y ./singularity-ce_3.11.4-jammy_amd64.deb
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           allow-prereleases: true
           python-version: ${{ env.py-semver }}
@@ -89,7 +89,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.py-semver }}
           cache: pip
@@ -128,7 +128,7 @@ jobs:
           echo "CWL_SINGULARITY_CACHE=${CWL_SINGULARITY_CACHE}" >> $GITHUB_ENV
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.11
           cache: pip
