@@ -28,8 +28,8 @@ EXTRAS=
 # `[[` conditional expressions.
 PYSOURCES=$(filter-out $(MODULE)/parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) \
 	  $(wildcard tests/*.py) create_cwl_from_objects.py load_cwl_by_path.py \
-	  setup.py ${MODULE}/parser/cwl_v1_?_utils.py docs/conf.py
-DEVPKGS=diff_cover  pylint pep257 pydocstyle flake8 tox tox-pyenv \
+	  ${MODULE}/parser/cwl_v1_?_utils.py docs/conf.py
+DEVPKGS=build diff_cover  pylint pep257 pydocstyle flake8 'tox<4' tox-pyenv \
 	isort wheel autoflake pyupgrade bandit auto-walrus \
 	-rlint-requirements.txt -rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \
@@ -52,8 +52,8 @@ cleanup: sort_imports format flake8 diff_pydocstyle_report
 install-dep: install-dependencies
 
 install-dependencies:
+	pip install -U pip setuptools wheel
 	pip install --upgrade $(DEVPKGS)
-	pip install -r requirements.txt -r mypy-requirements.txt -r docs/requirements.txt
 
 ## install-deb-dep        : install many of the dev dependencies via apt-get
 install-deb-dep:
@@ -65,13 +65,14 @@ install: FORCE
 
 ## dev                    : install the cwl-utils package in dev mode
 dev: install-dep
+	pip install -U pip setuptools wheel
 	pip install -e .$(EXTRAS)
 
 ## dist                   : create a module package for distribution
 dist: dist/${MODULE}-$(VERSION).tar.gz
 
 dist/${MODULE}-$(VERSION).tar.gz: $(SOURCES)
-	python setup.py sdist bdist_wheel
+	python -m build
 
 ## docs                   : make the docs
 docs: FORCE
@@ -80,7 +81,6 @@ docs: FORCE
 ## clean                  : clean up all temporary / machine-generated files
 clean: FORCE
 	rm -f ${MODULE}/*.pyc tests/*.pyc
-	python setup.py clean --all || true
 	rm -Rf .coverage
 	rm -f diff-cover.html
 
@@ -98,7 +98,7 @@ pydocstyle: $(PYSOURCES)
 	pydocstyle --add-ignore=D100,D101,D102,D103 $^ || true
 
 pydocstyle_report.txt: $(PYSOURCES)
-	pydocstyle setup.py $^ > $@ 2>&1 || true
+	pydocstyle $^ > $@ 2>&1 || true
 
 ## diff_pydocstyle_report : check Python docstring style for changed files only
 diff_pydocstyle_report: pydocstyle_report.txt
@@ -170,7 +170,7 @@ list-author-emails:
 	@git log --format='%aN,%aE' | sort -u | grep -v 'root'
 
 mypy3: mypy
-mypy: $(filter-out setup.py,${PYSOURCES})
+mypy: ${PYSOURCES}
 	MYPYPATH=$$MYPYPATH:mypy-stubs mypy $^
 
 shellcheck: FORCE
@@ -186,8 +186,8 @@ release-test: FORCE
 
 release: release-test
 	. testenv2/bin/activate && \
-		python testenv2/src/${PACKAGE}/setup.py sdist bdist_wheel
-	. testenv2/bin/activate && \
+		pip install build && \
+		python -m build testenv2/src/${PACKAGE} && \
 		pip install twine && \
 		twine upload testenv2/src/${PACKAGE}/dist/* && \
 		git tag ${VERSION} && git push --tags
