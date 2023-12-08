@@ -18,8 +18,8 @@ else
     HEAD=$(git rev-parse HEAD)
 fi
 run_tests="bin/py.test --pyargs ${module}"
-pipver=20.3.3  # minimum required version of pip for Python 3.10
-setuptoolsver=50.0.0  # required for Python 3.10
+pipver=23.1  # minimum required version of pip for Python 3.12
+setuptoolsver=67.6.1  # required for Python 3.12
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 
 rm -Rf testenv? || /bin/true
@@ -63,7 +63,7 @@ rm -f lib/python-wheels/setuptools* \
 # The following can fail if you haven't pushed your commits to ${repo}
 pip install -e "git+${repo}@${HEAD}#egg=${package}${extras}"
 pushd src/${package}
-pip install -rtest-requirements.txt
+pip install -rtest-requirements.txt build
 make dist
 make test
 cp dist/${package}*tar.gz ../../../testenv3/
@@ -84,7 +84,7 @@ rm -f lib/python-wheels/setuptools* \
 	&& pip install --force-reinstall -U pip==${pipver} \
         && pip install setuptools==${setuptoolsver} wheel
 package_tar=$(find . -name "${package}*tar.gz")
-pip install "-r${DIR}/test-requirements.txt"
+pip install "-r${DIR}/test-requirements.txt" build
 pip install "${package_tar}${extras}"
 mkdir out
 tar --extract --directory=out -z -f ${package}*.tar.gz
