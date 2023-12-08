@@ -1,3 +1,75 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61.2"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "cwl-utils"
+authors = [{name = "Common workflow language working group", email = "common-workflow-language@googlegroups.com"}]
+license = {text = "Apache 2.0"}
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+requires-python = ">=3.8"
+dynamic = ["version", "dependencies"]
+
+[project.readme]
+file = "README.rst"
+content-type = "text/x-rst"
+
+[project.urls]
+Homepage = "https://github.com/common-workflow-language/cwl-utils"
+
+[project.optional-dependencies]
+pretty = ["cwlformat"]
+testing = [
+    "pytest<8",
+    "pytest-mock",
+]
+
+[project.scripts]
+cwl-cite-extract = "cwl_utils.cite_extract:main"
+cwl-docker-extract = "cwl_utils.docker_extract:main"
+cwl-expression-refactor = "cwl_utils.expression_refactor:main"
+cwl-graph-split = "cwl_utils.graph_split:main"
+cwl-normalizer = "cwl_utils.normalizer:main"
+
+[tool.aliases]
+test = "pytest"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools]
+packages = [
+    "cwl_utils",
+    "cwl_utils.parser",
+    "cwl_utils.tests",
+    "cwl_utils.testdata",
+]
+include-package-data = true
+
+[tool.setuptools.package-dir]
+"cwl_utils.parser" = "cwl_utils/parser"
+"cwl_utils.tests" = "tests"
+"cwl_utils.testdata" = "testdata"
+
+[tool.setuptools.dynamic]
+version = {attr = "cwl_utils.__meta__.__version__"}
+dependencies = {file = ["requirements.txt"]}
+
+[tool.isort]
+multi_line_output = "3"
+include_trailing_comma = "True"
+force_grid_wrap = "0"
+use_parentheses = "True"
+line_length = "88"
