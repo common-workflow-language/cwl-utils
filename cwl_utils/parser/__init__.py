@@ -22,10 +22,62 @@ InputParameter = Union[
     cwl_v1_0.InputParameter, cwl_v1_1.InputParameter, cwl_v1_2.InputParameter
 ]
 """Type union for a CWL v1.x InputParameter object."""
+InputArraySchema = Union[
+    cwl_v1_0.InputArraySchema,
+    cwl_v1_1.InputArraySchema,
+    cwl_v1_2.InputArraySchema,
+]
+"""Type union for a CWL v1.x InputArraySchema object."""
+InputEnumSchema = Union[
+    cwl_v1_0.InputEnumSchema,
+    cwl_v1_1.InputEnumSchema,
+    cwl_v1_2.InputEnumSchema,
+]
+"""Type union for a CWL v1.x InputEnumSchema object."""
+InputRecordField = Union[
+    cwl_v1_0.InputRecordField,
+    cwl_v1_1.InputRecordField,
+    cwl_v1_2.InputRecordField,
+]
+"""Type union for a CWL v1.x InputRecordField object."""
+InputRecordSchema = Union[
+    cwl_v1_0.InputRecordSchema,
+    cwl_v1_1.InputRecordSchema,
+    cwl_v1_2.InputRecordSchema,
+]
+"""Type union for a CWL v1.x InputRecordSchema object."""
 OutputParameter = Union[
     cwl_v1_0.OutputParameter, cwl_v1_1.OutputParameter, cwl_v1_2.OutputParameter
 ]
 """Type union for a CWL v1.x OutputParameter object."""
+OutputArraySchema = Union[
+    cwl_v1_0.OutputArraySchema,
+    cwl_v1_1.OutputArraySchema,
+    cwl_v1_2.OutputArraySchema,
+]
+"""Type union for a CWL v1.x OutputArraySchema object."""
+OutputEnumSchema = Union[
+    cwl_v1_0.OutputEnumSchema,
+    cwl_v1_1.OutputEnumSchema,
+    cwl_v1_2.OutputEnumSchema,
+]
+"""Type union for a CWL v1.x OutputEnumSchema object."""
+OutputRecordField = Union[
+    cwl_v1_0.OutputRecordField,
+    cwl_v1_1.OutputRecordField,
+    cwl_v1_2.OutputRecordField,
+]
+"""Type union for a CWL v1.x OutputRecordField object."""
+OutputRecordSchema = Union[
+    cwl_v1_0.OutputRecordSchema,
+    cwl_v1_1.OutputRecordSchema,
+    cwl_v1_2.OutputRecordSchema,
+]
+"""Type union for a CWL v1.x OutputRecordSchema object."""
+OutputSchema = Union[
+    cwl_v1_0.OutputSchema, cwl_v1_1.OutputSchema, cwl_v1_2.OutputSchema
+]
+"""Type union for a CWL v1.x OutputSchema object."""
 Workflow = Union[cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow]
 WorkflowTypes = (cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow)
 """Type union for a CWL v1.x Workflow object."""
@@ -65,6 +117,18 @@ CommandLineBinding = Union[
     cwl_v1_2.CommandLineBinding,
 ]
 """Type union for a CWL v1.x CommandLineBinding object."""
+CommandOutputBinding = Union[
+    cwl_v1_0.CommandOutputBinding,
+    cwl_v1_1.CommandOutputBinding,
+    cwl_v1_2.CommandOutputBinding,
+]
+"""Type union for a CWL v1.x CommandOutputBinding object."""
+CommandInputParameter = Union[
+    cwl_v1_0.CommandInputParameter,
+    cwl_v1_1.CommandInputParameter,
+    cwl_v1_2.CommandInputParameter,
+]
+"""Type union for a CWL v1.x CommandInputParameter object."""
 CommandOutputParameter = Union[
     cwl_v1_0.CommandOutputParameter,
     cwl_v1_1.CommandOutputParameter,
@@ -75,6 +139,12 @@ ExpressionTool = Union[
     cwl_v1_0.ExpressionTool, cwl_v1_1.ExpressionTool, cwl_v1_2.ExpressionTool
 ]
 """Type union for a CWL v1.x ExpressionTool object."""
+ExpressionToolOutputParameter = Union[
+    cwl_v1_0.ExpressionToolOutputParameter,
+    cwl_v1_1.ExpressionToolOutputParameter,
+    cwl_v1_2.ExpressionToolOutputParameter,
+]
+"""Type union for a CWL v1.x ExpressionToolOutputParameter object."""
 DockerRequirement = Union[
     cwl_v1_0.DockerRequirement, cwl_v1_1.DockerRequirement, cwl_v1_2.DockerRequirement
 ]
