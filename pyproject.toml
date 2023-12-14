@@ -4,30 +4,41 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cwl-utils"
-authors = [{name = "Common workflow language working group", email = "common-workflow-language@googlegroups.com"}]
+authors = [{name = "Common Workflow Language project contributors", email = "common-workflow-language@googlegroups.com"}]
 license = {text = "Apache 2.0"}
+keywords = ["cwl", "commonwl", "common-workflow-language", "sciworkflows"]
+readme = "README.rst"
 classifiers = [
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
-    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: POSIX",
     "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: File Formats",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: System :: Distributed Computing",
     "Typing :: Typed",
 ]
 requires-python = ">=3.8"
 dynamic = ["version", "dependencies"]
 
-[project.readme]
-file = "README.rst"
-content-type = "text/x-rst"
-
 [project.urls]
-Homepage = "https://github.com/common-workflow-language/cwl-utils"
+Documentation = "https://cwl-utils.readthedocs.io/"
+Homepage = "https://www.commonwl.org"
+Repository = "https://github.com/common-workflow-language/cwl-utils"
+Issues = "https://github.com/common-workflow-language/cwl-utils/issues"
+Changelog = "https://github.com/common-workflow-language/cwl-utils/releases"
+"Related Tools" = "https://www.commonwl.org/tools/"
 
 [project.optional-dependencies]
 pretty = ["cwlformat"]
