@@ -43,7 +43,7 @@ Changelog = "https://github.com/common-workflow-language/cwl-utils/releases"
 [project.optional-dependencies]
 pretty = ["cwlformat"]
 testing = [
-    "pytest<8",
+    "pytest<9",
     "pytest-mock",
 ]
 
