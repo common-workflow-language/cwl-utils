@@ -1,4 +1,5 @@
 """Support Singularity{,-CE} {2,3}.x or Apptainer 1.x."""
+
 import re
 from subprocess import check_output  # nosec
 from typing import List, Optional, Tuple

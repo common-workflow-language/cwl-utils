@@ -69,18 +69,22 @@ def run(args: argparse.Namespace) -> List[cwl.DockerRequirement]:
             image_puller: ImagePuller = SingularityImagePuller(
                 req.dockerPull,
                 args.dir,
-                args.container_engine
-                if args.container_engine is not None
-                else "singularity",
+                (
+                    args.container_engine
+                    if args.container_engine is not None
+                    else "singularity"
+                ),
                 args.force_download,
             )
         else:
             image_puller = DockerImagePuller(
                 req.dockerPull,
                 args.dir,
-                args.container_engine
-                if args.container_engine is not None
-                else "docker",
+                (
+                    args.container_engine
+                    if args.container_engine is not None
+                    else "docker"
+                ),
                 args.force_download,
             )
         image_puller.save_docker_image()

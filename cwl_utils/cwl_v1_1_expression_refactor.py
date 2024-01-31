@@ -353,21 +353,27 @@ def generate_etool_from_expr(
             cwl.WorkflowInputParameter(
                 id="self",
                 label=self_type.label if not isinstance(self_type, list) else None,
-                secondaryFiles=self_type.secondaryFiles
-                if not isinstance(self_type, list)
-                else None,
-                streamable=self_type.streamable
-                if not isinstance(self_type, list)
-                else None,
+                secondaryFiles=(
+                    self_type.secondaryFiles
+                    if not isinstance(self_type, list)
+                    else None
+                ),
+                streamable=(
+                    self_type.streamable if not isinstance(self_type, list) else None
+                ),
                 doc=self_type.doc if not isinstance(self_type, list) else None,
                 format=self_type.format if not isinstance(self_type, list) else None,
                 type_=new_type,
-                extension_fields=self_type.extension_fields
-                if not isinstance(self_type, list)
-                else None,
-                loadingOptions=self_type.loadingOptions
-                if not isinstance(self_type, list)
-                else None,
+                extension_fields=(
+                    self_type.extension_fields
+                    if not isinstance(self_type, list)
+                    else None
+                ),
+                loadingOptions=(
+                    self_type.loadingOptions
+                    if not isinstance(self_type, list)
+                    else None
+                ),
             )
         )
     outputs = yaml.comments.CommentedSeq()
@@ -818,10 +824,10 @@ def process_workflow_reqs_and_hints(
                                                 None,
                                                 replace_etool,
                                             )
-                                            iwdr.listing[
-                                                index
-                                            ] = "$(inputs._iwdr_listing_{}".format(
-                                                index
+                                            iwdr.listing[index] = (
+                                                "$(inputs._iwdr_listing_{}".format(
+                                                    index
+                                                )
                                             )
                                             generated_iwdr_reqs.append(
                                                 (etool_id, index)
@@ -859,9 +865,9 @@ def process_workflow_reqs_and_hints(
                                             None,
                                             replace_etool,
                                         )
-                                        iwdr.listing[
-                                            index
-                                        ] = f"$(inputs._iwdr_listing_{index}"
+                                        iwdr.listing[index] = (
+                                            f"$(inputs._iwdr_listing_{index}"
+                                        )
                                         generated_iwdr_reqs.append((etool_id, index))
 
                                 elif entry.entryname:
@@ -885,9 +891,9 @@ def process_workflow_reqs_and_hints(
                                             None,
                                             replace_etool,
                                         )
-                                        iwdr.listing[
-                                            index
-                                        ] = f"$(inputs._iwdr_listing_{index}"
+                                        iwdr.listing[index] = (
+                                            f"$(inputs._iwdr_listing_{index}"
+                                        )
                                         generated_iwdr_reqs.append((etool_id, index))
                         if generated_iwdr_reqs:
                             prop_reqs += (cwl.InitialWorkDirRequirement,)
@@ -1413,9 +1419,9 @@ def traverse_CommandLineTool(
                         inp.linkMerge = None
                     if replace_etool:
                         processes = [parent]
-                        final_etool: Union[
-                            cwl.CommandLineTool, cwl.ExpressionTool
-                        ] = etool_to_cltool(etool, find_expressionLib(processes))
+                        final_etool: Union[cwl.CommandLineTool, cwl.ExpressionTool] = (
+                            etool_to_cltool(etool, find_expressionLib(processes))
+                        )
                     else:
                         final_etool = etool
                     etool_step = cwl.WorkflowStep(

@@ -80,8 +80,7 @@ class JSEngine(ABC):
     @abstractmethod
     def eval(
         self, scan: str, jslib: str = "", **kwargs: Any
-    ) -> Union[CWLOutputType, Awaitable[CWLOutputType]]:
-        ...
+    ) -> Union[CWLOutputType, Awaitable[CWLOutputType]]: ...
 
     @abstractmethod
     def regex_eval(
@@ -90,8 +89,7 @@ class JSEngine(ABC):
         remaining_string: str,
         current_value: CWLOutputType,
         **kwargs: Any,
-    ) -> Union[CWLOutputType, Awaitable[CWLOutputType]]:
-        ...
+    ) -> Union[CWLOutputType, Awaitable[CWLOutputType]]: ...
 
 
 class NodeJSEngine(JSEngine):

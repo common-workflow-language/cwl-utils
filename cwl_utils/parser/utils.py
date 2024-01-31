@@ -1,4 +1,5 @@
 """CWL parser utility functions."""
+
 import copy
 import logging
 import os

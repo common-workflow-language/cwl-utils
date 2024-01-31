@@ -319,17 +319,19 @@ def do_eval(
                 fullJS=fullJS,
                 jslib=jslib,
                 strip_whitespace=strip_whitespace,
-                escaping_behavior=1
-                if cwlVersion
-                in (
-                    "v1.0",
-                    "v1.1.0-dev1",
-                    "v1.1",
-                    "v1.2.0-dev1",
-                    "v1.2.0-dev2",
-                    "v1.2.0-dev3",
-                )
-                else 2,
+                escaping_behavior=(
+                    1
+                    if cwlVersion
+                    in (
+                        "v1.0",
+                        "v1.1.0-dev1",
+                        "v1.1",
+                        "v1.2.0-dev1",
+                        "v1.2.0-dev2",
+                        "v1.2.0-dev3",
+                    )
+                    else 2
+                ),
                 **kwargs,
             )
 
