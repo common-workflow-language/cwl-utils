@@ -1,4 +1,5 @@
 """This is the example from README.md, please synchronize all changes between the two."""
+
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 

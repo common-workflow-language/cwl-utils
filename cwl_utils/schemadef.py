@@ -179,9 +179,9 @@ def _inline_type(
             if "name" in resolve_type:
                 user_type_name = resolve_type["name"]
                 if user_type_name in _inline_type_names:
-                    resolve_type[
-                        "name"
-                    ] = f"{user_type_name}_{_inline_type_name_uniq_id}"
+                    resolve_type["name"] = (
+                        f"{user_type_name}_{_inline_type_name_uniq_id}"
+                    )
                 else:
                     _inline_type_names.add(user_type_name)
             else:

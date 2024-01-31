@@ -121,9 +121,9 @@ def refactor(args: argparse.Namespace) -> int:
         uri = Path(document).resolve().as_uri()
         if version == "v1.0":
             top = cwl_v1_0.load_document_by_yaml(result, uri)
-            traverse: Callable[
-                [Any, bool, bool, bool, bool], Tuple[Any, bool]
-            ] = cwl_v1_0_expression_refactor.traverse
+            traverse: Callable[[Any, bool, bool, bool, bool], Tuple[Any, bool]] = (
+                cwl_v1_0_expression_refactor.traverse
+            )
             save: saveCWL = cwl_v1_0.save
         elif version == "v1.1":
             top = cwl_v1_1.load_document_by_yaml(result, uri)
@@ -152,9 +152,11 @@ def refactor(args: argparse.Namespace) -> int:
             if not isinstance(result, MutableSequence):
                 result_json = save(
                     result,
-                    base_url=result.loadingOptions.fileuri
-                    if result.loadingOptions.fileuri
-                    else "",
+                    base_url=(
+                        result.loadingOptions.fileuri
+                        if result.loadingOptions.fileuri
+                        else ""
+                    ),
                 )
             #   ^^ Setting the base_url and keeping the default value
             #      for relative_uris=True means that the IDs in the generated
