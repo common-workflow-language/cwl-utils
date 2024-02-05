@@ -53,6 +53,7 @@ cwl-docker-extract = "cwl_utils.docker_extract:main"
 cwl-expression-refactor = "cwl_utils.expression_refactor:main"
 cwl-graph-split = "cwl_utils.graph_split:main"
 cwl-normalizer = "cwl_utils.normalizer:main"
+cwl-inputs_schema_gen = "cwl_utils.inputs_schema_gen:main"
 
 [tool.aliases]
 test = "pytest"
