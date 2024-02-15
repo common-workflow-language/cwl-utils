@@ -10,19 +10,33 @@ Only tested with a single v1.0 workflow.
 
 import argparse
 import json
+import logging
 import os
+import re
 import sys
 from collections.abc import MutableMapping
-from typing import IO, TYPE_CHECKING, Any, Union, cast
+from io import TextIOWrapper
+from pathlib import Path
+from typing import (
+    IO,
+    Any,
+    TextIO,
+    Union,
+    cast,
+)
 
 from cwlformat.formatter import stringify_dict
-from ruamel.yaml.dumper import RoundTripDumper
-from ruamel.yaml.main import YAML, dump
+from ruamel.yaml.main import YAML
 from ruamel.yaml.representer import RoundTripRepresenter
 from schema_salad.sourceline import SourceLine, add_lc_filename
 
-if TYPE_CHECKING:
-    from _typeshed import StrPath
+from cwl_utils.loghandler import _logger as _cwlutilslogger
+
+_logger = logging.getLogger("cwl-graph-split")  # pylint: disable=invalid-name
+defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
+_logger.addHandler(defaultStreamHandler)
+_logger.setLevel(logging.INFO)
+_cwlutilslogger.setLevel(100)
 
 
 def arg_parser() -> argparse.ArgumentParser:
@@ -73,7 +87,7 @@ def run(args: list[str]) -> int:
     with open(options.cwlfile) as source_handle:
         graph_split(
             source_handle,
-            options.outdir,
+            Path(options.outdir),
             options.output_format,
             options.mainfile,
             options.pretty,
@@ -83,7 +97,7 @@ def run(args: list[str]) -> int:
 
 def graph_split(
     sourceIO: IO[str],
-    output_dir: "StrPath",
+    output_dir: Path,
     output_format: str,
     mainfile: str,
     pretty: bool,
@@ -100,6 +114,13 @@ def graph_split(
 
     version = source.pop("cwlVersion")
 
+    # Check outdir parent exists
+    if not output_dir.parent.is_dir():
+        raise NotADirectoryError(f"Parent directory of {output_dir} does not exist")
+    # If output_dir is not a directory, create it
+    if not output_dir.is_dir():
+        output_dir.mkdir()
+
     def my_represent_none(
         self: Any, data: Any
     ) -> Any:  # pylint: disable=unused-argument
@@ -111,7 +132,7 @@ def graph_split(
     for entry in source["$graph"]:
         entry_id = entry.pop("id").lstrip("#")
         entry["cwlVersion"] = version
-        imports = rewrite(entry, entry_id)
+        imports = rewrite(entry, entry_id, output_dir)
         if imports:
             for import_name in imports:
                 rewrite_types(entry, f"#{import_name}", False)
@@ -121,25 +142,27 @@ def graph_split(
             else:
                 entry_id = mainfile
 
-        output_file = os.path.join(output_dir, entry_id + ".cwl")
+        output_file = output_dir / (re.sub(".cwl$", "", entry_id) + ".cwl")
         if output_format == "json":
             json_dump(entry, output_file)
         elif output_format == "yaml":
             yaml_dump(entry, output_file, pretty)
 
 
-def rewrite(document: Any, doc_id: str) -> set[str]:
+def rewrite(
+    document: Any, doc_id: str, output_dir: Path, pretty: bool = False
+) -> set[str]:
     """Rewrite the given element from the CWL $graph."""
     imports = set()
     if isinstance(document, list) and not isinstance(document, str):
         for entry in document:
-            imports.update(rewrite(entry, doc_id))
+            imports.update(rewrite(entry, doc_id, output_dir, pretty))
     elif isinstance(document, dict):
         this_id = document["id"] if "id" in document else None
         for key, value in document.items():
             with SourceLine(document, key, Exception):
                 if key == "run" and isinstance(value, str) and value[0] == "#":
-                    document[key] = f"{value[1:]}.cwl"
+                    document[key] = f"{re.sub('.cwl$', '', value[1:])}.cwl"
                 elif key in ("id", "outputSource") and value.startswith("#" + doc_id):
                     document[key] = value[len(doc_id) + 2 :]
                 elif key == "out" and isinstance(value, list):
@@ -179,15 +202,15 @@ def rewrite(document: Any, doc_id: str) -> set[str]:
                 elif key == "$import":
                     rewrite_import(document)
                 elif key == "class" and value == "SchemaDefRequirement":
-                    return rewrite_schemadef(document)
+                    return rewrite_schemadef(document, output_dir, pretty)
                 else:
-                    imports.update(rewrite(value, doc_id))
+                    imports.update(rewrite(value, doc_id, output_dir, pretty))
     return imports
 
 
 def rewrite_import(document: MutableMapping[str, Any]) -> None:
     """Adjust the $import directive."""
-    external_file = document["$import"].split("/")[0][1:]
+    external_file = document["$import"].split("/")[0].lstrip("#")
     document["$import"] = external_file
 
 
@@ -215,19 +238,21 @@ def rewrite_types(field: Any, entry_file: str, sameself: bool) -> None:
                     rewrite_types(entry, entry_file, sameself)
 
 
-def rewrite_schemadef(document: MutableMapping[str, Any]) -> set[str]:
+def rewrite_schemadef(
+    document: MutableMapping[str, Any], output_dir: Path, pretty: bool = False
+) -> set[str]:
     """Dump the schemadefs to their own file."""
     for entry in document["types"]:
         if "$import" in entry:
             rewrite_import(entry)
         elif "name" in entry and "/" in entry["name"]:
-            entry_file, entry["name"] = entry["name"].split("/")
+            entry_file, entry["name"] = entry["name"].lstrip("#").split("/")
             for field in entry["fields"]:
                 field["name"] = field["name"].split("/")[2]
                 rewrite_types(field, entry_file, True)
-            with open(entry_file[1:], "a", encoding="utf-8") as entry_handle:
-                dump([entry], entry_handle, Dumper=RoundTripDumper)
-            entry["$import"] = entry_file[1:]
+            with (output_dir / entry_file).open("a", encoding="utf-8") as entry_handle:
+                yaml_dump(entry, entry_handle, pretty)
+            entry["$import"] = entry_file
             del entry["name"]
             del entry["type"]
             del entry["fields"]
@@ -247,26 +272,40 @@ def rewrite_schemadef(document: MutableMapping[str, Any]) -> set[str]:
     return seen_imports
 
 
-def json_dump(entry: Any, output_file: str) -> None:
+def json_dump(entry: Any, output_file: Path) -> None:
     """Output object as JSON."""
-    with open(output_file, "w", encoding="utf-8") as result_handle:
+    with output_file.open("w", encoding="utf-8") as result_handle:
         json.dump(entry, result_handle, indent=4)
 
 
-def yaml_dump(entry: Any, output_file: str, pretty: bool) -> None:
+def yaml_dump(
+    entry: Any,
+    output_file_or_handle: Union[str, Path, TextIOWrapper, TextIO],
+    pretty: bool,
+) -> None:
     """Output object as YAML."""
-    yaml = YAML(typ="rt")
+    yaml = YAML(typ="rt", pure=True)
     yaml.default_flow_style = False
-    yaml.map_indent = 4
-    yaml.sequence_indent = 2
-    with open(output_file, "w", encoding="utf-8") as result_handle:
+    yaml.indent = 4
+    yaml.block_seq_indent = 2
+
+    if isinstance(output_file_or_handle, (str, Path)):
+        with open(output_file_or_handle, "w", encoding="utf-8") as result_handle:
+            if pretty:
+                result_handle.write(stringify_dict(entry))
+                return
+            yaml.dump(entry, result_handle)
+            return
+    elif isinstance(output_file_or_handle, (TextIOWrapper, TextIO)):
         if pretty:
-            result_handle.write(stringify_dict(entry))
-        else:
-            yaml.dump(
-                entry,
-                result_handle,
-            )
+            output_file_or_handle.write(stringify_dict(entry))
+            return
+        yaml.dump(entry, output_file_or_handle)
+        return
+    else:
+        raise ValueError(
+            f"output_file_or_handle must be a string or a file handle but got {type(output_file_or_handle)}"
+        )
 
 
 if __name__ == "__main__":
