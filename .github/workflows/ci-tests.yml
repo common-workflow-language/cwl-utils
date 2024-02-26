@@ -66,9 +66,10 @@ jobs:
       - name: Upload coverage to Codecov
         if: ${{ matrix.step == 'unit' }}
         uses: codecov/codecov-action@v4.0.2
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
           fail_ci_if_error: true
-          token: ${{ secrets.CODECOV_TOKEN }}
 
   tox-style:
     name: CI linters via Tox
