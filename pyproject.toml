@@ -66,6 +66,9 @@ packages = [
     "cwl_utils.parser",
     "cwl_utils.tests",
     "cwl_utils.testdata",
+    "cwl_utils.testdata.checker_wf",
+    "cwl_utils.testdata.types",
+    "cwl_utils.testdata.workflows",
 ]
 include-package-data = true
 
@@ -73,6 +76,9 @@ include-package-data = true
 "cwl_utils.parser" = "cwl_utils/parser"
 "cwl_utils.tests" = "tests"
 "cwl_utils.testdata" = "testdata"
+"cwl_utils.testdata.checker_wf" = "testdata/checker_wf"
+"cwl_utils.testdata.types" = "testdata/types"
+"cwl_utils.testdata.workflows" = "testdata/workflows"
 
 [tool.setuptools.dynamic]
 version = {attr = "cwl_utils.__meta__.__version__"}
