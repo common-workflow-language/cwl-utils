@@ -6,7 +6,6 @@ import subprocess  # nosec
 import sys
 import urllib.error
 import urllib.parse
-from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
 import urllib.request
 from copy import deepcopy
@@ -22,8 +21,6 @@ from typing import (
     Union,
 )
 
-from pathlib import Path
-import requests
 from ruamel.yaml.main import YAML
 from ruamel.yaml.parser import ParserError
 from ruamel.yaml.scanner import ScannerError
@@ -32,10 +29,9 @@ from cwl_utils.errors import MissingKeyField
 from cwl_utils.loghandler import _logger
 
 # Type hinting
-from cwl_utils.parser import InputRecordSchema, InputRecordSchemaTypes
+from cwl_utils.parser import InputRecordSchemaTypes
 
 # Load as 1.2 files
-from cwl_utils.parser.cwl_v1_2 import InputRecordSchema as InputRecordSchemaV1_2
 from cwl_utils.parser.cwl_v1_2 import InputEnumSchema as InputEnumSchemaV1_2
 from cwl_utils.parser.cwl_v1_2 import InputArraySchema as InputArraySchemaV1_2
 
