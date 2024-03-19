@@ -1,6 +1,15 @@
 # Generating the Workflow Input JSON Schema Template
 
-# Part 1 - Clone the CWL-TS-Auto directory
+<!-- TOC -->
+* [Generating the Workflow Input JSON Schema Template](#generating-the-workflow-input-json-schema-template)
+  * [Part 1 - Clone the CWL-TS-Auto directory](#part-1---clone-the-cwl-ts-auto-directory)
+  * [Part 2 - Install the typescript-json-schema package](#part-2---install-the-typescript-json-schema-package)
+  * [Part 3 - Generate the Workflow Input JSON Schema Template](#part-3---generate-the-workflow-input-json-schema-template)
+  * [Part 4 - Refine the template with the following python script](#part-4---refine-the-template-with-the-following-python-script)
+  * [Part 5 - Run schema generation against all tests in the cwl v1.2 directory](#part-5---run-schema-generation-against-all-tests-in-the-cwl-v12-directory)
+<!-- TOC -->
+
+## Part 1 - Clone the CWL-TS-Auto directory
 
 ```
 git clone https://github.com/common-workflow-lab/cwl-ts-auto
@@ -8,13 +17,13 @@ git clone https://github.com/common-workflow-lab/cwl-ts-auto
 cd cwl-ts-auto
 ```
 
-# Part 2 - Install the typescript-json-schema package
+## Part 2 - Install the typescript-json-schema package
 
 ```
 npm install typescript-json-schema@^0.62.0
 ```
 
-# Part 3 - Generate the Workflow Input JSON Schema Template
+## Part 3 - Generate the Workflow Input JSON Schema Template
 
 ```bash
 npx typescript-json-schema \
@@ -24,7 +33,7 @@ npx typescript-json-schema \
   WorkflowInputParameter > workflow_input_json_schema_template.primary.json
 ```
 
-# Part 4 - Refine the template with the following python script
+## Part 4 - Refine the template with the following python script
 
 <details>
 
@@ -1138,7 +1147,7 @@ python3 refine_workflow_input_json_schema_template.py \
 ```
 
 
-### Run schema generation against all tests in the cwl v1.2 directory
+## Part 5 - Run schema generation against all tests in the cwl v1.2 directory
 
 > Note there is a set of six urls and inputs that we test the schema generation against
 
