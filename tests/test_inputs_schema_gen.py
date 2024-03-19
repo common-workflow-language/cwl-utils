@@ -20,7 +20,7 @@ TEST_PARAMS = [
     # Packed Case
     {
         "tool_url": f"{TEST_ROOT_URL}/revsort-packed.cwl",
-        "input_url": f"{TEST_ROOT_URL}/revsort-json.cwl",
+        "input_url": f"{TEST_ROOT_URL}/revsort-job.json",
     },
     # The number of parameters is a little large, and the definition itself is a straightforward case.
     {
@@ -40,12 +40,12 @@ TEST_PARAMS = [
     # SecondaryFiles
     {
         "tool_url": f"{TEST_ROOT_URL}/secondaryfiles/rename-inputs.cwl",
-        "input_url": f"{TEST_ROOT_URL}/rename-inputs.yml",
+        "input_url": f"{TEST_ROOT_URL}/secondaryfiles/rename-inputs.yml",
     },
     # Stage array
     {
         "tool_url": f"{TEST_ROOT_URL}/stage-array.cwl",
-        "input_url": f"{TEST_ROOT_URL}/stage-array-json.json",
+        "input_url": f"{TEST_ROOT_URL}/stage-array-job.json",
     },
 ]
 
