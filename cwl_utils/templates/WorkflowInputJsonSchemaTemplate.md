@@ -1149,7 +1149,7 @@ python3 refine_workflow_input_json_schema_template.py \
 
 ## Part 5 - Run schema generation against all tests in the cwl v1.2 directory
 
-> Note there is a set of six urls and inputs that we test the schema generation against
+> Note there is a set of six urls and inputs that we test the schema generation against in the tests directory
 
 <details>
 
