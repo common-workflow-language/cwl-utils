@@ -6,6 +6,7 @@ import subprocess  # nosec
 import sys
 import urllib.error
 import urllib.parse
+from urllib.parse import urlparse
 import urllib.request
 from collections.abc import MutableMapping, MutableSequence
 from copy import deepcopy
@@ -18,6 +19,13 @@ from ruamel.yaml.scanner import ScannerError
 
 from cwl_utils.errors import MissingKeyField
 from cwl_utils.loghandler import _logger
+
+# Type hinting
+from cwl_utils.parser import InputRecordSchemaTypes
+
+# Load as 1.2 files
+from cwl_utils.parser.cwl_v1_2 import InputEnumSchema as InputEnumSchemaV1_2
+from cwl_utils.parser.cwl_v1_2 import InputArraySchema as InputArraySchemaV1_2
 
 fast_yaml = YAML(typ="safe")
 
@@ -235,3 +243,198 @@ def yaml_dumps(obj: Any) -> str:
     stream = StringIO()
     yaml.dump(obj, stream)
     return stream.getvalue()
+
+
+def to_pascal_case(name: str) -> str:
+    """
+    Convert a string to PascalCase.
+
+    fastq-list-row to FastqListRow
+    fastq_list_row to FastqListRow
+    :param name:
+    :return:
+    """
+    return "".join(
+        map(lambda word: word.capitalize(), name.replace("_", "-").split("-"))
+    )
+
+
+def sanitise_schema_field(
+    schema_field_item: Union[Dict[str, Any], str]
+) -> Union[Dict[str, Any], str]:
+    """
+    Schemas need to be resolved before converted to JSON properties.
+
+    Convert
+      {
+        'type': 'Directory?'
+      }
+    To
+      {
+        'type': ['null', 'Directory']
+      }
+
+    Convert
+      {
+        'type': 'string[]'
+      }
+    To
+      InputArraySchema(
+        type_=array,
+        items=string
+      )
+
+    Convert
+      {
+        'type': 'File[]?'
+      }
+    To
+      {
+        'type': [
+          'null', InputArraySchema(
+            type_=array,
+            items=File
+          )
+        ]
+      }
+
+    Convert
+      {
+        'type': 'Enum',
+        'symbols': ['A', 'B', 'C']
+      }
+
+    To
+      {
+        'type': InputEnumSchema(
+          type_=enum,
+          symbols=['A', 'B', 'C']
+        )
+      }
+
+    Convert
+      {
+        'type': 'array',
+        'items': {
+          '$import': '../../../schemas/fastq-list-row/1.0.0/fastq-list-row__1.0.0.yaml#fastq-list-row'
+        }
+      }
+    To
+      {
+        'type': InputArraySchema(
+          type_=array,
+          items={
+            '$import': '../../../schemas/fastq-list-row/1.0.0/fastq-list-row__1.0.0.yaml#fastq-list-row'
+          }
+        )
+      }
+
+    :param schema_field_item:
+    :return:
+    """
+    # We might be just a string, in which case, just return
+    # This happens in the case that type is a list of primitive types
+    if isinstance(schema_field_item, str):
+        return schema_field_item
+
+    # Copy schema field
+    schema_field_item = deepcopy(schema_field_item)
+    required = True
+
+    if isinstance(schema_field_item, InputRecordSchemaTypes):
+        return schema_field_item
+
+    if isinstance(schema_field_item.get("type"), List):
+        if "null" in schema_field_item.get("type", []):
+            required = False
+        schema_field_item["type"] = list(
+            filter(
+                lambda type_item: type_item != "null", schema_field_item.get("type", [])
+            )
+        )
+        if len(schema_field_item["type"]) == 1:
+            schema_field_item["type"] = schema_field_item["type"][0]
+        else:
+            # Recursively get items
+            schema_field_item["type"] = list(
+                map(
+                    lambda field_subtypes: sanitise_schema_field(field_subtypes),
+                    schema_field_item.get("type", []),
+                )
+            )
+
+    if isinstance(schema_field_item.get("type"), str):
+        if schema_field_item.get("type", "").endswith("?"):
+            required = False
+            schema_field_item["type"] = schema_field_item.get("type", "").replace(
+                "?", ""
+            )
+
+        if schema_field_item.get("type", "").endswith("[]"):
+            # Strip list
+            schema_field_item["type"] = schema_field_item.get("type", "").replace(
+                "[]", ""
+            )
+            # Convert to array
+            schema_field_item["type"] = InputArraySchemaV1_2(
+                type_="array", items=schema_field_item.get("type", "")
+            )
+
+    if isinstance(schema_field_item.get("type"), Dict):
+        # Likely an enum
+        if schema_field_item.get("type", {}).get("type", "") == "enum":
+            schema_field_item["type"] = InputEnumSchemaV1_2(
+                type_="enum",
+                symbols=schema_field_item.get("type", {}).get("symbols", ""),
+            )
+        elif schema_field_item.get("type", {}).get("type", "") == "array":
+            schema_field_item["type"] = InputArraySchemaV1_2(
+                type_="array", items=schema_field_item.get("type", {}).get("items", "")
+            )
+        elif "$import" in schema_field_item.get("type", {}).keys():
+            # Leave import as is
+            pass
+        else:
+            raise ValueError(f"Unknown type: {schema_field_item.get('type')}")
+
+    if not required:
+        if isinstance(schema_field_item.get("type"), List):
+            schema_field_item["type"] = ["null"] + schema_field_item.get("type", [])
+        else:
+            schema_field_item["type"] = ["null", schema_field_item.get("type", "")]
+
+    return schema_field_item
+
+
+def is_uri(uri: str) -> bool:
+    """
+    Given a URI return True if it is a URI.
+
+    :param uri:
+    :return:
+    """
+    if not urlparse(uri).scheme == "":
+        return True
+    else:
+        return False
+
+
+def is_local_uri(uri: str) -> bool:
+    """Given a uri, first check if it is a uri, then check if it is a local uri."""
+    if is_uri(uri) and urlparse(uri).scheme == "file":
+        return True
+    return False
+
+
+def get_value_from_uri(uri: str) -> str:
+    """
+    Given a URI, return the value after #.
+
+    file://path/to/imported/record#my_workflow_name/record_name
+    Returns
+    record_name
+    :param uri:
+    :return:
+    """
+    url_obj = urlparse(uri)
+    return url_obj.fragment.rsplit("/")[-1]

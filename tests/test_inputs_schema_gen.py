@@ -1,573 +1,101 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for cwl-inputs-schema-gen."""
-from json import dumps
+from pathlib import Path
 from typing import Dict
-
 import pytest
+import requests
+from jsonschema.exceptions import ValidationError, SchemaError
+from jsonschema.validators import validate
+from ruamel.yaml import YAML
 
-from cwl_utils.inputs_schema_gen import cwl_inputs_to_jsonschema
-from cwl_utils.parser import load_document_by_uri, save
+from cwl_utils.inputs_schema_gen import cwl_to_jsonschema
+from cwl_utils.parser import load_document_by_uri
+from cwl_utils.loghandler import _logger as _cwlutilslogger
+
+TEST_ROOT_URL = (
+    "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests"
+)
 
 TEST_PARAMS = [
-    # When the definition itself is a nasty case.
+    # Packed Case
     {
-        "url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/echo-tool-packed.cwl",
-        "expected": '''{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "in": {
-      "anyOf": [
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "integer"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "string"
-        },
-        {
-          "type": "array"
-        },
-        {
-          "type": "object"
-        }
-      ]
-    }
-  },
-  "required": [
-    "in"
-  ],
-  "additionalProperties": false
-}'''},
-    {
-        "url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/revsort-packed.cwl",
-        "expected": '''{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "input": {
-      "type": "object",
-      "properties": {
-        "class": {
-          "type": "string",
-          "const": "File"
-        },
-        "path": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "class"
-      ],
-      "oneOf": [
-        {
-          "required": [
-            "path"
-          ]
-        },
-        {
-          "required": [
-            "location"
-          ]
-        }
-      ],
-      "additionalProperties": false
+        "tool_url": f"{TEST_ROOT_URL}/revsort-packed.cwl",
+        "input_url": f"{TEST_ROOT_URL}/revsort-job.json",
     },
-    "reverse_sort": {
-      "type": "boolean",
-      "default": true
-    }
-  },
-  "required": [
-    "input"
-  ],
-  "additionalProperties": false
-}'''},
-    # When the type is nasty.
-    {
-        "url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/anon_enum_inside_array.cwl",
-        "expected": '''{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "first": {
-      "type": "object",
-      "properties": {
-        "species": {
-          "type": "string",
-          "enum": [
-            "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/anon_enum_inside_array.cwl#first/species/homo_sapiens",
-            "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/anon_enum_inside_array.cwl#first/species/mus_musculus"
-          ],
-          "nullable": true
-        }
-      },
-      "required": [
-        "species"
-      ],
-      "additionalProperties": false
-    },
-    "second": {
-      "type": "string",
-      "enum": [
-        "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/anon_enum_inside_array.cwl#second/homo_sapiens",
-        "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/anon_enum_inside_array.cwl#second/mus_musculus"
-      ],
-      "nullable": true
-    }
-  },
-  "required": [
-    "first"
-  ],
-  "additionalProperties": false
-}'''},
     # The number of parameters is a little large, and the definition itself is a straightforward case.
     {
-        "url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/bwa-mem-tool.cwl",
-        "expected": '''{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "reference": {
-      "type": "object",
-      "properties": {
-        "class": {
-          "type": "string",
-          "const": "File"
-        },
-        "path": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "class"
-      ],
-      "oneOf": [
-        {
-          "required": [
-            "path"
-          ]
-        },
-        {
-          "required": [
-            "location"
-          ]
-        }
-      ],
-      "additionalProperties": false
+        "tool_url": f"{TEST_ROOT_URL}/bwa-mem-tool.cwl",
+        "input_url": f"{TEST_ROOT_URL}/bwa-mem-job.json",
     },
-    "reads": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "class": {
-            "type": "string",
-            "const": "File"
-          },
-          "path": {
-            "type": "string"
-          },
-          "location": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "class"
-        ],
-        "oneOf": [
-          {
-            "required": [
-              "path"
-            ]
-          },
-          {
-            "required": [
-              "location"
-            ]
-          }
-        ],
-        "additionalProperties": false
-      },
-      "additionalItems": false
-    },
-    "minimum_seed_length": {
-      "type": "integer"
-    },
-    "min_std_max_min": {
-      "type": "array",
-      "items": {
-        "type": "integer"
-      },
-      "additionalItems": false
-    },
-    "args.py": {
-      "type": "object",
-      "properties": {
-        "class": {
-          "type": "string",
-          "const": "File"
-        },
-        "path": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "class"
-      ],
-      "oneOf": [
-        {
-          "required": [
-            "path"
-          ]
-        },
-        {
-          "required": [
-            "location"
-          ]
-        }
-      ],
-      "additionalProperties": false,
-      "default": {
-        "class": "File",
-        "location": "args.py"
-      }
-    }
-  },
-  "required": [
-    "reference",
-    "reads",
-    "minimum_seed_length",
-    "min_std_max_min"
-  ],
-  "additionalProperties": false
-}'''},
     # The case where CommandInputParameter is shortened (e.g., param: string)
     {
-        "url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/env-tool1.cwl",
-        "expected": '''{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "in": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "in"
-  ],
-  "additionalProperties": false
-}'''},
-    # No input parameters
-    {
-        "url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/envvar3.cwl",
-        "expected": '''{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {},
-  "required": [],
-  "additionalProperties": false
-}'''},
-    # Any
-    {
-        "url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/params.cwl",
-        "expected": '''{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "bar": {
-      "anyOf": [
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "integer"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "string"
-        },
-        {
-          "type": "array"
-        },
-        {
-          "type": "object"
-        }
-      ],
-      "default": {
-        "baz": "zab1",
-        "b az": 2,
-        "b'az": true,
-        "b\\\"az": null,
-        "buz": [
-          "a",
-          "b",
-          "c"
-        ]
-      }
-    }
-  },
-  "required": [],
-  "additionalProperties": false
-}'''},
+        "tool_url": f"{TEST_ROOT_URL}/env-tool1.cwl",
+        "input_url": f"{TEST_ROOT_URL}/env-job.json",
+    },
     # Dir
     {
-        "url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/dir.cwl",
-        "expected": '''{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "indir": {
-      "type": "object",
-      "properties": {
-        "class": {
-          "type": "string",
-          "const": "Directory"
-        },
-        "path": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "class"
-      ],
-      "oneOf": [
-        {
-          "required": [
-            "path"
-          ]
-        },
-        {
-          "required": [
-            "location"
-          ]
-        }
-      ],
-      "additionalProperties": false
-    }
-  },
-  "required": [
-    "indir"
-  ],
-  "additionalProperties": false
-}'''},
+        "tool_url": f"{TEST_ROOT_URL}/dir.cwl",
+        "input_url": f"{TEST_ROOT_URL}/dir-job.yml",
+    },
     # SecondaryFiles
     {
-        "url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/secondaryfiles/rename-inputs.cwl",
-        "expected": '''{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "inputWithSecondary": {
-      "type": "object",
-      "properties": {
-        "class": {
-          "type": "string",
-          "const": "File"
-        },
-        "path": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "class"
-      ],
-      "oneOf": [
-        {
-          "required": [
-            "path"
-          ]
-        },
-        {
-          "required": [
-            "location"
-          ]
-        }
-      ],
-      "additionalProperties": false
+        "tool_url": f"{TEST_ROOT_URL}/secondaryfiles/rename-inputs.cwl",
+        "input_url": f"{TEST_ROOT_URL}/secondaryfiles/rename-inputs.yml",
     },
-    "accessory": {
-      "type": "object",
-      "properties": {
-        "class": {
-          "type": "string",
-          "const": "File"
-        },
-        "path": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "class"
-      ],
-      "oneOf": [
-        {
-          "required": [
-            "path"
-          ]
-        },
-        {
-          "required": [
-            "location"
-          ]
-        }
-      ],
-      "additionalProperties": false
-    }
-  },
-  "required": [
-    "inputWithSecondary",
-    "accessory"
-  ],
-  "additionalProperties": false
-}'''},
+    # Stage array
     {
-        "url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests/stage-array.cwl",
-        "expected": '''{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "input_file": {
-      "type": "object",
-      "properties": {
-        "class": {
-          "type": "string",
-          "const": "File"
-        },
-        "path": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "class"
-      ],
-      "oneOf": [
-        {
-          "required": [
-            "path"
-          ]
-        },
-        {
-          "required": [
-            "location"
-          ]
-        }
-      ],
-      "additionalProperties": false
+        "tool_url": f"{TEST_ROOT_URL}/stage-array.cwl",
+        "input_url": f"{TEST_ROOT_URL}/stage-array-job.json",
     },
-    "optional_file": {
-      "type": "object",
-      "properties": {
-        "class": {
-          "type": "string",
-          "const": "File"
-        },
-        "path": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "class"
-      ],
-      "oneOf": [
-        {
-          "required": [
-            "path"
-          ]
-        },
-        {
-          "required": [
-            "location"
-          ]
-        }
-      ],
-      "additionalProperties": false,
-      "nullable": true
-    },
-    "input_list": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "class": {
-            "type": "string",
-            "const": "File"
-          },
-          "path": {
-            "type": "string"
-          },
-          "location": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "class"
-        ],
-        "oneOf": [
-          {
-            "required": [
-              "path"
-            ]
-          },
-          {
-            "required": [
-              "location"
-            ]
-          }
-        ],
-        "additionalProperties": false
-      },
-      "additionalItems": false
-    }
-  },
-  "required": [
-    "input_file",
-    "input_list"
-  ],
-  "additionalProperties": false
-}'''}
 ]
 
 
 @pytest.mark.parametrize("test_param", TEST_PARAMS)
 def test_cwl_inputs_to_jsonschema(test_param: Dict[str, str]) -> None:
-    url = test_param["url"]
-    expected = test_param["expected"]
+    tool_url = test_param["tool_url"]
+    input_url = test_param["input_url"]
 
-    cwl_obj = load_document_by_uri(url)
-    saved_obj = save(cwl_obj)
-    json_serialized_inputs_obj = saved_obj["inputs"]
-    jsonschema = cwl_inputs_to_jsonschema(json_serialized_inputs_obj)
+    cwl_obj = load_document_by_uri(tool_url)
 
-    assert dumps(jsonschema, indent=2) == expected
+    _cwlutilslogger.info(f"Generating schema for {Path(tool_url).name}")
+    json_schema = cwl_to_jsonschema(cwl_obj)
+
+    _cwlutilslogger.info(
+        f"Testing {Path(input_url).name} against schema generated for input {Path(tool_url).name}"
+    )
+
+    yaml = YAML()
+
+    input_obj = yaml.load(requests.get(input_url).text)
+
+    try:
+        validate(input_obj, json_schema)
+    except (ValidationError, SchemaError) as err:
+        _cwlutilslogger.error(
+            f"Validation failed for {Path(input_url).name} "
+            f"against schema generated for input {Path(tool_url).name}"
+        )
+        raise SchemaError(f"{Path(input_url).name} failed schema validation") from err
+
+
+def test_cwl_inputs_to_jsonschema_fails() -> None:
+    """Compare tool schema of param 1 against input schema of param 2"""
+    tool_url = TEST_PARAMS[0]["tool_url"]
+    input_url = TEST_PARAMS[3]["input_url"]
+
+    cwl_obj = load_document_by_uri(tool_url)
+
+    _cwlutilslogger.info(f"Generating schema for {Path(tool_url).name}")
+    json_schema = cwl_to_jsonschema(cwl_obj)
+
+    _cwlutilslogger.info(
+        f"Testing {Path(input_url).name} against schema generated for input {Path(tool_url).name}"
+    )
+
+    yaml = YAML()
+
+    input_obj = yaml.load(requests.get(input_url).text)
+
+    # We expect this to fail
+    with pytest.raises(ValidationError):
+        validate(input_obj, json_schema)

@@ -121,11 +121,11 @@ Expressions into separate steps in the manner of cwl-expression-refactor.
 Generate for Workflow Parameters from a CWL document
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``cwl-input-schema-gen`` generates a JSON Schema for workflow input parameters from a CWL document.
+``cwl-inputs-schema-gen`` generates a JSON Schema for workflow input parameters from a CWL document.
 
 .. code:: bash
 
-   cwl-input-schema-gen path_to_my_workflow.cwl
+   cwl-inputs-schema-gen path_to_my_workflow.cwl
 
 Using the CWL Parsers
 ~~~~~~~~~~~~~~~~~~~~~
