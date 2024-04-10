@@ -210,7 +210,7 @@ cwl_utils/parser/cwl_v1_1.py: FORCE
 cwl_utils/parser/cwl_v1_2.py: FORCE
 	schema-salad-tool --codegen python \
 		--codegen-parser-info "org.w3id.cwl.v1_2" \
-		https://github.com/common-workflow-language/cwl-v1.2/raw/1.2.1_proposed/CommonWorkflowLanguage.yml \
+		https://github.com/common-workflow-language/cwl-v1.2/raw/codegen/CommonWorkflowLanguage.yml \
 		> $@
 
 regen_parsers: cwl_utils/parser/cwl_v1_*.py
