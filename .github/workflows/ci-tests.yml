@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.step == 'unit' }}
-        uses: codecov/codecov-action@v4.3.0
+        uses: codecov/codecov-action@v4.3.1
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -121,12 +121,12 @@ jobs:
 
       - name: pull some containers
         run: |
-          export CWL_SINGULARITY_CACHE=$(echo $GITHUB_WORKSPACE)/singularity_cache
-          mkdir -p ${CWL_SINGULARITY_CACHE}
-          singularity pull --name ${CWL_SINGULARITY_CACHE}/node_alpine.sif docker://docker.io/node:alpine
-          ls -lh ${CWL_SINGULARITY_CACHE}
-          echo ${CWL_SINGULARITY_CACHE}
-          echo "CWL_SINGULARITY_CACHE=${CWL_SINGULARITY_CACHE}" >> $GITHUB_ENV
+          export CWL_SINGULARITY_CACHE=$GITHUB_WORKSPACE/singularity_cache
+          mkdir -p "${CWL_SINGULARITY_CACHE}"
+          singularity pull --name "${CWL_SINGULARITY_CACHE}/node_alpine.sif" docker://docker.io/node:alpine
+          ls -lh "${CWL_SINGULARITY_CACHE}"
+          echo "${CWL_SINGULARITY_CACHE}"
+          echo "CWL_SINGULARITY_CACHE=${CWL_SINGULARITY_CACHE}" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
