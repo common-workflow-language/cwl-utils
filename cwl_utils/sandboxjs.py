@@ -320,7 +320,7 @@ class NodeJSEngine(JSEngine):
                 nodeimg = "docker.io/node:alpine"
                 if container_engine == "singularity":
                     nodeimg = f"docker://{nodeimg}"
-                elif container_engine == "podman":
+                elif container_engine in ("podman", "udocker"):
                     nodeimg = "docker.io/library/node:alpine"
 
                 if not self.have_node_slim:
@@ -352,6 +352,8 @@ class NodeJSEngine(JSEngine):
                         )
                         if matches:
                             dockerimgs = matches[0]
+                        else:
+                            dockerimgs = ""
                     else:
                         raise Exception(
                             f"Unknown container_engine: {container_engine}."
