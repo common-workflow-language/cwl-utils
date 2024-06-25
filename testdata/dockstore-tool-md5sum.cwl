@@ -25,7 +25,7 @@ requirements:
 
 hints:
  DockerRequirement:
-   dockerPull: quay.io/briandoconnor/dockstore-tool-md5sum:1.0.4
+   dockerPull: quay.io/mr_c/dockstore-tool-md5sum:1.0.4
 
  ResourceRequirement:
    # The command really requires very little resources.
