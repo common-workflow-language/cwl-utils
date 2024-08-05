@@ -33,6 +33,8 @@ Included Utility Programs
 .. autoprogram:: cwl_utils.normalizer:arg_parser()
    :prog: cwl-normalizer
 
+.. autoprogram:: cwl_utils.input_schema_gen:arg_parser()
+   :prog: cwl-input-schema-gen
 
 Indices and tables
 ==================
