@@ -2,9 +2,10 @@
 """Test the CWL Expression refactoring tool."""
 import os
 import shutil
+import sys
 import tarfile
 from pathlib import Path
-from typing import Generator
+from typing import TYPE_CHECKING, Generator, cast
 
 import pytest
 import requests
@@ -21,6 +22,9 @@ from cwl_utils.errors import WorkflowException
 from cwl_utils.expression_refactor import run as expression_refactor
 
 from .util import get_data
+
+if TYPE_CHECKING:
+    from http.client import HTTPResponse
 
 
 def test_v1_0_workflow_top_level_format_expr() -> None:
@@ -244,11 +248,17 @@ def cwl_v1_0_dir(
 ) -> Generator[str, None, None]:
     """Download the CWL 1.0.2 specs and return a path to the directory."""
     tmp_path = tmp_path_factory.mktemp("cwl_v1_0_dir")
-    with requests.get(
-        "https://github.com/common-workflow-language/common-workflow-language/archive/v1.0.2.tar.gz",
-        stream=True,
-    ).raw as specfileobj:
+    with cast(
+        "HTTPResponse",
+        requests.get(
+            "https://github.com/common-workflow-language/common-workflow-language/archive/v1.0.2.tar.gz",
+            stream=True,
+        ).raw,
+    ) as specfileobj:
         tf = tarfile.open(fileobj=specfileobj)
-        tf.extractall(path=tmp_path)
+        if sys.version_info > (3, 12):
+            tf.extractall(path=tmp_path, filter="data")
+        else:
+            tf.extractall(path=tmp_path)
     yield str(tmp_path / "common-workflow-language-1.0.2")
     shutil.rmtree(os.path.join(tmp_path))
