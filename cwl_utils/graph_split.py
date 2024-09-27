@@ -146,6 +146,7 @@ def rewrite(document: Any, doc_id: str) -> Set[str]:
                     def rewrite_id(entry: Any) -> Union[MutableMapping[Any, Any], str]:
                         if isinstance(entry, MutableMapping):
                             if entry["id"].startswith(this_id):
+                                assert isinstance(this_id, str)  # nosec B101
                                 entry["id"] = cast(str, entry["id"])[len(this_id) + 1 :]
                             return entry
                         elif isinstance(entry, str):
