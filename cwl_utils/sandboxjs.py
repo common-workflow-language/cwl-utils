@@ -609,6 +609,13 @@ def check_js_threshold_version(*args: Any, **kwargs: Any) -> bool:
 
 
 def exec_js_process(*args: Any, **kwargs: Any) -> tuple[int, str, str]:
+    """
+    Run a javascript text.
+
+    :param timeout: Max number of seconds to wait.
+    :returns: A tuple of the return code, stdout, and stderr of the javascript
+              engine invocation.
+    """
     _exec_js_process = getattr(get_js_engine(), "exec_js_process", None)
     if callable(_exec_js_process):
         return cast(tuple[int, str, str], _exec_js_process(*args, **kwargs))
