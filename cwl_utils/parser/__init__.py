@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+from collections.abc import MutableMapping, MutableSequence
 from pathlib import Path
-from typing import Any, MutableMapping, MutableSequence, Optional, Union, cast
+from typing import Any, Optional, Union, cast
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException

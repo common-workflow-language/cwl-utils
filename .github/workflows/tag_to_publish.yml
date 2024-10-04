@@ -12,20 +12,20 @@ jobs:
   release_to_pypi:
     name: cwl-utils release test
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Singularity
         run: |
-          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v3.11.4/singularity-ce_3.11.4-jammy_amd64.deb
-          sudo apt-get install -y ./singularity-ce_3.11.4-jammy_amd64.deb
+          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v4.2.1/singularity-ce_4.2.1-noble_amd64.deb
+          sudo apt-get install -y ./singularity-ce_4.2.1-noble_amd64.deb
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11
+          python-version: 3.12
 
       - name: Cache for pip
         uses: actions/cache@v4

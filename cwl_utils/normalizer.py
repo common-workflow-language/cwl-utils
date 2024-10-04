@@ -6,8 +6,8 @@ import argparse
 import logging
 import sys
 import tempfile
+from collections.abc import MutableSequence
 from pathlib import Path
-from typing import List, MutableSequence, Set
 
 from cwlupgrader import main as cwlupgrader
 from ruamel import yaml
@@ -61,7 +61,7 @@ def arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args(args: List[str]) -> argparse.Namespace:
+def parse_args(args: list[str]) -> argparse.Namespace:
     """Parse the command line arguments."""
     return arg_parser().parse_args(args)
 
@@ -73,7 +73,7 @@ def main() -> None:
 
 def run(args: argparse.Namespace) -> int:
     """Primary processing loop."""
-    imports: Set[str] = set()
+    imports: set[str] = set()
     for document in args.inputs:
         _logger.info("Processing %s.", document)
         with open(document) as doc_handle:

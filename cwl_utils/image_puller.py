@@ -5,7 +5,7 @@ import os
 import subprocess  # nosec
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from .singularity import get_version as get_singularity_version
 from .singularity import is_version_2_6 as is_singularity_version_2_6
@@ -38,7 +38,7 @@ class ImagePuller(ABC):
         """Download and save the image to disk."""
 
     @staticmethod
-    def _run_command_pull(cmd_pull: List[str]) -> None:
+    def _run_command_pull(cmd_pull: list[str]) -> None:
         try:
             subprocess.run(  # nosec
                 cmd_pull, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT

@@ -15,12 +15,12 @@ jobs:
   tox:
     name: CI tests via Tox
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     strategy:
       matrix:
         py-ver-major: [3]
-        py-ver-minor: [8, 9, 10, 11, 12, 13]
+        py-ver-minor: [9, 10, 11, 12, 13]
         step: [lint, unit, bandit, mypy]
 
     env:
@@ -35,8 +35,8 @@ jobs:
       - name: Set up Singularity
         if: ${{ matrix.step == 'unit' || matrix.step == 'mypy' }}
         run: |
-          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v3.11.4/singularity-ce_3.11.4-jammy_amd64.deb
-          sudo apt-get install -y ./singularity-ce_3.11.4-jammy_amd64.deb
+          wget --no-verbose https://github.com/sylabs/singularity/releases/download/v4.2.1/singularity-ce_4.2.1-noble_amd64.deb
+          sudo apt-get install -y ./singularity-ce_4.2.1-noble_amd64.deb
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -74,7 +74,7 @@ jobs:
   tox-style:
     name: CI linters via Tox
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     strategy:
       matrix:
@@ -109,7 +109,7 @@ jobs:
 
   release_test:
     name: cwl-utils release test
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
