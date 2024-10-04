@@ -3,19 +3,9 @@ import hashlib
 import logging
 import os
 from collections import namedtuple
+from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
-from typing import (
-    IO,
-    Any,
-    Dict,
-    List,
-    MutableMapping,
-    MutableSequence,
-    Optional,
-    Tuple,
-    Union,
-    cast,
-)
+from typing import IO, Any, Optional, Union, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -101,7 +91,7 @@ def _inputfile_load(
     baseuri: str,
     loadingOptions: cwl.LoadingOptions,
     addl_metadata_fields: Optional[MutableSequence[str]] = None,
-) -> Tuple[Any, cwl.LoadingOptions]:
+) -> tuple[Any, cwl.LoadingOptions]:
     loader = cwl.CWLInputFileLoader
     if isinstance(doc, str):
         url = loadingOptions.fetcher.urljoin(baseuri, doc)
@@ -190,12 +180,12 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
 
 
 def check_all_types(
-    src_dict: Dict[str, Any],
+    src_dict: dict[str, Any],
     sinks: MutableSequence[Union[cwl.WorkflowStepInput, cwl.WorkflowOutputParameter]],
-    type_dict: Dict[str, Any],
-) -> Dict[str, List[SrcSink]]:
+    type_dict: dict[str, Any],
+) -> dict[str, list[SrcSink]]:
     """Given a list of sinks, check if their types match with the types of their sources."""
-    validation: Dict[str, List[SrcSink]] = {"warning": [], "exception": []}
+    validation: dict[str, list[SrcSink]] = {"warning": [], "exception": []}
     for sink in sinks:
         if isinstance(sink, cwl.WorkflowOutputParameter):
             sourceName = "outputSource"
@@ -434,12 +424,12 @@ def type_for_step_output(
 
 def type_for_source(
     process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
-    sourcenames: Union[str, List[str]],
+    sourcenames: Union[str, list[str]],
     parent: Optional[cwl.Workflow] = None,
     linkMerge: Optional[str] = None,
 ) -> Any:
     """Determine the type for the given sourcenames."""
-    scatter_context: List[Optional[Tuple[int, str]]] = []
+    scatter_context: list[Optional[tuple[int, str]]] = []
     params = param_for_source_id(process, sourcenames, parent, scatter_context)
     if not isinstance(params, list):
         new_type = params.type_
@@ -478,7 +468,7 @@ def type_for_source(
         return cwl.ArraySchema(items=new_type, type_="array")
     elif linkMerge == "merge_flattened":
         return merge_flatten_type(new_type)
-    elif isinstance(sourcenames, List) and len(sourcenames) > 1:
+    elif isinstance(sourcenames, list) and len(sourcenames) > 1:
         return cwl.ArraySchema(items=new_type, type_="array")
     else:
         return new_type
@@ -486,14 +476,14 @@ def type_for_source(
 
 def param_for_source_id(
     process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
-    sourcenames: Union[str, List[str]],
+    sourcenames: Union[str, list[str]],
     parent: Optional[cwl.Workflow] = None,
-    scatter_context: Optional[List[Optional[Tuple[int, str]]]] = None,
-) -> Union[List[cwl.InputParameter], cwl.InputParameter]:
+    scatter_context: Optional[list[Optional[tuple[int, str]]]] = None,
+) -> Union[list[cwl.InputParameter], cwl.InputParameter]:
     """Find the process input parameter that matches one of the given sourcenames."""
     if isinstance(sourcenames, str):
         sourcenames = [sourcenames]
-    params: List[cwl.InputParameter] = []
+    params: list[cwl.InputParameter] = []
     for sourcename in sourcenames:
         if not isinstance(process, cwl.Workflow):
             for param in process.inputs:

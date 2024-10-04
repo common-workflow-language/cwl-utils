@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test the CWL parsers utility functions."""
 import tempfile
+from collections.abc import MutableSequence
 from pathlib import Path
-from typing import MutableSequence, cast
+from typing import cast
 
 import pytest
 from pytest import raises

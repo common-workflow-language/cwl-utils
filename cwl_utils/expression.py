@@ -4,17 +4,8 @@ import asyncio
 import copy
 import inspect
 import json
-from typing import (
-    Any,
-    Awaitable,
-    Dict,
-    List,
-    MutableMapping,
-    Optional,
-    Tuple,
-    Union,
-    cast,
-)
+from collections.abc import Awaitable, MutableMapping
+from typing import Any, Optional, Union, cast
 
 from schema_salad.utils import json_dumps
 
@@ -29,7 +20,7 @@ def _convert_dumper(string: str) -> str:
     return f"{json.dumps(string)} + "
 
 
-def scanner(scan: str) -> Optional[Tuple[int, int]]:
+def scanner(scan: str) -> Optional[tuple[int, int]]:
     DEFAULT = 0
     DOLLAR = 1
     PAREN = 2
@@ -261,7 +252,7 @@ def interpolate(
     return "".join(parts)
 
 
-def jshead(engine_config: List[str], rootvars: CWLObjectType) -> str:
+def jshead(engine_config: list[str], rootvars: CWLObjectType) -> str:
     # make sure all the byte strings are converted
     # to str in `rootvars` dict.
 
@@ -278,10 +269,10 @@ def needs_parsing(snippet: Any) -> bool:
 def do_eval(
     ex: Optional[CWLOutputType],
     jobinput: CWLObjectType,
-    requirements: List[CWLObjectType],
+    requirements: list[CWLObjectType],
     outdir: Optional[str],
     tmpdir: Optional[str],
-    resources: Dict[str, Union[float, int]],
+    resources: dict[str, Union[float, int]],
     context: Optional[CWLOutputType] = None,
     timeout: float = default_timeout,
     strip_whitespace: bool = True,
@@ -308,7 +299,7 @@ def do_eval(
         for r in reversed(requirements):
             if r["class"] == "InlineJavascriptRequirement":
                 fullJS = True
-                jslib = jshead(cast(List[str], r.get("expressionLib", [])), rootvars)
+                jslib = jshead(cast(list[str], r.get("expressionLib", [])), rootvars)
                 break
 
         try:

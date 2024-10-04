@@ -19,17 +19,8 @@ import logging
 import sys
 import urllib.parse
 import urllib.request
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    ItemsView,
-    List,
-    Optional,
-    Tuple,
-    Union,
-    cast,
-)
+from collections.abc import ItemsView
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 
 from packaging import version
 
@@ -42,8 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_inner_dict(
-    cwl: Dict[str, Any], path: List[Dict[str, Any]]
-) -> Optional[Dict[str, Any]]:
+    cwl: dict[str, Any], path: list[dict[str, Any]]
+) -> Optional[dict[str, Any]]:
     if len(path) == 0:
         return cwl
 
@@ -62,11 +53,11 @@ def get_inner_dict(
 
 
 def pack_process(
-    cwl: Dict[str, Any],
+    cwl: dict[str, Any],
     base_url: urllib.parse.ParseResult,
     cwl_version: str,
-    parent_user_defined_types: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    parent_user_defined_types: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
     cwl = listify_everything(cwl)
     cwl = normalize_sources(cwl)
     cwl, user_defined_types = load_schemadefs(cwl, base_url, parent_user_defined_types)
@@ -82,7 +73,7 @@ def pack_process(
     return cwl
 
 
-def listify_everything(cwl: Dict[str, Any]) -> Dict[str, Any]:
+def listify_everything(cwl: dict[str, Any]) -> dict[str, Any]:
     for port in ["inputs", "outputs"]:
         cwl[port] = utils.normalize_to_list(
             cwl.get(port, []), key_field="id", value_field="type"
@@ -108,14 +99,14 @@ def listify_everything(cwl: Dict[str, Any]) -> Dict[str, Any]:
     return cwl
 
 
-def dictify_requirements(cwl: Dict[str, Any]) -> Dict[str, Any]:
+def dictify_requirements(cwl: dict[str, Any]) -> dict[str, Any]:
     cwl["requirements"] = utils.normalize_to_map(
         cwl.get("requirements", {}), key_field="class"
     )
     return cwl
 
 
-def normalize_sources(cwl: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_sources(cwl: dict[str, Any]) -> dict[str, Any]:
     if cwl.get("class") != "Workflow":
         return cwl
 
@@ -152,10 +143,10 @@ def _normalize(s: str) -> str:
 
 
 def load_schemadefs(
-    cwl: Dict[str, Any],
+    cwl: dict[str, Any],
     base_url: urllib.parse.ParseResult,
-    parent_user_defined_types: Optional[Dict[str, Any]] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    parent_user_defined_types: Optional[dict[str, Any]] = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     user_defined_types = schemadef.build_user_defined_type_dict(cwl, base_url)
     if parent_user_defined_types is not None:
         user_defined_types.update(parent_user_defined_types)
@@ -170,10 +161,10 @@ def load_schemadefs(
 
 
 def resolve_schemadefs(
-    cwl: Dict[str, Any],
+    cwl: dict[str, Any],
     base_url: urllib.parse.ParseResult,
-    user_defined_types: Dict[str, Any],
-) -> Dict[str, Any]:
+    user_defined_types: dict[str, Any],
+) -> dict[str, Any]:
     cwl = schemadef.inline_types(cwl, "inputs", base_url, user_defined_types)
     cwl = schemadef.inline_types(cwl, "outputs", base_url, user_defined_types)
     return cwl
@@ -202,11 +193,11 @@ def resolve_imports(cwl: Any, base_url: urllib.parse.ParseResult) -> Any:
 
 
 def resolve_steps(
-    cwl: Dict[str, Any],
+    cwl: dict[str, Any],
     base_url: urllib.parse.ParseResult,
     cwl_version: str,
-    parent_user_defined_types: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    parent_user_defined_types: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
     if isinstance(cwl, str):
         raise RuntimeError(f"{base_url.geturl()}: Expecting a process, found a string")
 
@@ -251,7 +242,7 @@ def resolve_steps(
     return cwl
 
 
-def add_missing_requirements(cwl: Dict[str, Any]) -> Dict[str, Any]:
+def add_missing_requirements(cwl: dict[str, Any]) -> dict[str, Any]:
     requirements = cwl.get("requirements", [])
     present = {req["class"] for req in requirements}
 
@@ -271,12 +262,12 @@ def add_missing_requirements(cwl: Dict[str, Any]) -> Dict[str, Any]:
     return cwl
 
 
-def pack(cwl_path: str) -> Dict[str, Any]:
+def pack(cwl_path: str) -> dict[str, Any]:
     sys.stderr.write(f"Packing {cwl_path}\n")
     file_path_url = urllib.parse.urlparse(cwl_path)
 
     cwl, full_url = cast(
-        Tuple[Dict[str, Any], urllib.parse.ParseResult],
+        tuple[dict[str, Any], urllib.parse.ParseResult],
         utils.load_linked_file(base_url=file_path_url, link="", is_import=True),
     )
     if "$graph" in cwl:
