@@ -19,14 +19,14 @@ From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b0033
 import sys
 import urllib.parse
 from copy import deepcopy
-from typing import Any, Dict, List, Set, cast
+from typing import Any, cast
 
 from cwl_utils import errors, types, utils
 
 
 def build_user_defined_type_dict(
-    cwl: Dict[str, Any], base_url: urllib.parse.ParseResult
-) -> Dict[str, Any]:
+    cwl: dict[str, Any], base_url: urllib.parse.ParseResult
+) -> dict[str, Any]:
     user_defined_types = {}
     # Check for `$import` directly under `requirements` so we can specially handle
     # the new base_url
@@ -51,11 +51,11 @@ def build_user_defined_type_dict(
 
 
 def _build_user_defined_type_dict(
-    cwl: Dict[str, Any],
+    cwl: dict[str, Any],
     base_url: urllib.parse.ParseResult,
-    user_defined_types: Dict[str, Any],
-) -> Dict[str, Any]:
-    schemadef: Dict[str, str] = next(
+    user_defined_types: dict[str, Any],
+) -> dict[str, Any]:
+    schemadef: dict[str, str] = next(
         (
             req
             for req in cwl.get("requirements", [])
@@ -63,7 +63,7 @@ def _build_user_defined_type_dict(
         ),
         {},
     )
-    schema_list = cast(List[Dict[str, Any]], schemadef.get("types", []))
+    schema_list = cast(list[dict[str, Any]], schemadef.get("types", []))
 
     if not isinstance(schema_list, list):
         raise RuntimeError(
@@ -113,11 +113,11 @@ def _build_user_defined_type_dict(
 
 # port = "input" or "output"
 def inline_types(
-    cwl: Dict[str, Any],
+    cwl: dict[str, Any],
     port: str,
     base_url: urllib.parse.ParseResult,
-    user_defined_types: Dict[str, Any],
-) -> Dict[str, Any]:
+    user_defined_types: dict[str, Any],
+) -> dict[str, Any]:
     if (
         len(cwl[port]) == 1
         and isinstance(cwl[port][0], dict)
@@ -134,11 +134,11 @@ def inline_types(
 
 
 _inline_type_name_uniq_id = 0
-_inline_type_names: Set[str] = set()
+_inline_type_names: set[str] = set()
 
 
 def _inline_type(
-    v: Any, base_url: urllib.parse.ParseResult, user_defined_types: Dict[str, Any]
+    v: Any, base_url: urllib.parse.ParseResult, user_defined_types: dict[str, Any]
 ) -> Any:
     global _inline_type_name_uniq_id
     global _inline_type_names

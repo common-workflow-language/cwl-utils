@@ -4,8 +4,9 @@ import os
 import shutil
 import sys
 import tarfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator, cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
 import requests

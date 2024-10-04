@@ -4,19 +4,8 @@
 """CWL Expression refactoring tool for CWL v1.2 ."""
 import copy
 import hashlib
-from collections.abc import Mapping
-from typing import (
-    Any,
-    Dict,
-    List,
-    MutableSequence,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    Union,
-    cast,
-)
+from collections.abc import Mapping, MutableSequence, Sequence
+from typing import Any, Optional, Union, cast
 
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine
@@ -142,7 +131,7 @@ def get_expression(
 
 
 def etool_to_cltool(
-    etool: cwl.ExpressionTool, expressionLib: Optional[List[str]] = None
+    etool: cwl.ExpressionTool, expressionLib: Optional[list[str]] = None
 ) -> cwl.CommandLineTool:
     """Convert a ExpressionTool to a CommandLineTool."""
     inputs = yaml.comments.CommentedSeq()  # preserve the order
@@ -216,7 +205,7 @@ def traverse(
     inside: bool,
     skip_command_line1: bool,
     skip_command_line2: bool,
-) -> Tuple[Union[cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], bool]:
+) -> tuple[Union[cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow], bool]:
     """Convert the given process and any subprocesses."""
     if not inside and isinstance(process, cwl.CommandLineTool):
         process = expand_stream_shortcuts(process)
@@ -330,7 +319,7 @@ def generate_etool_from_expr(
         Union[
             cwl.WorkflowInputParameter,
             cwl.CommandInputParameter,
-            List[Union[cwl.WorkflowInputParameter, cwl.CommandInputParameter]],
+            list[Union[cwl.WorkflowInputParameter, cwl.CommandInputParameter]],
         ]
     ] = None,  # if the "self" input should be a different type than the "result" output
     extra_processes: Optional[
@@ -344,7 +333,7 @@ def generate_etool_from_expr(
             self_type = target
         if isinstance(self_type, list):
             new_type: Union[
-                List[Union[cwl.ArraySchema, cwl.InputRecordSchema]],
+                list[Union[cwl.ArraySchema, cwl.InputRecordSchema]],
                 Union[cwl.ArraySchema, cwl.InputRecordSchema],
             ] = [clean_type_ids(t.type_) for t in self_type]
         else:
@@ -418,7 +407,7 @@ def get_input_for_id(
     """Determine the CommandInputParameter for the given input name."""
     name = name.split("/")[-1]
 
-    for inp in cast(List[cwl.CommandInputParameter], tool.inputs):
+    for inp in cast(list[cwl.CommandInputParameter], tool.inputs):
         if inp.id and inp.id.split("#")[-1].split("/")[-1] == name:
             return inp
     if isinstance(tool, cwl.Workflow) and "/" in name:
@@ -435,7 +424,7 @@ def find_expressionLib(
     processes: Sequence[
         Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool, cwl.WorkflowStep]
     ]
-) -> Optional[List[str]]:
+) -> Optional[list[str]]:
     """
     Return the expressionLib from the highest priority InlineJavascriptRequirement.
 
@@ -446,7 +435,7 @@ def find_expressionLib(
         if process.requirements:
             for req in process.requirements:
                 if isinstance(req, cwl.InlineJavascriptRequirement):
-                    return cast(Optional[List[str]], copy.deepcopy(req.expressionLib))
+                    return cast(Optional[list[str]], copy.deepcopy(req.expressionLib))
     return None
 
 
@@ -455,7 +444,7 @@ def replace_expr_with_etool(
     name: str,
     workflow: cwl.Workflow,
     target: Union[cwl.CommandInputParameter, cwl.WorkflowInputParameter],
-    source: Optional[Union[str, List[Any]]],
+    source: Optional[Union[str, list[Any]]],
     replace_etool: bool = False,
     extra_process: Optional[
         Union[cwl.Workflow, cwl.WorkflowStep, cwl.CommandLineTool]
@@ -463,7 +452,7 @@ def replace_expr_with_etool(
     source_type: Optional[cwl.CommandInputParameter] = None,
 ) -> None:
     """Modify the given workflow, replacing the expr with an standalone ExpressionTool."""
-    extra_processes: List[
+    extra_processes: list[
         Union[cwl.Workflow, cwl.WorkflowStep, cwl.CommandLineTool]
     ] = [workflow]
     if extra_process:
@@ -472,7 +461,7 @@ def replace_expr_with_etool(
         expr, target, source is None, source_type, extra_processes
     )
     if replace_etool:
-        processes: List[Union[cwl.WorkflowStep, cwl.Workflow, cwl.CommandLineTool]] = [
+        processes: list[Union[cwl.WorkflowStep, cwl.Workflow, cwl.CommandLineTool]] = [
             workflow
         ]
         if extra_process:
@@ -526,7 +515,7 @@ def empty_inputs(
         cwl.CommandLineTool, cwl.WorkflowStep, cwl.ExpressionTool, cwl.Workflow
     ],
     parent: Optional[cwl.Workflow] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Produce a mock input object for the given inputs."""
     result = {}
     if isinstance(process_or_step, cwl.Process):
@@ -757,14 +746,14 @@ def process_workflow_reqs_and_hints(
     #         and connecting all workflow inputs to the generated step
     modified = False
     inputs = empty_inputs(workflow)
-    generated_res_reqs: List[Tuple[str, Union[int, str]]] = []
-    generated_iwdr_reqs: List[Tuple[str, Union[int, str]]] = []
-    generated_envVar_reqs: List[Tuple[str, Union[int, str]]] = []
-    prop_reqs: Tuple[
+    generated_res_reqs: list[tuple[str, Union[int, str]]] = []
+    generated_iwdr_reqs: list[tuple[str, Union[int, str]]] = []
+    generated_envVar_reqs: list[tuple[str, Union[int, str]]] = []
+    prop_reqs: tuple[
         Union[
-            Type[cwl.EnvVarRequirement],
-            Type[cwl.ResourceRequirement],
-            Type[cwl.InitialWorkDirRequirement],
+            type[cwl.EnvVarRequirement],
+            type[cwl.ResourceRequirement],
+            type[cwl.InitialWorkDirRequirement],
         ],
         ...,
     ] = ()
@@ -772,7 +761,7 @@ def process_workflow_reqs_and_hints(
     envVarReq: Optional[cwl.EnvVarRequirement] = None
     iwdr: Optional[cwl.InitialWorkDirRequirement] = None
     if workflow.requirements is not None:
-        for req in cast(List[cwl.ProcessRequirement], workflow.requirements):
+        for req in cast(list[cwl.ProcessRequirement], workflow.requirements):
             if req and isinstance(req, cwl.EnvVarRequirement):
                 if req.envDef:
                     for index, envDef in enumerate(req.envDef):
@@ -1089,9 +1078,9 @@ def process_level_reqs(
     modified = False
     target_process = step.run
     inputs = empty_inputs(process)
-    generated_res_reqs: List[Tuple[str, str]] = []
-    generated_iwdr_reqs: List[Tuple[str, Union[int, str], Any]] = []
-    generated_envVar_reqs: List[Tuple[str, Union[int, str]]] = []
+    generated_res_reqs: list[tuple[str, str]] = []
+    generated_iwdr_reqs: list[tuple[str, Union[int, str], Any]] = []
+    generated_envVar_reqs: list[tuple[str, Union[int, str]]] = []
     if not step.id:
         return False
     step_name = step.id.split("#", 1)[-1]
@@ -1473,7 +1462,7 @@ def traverse_CommandLineTool(
                     }
                 ]
                 if outp.outputBinding.loadContents:
-                    cast(Dict[Any, Any], self)[0]["contents"] = "stuff"
+                    cast(dict[Any, Any], self)[0]["contents"] = "stuff"
                 expression = get_expression(outp.outputBinding.outputEval, inputs, self)
                 if expression:
                     modified = True
@@ -1730,7 +1719,7 @@ def replace_clt_hintreq_expr_with_etool(
 
 def cltool_inputs_to_etool_inputs(
     tool: cwl.CommandLineTool,
-) -> List[cwl.WorkflowInputParameter]:
+) -> list[cwl.WorkflowInputParameter]:
     """Copy CommandLineTool input objects into the equivalent ExpressionTool input objects."""
     inputs = yaml.comments.CommentedSeq()
     if tool.inputs:
@@ -1756,7 +1745,7 @@ def cltool_inputs_to_etool_inputs(
 
 def cltool_step_outputs_to_workflow_outputs(
     cltool_step: cwl.WorkflowStep, etool_step_id: str, etool_out_id: str
-) -> List[cwl.OutputParameter]:
+) -> list[cwl.OutputParameter]:
     """
     Copy CommandLineTool outputs into the equivalent Workflow output parameters.
 
@@ -1826,7 +1815,7 @@ def generate_etool_from_expr2(
  }"""
     )
     hints = None
-    procs: List[
+    procs: list[
         Union[cwl.CommandLineTool, cwl.ExpressionTool, cwl.Workflow, cwl.WorkflowStep]
     ] = []
     if process:
@@ -1915,12 +1904,12 @@ def traverse_step(
                     raise WorkflowException("target not found")
                 input_source_id = None
                 source_type: Optional[
-                    Union[List[cwl.WorkflowInputParameter], cwl.WorkflowInputParameter]
+                    Union[list[cwl.WorkflowInputParameter], cwl.WorkflowInputParameter]
                 ] = None
                 if inp.source:
                     if isinstance(inp.source, MutableSequence):
                         input_source_id = []
-                        source_types: List[cwl.WorkflowInputParameter] = []
+                        source_types: list[cwl.WorkflowInputParameter] = []
                         for source in inp.source:
                             source_id = source.split("#")[-1]
                             input_source_id.append(source_id)
@@ -1946,7 +1935,7 @@ def traverse_step(
                 # target.id = target.id.split('#')[-1]
                 if isinstance(original_process, cwl.ExpressionTool):
                     found_JSReq = False
-                    reqs: List[cwl.ProcessRequirement] = []
+                    reqs: list[cwl.ProcessRequirement] = []
                     if original_process.hints:
                         reqs.extend(original_process.hints)
                     if original_process.requirements:
@@ -2010,8 +1999,8 @@ def traverse_step(
 
 
 def workflow_step_to_WorkflowInputParameters(
-    step_ins: List[cwl.WorkflowStepInput], parent: cwl.Workflow, except_in_id: str
-) -> List[cwl.WorkflowInputParameter]:
+    step_ins: list[cwl.WorkflowStepInput], parent: cwl.Workflow, except_in_id: str
+) -> list[cwl.WorkflowInputParameter]:
     """Create WorkflowInputParameters to match the given WorkflowStep inputs."""
     params = []
     for inp in step_ins:
@@ -2042,11 +2031,11 @@ def replace_step_valueFrom_expr_with_etool(
     step: cwl.WorkflowStep,
     step_inp: cwl.WorkflowStepInput,
     original_process: Union[cwl.CommandLineTool, cwl.ExpressionTool],
-    original_step_ins: List[cwl.WorkflowStepInput],
-    source: Optional[Union[str, List[str]]],
+    original_step_ins: list[cwl.WorkflowStepInput],
+    source: Optional[Union[str, list[str]]],
     replace_etool: bool,
     source_type: Optional[
-        Union[cwl.WorkflowInputParameter, List[cwl.WorkflowInputParameter]]
+        Union[cwl.WorkflowInputParameter, list[cwl.WorkflowInputParameter]]
     ] = None,
 ) -> None:
     """Replace a WorkflowStep level 'valueFrom' expression with a sibling ExpressionTool step."""
@@ -2069,12 +2058,16 @@ def replace_step_valueFrom_expr_with_etool(
         [workflow, step],
     )
     if replace_etool:
-        processes = [
+        processes: list[
+            Union[
+                cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool, cwl.WorkflowStep
+            ]
+        ] = [
             workflow,
             step,
-        ]  # type: List[Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool, cwl.WorkflowStep]]
+        ]
         cltool = etool_to_cltool(temp_etool, find_expressionLib(processes))
-        etool = cltool  # type: Union[cwl.ExpressionTool, cwl.CommandLineTool]
+        etool: Union[cwl.ExpressionTool, cwl.CommandLineTool] = cltool
     else:
         etool = temp_etool
     wf_step_inputs = copy.deepcopy(original_step_ins)
@@ -2124,7 +2117,7 @@ def replace_step_when_expr_with_etool(
     expr: str,
     workflow: cwl.Workflow,
     step: cwl.WorkflowStep,
-    original_step_ins: List[cwl.WorkflowStepInput],
+    original_step_ins: list[cwl.WorkflowStepInput],
     replace_etool: bool,
 ) -> None:
     """Replace a WorkflowStep level 'when' expression with a sibling ExpressionTool step."""
@@ -2143,12 +2136,16 @@ def replace_step_when_expr_with_etool(
         [workflow, step],
     )
     if replace_etool:
-        processes = [
+        processes: list[
+            Union[
+                cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool, cwl.WorkflowStep
+            ]
+        ] = [
             workflow,
             step,
-        ]  # type: List[Union[cwl.Workflow, cwl.CommandLineTool, cwl.ExpressionTool, cwl.WorkflowStep]]
+        ]
         cltool = etool_to_cltool(temp_etool, find_expressionLib(processes))
-        etool = cltool  # type: Union[cwl.ExpressionTool, cwl.CommandLineTool]
+        etool: Union[cwl.ExpressionTool, cwl.CommandLineTool] = cltool
     else:
         etool = temp_etool
     wf_step_inputs = copy.deepcopy(original_step_ins)
@@ -2189,7 +2186,7 @@ def traverse_workflow(
     replace_etool: bool,
     skip_command_line1: bool,
     skip_command_line2: bool,
-) -> Tuple[cwl.Workflow, bool]:
+) -> tuple[cwl.Workflow, bool]:
     """Traverse a workflow, processing each step."""
     modified = False
     for index, step in enumerate(workflow.steps):

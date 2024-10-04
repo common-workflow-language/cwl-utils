@@ -1,6 +1,6 @@
 Style guide:
 - PEP-8 / format with ``black`` via ``make format``
-- Python 3.8+ compatible code
+- Python 3.9+ compatible code
 - PEP-484 type hints
 
 It is suggested that you run `git config blame.ignoreRevsFile .git-blame-ignore-revs`
@@ -17,7 +17,7 @@ Here's a rough guide (improvements are welcome!)
 - Install cwl-utils in the virtual environment: ``pip install -e .``
 - Check the version which might be different from the version installed in general on any system: ``pip show cwl-utils``
 - After you've made the changes, you can the complete test suite via tox: ``tox``
-	- If you want to run specific tests, say ``unit tests`` in Python 3.8, then: ``tox -e py38-unit``.
-	- Look at ``tox.ini`` for all available tests and runtimes
+	- If you want to run specific tests, say ``unit tests`` in Python 3.13, then: ``tox -e py313-unit``.
+	- Look at ``tox -l`` for all available tests and runtimes
 - If tests are passing, you can create a PR on ``cwl-utils`` GitHub repository.
 - After you're done working on the ``cwl-utils``, you can deactivate the virtual environment: ``deactivate``

@@ -6,18 +6,9 @@ import argparse
 import logging
 import shutil
 import sys
+from collections.abc import MutableMapping, MutableSequence
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    List,
-    MutableMapping,
-    MutableSequence,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.scalarstring import walk_tree
@@ -93,7 +84,7 @@ def arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args(args: List[str]) -> argparse.Namespace:
+def parse_args(args: list[str]) -> argparse.Namespace:
     """Parse the command line options."""
     return arg_parser().parse_args(args)
 
@@ -103,7 +94,7 @@ def main() -> None:
     sys.exit(run(sys.argv[1:]))
 
 
-def run(args: List[str]) -> int:
+def run(args: list[str]) -> int:
     """Collect the arguments and run."""
     return refactor(parse_args(args))
 
@@ -121,7 +112,7 @@ def refactor(args: argparse.Namespace) -> int:
         uri = Path(document).resolve().as_uri()
         if version == "v1.0":
             top = cwl_v1_0.load_document_by_yaml(result, uri)
-            traverse: Callable[[Any, bool, bool, bool, bool], Tuple[Any, bool]] = (
+            traverse: Callable[[Any, bool, bool, bool, bool], tuple[Any, bool]] = (
                 cwl_v1_0_expression_refactor.traverse
             )
             save: saveCWL = cwl_v1_0.save
