@@ -21,6 +21,7 @@ def _convert_dumper(string: str) -> str:
 
 
 def scanner(scan: str) -> Optional[tuple[int, int]]:
+    """Find JS relevant punctuation in a string."""
     DEFAULT = 0
     DOLLAR = 1
     PAREN = 2
@@ -253,9 +254,7 @@ def interpolate(
 
 
 def jshead(engine_config: list[str], rootvars: CWLObjectType) -> str:
-    # make sure all the byte strings are converted
-    # to str in `rootvars` dict.
-
+    """Make sure all the byte strings are converted to str in `rootvars` dict."""
     return "\n".join(
         engine_config
         + [f"var {k} = {json_dumps(v, indent=4)};" for k, v in rootvars.items()]
