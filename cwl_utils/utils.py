@@ -7,18 +7,10 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import MutableMapping, MutableSequence
 from copy import deepcopy
 from io import StringIO
-from typing import (
-    Any,
-    Dict,
-    List,
-    MutableMapping,
-    MutableSequence,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import Any, Optional, Union
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.parser import ParserError
@@ -85,7 +77,7 @@ def bytes2str_in_dicts(
 
 def load_linked_file(
     base_url: urllib.parse.ParseResult, link: str, is_import: bool = False
-) -> Tuple[Any, urllib.parse.ParseResult]:
+) -> tuple[Any, urllib.parse.ParseResult]:
     """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py ."""
     new_url = resolved_path(base_url, link)
 
@@ -125,8 +117,8 @@ def load_linked_file(
 
 
 def normalize_to_map(
-    obj: Union[List[Any], Dict[str, Any]], key_field: str
-) -> Dict[str, Any]:
+    obj: Union[list[Any], dict[str, Any]], key_field: str
+) -> dict[str, Any]:
     """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py ."""
     if isinstance(obj, dict):
         return deepcopy(obj)
@@ -146,8 +138,8 @@ def normalize_to_map(
 
 
 def normalize_to_list(
-    obj: Union[List[Any], Dict[str, Any]], key_field: str, value_field: Optional[str]
-) -> List[Any]:
+    obj: Union[list[Any], dict[str, Any]], key_field: str, value_field: Optional[str]
+) -> list[Any]:
     """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py ."""
     if isinstance(obj, list):
         return deepcopy(obj)

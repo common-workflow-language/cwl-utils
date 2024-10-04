@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 import argparse
 import sys
-from typing import Iterator, cast
+from collections.abc import Iterator
+from typing import cast
 
 import cwl_utils.parser as cwl
 

@@ -3,7 +3,8 @@
 import argparse
 import os
 import sys
-from typing import Iterator, List, cast
+from collections.abc import Iterator
+from typing import cast
 
 import ruamel.yaml
 
@@ -43,7 +44,7 @@ def arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run(args: argparse.Namespace) -> List[cwl.DockerRequirement]:
+def run(args: argparse.Namespace) -> list[cwl.DockerRequirement]:
     """Extract the docker reqs and download them using Singularity or Docker."""
     if args.singularity and not args.dir:
         print("Error! Must specify --dir if using --singularity")
@@ -53,7 +54,7 @@ def run(args: argparse.Namespace) -> List[cwl.DockerRequirement]:
         os.makedirs(args.dir, exist_ok=True)
 
     top = cwl.load_document_by_uri(args.input)
-    reqs: List[cwl.DockerRequirement] = []
+    reqs: list[cwl.DockerRequirement] = []
 
     for req in traverse(top):
         reqs.append(req)

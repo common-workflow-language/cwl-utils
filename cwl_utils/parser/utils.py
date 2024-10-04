@@ -3,9 +3,10 @@
 import copy
 import logging
 import os
+from collections.abc import MutableSequence
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Dict, List, MutableSequence, Optional, Tuple, Union, cast
+from typing import Any, Optional, Union, cast
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
@@ -205,8 +206,8 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
     }
 
     parser: ModuleType
-    step_inputs_val: Dict[str, Any]
-    workflow_outputs_val: Dict[str, Any]
+    step_inputs_val: dict[str, Any]
+    workflow_outputs_val: dict[str, Any]
     if workflow.cwlVersion == "v1.0":
         parser = cwl_v1_0
         step_inputs_val = cwl_v1_0_utils.check_all_types(
@@ -328,7 +329,7 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
 
 def type_for_source(
     process: Process,
-    sourcenames: Union[str, List[str]],
+    sourcenames: Union[str, list[str]],
     parent: Optional[Workflow] = None,
     linkMerge: Optional[str] = None,
     pickValue: Optional[str] = None,
@@ -425,20 +426,20 @@ def param_for_source_id(
         cwl_utils.parser.Workflow,
         cwl_utils.parser.ExpressionTool,
     ],
-    sourcenames: Union[str, List[str]],
+    sourcenames: Union[str, list[str]],
     parent: Optional[cwl_utils.parser.Workflow] = None,
-    scatter_context: Optional[List[Optional[Tuple[int, str]]]] = None,
+    scatter_context: Optional[list[Optional[tuple[int, str]]]] = None,
 ) -> Union[
     Union[
-        List[cwl_utils.parser.cwl_v1_0.InputParameter],
+        list[cwl_utils.parser.cwl_v1_0.InputParameter],
         cwl_utils.parser.cwl_v1_0.InputParameter,
     ],
     Union[
-        List[cwl_utils.parser.cwl_v1_1.WorkflowInputParameter],
+        list[cwl_utils.parser.cwl_v1_1.WorkflowInputParameter],
         cwl_utils.parser.cwl_v1_1.WorkflowInputParameter,
     ],
     Union[
-        List[cwl_utils.parser.cwl_v1_2.WorkflowInputParameter],
+        list[cwl_utils.parser.cwl_v1_2.WorkflowInputParameter],
         cwl_utils.parser.cwl_v1_2.WorkflowInputParameter,
     ],
 ]:

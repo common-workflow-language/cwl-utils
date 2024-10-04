@@ -8,28 +8,12 @@ import os
 import re
 import select
 import subprocess  # nosec
-import sys
 import threading
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Mapping, MutableMapping, MutableSequence
+from importlib.resources import files
 from io import BytesIO
-from typing import (
-    Any,
-    Awaitable,
-    Deque,
-    List,
-    Mapping,
-    MutableMapping,
-    MutableSequence,
-    Optional,
-    Tuple,
-    Union,
-    cast,
-)
-
-if sys.version_info >= (3, 9):
-    from importlib.resources import files
-else:
-    from importlib_resources import files
+from typing import Any, Deque, Optional, Union, cast
 
 from schema_salad.utils import json_dumps
 
@@ -167,7 +151,7 @@ class NodeJSEngine(JSEngine):
         context: Optional[str] = None,
         force_docker_pull: bool = False,
         container_engine: str = "docker",
-    ) -> Tuple[int, str, str]:
+    ) -> tuple[int, str, str]:
         """
         Run a javascript text.
 
@@ -239,8 +223,8 @@ class NodeJSEngine(JSEngine):
         stdout_buf = BytesIO()
         stderr_buf = BytesIO()
 
-        rselect: List[BytesIO] = [nodejs.stdout, nodejs.stderr]
-        wselect: List[BytesIO] = [nodejs.stdin]
+        rselect: list[BytesIO] = [nodejs.stdout, nodejs.stderr]
+        wselect: list[BytesIO] = [nodejs.stdin]
 
         def process_finished() -> bool:
             return stdout_buf.getvalue().decode("utf-8").endswith(
@@ -624,10 +608,10 @@ def check_js_threshold_version(*args: Any, **kwargs: Any) -> bool:
         )
 
 
-def exec_js_process(*args: Any, **kwargs: Any) -> Tuple[int, str, str]:
+def exec_js_process(*args: Any, **kwargs: Any) -> tuple[int, str, str]:
     _exec_js_process = getattr(get_js_engine(), "exec_js_process", None)
     if callable(_exec_js_process):
-        return cast(Tuple[int, str, str], _exec_js_process(*args, **kwargs))
+        return cast(tuple[int, str, str], _exec_js_process(*args, **kwargs))
     else:
         raise NotImplementedError(
             "Method exec_js_process is not implemented in js engine {}".format(
