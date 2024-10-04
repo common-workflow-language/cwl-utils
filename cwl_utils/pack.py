@@ -74,6 +74,11 @@ def pack_process(
 
 
 def listify_everything(cwl: dict[str, Any]) -> dict[str, Any]:
+    """
+    Convert many CWL construct from their map to the list version.
+
+    See https://www.commonwl.org/v1.1/Workflow.html#map
+    """
     for port in ["inputs", "outputs"]:
         cwl[port] = utils.normalize_to_list(
             cwl.get(port, []), key_field="id", value_field="type"
@@ -99,14 +104,8 @@ def listify_everything(cwl: dict[str, Any]) -> dict[str, Any]:
     return cwl
 
 
-def dictify_requirements(cwl: dict[str, Any]) -> dict[str, Any]:
-    cwl["requirements"] = utils.normalize_to_map(
-        cwl.get("requirements", {}), key_field="class"
-    )
-    return cwl
-
-
 def normalize_sources(cwl: dict[str, Any]) -> dict[str, Any]:
+    """Normalize the steps and output of a CWL Workflow."""
     if cwl.get("class") != "Workflow":
         return cwl
 
@@ -147,6 +146,7 @@ def load_schemadefs(
     base_url: urllib.parse.ParseResult,
     parent_user_defined_types: Optional[dict[str, Any]] = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Internalize any SchemaDefRequirement, and remove it."""
     user_defined_types = schemadef.build_user_defined_type_dict(cwl, base_url)
     if parent_user_defined_types is not None:
         user_defined_types.update(parent_user_defined_types)
@@ -198,6 +198,7 @@ def resolve_steps(
     cwl_version: str,
     parent_user_defined_types: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
+    """Load and pack all "run" sections of the workflow steps."""
     if isinstance(cwl, str):
         raise RuntimeError(f"{base_url.geturl()}: Expecting a process, found a string")
 
@@ -243,6 +244,7 @@ def resolve_steps(
 
 
 def add_missing_requirements(cwl: dict[str, Any]) -> dict[str, Any]:
+    """Due to packing, we may need to add a "SubworkflowFeatureRequirement"."""
     requirements = cwl.get("requirements", [])
     present = {req["class"] for req in requirements}
 
@@ -263,6 +265,7 @@ def add_missing_requirements(cwl: dict[str, Any]) -> dict[str, Any]:
 
 
 def pack(cwl_path: str) -> dict[str, Any]:
+    """Pack a CWL document at the given path."""
     sys.stderr.write(f"Packing {cwl_path}\n")
     file_path_url = urllib.parse.urlparse(cwl_path)
 
