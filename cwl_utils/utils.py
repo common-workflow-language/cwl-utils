@@ -29,7 +29,7 @@ from cwl_utils.loghandler import _logger
 
 fast_yaml = YAML(typ="safe")
 
-_USERNS = None
+_USERNS: Optional[bool] = None
 
 
 def _is_github_symbolic_link(base_url: urllib.parse.ParseResult, contents: str) -> bool:
