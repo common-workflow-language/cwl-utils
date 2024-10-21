@@ -86,3 +86,19 @@ dependencies = {file = ["requirements.txt"]}
 
 [tool.isort]
 profile = "black"
+
+[tool.ruff.lint]
+select = [
+  "D",   # pydocstyle
+]
+ignore = [
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D107",
+  "D203",
+  "D212",
+]

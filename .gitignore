@@ -106,7 +106,6 @@ venv.bak/
 .vscode/
 
 testenv*/
-pydocstyle_report.txt
 
 # PyCharm
 .idea/
