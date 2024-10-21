@@ -142,7 +142,8 @@ def _get_id_from_graph(yaml: MutableMapping[str, Any], id_: Optional[str]) -> An
 
 
 def cwl_version(yaml: Any) -> Optional[str]:
-    """Return the cwlVersion of a YAML object.
+    """
+    Return the cwlVersion of a YAML object.
 
     :param yaml: ruamel.yaml object for a CWL document
 

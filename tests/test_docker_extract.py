@@ -22,7 +22,6 @@ from .util import get_data, needs_docker, needs_podman, needs_singularity
 )
 def test_container_extraction(target: str, engine: str, tmp_path: Path) -> None:
     """Test container extraction tool."""
-
     args = ["--dir", str(tmp_path), get_data(target), "--container-engine", engine]
     if engine == "singularity":
         args.append("--singularity")
@@ -41,7 +40,6 @@ def test_container_extraction(target: str, engine: str, tmp_path: Path) -> None:
 )
 def test_container_extraction_force(engine: str, tmp_path: Path) -> None:
     """Test force pull container extraction."""
-
     args = [
         "--dir",
         str(tmp_path),
@@ -81,7 +79,6 @@ def test_container_extraction_no_dockerPull(
     engine: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Test container extraction tool when dockerPull is missing."""
-
     args = [
         "--dir",
         str(tmp_path),
@@ -114,7 +111,6 @@ dockerImageId: 'debian:stable-slim.img'
 )
 def test_container_extraction_embedded_step(engine: str, tmp_path: Path) -> None:
     """Test container extraction tool."""
-
     args = [
         "--dir",
         str(tmp_path),
