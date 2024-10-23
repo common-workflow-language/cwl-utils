@@ -1,3 +1,4 @@
+#!/usr/bin/env cwl-runner
 # We have this tool to test both local and remote packing
 
 class: CommandLineTool
