@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.step == 'unit' }}
-        uses: codecov/codecov-action@v5.0.4
+        uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
