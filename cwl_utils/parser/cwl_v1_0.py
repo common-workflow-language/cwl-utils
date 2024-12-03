@@ -1162,6 +1162,8 @@ class RecordField(Documented):
     A field of a record.
     """
 
+    class_uri = "https://w3id.org/cwl/salad#RecordField"
+
     def __init__(
         self,
         name: Any,
@@ -1428,6 +1430,8 @@ class RecordField(Documented):
 
 
 class RecordSchema(Saveable):
+    class_uri = "https://w3id.org/cwl/salad#RecordSchema"
+
     def __init__(
         self,
         type_: Any,
@@ -1631,6 +1635,8 @@ class EnumSchema(Saveable):
     Define an enumerated type.
 
     """
+
+    class_uri = "https://w3id.org/cwl/salad#EnumSchema"
 
     def __init__(
         self,
@@ -1898,6 +1904,8 @@ class EnumSchema(Saveable):
 
 
 class ArraySchema(Saveable):
+    class_uri = "https://w3id.org/cwl/salad#ArraySchema"
+
     def __init__(
         self,
         items: Any,
@@ -2097,6 +2105,8 @@ class ArraySchema(Saveable):
 
 
 class MapSchema(Saveable):
+    class_uri = "https://w3id.org/cwl/salad#MapSchema"
+
     def __init__(
         self,
         type_: Any,
@@ -2296,6 +2306,8 @@ class MapSchema(Saveable):
 
 
 class UnionSchema(Saveable):
+    class_uri = "https://w3id.org/cwl/salad#UnionSchema"
+
     def __init__(
         self,
         names: Any,
@@ -2495,6 +2507,8 @@ class UnionSchema(Saveable):
 
 
 class CWLArraySchema(ArraySchema):
+    class_uri = "https://w3id.org/cwl/cwl#CWLArraySchema"
+
     def __init__(
         self,
         items: Any,
@@ -2694,6 +2708,8 @@ class CWLArraySchema(ArraySchema):
 
 
 class CWLRecordField(RecordField):
+    class_uri = "https://w3id.org/cwl/cwl#CWLRecordField"
+
     def __init__(
         self,
         name: Any,
@@ -2960,6 +2976,8 @@ class CWLRecordField(RecordField):
 
 
 class CWLRecordSchema(RecordSchema):
+    class_uri = "https://w3id.org/cwl/cwl#CWLRecordSchema"
+
     def __init__(
         self,
         type_: Any,
@@ -3229,6 +3247,8 @@ class File(Saveable):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#File"
+
     def __init__(
         self,
         location: Optional[Any] = None,
@@ -3316,12 +3336,21 @@ class File(Saveable):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "File":
-            raise ValidationException("tried `File` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_File_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         location = None
         if "location" in _doc:
             try:
@@ -3891,8 +3920,9 @@ class File(Saveable):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "File"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
         if self.location is not None:
             u = save_relative_uri(self.location, base_url, False, None, relative_uris)
             r["location"] = u
@@ -4012,6 +4042,8 @@ class Directory(Saveable):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#Directory"
+
     def __init__(
         self,
         location: Optional[Any] = None,
@@ -4065,12 +4097,21 @@ class Directory(Saveable):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "Directory":
-            raise ValidationException("tried `Directory` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_Directory_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         location = None
         if "location" in _doc:
             try:
@@ -4304,8 +4345,9 @@ class Directory(Saveable):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "Directory"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
         if self.location is not None:
             u = save_relative_uri(self.location, base_url, False, None, relative_uris)
             r["location"] = u
@@ -4362,6 +4404,8 @@ class OutputSchema(SchemaBase):
 
 
 class InputRecordField(CWLRecordField):
+    class_uri = "https://w3id.org/cwl/cwl#InputRecordField"
+
     def __init__(
         self,
         name: Any,
@@ -4741,6 +4785,8 @@ class InputRecordField(CWLRecordField):
 
 
 class InputRecordSchema(CWLRecordSchema, InputSchema):
+    class_uri = "https://w3id.org/cwl/cwl#InputRecordSchema"
+
     def __init__(
         self,
         type_: Any,
@@ -5062,6 +5108,8 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
 
 
 class InputEnumSchema(EnumSchema, InputSchema):
+    class_uri = "https://w3id.org/cwl/cwl#InputEnumSchema"
+
     def __init__(
         self,
         symbols: Any,
@@ -5443,6 +5491,8 @@ class InputEnumSchema(EnumSchema, InputSchema):
 
 
 class InputArraySchema(CWLArraySchema, InputSchema):
+    class_uri = "https://w3id.org/cwl/cwl#InputArraySchema"
+
     def __init__(
         self,
         items: Any,
@@ -5758,6 +5808,8 @@ class InputArraySchema(CWLArraySchema, InputSchema):
 
 
 class OutputRecordField(CWLRecordField):
+    class_uri = "https://w3id.org/cwl/cwl#OutputRecordField"
+
     def __init__(
         self,
         name: Any,
@@ -6082,6 +6134,8 @@ class OutputRecordField(CWLRecordField):
 
 
 class OutputRecordSchema(CWLRecordSchema, OutputSchema):
+    class_uri = "https://w3id.org/cwl/cwl#OutputRecordSchema"
+
     def __init__(
         self,
         type_: Any,
@@ -6339,6 +6393,8 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
 
 
 class OutputEnumSchema(EnumSchema, OutputSchema):
+    class_uri = "https://w3id.org/cwl/cwl#OutputEnumSchema"
+
     def __init__(
         self,
         symbols: Any,
@@ -6720,6 +6776,8 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
 
 
 class OutputArraySchema(CWLArraySchema, OutputSchema):
+    class_uri = "https://w3id.org/cwl/cwl#OutputArraySchema"
+
     def __init__(
         self,
         items: Any,
@@ -7035,6 +7093,8 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
 
 
 class InputParameter(Parameter):
+    class_uri = "https://w3id.org/cwl/cwl#InputParameter"
+
     def __init__(
         self,
         id: Any,
@@ -7662,6 +7722,8 @@ class InputParameter(Parameter):
 
 
 class OutputParameter(Parameter):
+    class_uri = "https://w3id.org/cwl/cwl#OutputParameter"
+
     def __init__(
         self,
         id: Any,
@@ -8208,6 +8270,8 @@ class InlineJavascriptRequirement(ProcessRequirement):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#InlineJavascriptRequirement"
+
     def __init__(
         self,
         expressionLib: Optional[Any] = None,
@@ -8250,12 +8314,21 @@ class InlineJavascriptRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "InlineJavascriptRequirement":
-            raise ValidationException("tried `InlineJavascriptRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_InlineJavascriptRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         expressionLib = None
         if "expressionLib" in _doc:
             try:
@@ -8345,8 +8418,9 @@ class InlineJavascriptRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "InlineJavascriptRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
         if self.expressionLib is not None:
             r["expressionLib"] = save(
                 self.expressionLib,
@@ -8377,6 +8451,8 @@ class SchemaDefRequirement(ProcessRequirement):
     to earlier schema definitions.
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#SchemaDefRequirement"
 
     def __init__(
         self,
@@ -8417,12 +8493,21 @@ class SchemaDefRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "SchemaDefRequirement":
-            raise ValidationException("tried `SchemaDefRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_SchemaDefRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         try:
             if _doc.get("types") is None:
                 raise ValidationException("missing required field `types`", None, [])
@@ -8513,8 +8598,9 @@ class SchemaDefRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "SchemaDefRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
         if self.types is not None:
             r["types"] = save(
                 self.types, top=False, base_url=base_url, relative_uris=relative_uris
@@ -8538,6 +8624,8 @@ class EnvironmentDef(Saveable):
     result of executing an expression, such as getting a parameter from input.
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#EnvironmentDef"
 
     def __init__(
         self,
@@ -8779,6 +8867,8 @@ class CommandLineBinding(InputBinding):
       - **null**: Add nothing.
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#CommandLineBinding"
 
     def __init__(
         self,
@@ -9302,6 +9392,8 @@ class CommandOutputBinding(OutputBinding):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#CommandOutputBinding"
+
     def __init__(
         self,
         glob: Optional[Any] = None,
@@ -9564,6 +9656,8 @@ class CommandOutputBinding(OutputBinding):
 
 
 class CommandInputRecordField(InputRecordField):
+    class_uri = "https://w3id.org/cwl/cwl#CommandInputRecordField"
+
     def __init__(
         self,
         name: Any,
@@ -9943,6 +10037,8 @@ class CommandInputRecordField(InputRecordField):
 
 
 class CommandInputRecordSchema(InputRecordSchema):
+    class_uri = "https://w3id.org/cwl/cwl#CommandInputRecordSchema"
+
     def __init__(
         self,
         type_: Any,
@@ -10264,6 +10360,8 @@ class CommandInputRecordSchema(InputRecordSchema):
 
 
 class CommandInputEnumSchema(InputEnumSchema):
+    class_uri = "https://w3id.org/cwl/cwl#CommandInputEnumSchema"
+
     def __init__(
         self,
         symbols: Any,
@@ -10645,6 +10743,8 @@ class CommandInputEnumSchema(InputEnumSchema):
 
 
 class CommandInputArraySchema(InputArraySchema):
+    class_uri = "https://w3id.org/cwl/cwl#CommandInputArraySchema"
+
     def __init__(
         self,
         items: Any,
@@ -10960,6 +11060,8 @@ class CommandInputArraySchema(InputArraySchema):
 
 
 class CommandOutputRecordField(OutputRecordField):
+    class_uri = "https://w3id.org/cwl/cwl#CommandOutputRecordField"
+
     def __init__(
         self,
         name: Any,
@@ -11284,6 +11386,8 @@ class CommandOutputRecordField(OutputRecordField):
 
 
 class CommandOutputRecordSchema(OutputRecordSchema):
+    class_uri = "https://w3id.org/cwl/cwl#CommandOutputRecordSchema"
+
     def __init__(
         self,
         type_: Any,
@@ -11605,6 +11709,8 @@ class CommandOutputRecordSchema(OutputRecordSchema):
 
 
 class CommandOutputEnumSchema(OutputEnumSchema):
+    class_uri = "https://w3id.org/cwl/cwl#CommandOutputEnumSchema"
+
     def __init__(
         self,
         symbols: Any,
@@ -11986,6 +12092,8 @@ class CommandOutputEnumSchema(OutputEnumSchema):
 
 
 class CommandOutputArraySchema(OutputArraySchema):
+    class_uri = "https://w3id.org/cwl/cwl#CommandOutputArraySchema"
+
     def __init__(
         self,
         items: Any,
@@ -12304,6 +12412,8 @@ class CommandInputParameter(InputParameter):
     """
     An input parameter for a CommandLineTool.
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#CommandInputParameter"
 
     def __init__(
         self,
@@ -12936,6 +13046,8 @@ class CommandOutputParameter(OutputParameter):
     An output parameter for a CommandLineTool.
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#CommandOutputParameter"
+
     def __init__(
         self,
         id: Any,
@@ -13511,6 +13623,8 @@ class CommandLineTool(Process):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#CommandLineTool"
+
     def __init__(
         self,
         inputs: Any,
@@ -13618,12 +13732,6 @@ class CommandLineTool(Process):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
-
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "CommandLineTool":
-            raise ValidationException("tried `CommandLineTool` but")
-
         id = None
         if "id" in _doc:
             try:
@@ -13680,6 +13788,21 @@ class CommandLineTool(Process):
                 id = "_:" + str(_uuid__.uuid4())
         if not __original_id_is_none:
             baseuri = cast(str, id)
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_CommandLineTool_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         try:
             if _doc.get("inputs") is None:
                 raise ValidationException("missing required field `inputs`", None, [])
@@ -13781,7 +13904,7 @@ class CommandLineTool(Process):
             try:
                 requirements = load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("requirements")
@@ -13828,7 +13951,7 @@ class CommandLineTool(Process):
             try:
                 hints = load_field(
                     _doc.get("hints"),
-                    idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
+                    idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("hints")
@@ -14445,11 +14568,12 @@ class CommandLineTool(Process):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "CommandLineTool"
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, self.id, False, None, relative_uris)
+            r["class"] = u
         if self.inputs is not None:
             r["inputs"] = save(
                 self.inputs, top=False, base_url=self.id, relative_uris=relative_uris
@@ -14594,6 +14718,8 @@ class DockerRequirement(ProcessRequirement):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#DockerRequirement"
+
     def __init__(
         self,
         dockerPull: Optional[Any] = None,
@@ -14661,12 +14787,21 @@ class DockerRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "DockerRequirement":
-            raise ValidationException("tried `DockerRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_DockerRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         dockerPull = None
         if "dockerPull" in _doc:
             try:
@@ -14996,8 +15131,9 @@ class DockerRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "DockerRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
         if self.dockerPull is not None:
             r["dockerPull"] = save(
                 self.dockerPull,
@@ -15069,6 +15205,8 @@ class SoftwareRequirement(ProcessRequirement):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#SoftwareRequirement"
+
     def __init__(
         self,
         packages: Any,
@@ -15108,12 +15246,21 @@ class SoftwareRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "SoftwareRequirement":
-            raise ValidationException("tried `SoftwareRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_SoftwareRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         try:
             if _doc.get("packages") is None:
                 raise ValidationException("missing required field `packages`", None, [])
@@ -15204,8 +15351,9 @@ class SoftwareRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "SoftwareRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
         if self.packages is not None:
             r["packages"] = save(
                 self.packages, top=False, base_url=base_url, relative_uris=relative_uris
@@ -15223,6 +15371,8 @@ class SoftwareRequirement(ProcessRequirement):
 
 
 class SoftwarePackage(Saveable):
+    class_uri = "https://w3id.org/cwl/cwl#SoftwarePackage"
+
     def __init__(
         self,
         package: Any,
@@ -15486,6 +15636,8 @@ class Dirent(Saveable):
     template.
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#Dirent"
 
     def __init__(
         self,
@@ -15751,6 +15903,8 @@ class InitialWorkDirRequirement(ProcessRequirement):
     Define a list of files and subdirectories that must be created by the workflow platform in the designated output directory prior to executing the command line tool.
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#InitialWorkDirRequirement"
+
     def __init__(
         self,
         listing: Any,
@@ -15790,12 +15944,21 @@ class InitialWorkDirRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "InitialWorkDirRequirement":
-            raise ValidationException("tried `InitialWorkDirRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_InitialWorkDirRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         try:
             if _doc.get("listing") is None:
                 raise ValidationException("missing required field `listing`", None, [])
@@ -15886,8 +16049,9 @@ class InitialWorkDirRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "InitialWorkDirRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
         if self.listing is not None:
             r["listing"] = save(
                 self.listing, top=False, base_url=base_url, relative_uris=relative_uris
@@ -15910,6 +16074,8 @@ class EnvVarRequirement(ProcessRequirement):
     execution environment of the tool.  See `EnvironmentDef` for details.
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#EnvVarRequirement"
 
     def __init__(
         self,
@@ -15950,12 +16116,21 @@ class EnvVarRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "EnvVarRequirement":
-            raise ValidationException("tried `EnvVarRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_EnvVarRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         try:
             if _doc.get("envDef") is None:
                 raise ValidationException("missing required field `envDef`", None, [])
@@ -16046,8 +16221,9 @@ class EnvVarRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "EnvVarRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
         if self.envDef is not None:
             r["envDef"] = save(
                 self.envDef, top=False, base_url=base_url, relative_uris=relative_uris
@@ -16075,6 +16251,8 @@ class ShellCommandRequirement(ProcessRequirement):
     the use of shell metacharacters such as `|` for pipes.
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#ShellCommandRequirement"
 
     def __init__(
         self,
@@ -16113,12 +16291,21 @@ class ShellCommandRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "ShellCommandRequirement":
-            raise ValidationException("tried `ShellCommandRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_ShellCommandRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -16158,8 +16345,9 @@ class ShellCommandRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "ShellCommandRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
 
         # top refers to the directory level
         if top:
@@ -16196,6 +16384,8 @@ class ResourceRequirement(ProcessRequirement):
     If neither "min" nor "max" is specified for a resource, an implementation may provide a default.
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#ResourceRequirement"
 
     def __init__(
         self,
@@ -16272,12 +16462,21 @@ class ResourceRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "ResourceRequirement":
-            raise ValidationException("tried `ResourceRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_ResourceRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         coresMin = None
         if "coresMin" in _doc:
             try:
@@ -16703,8 +16902,9 @@ class ResourceRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "ResourceRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
         if self.coresMin is not None:
             r["coresMin"] = save(
                 self.coresMin, top=False, base_url=base_url, relative_uris=relative_uris
@@ -16774,6 +16974,8 @@ class ResourceRequirement(ProcessRequirement):
 
 
 class ExpressionToolOutputParameter(OutputParameter):
+    class_uri = "https://w3id.org/cwl/cwl#ExpressionToolOutputParameter"
+
     def __init__(
         self,
         id: Any,
@@ -17349,6 +17551,8 @@ class ExpressionTool(Process):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#ExpressionTool"
+
     def __init__(
         self,
         inputs: Any,
@@ -17428,12 +17632,6 @@ class ExpressionTool(Process):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
-
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "ExpressionTool":
-            raise ValidationException("tried `ExpressionTool` but")
-
         id = None
         if "id" in _doc:
             try:
@@ -17490,6 +17688,21 @@ class ExpressionTool(Process):
                 id = "_:" + str(_uuid__.uuid4())
         if not __original_id_is_none:
             baseuri = cast(str, id)
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_ExpressionTool_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         try:
             if _doc.get("inputs") is None:
                 raise ValidationException("missing required field `inputs`", None, [])
@@ -17591,7 +17804,7 @@ class ExpressionTool(Process):
             try:
                 requirements = load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("requirements")
@@ -17638,7 +17851,7 @@ class ExpressionTool(Process):
             try:
                 hints = load_field(
                     _doc.get("hints"),
-                    idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
+                    idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("hints")
@@ -17920,11 +18133,12 @@ class ExpressionTool(Process):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "ExpressionTool"
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, self.id, False, None, relative_uris)
+            r["class"] = u
         if self.inputs is not None:
             r["inputs"] = save(
                 self.inputs, top=False, base_url=self.id, relative_uris=relative_uris
@@ -17994,6 +18208,8 @@ class WorkflowOutputParameter(OutputParameter):
     provide the value of the output parameter.
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#WorkflowOutputParameter"
 
     def __init__(
         self,
@@ -18725,6 +18941,8 @@ class WorkflowStepInput(Sink):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#WorkflowStepInput"
+
     def __init__(
         self,
         id: Any,
@@ -19109,6 +19327,8 @@ class WorkflowStepOutput(Saveable):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#WorkflowStepOutput"
+
     def __init__(
         self,
         id: Any,
@@ -19318,6 +19538,8 @@ class WorkflowStep(Saveable):
     a subworkflow (recursive workflows are not allowed).
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#WorkflowStep"
 
     def __init__(
         self,
@@ -19556,7 +19778,7 @@ class WorkflowStep(Saveable):
             try:
                 requirements = load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("requirements")
@@ -19745,7 +19967,7 @@ class WorkflowStep(Saveable):
 
             run = load_field(
                 _doc.get("run"),
-                uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_False_False_None_None,
+                uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_False_False_None_None,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("run")
@@ -20048,6 +20270,8 @@ class Workflow(Process):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#Workflow"
+
     def __init__(
         self,
         inputs: Any,
@@ -20127,12 +20351,6 @@ class Workflow(Process):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
-
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "Workflow":
-            raise ValidationException("tried `Workflow` but")
-
         id = None
         if "id" in _doc:
             try:
@@ -20189,6 +20407,21 @@ class Workflow(Process):
                 id = "_:" + str(_uuid__.uuid4())
         if not __original_id_is_none:
             baseuri = cast(str, id)
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_Workflow_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         try:
             if _doc.get("inputs") is None:
                 raise ValidationException("missing required field `inputs`", None, [])
@@ -20290,7 +20523,7 @@ class Workflow(Process):
             try:
                 requirements = load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("requirements")
@@ -20337,7 +20570,7 @@ class Workflow(Process):
             try:
                 hints = load_field(
                     _doc.get("hints"),
-                    idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
+                    idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("hints")
@@ -20619,11 +20852,12 @@ class Workflow(Process):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "Workflow"
         if self.id is not None:
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, self.id, False, None, relative_uris)
+            r["class"] = u
         if self.inputs is not None:
             r["inputs"] = save(
                 self.inputs, top=False, base_url=self.id, relative_uris=relative_uris
@@ -20690,6 +20924,8 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
 
     """
 
+    class_uri = "https://w3id.org/cwl/cwl#SubworkflowFeatureRequirement"
+
     def __init__(
         self,
         extension_fields: Optional[dict[str, Any]] = None,
@@ -20727,12 +20963,21 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "SubworkflowFeatureRequirement":
-            raise ValidationException("tried `SubworkflowFeatureRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_SubworkflowFeatureRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -20772,8 +21017,9 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "SubworkflowFeatureRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
 
         # top refers to the directory level
         if top:
@@ -20792,6 +21038,8 @@ class ScatterFeatureRequirement(ProcessRequirement):
     `scatterMethod` fields of [WorkflowStep](#WorkflowStep).
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#ScatterFeatureRequirement"
 
     def __init__(
         self,
@@ -20830,12 +21078,21 @@ class ScatterFeatureRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "ScatterFeatureRequirement":
-            raise ValidationException("tried `ScatterFeatureRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_ScatterFeatureRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -20875,8 +21132,9 @@ class ScatterFeatureRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "ScatterFeatureRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
 
         # top refers to the directory level
         if top:
@@ -20895,6 +21153,8 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
     listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#MultipleInputFeatureRequirement"
 
     def __init__(
         self,
@@ -20933,12 +21193,21 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "MultipleInputFeatureRequirement":
-            raise ValidationException("tried `MultipleInputFeatureRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_MultipleInputFeatureRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -20978,8 +21247,9 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "MultipleInputFeatureRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
 
         # top refers to the directory level
         if top:
@@ -20998,6 +21268,8 @@ class StepInputExpressionRequirement(ProcessRequirement):
     of [WorkflowStepInput](#WorkflowStepInput).
 
     """
+
+    class_uri = "https://w3id.org/cwl/cwl#StepInputExpressionRequirement"
 
     def __init__(
         self,
@@ -21036,12 +21308,21 @@ class StepInputExpressionRequirement(ProcessRequirement):
             _doc.lc.data = doc.lc.data
             _doc.lc.filename = doc.lc.filename
         _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
 
-        if "class" not in _doc:
-            raise ValidationException("Missing 'class' field")
-        if _doc.get("class") != "StepInputExpressionRequirement":
-            raise ValidationException("tried `StepInputExpressionRequirement` but")
-
+            class_ = load_field(
+                _doc.get("class"),
+                uri_StepInputExpressionRequirement_classLoader_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
         extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -21081,8 +21362,9 @@ class StepInputExpressionRequirement(ProcessRequirement):
         else:
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
-
-        r["class"] = "StepInputExpressionRequirement"
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
 
         # top refers to the directory level
         if top:
@@ -21095,9 +21377,2429 @@ class StepInputExpressionRequirement(ProcessRequirement):
     attrs = frozenset(["class"])
 
 
+class LoadListingRequirement(ProcessRequirement):
+    class_uri = "http://commonwl.org/cwltool#LoadListingRequirement"
+
+    def __init__(
+        self,
+        loadListing: Any,
+        extension_fields: Optional[dict[str, Any]] = None,
+        loadingOptions: Optional[LoadingOptions] = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_ = "LoadListingRequirement"
+        self.loadListing = loadListing
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, LoadListingRequirement):
+            return bool(
+                self.class_ == other.class_ and self.loadListing == other.loadListing
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.loadListing))
+
+    @classmethod
+    def fromDoc(
+        cls,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: Optional[str] = None
+    ) -> "LoadListingRequirement":
+        _doc = copy.copy(doc)
+
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_strtype_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
+        try:
+            if _doc.get("loadListing") is None:
+                raise ValidationException("missing required field `loadListing`", None, [])
+
+            loadListing = load_field(
+                _doc.get("loadListing"),
+                union_of_LoadListingEnumLoader,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("loadListing")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `loadListing`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("loadListing")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `loadListing` field is not valid because:",
+                            SourceLine(_doc, "loadListing", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `loadListing` field is not valid because:",
+                            SourceLine(_doc, "loadListing", str),
+                            [e],
+                            detailed_message=f"the `loadListing` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        extension_fields: dict[str, Any] = {}
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `{}`, expected one of: `class`, `loadListing`".format(
+                                k
+                            ),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+
+        if _errors__:
+            raise ValidationException("", None, _errors__, "*")
+        _constructed = cls(
+            loadListing=loadListing,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+        return _constructed
+
+    def save(
+        self, top: bool = False, base_url: str = "", relative_uris: bool = True
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
+        if self.loadListing is not None:
+            r["loadListing"] = save(
+                self.loadListing,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
+        return r
+
+    attrs = frozenset(["class", "loadListing"])
+
+
+class InplaceUpdateRequirement(ProcessRequirement):
+    class_uri = "http://commonwl.org/cwltool#InplaceUpdateRequirement"
+
+    def __init__(
+        self,
+        inplaceUpdate: Any,
+        extension_fields: Optional[dict[str, Any]] = None,
+        loadingOptions: Optional[LoadingOptions] = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_ = "InplaceUpdateRequirement"
+        self.inplaceUpdate = inplaceUpdate
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, InplaceUpdateRequirement):
+            return bool(
+                self.class_ == other.class_
+                and self.inplaceUpdate == other.inplaceUpdate
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.inplaceUpdate))
+
+    @classmethod
+    def fromDoc(
+        cls,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: Optional[str] = None
+    ) -> "InplaceUpdateRequirement":
+        _doc = copy.copy(doc)
+
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_strtype_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
+        try:
+            if _doc.get("inplaceUpdate") is None:
+                raise ValidationException("missing required field `inplaceUpdate`", None, [])
+
+            inplaceUpdate = load_field(
+                _doc.get("inplaceUpdate"),
+                booltype,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("inplaceUpdate")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `inplaceUpdate`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("inplaceUpdate")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `inplaceUpdate` field is not valid because:",
+                            SourceLine(_doc, "inplaceUpdate", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `inplaceUpdate` field is not valid because:",
+                            SourceLine(_doc, "inplaceUpdate", str),
+                            [e],
+                            detailed_message=f"the `inplaceUpdate` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        extension_fields: dict[str, Any] = {}
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `{}`, expected one of: `class`, `inplaceUpdate`".format(
+                                k
+                            ),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+
+        if _errors__:
+            raise ValidationException("", None, _errors__, "*")
+        _constructed = cls(
+            inplaceUpdate=inplaceUpdate,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+        return _constructed
+
+    def save(
+        self, top: bool = False, base_url: str = "", relative_uris: bool = True
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
+        if self.inplaceUpdate is not None:
+            r["inplaceUpdate"] = save(
+                self.inplaceUpdate,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
+        return r
+
+    attrs = frozenset(["class", "inplaceUpdate"])
+
+
+class Secrets(ProcessRequirement):
+    class_uri = "http://commonwl.org/cwltool#Secrets"
+
+    def __init__(
+        self,
+        secrets: Any,
+        extension_fields: Optional[dict[str, Any]] = None,
+        loadingOptions: Optional[LoadingOptions] = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_ = "Secrets"
+        self.secrets = secrets
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Secrets):
+            return bool(self.class_ == other.class_ and self.secrets == other.secrets)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.secrets))
+
+    @classmethod
+    def fromDoc(
+        cls,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: Optional[str] = None
+    ) -> "Secrets":
+        _doc = copy.copy(doc)
+
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_strtype_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
+        try:
+            if _doc.get("secrets") is None:
+                raise ValidationException("missing required field `secrets`", None, [])
+
+            secrets = load_field(
+                _doc.get("secrets"),
+                uri_array_of_strtype_False_False_0_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("secrets")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `secrets`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("secrets")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `secrets` field is not valid because:",
+                            SourceLine(_doc, "secrets", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `secrets` field is not valid because:",
+                            SourceLine(_doc, "secrets", str),
+                            [e],
+                            detailed_message=f"the `secrets` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        extension_fields: dict[str, Any] = {}
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `{}`, expected one of: `class`, `secrets`".format(
+                                k
+                            ),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+
+        if _errors__:
+            raise ValidationException("", None, _errors__, "*")
+        _constructed = cls(
+            secrets=secrets,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+        return _constructed
+
+    def save(
+        self, top: bool = False, base_url: str = "", relative_uris: bool = True
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
+        if self.secrets is not None:
+            u = save_relative_uri(self.secrets, base_url, False, 0, relative_uris)
+            r["secrets"] = u
+
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
+        return r
+
+    attrs = frozenset(["class", "secrets"])
+
+
+class TimeLimit(ProcessRequirement):
+    """
+    Set an upper limit on the execution time of a CommandLineTool or
+    ExpressionTool.  A tool execution which exceeds the time limit may
+    be preemptively terminated and considered failed.  May also be
+    used by batch systems to make scheduling decisions.
+
+    """
+
+    class_uri = "http://commonwl.org/cwltool#TimeLimit"
+
+    def __init__(
+        self,
+        timelimit: Any,
+        extension_fields: Optional[dict[str, Any]] = None,
+        loadingOptions: Optional[LoadingOptions] = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_ = "TimeLimit"
+        self.timelimit = timelimit
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, TimeLimit):
+            return bool(
+                self.class_ == other.class_ and self.timelimit == other.timelimit
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.timelimit))
+
+    @classmethod
+    def fromDoc(
+        cls,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: Optional[str] = None
+    ) -> "TimeLimit":
+        _doc = copy.copy(doc)
+
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_strtype_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
+        try:
+            if _doc.get("timelimit") is None:
+                raise ValidationException("missing required field `timelimit`", None, [])
+
+            timelimit = load_field(
+                _doc.get("timelimit"),
+                union_of_inttype_or_strtype,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("timelimit")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `timelimit`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("timelimit")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `timelimit` field is not valid because:",
+                            SourceLine(_doc, "timelimit", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `timelimit` field is not valid because:",
+                            SourceLine(_doc, "timelimit", str),
+                            [e],
+                            detailed_message=f"the `timelimit` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        extension_fields: dict[str, Any] = {}
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `{}`, expected one of: `class`, `timelimit`".format(
+                                k
+                            ),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+
+        if _errors__:
+            raise ValidationException("", None, _errors__, "*")
+        _constructed = cls(
+            timelimit=timelimit,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+        return _constructed
+
+    def save(
+        self, top: bool = False, base_url: str = "", relative_uris: bool = True
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
+        if self.timelimit is not None:
+            r["timelimit"] = save(
+                self.timelimit,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
+        return r
+
+    attrs = frozenset(["class", "timelimit"])
+
+
+class WorkReuse(ProcessRequirement):
+    """
+    For implementations that support reusing output from past work (on
+    the assumption that same code and same input produce same
+    results), control whether to enable or disable the reuse behavior
+    for a particular tool or step (to accommodate situations where that
+    assumption is incorrect).  A reused step is not executed but
+    instead returns the same output as the original execution.
+
+    If `enableReuse` is not specified, correct tools should assume it
+    is enabled by default.
+
+    """
+
+    class_uri = "http://commonwl.org/cwltool#WorkReuse"
+
+    def __init__(
+        self,
+        enableReuse: Any,
+        extension_fields: Optional[dict[str, Any]] = None,
+        loadingOptions: Optional[LoadingOptions] = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_ = "WorkReuse"
+        self.enableReuse = enableReuse
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, WorkReuse):
+            return bool(
+                self.class_ == other.class_ and self.enableReuse == other.enableReuse
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.enableReuse))
+
+    @classmethod
+    def fromDoc(
+        cls,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: Optional[str] = None
+    ) -> "WorkReuse":
+        _doc = copy.copy(doc)
+
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_strtype_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
+        try:
+            if _doc.get("enableReuse") is None:
+                raise ValidationException("missing required field `enableReuse`", None, [])
+
+            enableReuse = load_field(
+                _doc.get("enableReuse"),
+                union_of_booltype_or_strtype,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("enableReuse")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `enableReuse`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("enableReuse")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `enableReuse` field is not valid because:",
+                            SourceLine(_doc, "enableReuse", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `enableReuse` field is not valid because:",
+                            SourceLine(_doc, "enableReuse", str),
+                            [e],
+                            detailed_message=f"the `enableReuse` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        extension_fields: dict[str, Any] = {}
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `{}`, expected one of: `class`, `enableReuse`".format(
+                                k
+                            ),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+
+        if _errors__:
+            raise ValidationException("", None, _errors__, "*")
+        _constructed = cls(
+            enableReuse=enableReuse,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+        return _constructed
+
+    def save(
+        self, top: bool = False, base_url: str = "", relative_uris: bool = True
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
+        if self.enableReuse is not None:
+            r["enableReuse"] = save(
+                self.enableReuse,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
+        return r
+
+    attrs = frozenset(["class", "enableReuse"])
+
+
+class NetworkAccess(ProcessRequirement):
+    """
+    Indicate whether a process requires outgoing IPv4/IPv6 network
+    access.  Choice of IPv4 or IPv6 is implementation and site
+    specific, correct tools must support both.
+
+    If `networkAccess` is false or not specified, tools must not
+    assume network access, except for localhost (the loopback device).
+
+    If `networkAccess` is true, the tool must be able to make outgoing
+    connections to network resources.  Resources may be on a private
+    subnet or the public Internet.  However, implementations and sites
+    may apply their own security policies to restrict what is
+    accessible by the tool.
+
+    Enabling network access does not imply a publicly routable IP
+    address or the ability to accept inbound connections.
+
+    """
+
+    class_uri = "http://commonwl.org/cwltool#NetworkAccess"
+
+    def __init__(
+        self,
+        networkAccess: Any,
+        extension_fields: Optional[dict[str, Any]] = None,
+        loadingOptions: Optional[LoadingOptions] = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_ = "NetworkAccess"
+        self.networkAccess = networkAccess
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, NetworkAccess):
+            return bool(
+                self.class_ == other.class_
+                and self.networkAccess == other.networkAccess
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.networkAccess))
+
+    @classmethod
+    def fromDoc(
+        cls,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: Optional[str] = None
+    ) -> "NetworkAccess":
+        _doc = copy.copy(doc)
+
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_strtype_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
+        try:
+            if _doc.get("networkAccess") is None:
+                raise ValidationException("missing required field `networkAccess`", None, [])
+
+            networkAccess = load_field(
+                _doc.get("networkAccess"),
+                union_of_booltype_or_strtype,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("networkAccess")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `networkAccess`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("networkAccess")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `networkAccess` field is not valid because:",
+                            SourceLine(_doc, "networkAccess", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `networkAccess` field is not valid because:",
+                            SourceLine(_doc, "networkAccess", str),
+                            [e],
+                            detailed_message=f"the `networkAccess` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        extension_fields: dict[str, Any] = {}
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `{}`, expected one of: `class`, `networkAccess`".format(
+                                k
+                            ),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+
+        if _errors__:
+            raise ValidationException("", None, _errors__, "*")
+        _constructed = cls(
+            networkAccess=networkAccess,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+        return _constructed
+
+    def save(
+        self, top: bool = False, base_url: str = "", relative_uris: bool = True
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
+        if self.networkAccess is not None:
+            r["networkAccess"] = save(
+                self.networkAccess,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
+        return r
+
+    attrs = frozenset(["class", "networkAccess"])
+
+
+class ProcessGenerator(Process):
+    class_uri = "http://commonwl.org/cwltool#ProcessGenerator"
+
+    def __init__(
+        self,
+        inputs: Any,
+        outputs: Any,
+        run: Any,
+        id: Optional[Any] = None,
+        requirements: Optional[Any] = None,
+        hints: Optional[Any] = None,
+        label: Optional[Any] = None,
+        doc: Optional[Any] = None,
+        cwlVersion: Optional[Any] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
+        loadingOptions: Optional[LoadingOptions] = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.id = id
+        self.inputs = inputs
+        self.outputs = outputs
+        self.requirements = requirements
+        self.hints = hints
+        self.label = label
+        self.doc = doc
+        self.cwlVersion = cwlVersion
+        self.class_ = "ProcessGenerator"
+        self.run = run
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ProcessGenerator):
+            return bool(
+                self.id == other.id
+                and self.inputs == other.inputs
+                and self.outputs == other.outputs
+                and self.requirements == other.requirements
+                and self.hints == other.hints
+                and self.label == other.label
+                and self.doc == other.doc
+                and self.cwlVersion == other.cwlVersion
+                and self.class_ == other.class_
+                and self.run == other.run
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.id,
+                self.inputs,
+                self.outputs,
+                self.requirements,
+                self.hints,
+                self.label,
+                self.doc,
+                self.cwlVersion,
+                self.class_,
+                self.run,
+            )
+        )
+
+    @classmethod
+    def fromDoc(
+        cls,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: Optional[str] = None
+    ) -> "ProcessGenerator":
+        _doc = copy.copy(doc)
+
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        id = None
+        if "id" in _doc:
+            try:
+                id = load_field(
+                    _doc.get("id"),
+                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    baseuri,
+                    loadingOptions,
+                    lc=_doc.get("id")
+                )
+
+            except ValidationException as e:
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `id`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
+                    )
+                else:
+                    val = _doc.get("id")
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(val)))
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `id` field is not valid because:",
+                                SourceLine(_doc, "id", str),
+                                [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
+                            )
+                        )
+
+        __original_id_is_none = id is None
+        if id is None:
+            if docRoot is not None:
+                id = docRoot
+            else:
+                id = "_:" + str(_uuid__.uuid4())
+        if not __original_id_is_none:
+            baseuri = cast(str, id)
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_strtype_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
+        try:
+            if _doc.get("inputs") is None:
+                raise ValidationException("missing required field `inputs`", None, [])
+
+            inputs = load_field(
+                _doc.get("inputs"),
+                idmap_inputs_array_of_InputParameterLoader,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("inputs")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `inputs`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("inputs")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `inputs` field is not valid because:",
+                            SourceLine(_doc, "inputs", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `inputs` field is not valid because:",
+                            SourceLine(_doc, "inputs", str),
+                            [e],
+                            detailed_message=f"the `inputs` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        try:
+            if _doc.get("outputs") is None:
+                raise ValidationException("missing required field `outputs`", None, [])
+
+            outputs = load_field(
+                _doc.get("outputs"),
+                idmap_outputs_array_of_OutputParameterLoader,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("outputs")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `outputs`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("outputs")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `outputs` field is not valid because:",
+                            SourceLine(_doc, "outputs", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `outputs` field is not valid because:",
+                            SourceLine(_doc, "outputs", str),
+                            [e],
+                            detailed_message=f"the `outputs` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        requirements = None
+        if "requirements" in _doc:
+            try:
+                requirements = load_field(
+                    _doc.get("requirements"),
+                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader,
+                    baseuri,
+                    loadingOptions,
+                    lc=_doc.get("requirements")
+                )
+
+            except ValidationException as e:
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `requirements`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
+                    )
+                else:
+                    val = _doc.get("requirements")
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(val)))
+                        _errors__.append(
+                            ValidationException(
+                                "the `requirements` field is not valid because:",
+                                SourceLine(_doc, "requirements", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `requirements` field is not valid because:",
+                                SourceLine(_doc, "requirements", str),
+                                [e],
+                                detailed_message=f"the `requirements` field with value `{val}` "
+                                "is not valid because:",
+                            )
+                        )
+        hints = None
+        if "hints" in _doc:
+            try:
+                hints = load_field(
+                    _doc.get("hints"),
+                    idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type,
+                    baseuri,
+                    loadingOptions,
+                    lc=_doc.get("hints")
+                )
+
+            except ValidationException as e:
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `hints`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
+                    )
+                else:
+                    val = _doc.get("hints")
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(val)))
+                        _errors__.append(
+                            ValidationException(
+                                "the `hints` field is not valid because:",
+                                SourceLine(_doc, "hints", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `hints` field is not valid because:",
+                                SourceLine(_doc, "hints", str),
+                                [e],
+                                detailed_message=f"the `hints` field with value `{val}` "
+                                "is not valid because:",
+                            )
+                        )
+        label = None
+        if "label" in _doc:
+            try:
+                label = load_field(
+                    _doc.get("label"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                    lc=_doc.get("label")
+                )
+
+            except ValidationException as e:
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `label`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
+                    )
+                else:
+                    val = _doc.get("label")
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(val)))
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `label` field is not valid because:",
+                                SourceLine(_doc, "label", str),
+                                [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
+                            )
+                        )
+        doc = None
+        if "doc" in _doc:
+            try:
+                doc = load_field(
+                    _doc.get("doc"),
+                    union_of_None_type_or_strtype,
+                    baseuri,
+                    loadingOptions,
+                    lc=_doc.get("doc")
+                )
+
+            except ValidationException as e:
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `doc`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
+                    )
+                else:
+                    val = _doc.get("doc")
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(val)))
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `doc` field is not valid because:",
+                                SourceLine(_doc, "doc", str),
+                                [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
+                            )
+                        )
+        cwlVersion = None
+        if "cwlVersion" in _doc:
+            try:
+                cwlVersion = load_field(
+                    _doc.get("cwlVersion"),
+                    uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None,
+                    baseuri,
+                    loadingOptions,
+                    lc=_doc.get("cwlVersion")
+                )
+
+            except ValidationException as e:
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `cwlVersion`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
+                    )
+                else:
+                    val = _doc.get("cwlVersion")
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(val)))
+                        _errors__.append(
+                            ValidationException(
+                                "the `cwlVersion` field is not valid because:",
+                                SourceLine(_doc, "cwlVersion", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `cwlVersion` field is not valid because:",
+                                SourceLine(_doc, "cwlVersion", str),
+                                [e],
+                                detailed_message=f"the `cwlVersion` field with value `{val}` "
+                                "is not valid because:",
+                            )
+                        )
+        try:
+            if _doc.get("run") is None:
+                raise ValidationException("missing required field `run`", None, [])
+
+            run = load_field(
+                _doc.get("run"),
+                uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_False_False_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("run")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `run`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("run")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `run` field is not valid because:",
+                            SourceLine(_doc, "run", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `run` field is not valid because:",
+                            SourceLine(_doc, "run", str),
+                            [e],
+                            detailed_message=f"the `run` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        extension_fields: dict[str, Any] = {}
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `{}`, expected one of: `id`, `inputs`, `outputs`, `requirements`, `hints`, `label`, `doc`, `cwlVersion`, `class`, `run`".format(
+                                k
+                            ),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+
+        if _errors__:
+            raise ValidationException("", None, _errors__, "*")
+        _constructed = cls(
+            id=id,
+            inputs=inputs,
+            outputs=outputs,
+            requirements=requirements,
+            hints=hints,
+            label=label,
+            doc=doc,
+            cwlVersion=cwlVersion,
+            run=run,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        return _constructed
+
+    def save(
+        self, top: bool = False, base_url: str = "", relative_uris: bool = True
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
+        if self.id is not None:
+            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            r["id"] = u
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, self.id, False, None, relative_uris)
+            r["class"] = u
+        if self.inputs is not None:
+            r["inputs"] = save(
+                self.inputs, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+        if self.outputs is not None:
+            r["outputs"] = save(
+                self.outputs, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+        if self.requirements is not None:
+            r["requirements"] = save(
+                self.requirements,
+                top=False,
+                base_url=self.id,
+                relative_uris=relative_uris,
+            )
+        if self.hints is not None:
+            r["hints"] = save(
+                self.hints, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+        if self.label is not None:
+            r["label"] = save(
+                self.label, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+        if self.doc is not None:
+            r["doc"] = save(
+                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
+            )
+        if self.cwlVersion is not None:
+            u = save_relative_uri(self.cwlVersion, self.id, False, None, relative_uris)
+            r["cwlVersion"] = u
+        if self.run is not None:
+            u = save_relative_uri(self.run, self.id, False, None, relative_uris)
+            r["run"] = u
+
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
+        return r
+
+    attrs = frozenset(
+        [
+            "id",
+            "inputs",
+            "outputs",
+            "requirements",
+            "hints",
+            "label",
+            "doc",
+            "cwlVersion",
+            "class",
+            "run",
+        ]
+    )
+
+
+class MPIRequirement(ProcessRequirement):
+    """
+    Indicates that a process requires an MPI runtime.
+
+    """
+
+    class_uri = "http://commonwl.org/cwltool#MPIRequirement"
+
+    def __init__(
+        self,
+        processes: Any,
+        extension_fields: Optional[dict[str, Any]] = None,
+        loadingOptions: Optional[LoadingOptions] = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_ = "MPIRequirement"
+        self.processes = processes
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, MPIRequirement):
+            return bool(
+                self.class_ == other.class_ and self.processes == other.processes
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.processes))
+
+    @classmethod
+    def fromDoc(
+        cls,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: Optional[str] = None
+    ) -> "MPIRequirement":
+        _doc = copy.copy(doc)
+
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_strtype_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
+        try:
+            if _doc.get("processes") is None:
+                raise ValidationException("missing required field `processes`", None, [])
+
+            processes = load_field(
+                _doc.get("processes"),
+                union_of_inttype_or_ExpressionLoader,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("processes")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `processes`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("processes")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `processes` field is not valid because:",
+                            SourceLine(_doc, "processes", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `processes` field is not valid because:",
+                            SourceLine(_doc, "processes", str),
+                            [e],
+                            detailed_message=f"the `processes` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        extension_fields: dict[str, Any] = {}
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `{}`, expected one of: `class`, `processes`".format(
+                                k
+                            ),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+
+        if _errors__:
+            raise ValidationException("", None, _errors__, "*")
+        _constructed = cls(
+            processes=processes,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+        return _constructed
+
+    def save(
+        self, top: bool = False, base_url: str = "", relative_uris: bool = True
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
+        if self.processes is not None:
+            r["processes"] = save(
+                self.processes,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
+        return r
+
+    attrs = frozenset(["class", "processes"])
+
+
+class CUDARequirement(ProcessRequirement):
+    """
+    Require support for NVIDA CUDA (GPU hardware acceleration).
+
+    """
+
+    class_uri = "http://commonwl.org/cwltool#CUDARequirement"
+
+    def __init__(
+        self,
+        cudaComputeCapability: Any,
+        cudaVersionMin: Any,
+        cudaDeviceCountMax: Optional[Any] = None,
+        cudaDeviceCountMin: Optional[Any] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
+        loadingOptions: Optional[LoadingOptions] = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_ = "CUDARequirement"
+        self.cudaComputeCapability = cudaComputeCapability
+        self.cudaDeviceCountMax = cudaDeviceCountMax
+        self.cudaDeviceCountMin = cudaDeviceCountMin
+        self.cudaVersionMin = cudaVersionMin
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, CUDARequirement):
+            return bool(
+                self.class_ == other.class_
+                and self.cudaComputeCapability == other.cudaComputeCapability
+                and self.cudaDeviceCountMax == other.cudaDeviceCountMax
+                and self.cudaDeviceCountMin == other.cudaDeviceCountMin
+                and self.cudaVersionMin == other.cudaVersionMin
+            )
+        return False
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.class_,
+                self.cudaComputeCapability,
+                self.cudaDeviceCountMax,
+                self.cudaDeviceCountMin,
+                self.cudaVersionMin,
+            )
+        )
+
+    @classmethod
+    def fromDoc(
+        cls,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: Optional[str] = None
+    ) -> "CUDARequirement":
+        _doc = copy.copy(doc)
+
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_strtype_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
+        try:
+            if _doc.get("cudaComputeCapability") is None:
+                raise ValidationException("missing required field `cudaComputeCapability`", None, [])
+
+            cudaComputeCapability = load_field(
+                _doc.get("cudaComputeCapability"),
+                union_of_strtype_or_array_of_strtype,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("cudaComputeCapability")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `cudaComputeCapability`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("cudaComputeCapability")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `cudaComputeCapability` field is not valid because:",
+                            SourceLine(_doc, "cudaComputeCapability", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `cudaComputeCapability` field is not valid because:",
+                            SourceLine(_doc, "cudaComputeCapability", str),
+                            [e],
+                            detailed_message=f"the `cudaComputeCapability` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        cudaDeviceCountMax = None
+        if "cudaDeviceCountMax" in _doc:
+            try:
+                cudaDeviceCountMax = load_field(
+                    _doc.get("cudaDeviceCountMax"),
+                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    baseuri,
+                    loadingOptions,
+                    lc=_doc.get("cudaDeviceCountMax")
+                )
+
+            except ValidationException as e:
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `cudaDeviceCountMax`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
+                    )
+                else:
+                    val = _doc.get("cudaDeviceCountMax")
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(val)))
+                        _errors__.append(
+                            ValidationException(
+                                "the `cudaDeviceCountMax` field is not valid because:",
+                                SourceLine(_doc, "cudaDeviceCountMax", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `cudaDeviceCountMax` field is not valid because:",
+                                SourceLine(_doc, "cudaDeviceCountMax", str),
+                                [e],
+                                detailed_message=f"the `cudaDeviceCountMax` field with value `{val}` "
+                                "is not valid because:",
+                            )
+                        )
+        cudaDeviceCountMin = None
+        if "cudaDeviceCountMin" in _doc:
+            try:
+                cudaDeviceCountMin = load_field(
+                    _doc.get("cudaDeviceCountMin"),
+                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    baseuri,
+                    loadingOptions,
+                    lc=_doc.get("cudaDeviceCountMin")
+                )
+
+            except ValidationException as e:
+                error_message, to_print, verb_tensage = parse_errors(str(e))
+
+                if str(e) == "missing required field `cudaDeviceCountMin`":
+                    _errors__.append(
+                        ValidationException(
+                            str(e),
+                            None
+                        )
+                    )
+                else:
+                    val = _doc.get("cudaDeviceCountMin")
+                    if error_message != str(e):
+                        val_type = convert_typing(extract_type(type(val)))
+                        _errors__.append(
+                            ValidationException(
+                                "the `cudaDeviceCountMin` field is not valid because:",
+                                SourceLine(_doc, "cudaDeviceCountMin", str),
+                                [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}")],
+                            )
+                        )
+                    else:
+                        _errors__.append(
+                            ValidationException(
+                                "the `cudaDeviceCountMin` field is not valid because:",
+                                SourceLine(_doc, "cudaDeviceCountMin", str),
+                                [e],
+                                detailed_message=f"the `cudaDeviceCountMin` field with value `{val}` "
+                                "is not valid because:",
+                            )
+                        )
+        try:
+            if _doc.get("cudaVersionMin") is None:
+                raise ValidationException("missing required field `cudaVersionMin`", None, [])
+
+            cudaVersionMin = load_field(
+                _doc.get("cudaVersionMin"),
+                strtype,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("cudaVersionMin")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `cudaVersionMin`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("cudaVersionMin")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `cudaVersionMin` field is not valid because:",
+                            SourceLine(_doc, "cudaVersionMin", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `cudaVersionMin` field is not valid because:",
+                            SourceLine(_doc, "cudaVersionMin", str),
+                            [e],
+                            detailed_message=f"the `cudaVersionMin` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        extension_fields: dict[str, Any] = {}
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `{}`, expected one of: `class`, `cudaComputeCapability`, `cudaDeviceCountMax`, `cudaDeviceCountMin`, `cudaVersionMin`".format(
+                                k
+                            ),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+
+        if _errors__:
+            raise ValidationException("", None, _errors__, "*")
+        _constructed = cls(
+            cudaComputeCapability=cudaComputeCapability,
+            cudaDeviceCountMax=cudaDeviceCountMax,
+            cudaDeviceCountMin=cudaDeviceCountMin,
+            cudaVersionMin=cudaVersionMin,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+        return _constructed
+
+    def save(
+        self, top: bool = False, base_url: str = "", relative_uris: bool = True
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
+        if self.cudaComputeCapability is not None:
+            r["cudaComputeCapability"] = save(
+                self.cudaComputeCapability,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+        if self.cudaDeviceCountMax is not None:
+            r["cudaDeviceCountMax"] = save(
+                self.cudaDeviceCountMax,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+        if self.cudaDeviceCountMin is not None:
+            r["cudaDeviceCountMin"] = save(
+                self.cudaDeviceCountMin,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+        if self.cudaVersionMin is not None:
+            r["cudaVersionMin"] = save(
+                self.cudaVersionMin,
+                top=False,
+                base_url=base_url,
+                relative_uris=relative_uris,
+            )
+
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
+        return r
+
+    attrs = frozenset(
+        [
+            "class",
+            "cudaComputeCapability",
+            "cudaDeviceCountMax",
+            "cudaDeviceCountMin",
+            "cudaVersionMin",
+        ]
+    )
+
+
+class ShmSize(ProcessRequirement):
+    class_uri = "http://commonwl.org/cwltool#ShmSize"
+
+    def __init__(
+        self,
+        shmSize: Any,
+        extension_fields: Optional[dict[str, Any]] = None,
+        loadingOptions: Optional[LoadingOptions] = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_ = "ShmSize"
+        self.shmSize = shmSize
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ShmSize):
+            return bool(self.class_ == other.class_ and self.shmSize == other.shmSize)
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.class_, self.shmSize))
+
+    @classmethod
+    def fromDoc(
+        cls,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: Optional[str] = None
+    ) -> "ShmSize":
+        _doc = copy.copy(doc)
+
+        if hasattr(doc, "lc"):
+            _doc.lc.data = doc.lc.data
+            _doc.lc.filename = doc.lc.filename
+        _errors__ = []
+        try:
+            if _doc.get("class") is None:
+                raise ValidationException("missing required field `class`", None, [])
+
+            class_ = load_field(
+                _doc.get("class"),
+                uri_strtype_False_True_None_None,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("class")
+            )
+            if class_ != cls.__name__ and class_ != cls.class_uri:
+               raise ValidationException(f"tried `{cls.__name__}` but")
+        except ValidationException as e:
+               raise e
+        try:
+            if _doc.get("shmSize") is None:
+                raise ValidationException("missing required field `shmSize`", None, [])
+
+            shmSize = load_field(
+                _doc.get("shmSize"),
+                strtype,
+                baseuri,
+                loadingOptions,
+                lc=_doc.get("shmSize")
+            )
+
+        except ValidationException as e:
+            error_message, to_print, verb_tensage = parse_errors(str(e))
+
+            if str(e) == "missing required field `shmSize`":
+                _errors__.append(
+                    ValidationException(
+                        str(e),
+                        None
+                    )
+                )
+            else:
+                val = _doc.get("shmSize")
+                if error_message != str(e):
+                    val_type = convert_typing(extract_type(type(val)))
+                    _errors__.append(
+                        ValidationException(
+                            "the `shmSize` field is not valid because:",
+                            SourceLine(_doc, "shmSize", str),
+                            [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}")],
+                        )
+                    )
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "the `shmSize` field is not valid because:",
+                            SourceLine(_doc, "shmSize", str),
+                            [e],
+                            detailed_message=f"the `shmSize` field with value `{val}` "
+                            "is not valid because:",
+                        )
+                    )
+        extension_fields: dict[str, Any] = {}
+        for k in _doc.keys():
+            if k not in cls.attrs:
+                if not k:
+                    _errors__.append(
+                        ValidationException("mapping with implicit null key")
+                    )
+                elif ":" in k:
+                    ex = expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                    )
+                    extension_fields[ex] = _doc[k]
+                else:
+                    _errors__.append(
+                        ValidationException(
+                            "invalid field `{}`, expected one of: `class`, `shmSize`".format(
+                                k
+                            ),
+                            SourceLine(_doc, k, str),
+                        )
+                    )
+
+        if _errors__:
+            raise ValidationException("", None, _errors__, "*")
+        _constructed = cls(
+            shmSize=shmSize,
+            extension_fields=extension_fields,
+            loadingOptions=loadingOptions,
+        )
+        return _constructed
+
+    def save(
+        self, top: bool = False, base_url: str = "", relative_uris: bool = True
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
+
+        if relative_uris:
+            for ef in self.extension_fields:
+                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
+        else:
+            for ef in self.extension_fields:
+                r[ef] = self.extension_fields[ef]
+        if self.class_ is not None:
+            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            r["class"] = u
+        if self.shmSize is not None:
+            r["shmSize"] = save(
+                self.shmSize, top=False, base_url=base_url, relative_uris=relative_uris
+            )
+
+        # top refers to the directory level
+        if top:
+            if self.loadingOptions.namespaces:
+                r["$namespaces"] = self.loadingOptions.namespaces
+            if self.loadingOptions.schemas:
+                r["$schemas"] = self.loadingOptions.schemas
+        return r
+
+    attrs = frozenset(["class", "shmSize"])
+
+
 _vocab = {
     "Any": "https://w3id.org/cwl/salad#Any",
     "ArraySchema": "https://w3id.org/cwl/salad#ArraySchema",
+    "CUDARequirement": "http://commonwl.org/cwltool#CUDARequirement",
     "CWLArraySchema": "https://w3id.org/cwl/cwl#CWLArraySchema",
     "CWLInputFile": "https://w3id.org/cwl/cwl#CWLInputFile",
     "CWLObjectType": "https://w3id.org/cwl/cwl#CWLObjectType",
@@ -21132,6 +23834,7 @@ _vocab = {
     "File": "https://w3id.org/cwl/cwl#File",
     "InitialWorkDirRequirement": "https://w3id.org/cwl/cwl#InitialWorkDirRequirement",
     "InlineJavascriptRequirement": "https://w3id.org/cwl/cwl#InlineJavascriptRequirement",
+    "InplaceUpdateRequirement": "http://commonwl.org/cwltool#InplaceUpdateRequirement",
     "InputArraySchema": "https://w3id.org/cwl/cwl#InputArraySchema",
     "InputBinding": "https://w3id.org/cwl/cwl#InputBinding",
     "InputEnumSchema": "https://w3id.org/cwl/cwl#InputEnumSchema",
@@ -21140,8 +23843,11 @@ _vocab = {
     "InputRecordSchema": "https://w3id.org/cwl/cwl#InputRecordSchema",
     "InputSchema": "https://w3id.org/cwl/cwl#InputSchema",
     "LinkMergeMethod": "https://w3id.org/cwl/cwl#LinkMergeMethod",
+    "LoadListingRequirement": "http://commonwl.org/cwltool#LoadListingRequirement",
+    "MPIRequirement": "http://commonwl.org/cwltool#MPIRequirement",
     "MapSchema": "https://w3id.org/cwl/salad#MapSchema",
     "MultipleInputFeatureRequirement": "https://w3id.org/cwl/cwl#MultipleInputFeatureRequirement",
+    "NetworkAccess": "http://commonwl.org/cwltool#NetworkAccess",
     "OutputArraySchema": "https://w3id.org/cwl/cwl#OutputArraySchema",
     "OutputBinding": "https://w3id.org/cwl/cwl#OutputBinding",
     "OutputEnumSchema": "https://w3id.org/cwl/cwl#OutputEnumSchema",
@@ -21152,6 +23858,7 @@ _vocab = {
     "Parameter": "https://w3id.org/cwl/cwl#Parameter",
     "PrimitiveType": "https://w3id.org/cwl/salad#PrimitiveType",
     "Process": "https://w3id.org/cwl/cwl#Process",
+    "ProcessGenerator": "http://commonwl.org/cwltool#ProcessGenerator",
     "ProcessRequirement": "https://w3id.org/cwl/cwl#ProcessRequirement",
     "RecordField": "https://w3id.org/cwl/salad#RecordField",
     "RecordSchema": "https://w3id.org/cwl/salad#RecordSchema",
@@ -21160,13 +23867,17 @@ _vocab = {
     "ScatterMethod": "https://w3id.org/cwl/cwl#ScatterMethod",
     "SchemaBase": "https://w3id.org/cwl/cwl#SchemaBase",
     "SchemaDefRequirement": "https://w3id.org/cwl/cwl#SchemaDefRequirement",
+    "Secrets": "http://commonwl.org/cwltool#Secrets",
     "ShellCommandRequirement": "https://w3id.org/cwl/cwl#ShellCommandRequirement",
+    "ShmSize": "http://commonwl.org/cwltool#ShmSize",
     "Sink": "https://w3id.org/cwl/cwl#Sink",
     "SoftwarePackage": "https://w3id.org/cwl/cwl#SoftwarePackage",
     "SoftwareRequirement": "https://w3id.org/cwl/cwl#SoftwareRequirement",
     "StepInputExpressionRequirement": "https://w3id.org/cwl/cwl#StepInputExpressionRequirement",
     "SubworkflowFeatureRequirement": "https://w3id.org/cwl/cwl#SubworkflowFeatureRequirement",
+    "TimeLimit": "http://commonwl.org/cwltool#TimeLimit",
     "UnionSchema": "https://w3id.org/cwl/salad#UnionSchema",
+    "WorkReuse": "http://commonwl.org/cwltool#WorkReuse",
     "Workflow": "https://w3id.org/cwl/cwl#Workflow",
     "WorkflowOutputParameter": "https://w3id.org/cwl/cwl#WorkflowOutputParameter",
     "WorkflowStep": "https://w3id.org/cwl/cwl#WorkflowStep",
@@ -21174,6 +23885,7 @@ _vocab = {
     "WorkflowStepOutput": "https://w3id.org/cwl/cwl#WorkflowStepOutput",
     "array": "https://w3id.org/cwl/salad#array",
     "boolean": "http://www.w3.org/2001/XMLSchema#boolean",
+    "deep_listing": "http://commonwl.org/cwltool#LoadListingRequirement/loadListing/LoadListingEnum/deep_listing",
     "dotproduct": "https://w3id.org/cwl/cwl#ScatterMethod/dotproduct",
     "double": "http://www.w3.org/2001/XMLSchema#double",
     "draft-2": "https://w3id.org/cwl/cwl#draft-2",
@@ -21195,8 +23907,10 @@ _vocab = {
     "merge_flattened": "https://w3id.org/cwl/cwl#LinkMergeMethod/merge_flattened",
     "merge_nested": "https://w3id.org/cwl/cwl#LinkMergeMethod/merge_nested",
     "nested_crossproduct": "https://w3id.org/cwl/cwl#ScatterMethod/nested_crossproduct",
+    "no_listing": "http://commonwl.org/cwltool#LoadListingRequirement/loadListing/LoadListingEnum/no_listing",
     "null": "https://w3id.org/cwl/salad#null",
     "record": "https://w3id.org/cwl/salad#record",
+    "shallow_listing": "http://commonwl.org/cwltool#LoadListingRequirement/loadListing/LoadListingEnum/shallow_listing",
     "stderr": "https://w3id.org/cwl/cwl#stderr",
     "stdout": "https://w3id.org/cwl/cwl#stdout",
     "string": "http://www.w3.org/2001/XMLSchema#string",
@@ -21207,6 +23921,7 @@ _vocab = {
 _rvocab = {
     "https://w3id.org/cwl/salad#Any": "Any",
     "https://w3id.org/cwl/salad#ArraySchema": "ArraySchema",
+    "http://commonwl.org/cwltool#CUDARequirement": "CUDARequirement",
     "https://w3id.org/cwl/cwl#CWLArraySchema": "CWLArraySchema",
     "https://w3id.org/cwl/cwl#CWLInputFile": "CWLInputFile",
     "https://w3id.org/cwl/cwl#CWLObjectType": "CWLObjectType",
@@ -21241,6 +23956,7 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#File": "File",
     "https://w3id.org/cwl/cwl#InitialWorkDirRequirement": "InitialWorkDirRequirement",
     "https://w3id.org/cwl/cwl#InlineJavascriptRequirement": "InlineJavascriptRequirement",
+    "http://commonwl.org/cwltool#InplaceUpdateRequirement": "InplaceUpdateRequirement",
     "https://w3id.org/cwl/cwl#InputArraySchema": "InputArraySchema",
     "https://w3id.org/cwl/cwl#InputBinding": "InputBinding",
     "https://w3id.org/cwl/cwl#InputEnumSchema": "InputEnumSchema",
@@ -21249,8 +23965,11 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#InputRecordSchema": "InputRecordSchema",
     "https://w3id.org/cwl/cwl#InputSchema": "InputSchema",
     "https://w3id.org/cwl/cwl#LinkMergeMethod": "LinkMergeMethod",
+    "http://commonwl.org/cwltool#LoadListingRequirement": "LoadListingRequirement",
+    "http://commonwl.org/cwltool#MPIRequirement": "MPIRequirement",
     "https://w3id.org/cwl/salad#MapSchema": "MapSchema",
     "https://w3id.org/cwl/cwl#MultipleInputFeatureRequirement": "MultipleInputFeatureRequirement",
+    "http://commonwl.org/cwltool#NetworkAccess": "NetworkAccess",
     "https://w3id.org/cwl/cwl#OutputArraySchema": "OutputArraySchema",
     "https://w3id.org/cwl/cwl#OutputBinding": "OutputBinding",
     "https://w3id.org/cwl/cwl#OutputEnumSchema": "OutputEnumSchema",
@@ -21261,6 +23980,7 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#Parameter": "Parameter",
     "https://w3id.org/cwl/salad#PrimitiveType": "PrimitiveType",
     "https://w3id.org/cwl/cwl#Process": "Process",
+    "http://commonwl.org/cwltool#ProcessGenerator": "ProcessGenerator",
     "https://w3id.org/cwl/cwl#ProcessRequirement": "ProcessRequirement",
     "https://w3id.org/cwl/salad#RecordField": "RecordField",
     "https://w3id.org/cwl/salad#RecordSchema": "RecordSchema",
@@ -21269,13 +23989,17 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#ScatterMethod": "ScatterMethod",
     "https://w3id.org/cwl/cwl#SchemaBase": "SchemaBase",
     "https://w3id.org/cwl/cwl#SchemaDefRequirement": "SchemaDefRequirement",
+    "http://commonwl.org/cwltool#Secrets": "Secrets",
     "https://w3id.org/cwl/cwl#ShellCommandRequirement": "ShellCommandRequirement",
+    "http://commonwl.org/cwltool#ShmSize": "ShmSize",
     "https://w3id.org/cwl/cwl#Sink": "Sink",
     "https://w3id.org/cwl/cwl#SoftwarePackage": "SoftwarePackage",
     "https://w3id.org/cwl/cwl#SoftwareRequirement": "SoftwareRequirement",
     "https://w3id.org/cwl/cwl#StepInputExpressionRequirement": "StepInputExpressionRequirement",
     "https://w3id.org/cwl/cwl#SubworkflowFeatureRequirement": "SubworkflowFeatureRequirement",
+    "http://commonwl.org/cwltool#TimeLimit": "TimeLimit",
     "https://w3id.org/cwl/salad#UnionSchema": "UnionSchema",
+    "http://commonwl.org/cwltool#WorkReuse": "WorkReuse",
     "https://w3id.org/cwl/cwl#Workflow": "Workflow",
     "https://w3id.org/cwl/cwl#WorkflowOutputParameter": "WorkflowOutputParameter",
     "https://w3id.org/cwl/cwl#WorkflowStep": "WorkflowStep",
@@ -21283,6 +24007,7 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#WorkflowStepOutput": "WorkflowStepOutput",
     "https://w3id.org/cwl/salad#array": "array",
     "http://www.w3.org/2001/XMLSchema#boolean": "boolean",
+    "http://commonwl.org/cwltool#LoadListingRequirement/loadListing/LoadListingEnum/deep_listing": "deep_listing",
     "https://w3id.org/cwl/cwl#ScatterMethod/dotproduct": "dotproduct",
     "http://www.w3.org/2001/XMLSchema#double": "double",
     "https://w3id.org/cwl/cwl#draft-2": "draft-2",
@@ -21304,8 +24029,10 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#LinkMergeMethod/merge_flattened": "merge_flattened",
     "https://w3id.org/cwl/cwl#LinkMergeMethod/merge_nested": "merge_nested",
     "https://w3id.org/cwl/cwl#ScatterMethod/nested_crossproduct": "nested_crossproduct",
+    "http://commonwl.org/cwltool#LoadListingRequirement/loadListing/LoadListingEnum/no_listing": "no_listing",
     "https://w3id.org/cwl/salad#null": "null",
     "https://w3id.org/cwl/salad#record": "record",
+    "http://commonwl.org/cwltool#LoadListingRequirement/loadListing/LoadListingEnum/shallow_listing": "shallow_listing",
     "https://w3id.org/cwl/cwl#stderr": "stderr",
     "https://w3id.org/cwl/cwl#stdout": "stdout",
     "http://www.w3.org/2001/XMLSchema#string": "string",
@@ -21579,6 +24306,16 @@ MultipleInputFeatureRequirementLoader = _RecordLoader(
 StepInputExpressionRequirementLoader = _RecordLoader(
     StepInputExpressionRequirement, None, None
 )
+LoadListingRequirementLoader = _RecordLoader(LoadListingRequirement, None, None)
+InplaceUpdateRequirementLoader = _RecordLoader(InplaceUpdateRequirement, None, None)
+SecretsLoader = _RecordLoader(Secrets, None, None)
+TimeLimitLoader = _RecordLoader(TimeLimit, None, None)
+WorkReuseLoader = _RecordLoader(WorkReuse, None, None)
+NetworkAccessLoader = _RecordLoader(NetworkAccess, None, None)
+ProcessGeneratorLoader = _RecordLoader(ProcessGenerator, None, None)
+MPIRequirementLoader = _RecordLoader(MPIRequirement, None, None)
+CUDARequirementLoader = _RecordLoader(CUDARequirement, None, None)
+ShmSizeLoader = _RecordLoader(ShmSize, None, None)
 array_of_strtype = _ArrayLoader(strtype)
 union_of_None_type_or_strtype_or_array_of_strtype = _UnionLoader(
     (
@@ -21909,7 +24646,7 @@ array_of_OutputParameterLoader = _ArrayLoader(OutputParameterLoader)
 idmap_outputs_array_of_OutputParameterLoader = _IdMapLoader(
     array_of_OutputParameterLoader, "id", "type"
 )
-union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _UnionLoader(
+union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader = _UnionLoader(
     (
         InlineJavascriptRequirementLoader,
         SchemaDefRequirementLoader,
@@ -21923,23 +24660,32 @@ union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_Dock
         ScatterFeatureRequirementLoader,
         MultipleInputFeatureRequirementLoader,
         StepInputExpressionRequirementLoader,
+        LoadListingRequirementLoader,
+        InplaceUpdateRequirementLoader,
+        SecretsLoader,
+        TimeLimitLoader,
+        WorkReuseLoader,
+        NetworkAccessLoader,
+        MPIRequirementLoader,
+        CUDARequirementLoader,
+        ShmSizeLoader,
     )
 )
-array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _ArrayLoader(
-    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader
+array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader = _ArrayLoader(
+    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader
 )
-union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _UnionLoader(
+union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader = _UnionLoader(
     (
         None_type,
-        array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+        array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader,
     )
 )
-idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader = _IdMapLoader(
-    union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader = _IdMapLoader(
+    union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader,
     "class",
     "None",
 )
-union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type = _UnionLoader(
+union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type = _UnionLoader(
     (
         InlineJavascriptRequirementLoader,
         SchemaDefRequirementLoader,
@@ -21953,20 +24699,29 @@ union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_Dock
         ScatterFeatureRequirementLoader,
         MultipleInputFeatureRequirementLoader,
         StepInputExpressionRequirementLoader,
+        LoadListingRequirementLoader,
+        InplaceUpdateRequirementLoader,
+        SecretsLoader,
+        TimeLimitLoader,
+        WorkReuseLoader,
+        NetworkAccessLoader,
+        MPIRequirementLoader,
+        CUDARequirementLoader,
+        ShmSizeLoader,
         Any_type,
     )
 )
-array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type = _ArrayLoader(
-    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type
+array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type = _ArrayLoader(
+    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type
 )
-union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type = _UnionLoader(
+union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type = _UnionLoader(
     (
         None_type,
-        array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
+        array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type,
     )
 )
-idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type = _IdMapLoader(
-    union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
+idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type = _IdMapLoader(
+    union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_LoadListingRequirementLoader_or_InplaceUpdateRequirementLoader_or_SecretsLoader_or_TimeLimitLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type,
     "class",
     "None",
 )
@@ -22323,18 +25078,17 @@ union_of_None_type_or_array_of_Any_type = _UnionLoader(
 idmap_hints_union_of_None_type_or_array_of_Any_type = _IdMapLoader(
     union_of_None_type_or_array_of_Any_type, "class", "None"
 )
-union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader = (
-    _UnionLoader(
-        (
-            strtype,
-            CommandLineToolLoader,
-            ExpressionToolLoader,
-            WorkflowLoader,
-        )
+union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader = _UnionLoader(
+    (
+        strtype,
+        CommandLineToolLoader,
+        ExpressionToolLoader,
+        WorkflowLoader,
+        ProcessGeneratorLoader,
     )
 )
-uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_False_False_None_None = _URILoader(
-    union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
+uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_False_False_None_None = _URILoader(
+    union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
     False,
     False,
     None,
@@ -22389,24 +25143,68 @@ StepInputExpressionRequirement_classLoader = _EnumLoader(
 uri_StepInputExpressionRequirement_classLoader_False_True_None_None = _URILoader(
     StepInputExpressionRequirement_classLoader, False, True, None, None
 )
-union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader = _UnionLoader(
+uri_strtype_False_True_None_None = _URILoader(strtype, False, True, None, None)
+LoadListingEnumLoader = _EnumLoader(
+    (
+        "no_listing",
+        "shallow_listing",
+        "deep_listing",
+    ),
+    "LoadListingEnum",
+)
+union_of_LoadListingEnumLoader = _UnionLoader((LoadListingEnumLoader,))
+uri_array_of_strtype_False_False_0_None = _URILoader(
+    array_of_strtype, False, False, 0, None
+)
+union_of_inttype_or_strtype = _UnionLoader(
+    (
+        inttype,
+        strtype,
+    )
+)
+union_of_booltype_or_strtype = _UnionLoader(
+    (
+        booltype,
+        strtype,
+    )
+)
+union_of_inttype_or_ExpressionLoader = _UnionLoader(
+    (
+        inttype,
+        ExpressionLoader,
+    )
+)
+union_of_strtype_or_array_of_strtype = _UnionLoader(
+    (
+        strtype,
+        array_of_strtype,
+    )
+)
+union_of_None_type_or_inttype_or_ExpressionLoader = _UnionLoader(
+    (
+        None_type,
+        inttype,
+        ExpressionLoader,
+    )
+)
+union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader = _UnionLoader(
     (
         CommandLineToolLoader,
         ExpressionToolLoader,
         WorkflowLoader,
+        ProcessGeneratorLoader,
     )
 )
-array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader = (
-    _ArrayLoader(
-        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader
-    )
+array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader = _ArrayLoader(
+    union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader
 )
-union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader = _UnionLoader(
+union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader = _UnionLoader(
     (
         CommandLineToolLoader,
         ExpressionToolLoader,
         WorkflowLoader,
-        array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
+        ProcessGeneratorLoader,
+        array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
     )
 )
 
@@ -22434,7 +25232,7 @@ def load_document(
     if loadingOptions is None:
         loadingOptions = LoadingOptions()
     result, metadata = _document_load(
-        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
+        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
         doc,
         baseuri,
         loadingOptions,
@@ -22453,7 +25251,7 @@ def load_document_with_metadata(
     if loadingOptions is None:
         loadingOptions = LoadingOptions(fileuri=baseuri)
     return _document_load(
-        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
+        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
         doc,
         baseuri,
         loadingOptions,
@@ -22474,7 +25272,7 @@ def load_document_by_string(
         loadingOptions = LoadingOptions(fileuri=uri)
 
     result, metadata = _document_load(
-        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
+        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
         result,
         uri,
         loadingOptions,
@@ -22497,7 +25295,7 @@ def load_document_by_yaml(
         loadingOptions = LoadingOptions(fileuri=uri)
 
     result, metadata = _document_load(
-        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
+        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
         yaml,
         uri,
         loadingOptions,

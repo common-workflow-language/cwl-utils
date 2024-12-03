@@ -36,16 +36,12 @@ def test_static_checker_fail(cwlVersion: str) -> None:
 
         uri = Path(get_data("testdata/checker_wf/broken-wf2.cwl")).resolve().as_uri()
         cwl_obj = load_document_by_uri(uri)
-        with pytest.raises(
-            ValidationException, match="param .* not found in class: CommandLineTool"
-        ):
+        with pytest.raises(ValidationException, match="param .* not found in id: .*"):
             cwl_utils.parser.utils.static_checker(cwl_obj)
 
         uri = Path(get_data("testdata/checker_wf/broken-wf3.cwl")).resolve().as_uri()
         cwl_obj = load_document_by_uri(uri)
-        with pytest.raises(
-            ValidationException, match="param .* not found in class: Workflow"
-        ):
+        with pytest.raises(ValidationException, match="param .* not found in id: .*"):
             cwl_utils.parser.utils.static_checker(cwl_obj)
 
     uri = (
