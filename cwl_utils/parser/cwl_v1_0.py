@@ -11,21 +11,10 @@ import tempfile
 import uuid as _uuid__  # pylint: disable=unused-import # noqa: F401
 import xml.sax  # nosec
 from abc import ABC, abstractmethod
+from collections.abc import MutableMapping, MutableSequence, Sequence
 from io import StringIO
 from itertools import chain
-from typing import (
-    Any,
-    Dict,
-    List,
-    MutableMapping,
-    MutableSequence,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    Union,
-    cast,
-)
+from typing import Any, Optional, Union, cast
 from urllib.parse import quote, urldefrag, urlparse, urlsplit, urlunsplit
 from urllib.request import pathname2url
 
@@ -38,13 +27,13 @@ from schema_salad.fetcher import DefaultFetcher, Fetcher, MemoryCachingFetcher
 from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import CacheType, yaml_no_ts  # requires schema-salad v8.2+
 
-_vocab: Dict[str, str] = {}
-_rvocab: Dict[str, str] = {}
+_vocab: dict[str, str] = {}
+_rvocab: dict[str, str] = {}
 
 _logger = logging.getLogger("salad")
 
 
-IdxType = MutableMapping[str, Tuple[Any, "LoadingOptions"]]
+IdxType = MutableMapping[str, tuple[Any, "LoadingOptions"]]
 
 
 class LoadingOptions:
@@ -56,27 +45,27 @@ class LoadingOptions:
     original_doc: Optional[Any]
     addl_metadata: MutableMapping[str, Any]
     fetcher: Fetcher
-    vocab: Dict[str, str]
-    rvocab: Dict[str, str]
+    vocab: dict[str, str]
+    rvocab: dict[str, str]
     cache: CacheType
-    imports: List[str]
-    includes: List[str]
+    imports: list[str]
+    includes: list[str]
     no_link_check: Optional[bool]
     container: Optional[str]
 
     def __init__(
         self,
         fetcher: Optional[Fetcher] = None,
-        namespaces: Optional[Dict[str, str]] = None,
-        schemas: Optional[List[str]] = None,
+        namespaces: Optional[dict[str, str]] = None,
+        schemas: Optional[list[str]] = None,
         fileuri: Optional[str] = None,
         copyfrom: Optional["LoadingOptions"] = None,
         original_doc: Optional[Any] = None,
-        addl_metadata: Optional[Dict[str, str]] = None,
+        addl_metadata: Optional[dict[str, str]] = None,
         baseuri: Optional[str] = None,
         idx: Optional[IdxType] = None,
-        imports: Optional[List[str]] = None,
-        includes: Optional[List[str]] = None,
+        imports: Optional[list[str]] = None,
+        includes: Optional[list[str]] = None,
         no_link_check: Optional[bool] = None,
         container: Optional[str] = None,
     ) -> None:
@@ -216,16 +205,16 @@ class Saveable(ABC):
     @abstractmethod
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Convert this object to a JSON/YAML friendly dictionary."""
 
 
 def load_field(
-    val: Union[str, Dict[str, str]],
+    val: Union[str, dict[str, str]],
     fieldtype: "_Loader",
     baseuri: str,
     loadingOptions: LoadingOptions,
-    lc: Optional[List[Any]] = None,
+    lc: Optional[list[Any]] = None,
 ) -> Any:
     """Load field."""
     if isinstance(val, MutableMapping):
@@ -252,7 +241,7 @@ def load_field(
 save_type = Optional[Union[MutableMapping[str, Any], MutableSequence[Any], int, float, bool, str]]
 
 
-def extract_type(val_type: Type[Any]) -> str:
+def extract_type(val_type: type[Any]) -> str:
     """Take a type of value, and extracts the value as a string."""
     val_str = str(val_type)
     return val_str.split("'")[1]
@@ -271,7 +260,7 @@ def convert_typing(val_type: str) -> str:
     return val_type
 
 
-def parse_errors(error_message: str) -> Tuple[str, str, str]:
+def parse_errors(error_message: str) -> tuple[str, str, str]:
     """Parse error messages from several loaders into one error message."""
     if not error_message.startswith("Expected"):
         return error_message, "", ""
@@ -431,7 +420,7 @@ class _Loader:
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         pass
 
@@ -443,7 +432,7 @@ class _AnyLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         if doc is not None:
             return doc
@@ -451,7 +440,7 @@ class _AnyLoader(_Loader):
 
 
 class _PrimitiveLoader(_Loader):
-    def __init__(self, tp: Union[type, Tuple[Type[str], Type[str]]]) -> None:
+    def __init__(self, tp: Union[type, tuple[type[str], type[str]]]) -> None:
         self.tp = tp
 
     def load(
@@ -460,7 +449,7 @@ class _PrimitiveLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         if not isinstance(doc, self.tp):
             raise ValidationException(f"Expected a {self.tp} but got {doc.__class__.__name__}")
@@ -480,16 +469,16 @@ class _ArrayLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         if not isinstance(doc, MutableSequence):
             raise ValidationException(
                 f"Value is a {convert_typing(extract_type(type(doc)))}, "
                 f"but valid type for this field is an array."
             )
-        r: List[Any] = []
-        errors: List[SchemaSaladException] = []
-        fields: List[str] = []
+        r: list[Any] = []
+        errors: list[SchemaSaladException] = []
+        fields: list[str] = []
         for i in range(0, len(doc)):
             try:
                 lf = load_field(
@@ -546,7 +535,7 @@ class _MapLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         if not isinstance(doc, MutableMapping):
             raise ValidationException(f"Expected a map, was {type(doc)}")
@@ -554,8 +543,8 @@ class _MapLoader(_Loader):
             loadingOptions = LoadingOptions(
                 copyfrom=loadingOptions, container=self.container, no_link_check=self.no_link_check
             )
-        r: Dict[str, Any] = {}
-        errors: List[SchemaSaladException] = []
+        r: dict[str, Any] = {}
+        errors: list[SchemaSaladException] = []
         for k, v in doc.items():
             try:
                 lf = load_field(v, self.values, baseuri, loadingOptions, lc)
@@ -581,7 +570,7 @@ class _EnumLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         if doc in self.symbols:
             return doc
@@ -601,9 +590,9 @@ class _SecondaryDSLLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
-        r: List[Dict[str, Any]] = []
+        r: list[dict[str, Any]] = []
         if isinstance(doc, MutableSequence):
             for d in doc:
                 if isinstance(d, str):
@@ -612,7 +601,7 @@ class _SecondaryDSLLoader(_Loader):
                     else:
                         r.append({"pattern": d})
                 elif isinstance(d, dict):
-                    new_dict: Dict[str, Any] = {}
+                    new_dict: dict[str, Any] = {}
                     dict_copy = copy.deepcopy(d)
                     if "pattern" in dict_copy:
                         new_dict["pattern"] = dict_copy.pop("pattern")
@@ -666,7 +655,7 @@ class _SecondaryDSLLoader(_Loader):
 class _RecordLoader(_Loader):
     def __init__(
         self,
-        classtype: Type[Saveable],
+        classtype: type[Saveable],
         container: Optional[str] = None,
         no_link_check: Optional[bool] = None,
     ) -> None:
@@ -680,7 +669,7 @@ class _RecordLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         if not isinstance(doc, MutableMapping):
             raise ValidationException(
@@ -698,7 +687,7 @@ class _RecordLoader(_Loader):
 
 
 class _ExpressionLoader(_Loader):
-    def __init__(self, items: Type[str]) -> None:
+    def __init__(self, items: type[str]) -> None:
         self.items = items
 
     def load(
@@ -707,7 +696,7 @@ class _ExpressionLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         if not isinstance(doc, str):
             raise ValidationException(
@@ -731,7 +720,7 @@ class _UnionLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         errors = []
 
@@ -763,7 +752,7 @@ class _UnionLoader(_Loader):
                                 if "id" in lc:
                                     errors.append(
                                         ValidationException(
-                                            f"checking object `{id}`",
+                                            f"checking object `{id}` using `{t}`",
                                             SourceLine(lc, "id", str),
                                             [e],
                                         )
@@ -771,7 +760,7 @@ class _UnionLoader(_Loader):
                                 else:
                                     errors.append(
                                         ValidationException(
-                                            f"checking object `{id}`",
+                                            f"checking object `{id}` using `{t}`",
                                             SourceLine(lc, doc.get("id"), str),
                                             [e],
                                         )
@@ -828,7 +817,7 @@ class _URILoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         if self.no_link_check is not None:
             loadingOptions = LoadingOptions(
@@ -886,7 +875,7 @@ class _TypeDSLLoader(_Loader):
         doc: str,
         baseuri: str,
         loadingOptions: LoadingOptions,
-    ) -> Union[List[Union[Dict[str, Any], str]], Dict[str, Any], str]:
+    ) -> Union[list[Union[dict[str, Any], str]], dict[str, Any], str]:
         doc_ = doc
         optional = False
         if doc_.endswith("?"):
@@ -895,7 +884,7 @@ class _TypeDSLLoader(_Loader):
 
         if doc_.endswith("[]"):
             salad_versions = [int(v) for v in self.salad_version[1:].split(".")]
-            items: Union[List[Union[Dict[str, Any], str]], Dict[str, Any], str] = ""
+            items: Union[list[Union[dict[str, Any], str]], dict[str, Any], str] = ""
             rest = doc_[0:-2]
             if salad_versions < [1, 3]:
                 if rest.endswith("[]"):
@@ -907,7 +896,7 @@ class _TypeDSLLoader(_Loader):
                 items = self.resolve(rest, baseuri, loadingOptions)
                 if isinstance(items, str):
                     items = expand_url(items, baseuri, loadingOptions, False, True, self.refScope)
-            expanded: Union[Dict[str, Any], str] = {"type": "array", "items": items}
+            expanded: Union[dict[str, Any], str] = {"type": "array", "items": items}
         else:
             expanded = expand_url(doc_, baseuri, loadingOptions, False, True, self.refScope)
 
@@ -922,10 +911,10 @@ class _TypeDSLLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         if isinstance(doc, MutableSequence):
-            r: List[Any] = []
+            r: list[Any] = []
             for d in doc:
                 if isinstance(d, str):
                     resolved = self.resolve(d, baseuri, loadingOptions)
@@ -957,10 +946,10 @@ class _IdMapLoader(_Loader):
         baseuri: str,
         loadingOptions: LoadingOptions,
         docRoot: Optional[str] = None,
-        lc: Optional[List[Any]] = None,
+        lc: Optional[list[Any]] = None,
     ) -> Any:
         if isinstance(doc, MutableMapping):
-            r: List[Any] = []
+            r: list[Any] = []
             for k in sorted(doc.keys()):
                 val = doc[k]
                 if isinstance(val, CommentedMap):
@@ -990,7 +979,7 @@ def _document_load(
     baseuri: str,
     loadingOptions: LoadingOptions,
     addl_metadata_fields: Optional[MutableSequence[str]] = None,
-) -> Tuple[Any, LoadingOptions]:
+) -> tuple[Any, LoadingOptions]:
     if isinstance(doc, str):
         return _document_load_by_url(
             loader,
@@ -1059,7 +1048,7 @@ def _document_load_by_url(
     url: str,
     loadingOptions: LoadingOptions,
     addl_metadata_fields: Optional[MutableSequence[str]] = None,
-) -> Tuple[Any, LoadingOptions]:
+) -> tuple[Any, LoadingOptions]:
     if url in loadingOptions.idx:
         return loadingOptions.idx[url]
 
@@ -1101,7 +1090,7 @@ def file_uri(path: str, split_frag: bool = False) -> str:
     return f"file://{urlpath}{frag}"
 
 
-def prefix_url(url: str, namespaces: Dict[str, str]) -> str:
+def prefix_url(url: str, namespaces: dict[str, str]) -> str:
     """Expand short forms into full URLs using the given namespace dictionary."""
     for k, v in namespaces.items():
         if url.startswith(v):
@@ -1178,7 +1167,7 @@ class RecordField(Documented):
         name: Any,
         type_: Any,
         doc: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -1241,13 +1230,17 @@ class RecordField(Documented):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -1258,6 +1251,8 @@ class RecordField(Documented):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -1291,13 +1286,17 @@ class RecordField(Documented):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -1308,6 +1307,8 @@ class RecordField(Documented):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -1333,13 +1334,17 @@ class RecordField(Documented):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -1350,9 +1355,11 @@ class RecordField(Documented):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -1388,8 +1395,8 @@ class RecordField(Documented):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -1425,7 +1432,7 @@ class RecordSchema(Saveable):
         self,
         type_: Any,
         fields: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -1483,13 +1490,17 @@ class RecordSchema(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("fields")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -1500,6 +1511,8 @@ class RecordSchema(Saveable):
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [e],
+                                detailed_message=f"the `fields` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -1525,13 +1538,17 @@ class RecordSchema(Saveable):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -1542,9 +1559,11 @@ class RecordSchema(Saveable):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -1578,8 +1597,8 @@ class RecordSchema(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -1618,7 +1637,7 @@ class EnumSchema(Saveable):
         symbols: Any,
         type_: Any,
         name: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -1681,13 +1700,17 @@ class EnumSchema(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -1698,6 +1721,8 @@ class EnumSchema(Saveable):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -1732,13 +1757,17 @@ class EnumSchema(Saveable):
                     )
                 )
             else:
+                val = _doc.get("symbols")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("symbols"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `symbols` field is not valid because:",
                             SourceLine(_doc, "symbols", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -1749,6 +1778,8 @@ class EnumSchema(Saveable):
                             "the `symbols` field is not valid because:",
                             SourceLine(_doc, "symbols", str),
                             [e],
+                            detailed_message=f"the `symbols` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -1774,13 +1805,17 @@ class EnumSchema(Saveable):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -1791,9 +1826,11 @@ class EnumSchema(Saveable):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -1829,8 +1866,8 @@ class EnumSchema(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -1865,7 +1902,7 @@ class ArraySchema(Saveable):
         self,
         items: Any,
         type_: Any,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -1924,13 +1961,17 @@ class ArraySchema(Saveable):
                     )
                 )
             else:
+                val = _doc.get("items")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -1941,6 +1982,8 @@ class ArraySchema(Saveable):
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [e],
+                            detailed_message=f"the `items` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -1966,13 +2009,17 @@ class ArraySchema(Saveable):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -1983,9 +2030,11 @@ class ArraySchema(Saveable):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -2019,8 +2068,8 @@ class ArraySchema(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -2052,7 +2101,7 @@ class MapSchema(Saveable):
         self,
         type_: Any,
         values: Any,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -2111,13 +2160,17 @@ class MapSchema(Saveable):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -2128,6 +2181,8 @@ class MapSchema(Saveable):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -2153,13 +2208,17 @@ class MapSchema(Saveable):
                     )
                 )
             else:
+                val = _doc.get("values")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("values"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `values` field is not valid because:",
                             SourceLine(_doc, "values", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -2170,9 +2229,11 @@ class MapSchema(Saveable):
                             "the `values` field is not valid because:",
                             SourceLine(_doc, "values", str),
                             [e],
+                            detailed_message=f"the `values` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -2206,8 +2267,8 @@ class MapSchema(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -2239,7 +2300,7 @@ class UnionSchema(Saveable):
         self,
         names: Any,
         type_: Any,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -2298,13 +2359,17 @@ class UnionSchema(Saveable):
                     )
                 )
             else:
+                val = _doc.get("names")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("names"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `names` field is not valid because:",
                             SourceLine(_doc, "names", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -2315,6 +2380,8 @@ class UnionSchema(Saveable):
                             "the `names` field is not valid because:",
                             SourceLine(_doc, "names", str),
                             [e],
+                            detailed_message=f"the `names` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -2340,13 +2407,17 @@ class UnionSchema(Saveable):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -2357,9 +2428,11 @@ class UnionSchema(Saveable):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -2393,8 +2466,8 @@ class UnionSchema(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -2426,7 +2499,7 @@ class CWLArraySchema(ArraySchema):
         self,
         items: Any,
         type_: Any,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -2485,13 +2558,17 @@ class CWLArraySchema(ArraySchema):
                     )
                 )
             else:
+                val = _doc.get("items")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -2502,6 +2579,8 @@ class CWLArraySchema(ArraySchema):
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [e],
+                            detailed_message=f"the `items` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -2527,13 +2606,17 @@ class CWLArraySchema(ArraySchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -2544,9 +2627,11 @@ class CWLArraySchema(ArraySchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -2580,8 +2665,8 @@ class CWLArraySchema(ArraySchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -2614,7 +2699,7 @@ class CWLRecordField(RecordField):
         name: Any,
         type_: Any,
         doc: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -2677,13 +2762,17 @@ class CWLRecordField(RecordField):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -2694,6 +2783,8 @@ class CWLRecordField(RecordField):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -2727,13 +2818,17 @@ class CWLRecordField(RecordField):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -2744,6 +2839,8 @@ class CWLRecordField(RecordField):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -2769,13 +2866,17 @@ class CWLRecordField(RecordField):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -2786,9 +2887,11 @@ class CWLRecordField(RecordField):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -2824,8 +2927,8 @@ class CWLRecordField(RecordField):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -2861,7 +2964,7 @@ class CWLRecordSchema(RecordSchema):
         self,
         type_: Any,
         fields: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -2919,13 +3022,17 @@ class CWLRecordSchema(RecordSchema):
                         )
                     )
                 else:
+                    val = _doc.get("fields")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -2936,6 +3043,8 @@ class CWLRecordSchema(RecordSchema):
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [e],
+                                detailed_message=f"the `fields` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -2961,13 +3070,17 @@ class CWLRecordSchema(RecordSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -2978,9 +3091,11 @@ class CWLRecordSchema(RecordSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -3014,8 +3129,8 @@ class CWLRecordSchema(RecordSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -3127,7 +3242,7 @@ class File(Saveable):
         secondaryFiles: Optional[Any] = None,
         format: Optional[Any] = None,
         contents: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -3229,13 +3344,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("location")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("location"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `location` field is not valid because:",
                                 SourceLine(_doc, "location", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3246,6 +3365,8 @@ class File(Saveable):
                                 "the `location` field is not valid because:",
                                 SourceLine(_doc, "location", str),
                                 [e],
+                                detailed_message=f"the `location` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         path = None
@@ -3270,13 +3391,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("path")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("path"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `path` field is not valid because:",
                                 SourceLine(_doc, "path", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3287,6 +3412,8 @@ class File(Saveable):
                                 "the `path` field is not valid because:",
                                 SourceLine(_doc, "path", str),
                                 [e],
+                                detailed_message=f"the `path` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         basename = None
@@ -3311,13 +3438,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("basename")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("basename"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `basename` field is not valid because:",
                                 SourceLine(_doc, "basename", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3328,6 +3459,8 @@ class File(Saveable):
                                 "the `basename` field is not valid because:",
                                 SourceLine(_doc, "basename", str),
                                 [e],
+                                detailed_message=f"the `basename` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         dirname = None
@@ -3352,13 +3485,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("dirname")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("dirname"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `dirname` field is not valid because:",
                                 SourceLine(_doc, "dirname", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3369,6 +3506,8 @@ class File(Saveable):
                                 "the `dirname` field is not valid because:",
                                 SourceLine(_doc, "dirname", str),
                                 [e],
+                                detailed_message=f"the `dirname` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         nameroot = None
@@ -3393,13 +3532,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("nameroot")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("nameroot"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `nameroot` field is not valid because:",
                                 SourceLine(_doc, "nameroot", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3410,6 +3553,8 @@ class File(Saveable):
                                 "the `nameroot` field is not valid because:",
                                 SourceLine(_doc, "nameroot", str),
                                 [e],
+                                detailed_message=f"the `nameroot` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         nameext = None
@@ -3434,13 +3579,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("nameext")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("nameext"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `nameext` field is not valid because:",
                                 SourceLine(_doc, "nameext", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3451,6 +3600,8 @@ class File(Saveable):
                                 "the `nameext` field is not valid because:",
                                 SourceLine(_doc, "nameext", str),
                                 [e],
+                                detailed_message=f"the `nameext` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         checksum = None
@@ -3475,13 +3626,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("checksum")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("checksum"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `checksum` field is not valid because:",
                                 SourceLine(_doc, "checksum", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3492,6 +3647,8 @@ class File(Saveable):
                                 "the `checksum` field is not valid because:",
                                 SourceLine(_doc, "checksum", str),
                                 [e],
+                                detailed_message=f"the `checksum` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         size = None
@@ -3516,13 +3673,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("size")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("size"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `size` field is not valid because:",
                                 SourceLine(_doc, "size", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3533,6 +3694,8 @@ class File(Saveable):
                                 "the `size` field is not valid because:",
                                 SourceLine(_doc, "size", str),
                                 [e],
+                                detailed_message=f"the `size` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         secondaryFiles = None
@@ -3557,13 +3720,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("secondaryFiles")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3574,6 +3741,8 @@ class File(Saveable):
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [e],
+                                detailed_message=f"the `secondaryFiles` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         format = None
@@ -3598,13 +3767,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("format")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3615,6 +3788,8 @@ class File(Saveable):
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [e],
+                                detailed_message=f"the `format` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         contents = None
@@ -3639,13 +3814,17 @@ class File(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("contents")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("contents"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `contents` field is not valid because:",
                                 SourceLine(_doc, "contents", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3656,9 +3835,11 @@ class File(Saveable):
                                 "the `contents` field is not valid because:",
                                 SourceLine(_doc, "contents", str),
                                 [e],
+                                detailed_message=f"the `contents` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -3701,8 +3882,8 @@ class File(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -3837,7 +4018,7 @@ class Directory(Saveable):
         path: Optional[Any] = None,
         basename: Optional[Any] = None,
         listing: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -3912,13 +4093,17 @@ class Directory(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("location")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("location"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `location` field is not valid because:",
                                 SourceLine(_doc, "location", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3929,6 +4114,8 @@ class Directory(Saveable):
                                 "the `location` field is not valid because:",
                                 SourceLine(_doc, "location", str),
                                 [e],
+                                detailed_message=f"the `location` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         path = None
@@ -3953,13 +4140,17 @@ class Directory(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("path")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("path"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `path` field is not valid because:",
                                 SourceLine(_doc, "path", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -3970,6 +4161,8 @@ class Directory(Saveable):
                                 "the `path` field is not valid because:",
                                 SourceLine(_doc, "path", str),
                                 [e],
+                                detailed_message=f"the `path` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         basename = None
@@ -3994,13 +4187,17 @@ class Directory(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("basename")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("basename"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `basename` field is not valid because:",
                                 SourceLine(_doc, "basename", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -4011,6 +4208,8 @@ class Directory(Saveable):
                                 "the `basename` field is not valid because:",
                                 SourceLine(_doc, "basename", str),
                                 [e],
+                                detailed_message=f"the `basename` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         listing = None
@@ -4035,13 +4234,17 @@ class Directory(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("listing")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("listing"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `listing` field is not valid because:",
                                 SourceLine(_doc, "listing", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -4052,9 +4255,11 @@ class Directory(Saveable):
                                 "the `listing` field is not valid because:",
                                 SourceLine(_doc, "listing", str),
                                 [e],
+                                detailed_message=f"the `listing` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -4090,8 +4295,8 @@ class Directory(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -4164,7 +4369,7 @@ class InputRecordField(CWLRecordField):
         doc: Optional[Any] = None,
         inputBinding: Optional[Any] = None,
         label: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -4231,13 +4436,17 @@ class InputRecordField(CWLRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -4248,6 +4457,8 @@ class InputRecordField(CWLRecordField):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -4281,13 +4492,17 @@ class InputRecordField(CWLRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -4298,6 +4513,8 @@ class InputRecordField(CWLRecordField):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -4323,13 +4540,17 @@ class InputRecordField(CWLRecordField):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -4340,6 +4561,8 @@ class InputRecordField(CWLRecordField):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         inputBinding = None
@@ -4364,13 +4587,17 @@ class InputRecordField(CWLRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("inputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -4381,6 +4608,8 @@ class InputRecordField(CWLRecordField):
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [e],
+                                detailed_message=f"the `inputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         label = None
@@ -4405,13 +4634,17 @@ class InputRecordField(CWLRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -4422,9 +4655,11 @@ class InputRecordField(CWLRecordField):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -4462,8 +4697,8 @@ class InputRecordField(CWLRecordField):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -4512,7 +4747,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
         fields: Optional[Any] = None,
         label: Optional[Any] = None,
         name: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -4577,13 +4812,17 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -4594,6 +4833,8 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -4627,13 +4868,17 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("fields")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -4644,6 +4889,8 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [e],
+                                detailed_message=f"the `fields` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -4669,13 +4916,17 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -4686,6 +4937,8 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -4710,13 +4963,17 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -4727,9 +4984,11 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -4766,8 +5025,8 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -4810,7 +5069,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
         name: Optional[Any] = None,
         label: Optional[Any] = None,
         inputBinding: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -4879,13 +5138,17 @@ class InputEnumSchema(EnumSchema, InputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -4896,6 +5159,8 @@ class InputEnumSchema(EnumSchema, InputSchema):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -4930,13 +5195,17 @@ class InputEnumSchema(EnumSchema, InputSchema):
                     )
                 )
             else:
+                val = _doc.get("symbols")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("symbols"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `symbols` field is not valid because:",
                             SourceLine(_doc, "symbols", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -4947,6 +5216,8 @@ class InputEnumSchema(EnumSchema, InputSchema):
                             "the `symbols` field is not valid because:",
                             SourceLine(_doc, "symbols", str),
                             [e],
+                            detailed_message=f"the `symbols` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -4972,13 +5243,17 @@ class InputEnumSchema(EnumSchema, InputSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -4989,6 +5264,8 @@ class InputEnumSchema(EnumSchema, InputSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -5013,13 +5290,17 @@ class InputEnumSchema(EnumSchema, InputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -5030,6 +5311,8 @@ class InputEnumSchema(EnumSchema, InputSchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         inputBinding = None
@@ -5054,13 +5337,17 @@ class InputEnumSchema(EnumSchema, InputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("inputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -5071,9 +5358,11 @@ class InputEnumSchema(EnumSchema, InputSchema):
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [e],
+                                detailed_message=f"the `inputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -5111,8 +5400,8 @@ class InputEnumSchema(EnumSchema, InputSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -5160,7 +5449,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         type_: Any,
         label: Optional[Any] = None,
         inputBinding: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -5226,13 +5515,17 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                     )
                 )
             else:
+                val = _doc.get("items")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -5243,6 +5536,8 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [e],
+                            detailed_message=f"the `items` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -5268,13 +5563,17 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -5285,6 +5584,8 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -5309,13 +5610,17 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -5326,6 +5631,8 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         inputBinding = None
@@ -5350,13 +5657,17 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("inputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -5367,9 +5678,11 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [e],
+                                detailed_message=f"the `inputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -5405,8 +5718,8 @@ class InputArraySchema(CWLArraySchema, InputSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -5451,7 +5764,7 @@ class OutputRecordField(CWLRecordField):
         type_: Any,
         doc: Optional[Any] = None,
         outputBinding: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -5516,13 +5829,17 @@ class OutputRecordField(CWLRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -5533,6 +5850,8 @@ class OutputRecordField(CWLRecordField):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -5566,13 +5885,17 @@ class OutputRecordField(CWLRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -5583,6 +5906,8 @@ class OutputRecordField(CWLRecordField):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -5608,13 +5933,17 @@ class OutputRecordField(CWLRecordField):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -5625,6 +5954,8 @@ class OutputRecordField(CWLRecordField):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         outputBinding = None
@@ -5649,13 +5980,17 @@ class OutputRecordField(CWLRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("outputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -5666,9 +6001,11 @@ class OutputRecordField(CWLRecordField):
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [e],
+                                detailed_message=f"the `outputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -5705,8 +6042,8 @@ class OutputRecordField(CWLRecordField):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -5750,7 +6087,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
         type_: Any,
         fields: Optional[Any] = None,
         label: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -5813,13 +6150,17 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("fields")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -5830,6 +6171,8 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [e],
+                                detailed_message=f"the `fields` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -5855,13 +6198,17 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -5872,6 +6219,8 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -5896,13 +6245,17 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -5913,9 +6266,11 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -5950,8 +6305,8 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -5991,7 +6346,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         name: Optional[Any] = None,
         label: Optional[Any] = None,
         outputBinding: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -6060,13 +6415,17 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6077,6 +6436,8 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -6111,13 +6472,17 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                     )
                 )
             else:
+                val = _doc.get("symbols")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("symbols"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `symbols` field is not valid because:",
                             SourceLine(_doc, "symbols", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -6128,6 +6493,8 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                             "the `symbols` field is not valid because:",
                             SourceLine(_doc, "symbols", str),
                             [e],
+                            detailed_message=f"the `symbols` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -6153,13 +6520,17 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -6170,6 +6541,8 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -6194,13 +6567,17 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6211,6 +6588,8 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outputBinding = None
@@ -6235,13 +6614,17 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("outputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6252,9 +6635,11 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [e],
+                                detailed_message=f"the `outputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -6292,8 +6677,8 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -6341,7 +6726,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         type_: Any,
         label: Optional[Any] = None,
         outputBinding: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -6407,13 +6792,17 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                     )
                 )
             else:
+                val = _doc.get("items")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -6424,6 +6813,8 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [e],
+                            detailed_message=f"the `items` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -6449,13 +6840,17 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -6466,6 +6861,8 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -6490,13 +6887,17 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6507,6 +6908,8 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outputBinding = None
@@ -6531,13 +6934,17 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                         )
                     )
                 else:
+                    val = _doc.get("outputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6548,9 +6955,11 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [e],
+                                detailed_message=f"the `outputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -6586,8 +6995,8 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -6637,7 +7046,7 @@ class InputParameter(Parameter):
         inputBinding: Optional[Any] = None,
         default: Optional[Any] = None,
         type_: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -6724,13 +7133,17 @@ class InputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6741,6 +7154,8 @@ class InputParameter(Parameter):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -6774,13 +7189,17 @@ class InputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6791,6 +7210,8 @@ class InputParameter(Parameter):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         secondaryFiles = None
@@ -6815,13 +7236,17 @@ class InputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("secondaryFiles")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6832,6 +7257,8 @@ class InputParameter(Parameter):
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [e],
+                                detailed_message=f"the `secondaryFiles` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         streamable = None
@@ -6856,13 +7283,17 @@ class InputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("streamable")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6873,6 +7304,8 @@ class InputParameter(Parameter):
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [e],
+                                detailed_message=f"the `streamable` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         doc = None
@@ -6897,13 +7330,17 @@ class InputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6914,6 +7351,8 @@ class InputParameter(Parameter):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         format = None
@@ -6938,13 +7377,17 @@ class InputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("format")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6955,6 +7398,8 @@ class InputParameter(Parameter):
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [e],
+                                detailed_message=f"the `format` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         inputBinding = None
@@ -6979,13 +7424,17 @@ class InputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("inputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -6996,6 +7445,8 @@ class InputParameter(Parameter):
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [e],
+                                detailed_message=f"the `inputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         default = None
@@ -7020,13 +7471,17 @@ class InputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("default")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("default"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `default` field is not valid because:",
                                 SourceLine(_doc, "default", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -7037,6 +7492,8 @@ class InputParameter(Parameter):
                                 "the `default` field is not valid because:",
                                 SourceLine(_doc, "default", str),
                                 [e],
+                                detailed_message=f"the `default` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         type_ = None
@@ -7061,13 +7518,17 @@ class InputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("type")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `type` field is not valid because:",
                                 SourceLine(_doc, "type", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -7078,9 +7539,11 @@ class InputParameter(Parameter):
                                 "the `type` field is not valid because:",
                                 SourceLine(_doc, "type", str),
                                 [e],
+                                detailed_message=f"the `type` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -7122,8 +7585,8 @@ class InputParameter(Parameter):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -7208,7 +7671,7 @@ class OutputParameter(Parameter):
         doc: Optional[Any] = None,
         outputBinding: Optional[Any] = None,
         format: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -7289,13 +7752,17 @@ class OutputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -7306,6 +7773,8 @@ class OutputParameter(Parameter):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -7339,13 +7808,17 @@ class OutputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -7356,6 +7829,8 @@ class OutputParameter(Parameter):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         secondaryFiles = None
@@ -7380,13 +7855,17 @@ class OutputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("secondaryFiles")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -7397,6 +7876,8 @@ class OutputParameter(Parameter):
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [e],
+                                detailed_message=f"the `secondaryFiles` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         streamable = None
@@ -7421,13 +7902,17 @@ class OutputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("streamable")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -7438,6 +7923,8 @@ class OutputParameter(Parameter):
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [e],
+                                detailed_message=f"the `streamable` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         doc = None
@@ -7462,13 +7949,17 @@ class OutputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -7479,6 +7970,8 @@ class OutputParameter(Parameter):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outputBinding = None
@@ -7503,13 +7996,17 @@ class OutputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("outputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -7520,6 +8017,8 @@ class OutputParameter(Parameter):
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [e],
+                                detailed_message=f"the `outputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         format = None
@@ -7544,13 +8043,17 @@ class OutputParameter(Parameter):
                         )
                     )
                 else:
+                    val = _doc.get("format")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -7561,9 +8064,11 @@ class OutputParameter(Parameter):
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [e],
+                                detailed_message=f"the `format` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -7603,8 +8108,8 @@ class OutputParameter(Parameter):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -7706,7 +8211,7 @@ class InlineJavascriptRequirement(ProcessRequirement):
     def __init__(
         self,
         expressionLib: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -7773,13 +8278,17 @@ class InlineJavascriptRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("expressionLib")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("expressionLib"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `expressionLib` field is not valid because:",
                                 SourceLine(_doc, "expressionLib", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -7790,9 +8299,11 @@ class InlineJavascriptRequirement(ProcessRequirement):
                                 "the `expressionLib` field is not valid because:",
                                 SourceLine(_doc, "expressionLib", str),
                                 [e],
+                                detailed_message=f"the `expressionLib` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -7825,8 +8336,8 @@ class InlineJavascriptRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -7870,7 +8381,7 @@ class SchemaDefRequirement(ProcessRequirement):
     def __init__(
         self,
         types: Any,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -7935,13 +8446,17 @@ class SchemaDefRequirement(ProcessRequirement):
                     )
                 )
             else:
+                val = _doc.get("types")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("types"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `types` field is not valid because:",
                             SourceLine(_doc, "types", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -7952,9 +8467,11 @@ class SchemaDefRequirement(ProcessRequirement):
                             "the `types` field is not valid because:",
                             SourceLine(_doc, "types", str),
                             [e],
+                            detailed_message=f"the `types` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -7987,8 +8504,8 @@ class SchemaDefRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -8026,7 +8543,7 @@ class EnvironmentDef(Saveable):
         self,
         envName: Any,
         envValue: Any,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -8087,13 +8604,17 @@ class EnvironmentDef(Saveable):
                     )
                 )
             else:
+                val = _doc.get("envName")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("envName"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `envName` field is not valid because:",
                             SourceLine(_doc, "envName", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -8104,6 +8625,8 @@ class EnvironmentDef(Saveable):
                             "the `envName` field is not valid because:",
                             SourceLine(_doc, "envName", str),
                             [e],
+                            detailed_message=f"the `envName` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -8129,13 +8652,17 @@ class EnvironmentDef(Saveable):
                     )
                 )
             else:
+                val = _doc.get("envValue")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("envValue"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `envValue` field is not valid because:",
                             SourceLine(_doc, "envValue", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -8146,9 +8673,11 @@ class EnvironmentDef(Saveable):
                             "the `envValue` field is not valid because:",
                             SourceLine(_doc, "envValue", str),
                             [e],
+                            detailed_message=f"the `envValue` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -8182,8 +8711,8 @@ class EnvironmentDef(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -8260,7 +8789,7 @@ class CommandLineBinding(InputBinding):
         itemSeparator: Optional[Any] = None,
         valueFrom: Optional[Any] = None,
         shellQuote: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -8341,13 +8870,17 @@ class CommandLineBinding(InputBinding):
                         )
                     )
                 else:
+                    val = _doc.get("loadContents")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("loadContents"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `loadContents` field is not valid because:",
                                 SourceLine(_doc, "loadContents", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -8358,6 +8891,8 @@ class CommandLineBinding(InputBinding):
                                 "the `loadContents` field is not valid because:",
                                 SourceLine(_doc, "loadContents", str),
                                 [e],
+                                detailed_message=f"the `loadContents` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         position = None
@@ -8382,13 +8917,17 @@ class CommandLineBinding(InputBinding):
                         )
                     )
                 else:
+                    val = _doc.get("position")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("position"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `position` field is not valid because:",
                                 SourceLine(_doc, "position", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -8399,6 +8938,8 @@ class CommandLineBinding(InputBinding):
                                 "the `position` field is not valid because:",
                                 SourceLine(_doc, "position", str),
                                 [e],
+                                detailed_message=f"the `position` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         prefix = None
@@ -8423,13 +8964,17 @@ class CommandLineBinding(InputBinding):
                         )
                     )
                 else:
+                    val = _doc.get("prefix")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("prefix"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `prefix` field is not valid because:",
                                 SourceLine(_doc, "prefix", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -8440,6 +8985,8 @@ class CommandLineBinding(InputBinding):
                                 "the `prefix` field is not valid because:",
                                 SourceLine(_doc, "prefix", str),
                                 [e],
+                                detailed_message=f"the `prefix` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         separate = None
@@ -8464,13 +9011,17 @@ class CommandLineBinding(InputBinding):
                         )
                     )
                 else:
+                    val = _doc.get("separate")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("separate"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `separate` field is not valid because:",
                                 SourceLine(_doc, "separate", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -8481,6 +9032,8 @@ class CommandLineBinding(InputBinding):
                                 "the `separate` field is not valid because:",
                                 SourceLine(_doc, "separate", str),
                                 [e],
+                                detailed_message=f"the `separate` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         itemSeparator = None
@@ -8505,13 +9058,17 @@ class CommandLineBinding(InputBinding):
                         )
                     )
                 else:
+                    val = _doc.get("itemSeparator")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("itemSeparator"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `itemSeparator` field is not valid because:",
                                 SourceLine(_doc, "itemSeparator", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -8522,6 +9079,8 @@ class CommandLineBinding(InputBinding):
                                 "the `itemSeparator` field is not valid because:",
                                 SourceLine(_doc, "itemSeparator", str),
                                 [e],
+                                detailed_message=f"the `itemSeparator` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         valueFrom = None
@@ -8546,13 +9105,17 @@ class CommandLineBinding(InputBinding):
                         )
                     )
                 else:
+                    val = _doc.get("valueFrom")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("valueFrom"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `valueFrom` field is not valid because:",
                                 SourceLine(_doc, "valueFrom", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -8563,6 +9126,8 @@ class CommandLineBinding(InputBinding):
                                 "the `valueFrom` field is not valid because:",
                                 SourceLine(_doc, "valueFrom", str),
                                 [e],
+                                detailed_message=f"the `valueFrom` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         shellQuote = None
@@ -8587,13 +9152,17 @@ class CommandLineBinding(InputBinding):
                         )
                     )
                 else:
+                    val = _doc.get("shellQuote")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("shellQuote"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `shellQuote` field is not valid because:",
                                 SourceLine(_doc, "shellQuote", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -8604,9 +9173,11 @@ class CommandLineBinding(InputBinding):
                                 "the `shellQuote` field is not valid because:",
                                 SourceLine(_doc, "shellQuote", str),
                                 [e],
+                                detailed_message=f"the `shellQuote` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -8645,8 +9216,8 @@ class CommandLineBinding(InputBinding):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -8736,7 +9307,7 @@ class CommandOutputBinding(OutputBinding):
         glob: Optional[Any] = None,
         loadContents: Optional[Any] = None,
         outputEval: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -8799,13 +9370,17 @@ class CommandOutputBinding(OutputBinding):
                         )
                     )
                 else:
+                    val = _doc.get("glob")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("glob"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `glob` field is not valid because:",
                                 SourceLine(_doc, "glob", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -8816,6 +9391,8 @@ class CommandOutputBinding(OutputBinding):
                                 "the `glob` field is not valid because:",
                                 SourceLine(_doc, "glob", str),
                                 [e],
+                                detailed_message=f"the `glob` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         loadContents = None
@@ -8840,13 +9417,17 @@ class CommandOutputBinding(OutputBinding):
                         )
                     )
                 else:
+                    val = _doc.get("loadContents")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("loadContents"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `loadContents` field is not valid because:",
                                 SourceLine(_doc, "loadContents", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -8857,6 +9438,8 @@ class CommandOutputBinding(OutputBinding):
                                 "the `loadContents` field is not valid because:",
                                 SourceLine(_doc, "loadContents", str),
                                 [e],
+                                detailed_message=f"the `loadContents` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outputEval = None
@@ -8881,13 +9464,17 @@ class CommandOutputBinding(OutputBinding):
                         )
                     )
                 else:
+                    val = _doc.get("outputEval")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputEval"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputEval` field is not valid because:",
                                 SourceLine(_doc, "outputEval", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -8898,9 +9485,11 @@ class CommandOutputBinding(OutputBinding):
                                 "the `outputEval` field is not valid because:",
                                 SourceLine(_doc, "outputEval", str),
                                 [e],
+                                detailed_message=f"the `outputEval` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -8935,8 +9524,8 @@ class CommandOutputBinding(OutputBinding):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -8982,7 +9571,7 @@ class CommandInputRecordField(InputRecordField):
         doc: Optional[Any] = None,
         inputBinding: Optional[Any] = None,
         label: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -9049,13 +9638,17 @@ class CommandInputRecordField(InputRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -9066,6 +9659,8 @@ class CommandInputRecordField(InputRecordField):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -9099,13 +9694,17 @@ class CommandInputRecordField(InputRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -9116,6 +9715,8 @@ class CommandInputRecordField(InputRecordField):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -9141,13 +9742,17 @@ class CommandInputRecordField(InputRecordField):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -9158,6 +9763,8 @@ class CommandInputRecordField(InputRecordField):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         inputBinding = None
@@ -9182,13 +9789,17 @@ class CommandInputRecordField(InputRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("inputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -9199,6 +9810,8 @@ class CommandInputRecordField(InputRecordField):
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [e],
+                                detailed_message=f"the `inputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         label = None
@@ -9223,13 +9836,17 @@ class CommandInputRecordField(InputRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -9240,9 +9857,11 @@ class CommandInputRecordField(InputRecordField):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -9280,8 +9899,8 @@ class CommandInputRecordField(InputRecordField):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -9330,7 +9949,7 @@ class CommandInputRecordSchema(InputRecordSchema):
         fields: Optional[Any] = None,
         label: Optional[Any] = None,
         name: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -9395,13 +10014,17 @@ class CommandInputRecordSchema(InputRecordSchema):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -9412,6 +10035,8 @@ class CommandInputRecordSchema(InputRecordSchema):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -9445,13 +10070,17 @@ class CommandInputRecordSchema(InputRecordSchema):
                         )
                     )
                 else:
+                    val = _doc.get("fields")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -9462,6 +10091,8 @@ class CommandInputRecordSchema(InputRecordSchema):
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [e],
+                                detailed_message=f"the `fields` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -9487,13 +10118,17 @@ class CommandInputRecordSchema(InputRecordSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -9504,6 +10139,8 @@ class CommandInputRecordSchema(InputRecordSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -9528,13 +10165,17 @@ class CommandInputRecordSchema(InputRecordSchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -9545,9 +10186,11 @@ class CommandInputRecordSchema(InputRecordSchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -9584,8 +10227,8 @@ class CommandInputRecordSchema(InputRecordSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -9628,7 +10271,7 @@ class CommandInputEnumSchema(InputEnumSchema):
         name: Optional[Any] = None,
         label: Optional[Any] = None,
         inputBinding: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -9697,13 +10340,17 @@ class CommandInputEnumSchema(InputEnumSchema):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -9714,6 +10361,8 @@ class CommandInputEnumSchema(InputEnumSchema):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -9748,13 +10397,17 @@ class CommandInputEnumSchema(InputEnumSchema):
                     )
                 )
             else:
+                val = _doc.get("symbols")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("symbols"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `symbols` field is not valid because:",
                             SourceLine(_doc, "symbols", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -9765,6 +10418,8 @@ class CommandInputEnumSchema(InputEnumSchema):
                             "the `symbols` field is not valid because:",
                             SourceLine(_doc, "symbols", str),
                             [e],
+                            detailed_message=f"the `symbols` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -9790,13 +10445,17 @@ class CommandInputEnumSchema(InputEnumSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -9807,6 +10466,8 @@ class CommandInputEnumSchema(InputEnumSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -9831,13 +10492,17 @@ class CommandInputEnumSchema(InputEnumSchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -9848,6 +10513,8 @@ class CommandInputEnumSchema(InputEnumSchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         inputBinding = None
@@ -9872,13 +10539,17 @@ class CommandInputEnumSchema(InputEnumSchema):
                         )
                     )
                 else:
+                    val = _doc.get("inputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -9889,9 +10560,11 @@ class CommandInputEnumSchema(InputEnumSchema):
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [e],
+                                detailed_message=f"the `inputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -9929,8 +10602,8 @@ class CommandInputEnumSchema(InputEnumSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -9978,7 +10651,7 @@ class CommandInputArraySchema(InputArraySchema):
         type_: Any,
         label: Optional[Any] = None,
         inputBinding: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -10044,13 +10717,17 @@ class CommandInputArraySchema(InputArraySchema):
                     )
                 )
             else:
+                val = _doc.get("items")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -10061,6 +10738,8 @@ class CommandInputArraySchema(InputArraySchema):
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [e],
+                            detailed_message=f"the `items` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -10086,13 +10765,17 @@ class CommandInputArraySchema(InputArraySchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -10103,6 +10786,8 @@ class CommandInputArraySchema(InputArraySchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -10127,13 +10812,17 @@ class CommandInputArraySchema(InputArraySchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -10144,6 +10833,8 @@ class CommandInputArraySchema(InputArraySchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         inputBinding = None
@@ -10168,13 +10859,17 @@ class CommandInputArraySchema(InputArraySchema):
                         )
                     )
                 else:
+                    val = _doc.get("inputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -10185,9 +10880,11 @@ class CommandInputArraySchema(InputArraySchema):
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [e],
+                                detailed_message=f"the `inputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -10223,8 +10920,8 @@ class CommandInputArraySchema(InputArraySchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -10269,7 +10966,7 @@ class CommandOutputRecordField(OutputRecordField):
         type_: Any,
         doc: Optional[Any] = None,
         outputBinding: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -10334,13 +11031,17 @@ class CommandOutputRecordField(OutputRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -10351,6 +11052,8 @@ class CommandOutputRecordField(OutputRecordField):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -10384,13 +11087,17 @@ class CommandOutputRecordField(OutputRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -10401,6 +11108,8 @@ class CommandOutputRecordField(OutputRecordField):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -10426,13 +11135,17 @@ class CommandOutputRecordField(OutputRecordField):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -10443,6 +11156,8 @@ class CommandOutputRecordField(OutputRecordField):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         outputBinding = None
@@ -10467,13 +11182,17 @@ class CommandOutputRecordField(OutputRecordField):
                         )
                     )
                 else:
+                    val = _doc.get("outputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -10484,9 +11203,11 @@ class CommandOutputRecordField(OutputRecordField):
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [e],
+                                detailed_message=f"the `outputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -10523,8 +11244,8 @@ class CommandOutputRecordField(OutputRecordField):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -10569,7 +11290,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         fields: Optional[Any] = None,
         label: Optional[Any] = None,
         name: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -10634,13 +11355,17 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -10651,6 +11376,8 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -10684,13 +11411,17 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                         )
                     )
                 else:
+                    val = _doc.get("fields")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("fields"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -10701,6 +11432,8 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                                 "the `fields` field is not valid because:",
                                 SourceLine(_doc, "fields", str),
                                 [e],
+                                detailed_message=f"the `fields` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -10726,13 +11459,17 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -10743,6 +11480,8 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -10767,13 +11506,17 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -10784,9 +11527,11 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -10823,8 +11568,8 @@ class CommandOutputRecordSchema(OutputRecordSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -10867,7 +11612,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         name: Optional[Any] = None,
         label: Optional[Any] = None,
         outputBinding: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -10936,13 +11681,17 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                         )
                     )
                 else:
+                    val = _doc.get("name")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("name"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -10953,6 +11702,8 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                                 "the `name` field is not valid because:",
                                 SourceLine(_doc, "name", str),
                                 [e],
+                                detailed_message=f"the `name` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -10987,13 +11738,17 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                     )
                 )
             else:
+                val = _doc.get("symbols")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("symbols"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `symbols` field is not valid because:",
                             SourceLine(_doc, "symbols", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -11004,6 +11759,8 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                             "the `symbols` field is not valid because:",
                             SourceLine(_doc, "symbols", str),
                             [e],
+                            detailed_message=f"the `symbols` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -11029,13 +11786,17 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -11046,6 +11807,8 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -11070,13 +11833,17 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11087,6 +11854,8 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outputBinding = None
@@ -11111,13 +11880,17 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                         )
                     )
                 else:
+                    val = _doc.get("outputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11128,9 +11901,11 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [e],
+                                detailed_message=f"the `outputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -11168,8 +11943,8 @@ class CommandOutputEnumSchema(OutputEnumSchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -11217,7 +11992,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         type_: Any,
         label: Optional[Any] = None,
         outputBinding: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -11283,13 +12058,17 @@ class CommandOutputArraySchema(OutputArraySchema):
                     )
                 )
             else:
+                val = _doc.get("items")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("items"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -11300,6 +12079,8 @@ class CommandOutputArraySchema(OutputArraySchema):
                             "the `items` field is not valid because:",
                             SourceLine(_doc, "items", str),
                             [e],
+                            detailed_message=f"the `items` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -11325,13 +12106,17 @@ class CommandOutputArraySchema(OutputArraySchema):
                     )
                 )
             else:
+                val = _doc.get("type")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -11342,6 +12127,8 @@ class CommandOutputArraySchema(OutputArraySchema):
                             "the `type` field is not valid because:",
                             SourceLine(_doc, "type", str),
                             [e],
+                            detailed_message=f"the `type` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         label = None
@@ -11366,13 +12153,17 @@ class CommandOutputArraySchema(OutputArraySchema):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11383,6 +12174,8 @@ class CommandOutputArraySchema(OutputArraySchema):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outputBinding = None
@@ -11407,13 +12200,17 @@ class CommandOutputArraySchema(OutputArraySchema):
                         )
                     )
                 else:
+                    val = _doc.get("outputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11424,9 +12221,11 @@ class CommandOutputArraySchema(OutputArraySchema):
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [e],
+                                detailed_message=f"the `outputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -11462,8 +12261,8 @@ class CommandOutputArraySchema(OutputArraySchema):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -11517,7 +12316,7 @@ class CommandInputParameter(InputParameter):
         inputBinding: Optional[Any] = None,
         default: Optional[Any] = None,
         type_: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -11604,13 +12403,17 @@ class CommandInputParameter(InputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11621,6 +12424,8 @@ class CommandInputParameter(InputParameter):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -11654,13 +12459,17 @@ class CommandInputParameter(InputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11671,6 +12480,8 @@ class CommandInputParameter(InputParameter):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         secondaryFiles = None
@@ -11695,13 +12506,17 @@ class CommandInputParameter(InputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("secondaryFiles")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11712,6 +12527,8 @@ class CommandInputParameter(InputParameter):
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [e],
+                                detailed_message=f"the `secondaryFiles` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         streamable = None
@@ -11736,13 +12553,17 @@ class CommandInputParameter(InputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("streamable")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11753,6 +12574,8 @@ class CommandInputParameter(InputParameter):
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [e],
+                                detailed_message=f"the `streamable` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         doc = None
@@ -11777,13 +12600,17 @@ class CommandInputParameter(InputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11794,6 +12621,8 @@ class CommandInputParameter(InputParameter):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         format = None
@@ -11818,13 +12647,17 @@ class CommandInputParameter(InputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("format")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11835,6 +12668,8 @@ class CommandInputParameter(InputParameter):
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [e],
+                                detailed_message=f"the `format` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         inputBinding = None
@@ -11859,13 +12694,17 @@ class CommandInputParameter(InputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("inputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("inputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11876,6 +12715,8 @@ class CommandInputParameter(InputParameter):
                                 "the `inputBinding` field is not valid because:",
                                 SourceLine(_doc, "inputBinding", str),
                                 [e],
+                                detailed_message=f"the `inputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         default = None
@@ -11900,13 +12741,17 @@ class CommandInputParameter(InputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("default")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("default"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `default` field is not valid because:",
                                 SourceLine(_doc, "default", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11917,6 +12762,8 @@ class CommandInputParameter(InputParameter):
                                 "the `default` field is not valid because:",
                                 SourceLine(_doc, "default", str),
                                 [e],
+                                detailed_message=f"the `default` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         type_ = None
@@ -11941,13 +12788,17 @@ class CommandInputParameter(InputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("type")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `type` field is not valid because:",
                                 SourceLine(_doc, "type", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -11958,9 +12809,11 @@ class CommandInputParameter(InputParameter):
                                 "the `type` field is not valid because:",
                                 SourceLine(_doc, "type", str),
                                 [e],
+                                detailed_message=f"the `type` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -12002,8 +12855,8 @@ class CommandInputParameter(InputParameter):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -12093,7 +12946,7 @@ class CommandOutputParameter(OutputParameter):
         outputBinding: Optional[Any] = None,
         format: Optional[Any] = None,
         type_: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -12177,13 +13030,17 @@ class CommandOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12194,6 +13051,8 @@ class CommandOutputParameter(OutputParameter):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -12227,13 +13086,17 @@ class CommandOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12244,6 +13107,8 @@ class CommandOutputParameter(OutputParameter):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         secondaryFiles = None
@@ -12268,13 +13133,17 @@ class CommandOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("secondaryFiles")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12285,6 +13154,8 @@ class CommandOutputParameter(OutputParameter):
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [e],
+                                detailed_message=f"the `secondaryFiles` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         streamable = None
@@ -12309,13 +13180,17 @@ class CommandOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("streamable")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12326,6 +13201,8 @@ class CommandOutputParameter(OutputParameter):
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [e],
+                                detailed_message=f"the `streamable` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         doc = None
@@ -12350,13 +13227,17 @@ class CommandOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12367,6 +13248,8 @@ class CommandOutputParameter(OutputParameter):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outputBinding = None
@@ -12391,13 +13274,17 @@ class CommandOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("outputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12408,6 +13295,8 @@ class CommandOutputParameter(OutputParameter):
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [e],
+                                detailed_message=f"the `outputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         format = None
@@ -12432,13 +13321,17 @@ class CommandOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("format")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12449,6 +13342,8 @@ class CommandOutputParameter(OutputParameter):
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [e],
+                                detailed_message=f"the `format` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         type_ = None
@@ -12473,13 +13368,17 @@ class CommandOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("type")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `type` field is not valid because:",
                                 SourceLine(_doc, "type", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12490,9 +13389,11 @@ class CommandOutputParameter(OutputParameter):
                                 "the `type` field is not valid because:",
                                 SourceLine(_doc, "type", str),
                                 [e],
+                                detailed_message=f"the `type` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -12533,8 +13434,8 @@ class CommandOutputParameter(OutputParameter):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -12628,7 +13529,7 @@ class CommandLineTool(Process):
         successCodes: Optional[Any] = None,
         temporaryFailCodes: Optional[Any] = None,
         permanentFailCodes: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -12745,13 +13646,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12762,6 +13667,8 @@ class CommandLineTool(Process):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -12796,13 +13703,17 @@ class CommandLineTool(Process):
                     )
                 )
             else:
+                val = _doc.get("inputs")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("inputs"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `inputs` field is not valid because:",
                             SourceLine(_doc, "inputs", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -12813,6 +13724,8 @@ class CommandLineTool(Process):
                             "the `inputs` field is not valid because:",
                             SourceLine(_doc, "inputs", str),
                             [e],
+                            detailed_message=f"the `inputs` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -12838,13 +13751,17 @@ class CommandLineTool(Process):
                     )
                 )
             else:
+                val = _doc.get("outputs")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("outputs"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `outputs` field is not valid because:",
                             SourceLine(_doc, "outputs", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -12855,6 +13772,8 @@ class CommandLineTool(Process):
                             "the `outputs` field is not valid because:",
                             SourceLine(_doc, "outputs", str),
                             [e],
+                            detailed_message=f"the `outputs` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         requirements = None
@@ -12879,13 +13798,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("requirements")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("requirements"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `requirements` field is not valid because:",
                                 SourceLine(_doc, "requirements", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12896,6 +13819,8 @@ class CommandLineTool(Process):
                                 "the `requirements` field is not valid because:",
                                 SourceLine(_doc, "requirements", str),
                                 [e],
+                                detailed_message=f"the `requirements` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         hints = None
@@ -12920,13 +13845,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("hints")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("hints"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `hints` field is not valid because:",
                                 SourceLine(_doc, "hints", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12937,6 +13866,8 @@ class CommandLineTool(Process):
                                 "the `hints` field is not valid because:",
                                 SourceLine(_doc, "hints", str),
                                 [e],
+                                detailed_message=f"the `hints` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         label = None
@@ -12961,13 +13892,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -12978,6 +13913,8 @@ class CommandLineTool(Process):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         doc = None
@@ -13002,13 +13939,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13019,6 +13960,8 @@ class CommandLineTool(Process):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         cwlVersion = None
@@ -13043,13 +13986,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("cwlVersion")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("cwlVersion"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `cwlVersion` field is not valid because:",
                                 SourceLine(_doc, "cwlVersion", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13060,6 +14007,8 @@ class CommandLineTool(Process):
                                 "the `cwlVersion` field is not valid because:",
                                 SourceLine(_doc, "cwlVersion", str),
                                 [e],
+                                detailed_message=f"the `cwlVersion` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         baseCommand = None
@@ -13084,13 +14033,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("baseCommand")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("baseCommand"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `baseCommand` field is not valid because:",
                                 SourceLine(_doc, "baseCommand", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13101,6 +14054,8 @@ class CommandLineTool(Process):
                                 "the `baseCommand` field is not valid because:",
                                 SourceLine(_doc, "baseCommand", str),
                                 [e],
+                                detailed_message=f"the `baseCommand` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         arguments = None
@@ -13125,13 +14080,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("arguments")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("arguments"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `arguments` field is not valid because:",
                                 SourceLine(_doc, "arguments", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13142,6 +14101,8 @@ class CommandLineTool(Process):
                                 "the `arguments` field is not valid because:",
                                 SourceLine(_doc, "arguments", str),
                                 [e],
+                                detailed_message=f"the `arguments` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         stdin = None
@@ -13166,13 +14127,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("stdin")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("stdin"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `stdin` field is not valid because:",
                                 SourceLine(_doc, "stdin", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13183,6 +14148,8 @@ class CommandLineTool(Process):
                                 "the `stdin` field is not valid because:",
                                 SourceLine(_doc, "stdin", str),
                                 [e],
+                                detailed_message=f"the `stdin` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         stderr = None
@@ -13207,13 +14174,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("stderr")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("stderr"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `stderr` field is not valid because:",
                                 SourceLine(_doc, "stderr", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13224,6 +14195,8 @@ class CommandLineTool(Process):
                                 "the `stderr` field is not valid because:",
                                 SourceLine(_doc, "stderr", str),
                                 [e],
+                                detailed_message=f"the `stderr` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         stdout = None
@@ -13248,13 +14221,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("stdout")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("stdout"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `stdout` field is not valid because:",
                                 SourceLine(_doc, "stdout", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13265,6 +14242,8 @@ class CommandLineTool(Process):
                                 "the `stdout` field is not valid because:",
                                 SourceLine(_doc, "stdout", str),
                                 [e],
+                                detailed_message=f"the `stdout` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         successCodes = None
@@ -13289,13 +14268,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("successCodes")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("successCodes"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `successCodes` field is not valid because:",
                                 SourceLine(_doc, "successCodes", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13306,6 +14289,8 @@ class CommandLineTool(Process):
                                 "the `successCodes` field is not valid because:",
                                 SourceLine(_doc, "successCodes", str),
                                 [e],
+                                detailed_message=f"the `successCodes` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         temporaryFailCodes = None
@@ -13330,13 +14315,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("temporaryFailCodes")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("temporaryFailCodes"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `temporaryFailCodes` field is not valid because:",
                                 SourceLine(_doc, "temporaryFailCodes", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13347,6 +14336,8 @@ class CommandLineTool(Process):
                                 "the `temporaryFailCodes` field is not valid because:",
                                 SourceLine(_doc, "temporaryFailCodes", str),
                                 [e],
+                                detailed_message=f"the `temporaryFailCodes` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         permanentFailCodes = None
@@ -13371,13 +14362,17 @@ class CommandLineTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("permanentFailCodes")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("permanentFailCodes"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `permanentFailCodes` field is not valid because:",
                                 SourceLine(_doc, "permanentFailCodes", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13388,9 +14383,11 @@ class CommandLineTool(Process):
                                 "the `permanentFailCodes` field is not valid because:",
                                 SourceLine(_doc, "permanentFailCodes", str),
                                 [e],
+                                detailed_message=f"the `permanentFailCodes` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -13439,8 +14436,8 @@ class CommandLineTool(Process):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -13605,7 +14602,7 @@ class DockerRequirement(ProcessRequirement):
         dockerImport: Optional[Any] = None,
         dockerImageId: Optional[Any] = None,
         dockerOutputDirectory: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -13692,13 +14689,17 @@ class DockerRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("dockerPull")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("dockerPull"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `dockerPull` field is not valid because:",
                                 SourceLine(_doc, "dockerPull", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13709,6 +14710,8 @@ class DockerRequirement(ProcessRequirement):
                                 "the `dockerPull` field is not valid because:",
                                 SourceLine(_doc, "dockerPull", str),
                                 [e],
+                                detailed_message=f"the `dockerPull` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         dockerLoad = None
@@ -13733,13 +14736,17 @@ class DockerRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("dockerLoad")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("dockerLoad"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `dockerLoad` field is not valid because:",
                                 SourceLine(_doc, "dockerLoad", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13750,6 +14757,8 @@ class DockerRequirement(ProcessRequirement):
                                 "the `dockerLoad` field is not valid because:",
                                 SourceLine(_doc, "dockerLoad", str),
                                 [e],
+                                detailed_message=f"the `dockerLoad` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         dockerFile = None
@@ -13774,13 +14783,17 @@ class DockerRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("dockerFile")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("dockerFile"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `dockerFile` field is not valid because:",
                                 SourceLine(_doc, "dockerFile", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13791,6 +14804,8 @@ class DockerRequirement(ProcessRequirement):
                                 "the `dockerFile` field is not valid because:",
                                 SourceLine(_doc, "dockerFile", str),
                                 [e],
+                                detailed_message=f"the `dockerFile` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         dockerImport = None
@@ -13815,13 +14830,17 @@ class DockerRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("dockerImport")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("dockerImport"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `dockerImport` field is not valid because:",
                                 SourceLine(_doc, "dockerImport", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13832,6 +14851,8 @@ class DockerRequirement(ProcessRequirement):
                                 "the `dockerImport` field is not valid because:",
                                 SourceLine(_doc, "dockerImport", str),
                                 [e],
+                                detailed_message=f"the `dockerImport` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         dockerImageId = None
@@ -13856,13 +14877,17 @@ class DockerRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("dockerImageId")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("dockerImageId"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `dockerImageId` field is not valid because:",
                                 SourceLine(_doc, "dockerImageId", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13873,6 +14898,8 @@ class DockerRequirement(ProcessRequirement):
                                 "the `dockerImageId` field is not valid because:",
                                 SourceLine(_doc, "dockerImageId", str),
                                 [e],
+                                detailed_message=f"the `dockerImageId` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         dockerOutputDirectory = None
@@ -13897,13 +14924,17 @@ class DockerRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("dockerOutputDirectory")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("dockerOutputDirectory"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `dockerOutputDirectory` field is not valid because:",
                                 SourceLine(_doc, "dockerOutputDirectory", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -13914,9 +14945,11 @@ class DockerRequirement(ProcessRequirement):
                                 "the `dockerOutputDirectory` field is not valid because:",
                                 SourceLine(_doc, "dockerOutputDirectory", str),
                                 [e],
+                                detailed_message=f"the `dockerOutputDirectory` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -13954,8 +14987,8 @@ class DockerRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -14039,7 +15072,7 @@ class SoftwareRequirement(ProcessRequirement):
     def __init__(
         self,
         packages: Any,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -14104,13 +15137,17 @@ class SoftwareRequirement(ProcessRequirement):
                     )
                 )
             else:
+                val = _doc.get("packages")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("packages"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `packages` field is not valid because:",
                             SourceLine(_doc, "packages", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -14121,9 +15158,11 @@ class SoftwareRequirement(ProcessRequirement):
                             "the `packages` field is not valid because:",
                             SourceLine(_doc, "packages", str),
                             [e],
+                            detailed_message=f"the `packages` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -14156,8 +15195,8 @@ class SoftwareRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -14189,7 +15228,7 @@ class SoftwarePackage(Saveable):
         package: Any,
         version: Optional[Any] = None,
         specs: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -14253,13 +15292,17 @@ class SoftwarePackage(Saveable):
                     )
                 )
             else:
+                val = _doc.get("package")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("package"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `package` field is not valid because:",
                             SourceLine(_doc, "package", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -14270,6 +15313,8 @@ class SoftwarePackage(Saveable):
                             "the `package` field is not valid because:",
                             SourceLine(_doc, "package", str),
                             [e],
+                            detailed_message=f"the `package` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         version = None
@@ -14294,13 +15339,17 @@ class SoftwarePackage(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("version")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("version"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `version` field is not valid because:",
                                 SourceLine(_doc, "version", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -14311,6 +15360,8 @@ class SoftwarePackage(Saveable):
                                 "the `version` field is not valid because:",
                                 SourceLine(_doc, "version", str),
                                 [e],
+                                detailed_message=f"the `version` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         specs = None
@@ -14335,13 +15386,17 @@ class SoftwarePackage(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("specs")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("specs"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `specs` field is not valid because:",
                                 SourceLine(_doc, "specs", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -14352,9 +15407,11 @@ class SoftwarePackage(Saveable):
                                 "the `specs` field is not valid because:",
                                 SourceLine(_doc, "specs", str),
                                 [e],
+                                detailed_message=f"the `specs` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -14389,8 +15446,8 @@ class SoftwarePackage(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -14435,7 +15492,7 @@ class Dirent(Saveable):
         entry: Any,
         entryname: Optional[Any] = None,
         writable: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -14498,13 +15555,17 @@ class Dirent(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("entryname")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("entryname"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `entryname` field is not valid because:",
                                 SourceLine(_doc, "entryname", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -14515,6 +15576,8 @@ class Dirent(Saveable):
                                 "the `entryname` field is not valid because:",
                                 SourceLine(_doc, "entryname", str),
                                 [e],
+                                detailed_message=f"the `entryname` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -14540,13 +15603,17 @@ class Dirent(Saveable):
                     )
                 )
             else:
+                val = _doc.get("entry")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("entry"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `entry` field is not valid because:",
                             SourceLine(_doc, "entry", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -14557,6 +15624,8 @@ class Dirent(Saveable):
                             "the `entry` field is not valid because:",
                             SourceLine(_doc, "entry", str),
                             [e],
+                            detailed_message=f"the `entry` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         writable = None
@@ -14581,13 +15650,17 @@ class Dirent(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("writable")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("writable"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `writable` field is not valid because:",
                                 SourceLine(_doc, "writable", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -14598,9 +15671,11 @@ class Dirent(Saveable):
                                 "the `writable` field is not valid because:",
                                 SourceLine(_doc, "writable", str),
                                 [e],
+                                detailed_message=f"the `writable` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -14635,8 +15710,8 @@ class Dirent(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -14679,7 +15754,7 @@ class InitialWorkDirRequirement(ProcessRequirement):
     def __init__(
         self,
         listing: Any,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -14744,13 +15819,17 @@ class InitialWorkDirRequirement(ProcessRequirement):
                     )
                 )
             else:
+                val = _doc.get("listing")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("listing"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `listing` field is not valid because:",
                             SourceLine(_doc, "listing", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -14761,9 +15840,11 @@ class InitialWorkDirRequirement(ProcessRequirement):
                             "the `listing` field is not valid because:",
                             SourceLine(_doc, "listing", str),
                             [e],
+                            detailed_message=f"the `listing` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -14796,8 +15877,8 @@ class InitialWorkDirRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -14833,7 +15914,7 @@ class EnvVarRequirement(ProcessRequirement):
     def __init__(
         self,
         envDef: Any,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -14898,13 +15979,17 @@ class EnvVarRequirement(ProcessRequirement):
                     )
                 )
             else:
+                val = _doc.get("envDef")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("envDef"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `envDef` field is not valid because:",
                             SourceLine(_doc, "envDef", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -14915,9 +16000,11 @@ class EnvVarRequirement(ProcessRequirement):
                             "the `envDef` field is not valid because:",
                             SourceLine(_doc, "envDef", str),
                             [e],
+                            detailed_message=f"the `envDef` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -14950,8 +16037,8 @@ class EnvVarRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -14991,7 +16078,7 @@ class ShellCommandRequirement(ProcessRequirement):
 
     def __init__(
         self,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -15032,7 +16119,7 @@ class ShellCommandRequirement(ProcessRequirement):
         if _doc.get("class") != "ShellCommandRequirement":
             raise ValidationException("tried `ShellCommandRequirement` but")
 
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -15062,8 +16149,8 @@ class ShellCommandRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -15120,7 +16207,7 @@ class ResourceRequirement(ProcessRequirement):
         tmpdirMax: Optional[Any] = None,
         outdirMin: Optional[Any] = None,
         outdirMax: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -15213,13 +16300,17 @@ class ResourceRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("coresMin")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("coresMin"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `coresMin` field is not valid because:",
                                 SourceLine(_doc, "coresMin", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15230,6 +16321,8 @@ class ResourceRequirement(ProcessRequirement):
                                 "the `coresMin` field is not valid because:",
                                 SourceLine(_doc, "coresMin", str),
                                 [e],
+                                detailed_message=f"the `coresMin` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         coresMax = None
@@ -15254,13 +16347,17 @@ class ResourceRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("coresMax")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("coresMax"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `coresMax` field is not valid because:",
                                 SourceLine(_doc, "coresMax", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15271,6 +16368,8 @@ class ResourceRequirement(ProcessRequirement):
                                 "the `coresMax` field is not valid because:",
                                 SourceLine(_doc, "coresMax", str),
                                 [e],
+                                detailed_message=f"the `coresMax` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         ramMin = None
@@ -15295,13 +16394,17 @@ class ResourceRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("ramMin")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("ramMin"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `ramMin` field is not valid because:",
                                 SourceLine(_doc, "ramMin", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15312,6 +16415,8 @@ class ResourceRequirement(ProcessRequirement):
                                 "the `ramMin` field is not valid because:",
                                 SourceLine(_doc, "ramMin", str),
                                 [e],
+                                detailed_message=f"the `ramMin` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         ramMax = None
@@ -15336,13 +16441,17 @@ class ResourceRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("ramMax")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("ramMax"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `ramMax` field is not valid because:",
                                 SourceLine(_doc, "ramMax", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15353,6 +16462,8 @@ class ResourceRequirement(ProcessRequirement):
                                 "the `ramMax` field is not valid because:",
                                 SourceLine(_doc, "ramMax", str),
                                 [e],
+                                detailed_message=f"the `ramMax` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         tmpdirMin = None
@@ -15377,13 +16488,17 @@ class ResourceRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("tmpdirMin")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("tmpdirMin"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `tmpdirMin` field is not valid because:",
                                 SourceLine(_doc, "tmpdirMin", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15394,6 +16509,8 @@ class ResourceRequirement(ProcessRequirement):
                                 "the `tmpdirMin` field is not valid because:",
                                 SourceLine(_doc, "tmpdirMin", str),
                                 [e],
+                                detailed_message=f"the `tmpdirMin` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         tmpdirMax = None
@@ -15418,13 +16535,17 @@ class ResourceRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("tmpdirMax")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("tmpdirMax"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `tmpdirMax` field is not valid because:",
                                 SourceLine(_doc, "tmpdirMax", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15435,6 +16556,8 @@ class ResourceRequirement(ProcessRequirement):
                                 "the `tmpdirMax` field is not valid because:",
                                 SourceLine(_doc, "tmpdirMax", str),
                                 [e],
+                                detailed_message=f"the `tmpdirMax` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outdirMin = None
@@ -15459,13 +16582,17 @@ class ResourceRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("outdirMin")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outdirMin"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outdirMin` field is not valid because:",
                                 SourceLine(_doc, "outdirMin", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15476,6 +16603,8 @@ class ResourceRequirement(ProcessRequirement):
                                 "the `outdirMin` field is not valid because:",
                                 SourceLine(_doc, "outdirMin", str),
                                 [e],
+                                detailed_message=f"the `outdirMin` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outdirMax = None
@@ -15500,13 +16629,17 @@ class ResourceRequirement(ProcessRequirement):
                         )
                     )
                 else:
+                    val = _doc.get("outdirMax")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outdirMax"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outdirMax` field is not valid because:",
                                 SourceLine(_doc, "outdirMax", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15517,9 +16650,11 @@ class ResourceRequirement(ProcessRequirement):
                                 "the `outdirMax` field is not valid because:",
                                 SourceLine(_doc, "outdirMax", str),
                                 [e],
+                                detailed_message=f"the `outdirMax` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -15559,8 +16694,8 @@ class ResourceRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -15649,7 +16784,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         outputBinding: Optional[Any] = None,
         format: Optional[Any] = None,
         type_: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -15733,13 +16868,17 @@ class ExpressionToolOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15750,6 +16889,8 @@ class ExpressionToolOutputParameter(OutputParameter):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -15783,13 +16924,17 @@ class ExpressionToolOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15800,6 +16945,8 @@ class ExpressionToolOutputParameter(OutputParameter):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         secondaryFiles = None
@@ -15824,13 +16971,17 @@ class ExpressionToolOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("secondaryFiles")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15841,6 +16992,8 @@ class ExpressionToolOutputParameter(OutputParameter):
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [e],
+                                detailed_message=f"the `secondaryFiles` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         streamable = None
@@ -15865,13 +17018,17 @@ class ExpressionToolOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("streamable")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15882,6 +17039,8 @@ class ExpressionToolOutputParameter(OutputParameter):
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [e],
+                                detailed_message=f"the `streamable` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         doc = None
@@ -15906,13 +17065,17 @@ class ExpressionToolOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15923,6 +17086,8 @@ class ExpressionToolOutputParameter(OutputParameter):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outputBinding = None
@@ -15947,13 +17112,17 @@ class ExpressionToolOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("outputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -15964,6 +17133,8 @@ class ExpressionToolOutputParameter(OutputParameter):
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [e],
+                                detailed_message=f"the `outputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         format = None
@@ -15988,13 +17159,17 @@ class ExpressionToolOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("format")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16005,6 +17180,8 @@ class ExpressionToolOutputParameter(OutputParameter):
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [e],
+                                detailed_message=f"the `format` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         type_ = None
@@ -16029,13 +17206,17 @@ class ExpressionToolOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("type")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `type` field is not valid because:",
                                 SourceLine(_doc, "type", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16046,9 +17227,11 @@ class ExpressionToolOutputParameter(OutputParameter):
                                 "the `type` field is not valid because:",
                                 SourceLine(_doc, "type", str),
                                 [e],
+                                detailed_message=f"the `type` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -16089,8 +17272,8 @@ class ExpressionToolOutputParameter(OutputParameter):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -16177,7 +17360,7 @@ class ExpressionTool(Process):
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         cwlVersion: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -16273,13 +17456,17 @@ class ExpressionTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16290,6 +17477,8 @@ class ExpressionTool(Process):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -16324,13 +17513,17 @@ class ExpressionTool(Process):
                     )
                 )
             else:
+                val = _doc.get("inputs")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("inputs"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `inputs` field is not valid because:",
                             SourceLine(_doc, "inputs", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -16341,6 +17534,8 @@ class ExpressionTool(Process):
                             "the `inputs` field is not valid because:",
                             SourceLine(_doc, "inputs", str),
                             [e],
+                            detailed_message=f"the `inputs` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -16366,13 +17561,17 @@ class ExpressionTool(Process):
                     )
                 )
             else:
+                val = _doc.get("outputs")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("outputs"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `outputs` field is not valid because:",
                             SourceLine(_doc, "outputs", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -16383,6 +17582,8 @@ class ExpressionTool(Process):
                             "the `outputs` field is not valid because:",
                             SourceLine(_doc, "outputs", str),
                             [e],
+                            detailed_message=f"the `outputs` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         requirements = None
@@ -16407,13 +17608,17 @@ class ExpressionTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("requirements")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("requirements"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `requirements` field is not valid because:",
                                 SourceLine(_doc, "requirements", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16424,6 +17629,8 @@ class ExpressionTool(Process):
                                 "the `requirements` field is not valid because:",
                                 SourceLine(_doc, "requirements", str),
                                 [e],
+                                detailed_message=f"the `requirements` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         hints = None
@@ -16448,13 +17655,17 @@ class ExpressionTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("hints")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("hints"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `hints` field is not valid because:",
                                 SourceLine(_doc, "hints", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16465,6 +17676,8 @@ class ExpressionTool(Process):
                                 "the `hints` field is not valid because:",
                                 SourceLine(_doc, "hints", str),
                                 [e],
+                                detailed_message=f"the `hints` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         label = None
@@ -16489,13 +17702,17 @@ class ExpressionTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16506,6 +17723,8 @@ class ExpressionTool(Process):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         doc = None
@@ -16530,13 +17749,17 @@ class ExpressionTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16547,6 +17770,8 @@ class ExpressionTool(Process):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         cwlVersion = None
@@ -16571,13 +17796,17 @@ class ExpressionTool(Process):
                         )
                     )
                 else:
+                    val = _doc.get("cwlVersion")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("cwlVersion"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `cwlVersion` field is not valid because:",
                                 SourceLine(_doc, "cwlVersion", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16588,6 +17817,8 @@ class ExpressionTool(Process):
                                 "the `cwlVersion` field is not valid because:",
                                 SourceLine(_doc, "cwlVersion", str),
                                 [e],
+                                detailed_message=f"the `cwlVersion` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -16613,13 +17844,17 @@ class ExpressionTool(Process):
                     )
                 )
             else:
+                val = _doc.get("expression")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("expression"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `expression` field is not valid because:",
                             SourceLine(_doc, "expression", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -16630,9 +17865,11 @@ class ExpressionTool(Process):
                             "the `expression` field is not valid because:",
                             SourceLine(_doc, "expression", str),
                             [e],
+                            detailed_message=f"the `expression` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -16674,8 +17911,8 @@ class ExpressionTool(Process):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -16770,7 +18007,7 @@ class WorkflowOutputParameter(OutputParameter):
         outputSource: Optional[Any] = None,
         linkMerge: Optional[Any] = None,
         type_: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -16860,13 +18097,17 @@ class WorkflowOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16877,6 +18118,8 @@ class WorkflowOutputParameter(OutputParameter):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -16910,13 +18153,17 @@ class WorkflowOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16927,6 +18174,8 @@ class WorkflowOutputParameter(OutputParameter):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         secondaryFiles = None
@@ -16951,13 +18200,17 @@ class WorkflowOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("secondaryFiles")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("secondaryFiles"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -16968,6 +18221,8 @@ class WorkflowOutputParameter(OutputParameter):
                                 "the `secondaryFiles` field is not valid because:",
                                 SourceLine(_doc, "secondaryFiles", str),
                                 [e],
+                                detailed_message=f"the `secondaryFiles` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         streamable = None
@@ -16992,13 +18247,17 @@ class WorkflowOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("streamable")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("streamable"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17009,6 +18268,8 @@ class WorkflowOutputParameter(OutputParameter):
                                 "the `streamable` field is not valid because:",
                                 SourceLine(_doc, "streamable", str),
                                 [e],
+                                detailed_message=f"the `streamable` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         doc = None
@@ -17033,13 +18294,17 @@ class WorkflowOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17050,6 +18315,8 @@ class WorkflowOutputParameter(OutputParameter):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outputBinding = None
@@ -17074,13 +18341,17 @@ class WorkflowOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("outputBinding")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputBinding"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17091,6 +18362,8 @@ class WorkflowOutputParameter(OutputParameter):
                                 "the `outputBinding` field is not valid because:",
                                 SourceLine(_doc, "outputBinding", str),
                                 [e],
+                                detailed_message=f"the `outputBinding` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         format = None
@@ -17115,13 +18388,17 @@ class WorkflowOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("format")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("format"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17132,6 +18409,8 @@ class WorkflowOutputParameter(OutputParameter):
                                 "the `format` field is not valid because:",
                                 SourceLine(_doc, "format", str),
                                 [e],
+                                detailed_message=f"the `format` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         outputSource = None
@@ -17156,13 +18435,17 @@ class WorkflowOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("outputSource")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("outputSource"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `outputSource` field is not valid because:",
                                 SourceLine(_doc, "outputSource", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17173,6 +18456,8 @@ class WorkflowOutputParameter(OutputParameter):
                                 "the `outputSource` field is not valid because:",
                                 SourceLine(_doc, "outputSource", str),
                                 [e],
+                                detailed_message=f"the `outputSource` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         linkMerge = None
@@ -17197,13 +18482,17 @@ class WorkflowOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("linkMerge")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("linkMerge"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `linkMerge` field is not valid because:",
                                 SourceLine(_doc, "linkMerge", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17214,6 +18503,8 @@ class WorkflowOutputParameter(OutputParameter):
                                 "the `linkMerge` field is not valid because:",
                                 SourceLine(_doc, "linkMerge", str),
                                 [e],
+                                detailed_message=f"the `linkMerge` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         type_ = None
@@ -17238,13 +18529,17 @@ class WorkflowOutputParameter(OutputParameter):
                         )
                     )
                 else:
+                    val = _doc.get("type")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("type"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `type` field is not valid because:",
                                 SourceLine(_doc, "type", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17255,9 +18550,11 @@ class WorkflowOutputParameter(OutputParameter):
                                 "the `type` field is not valid because:",
                                 SourceLine(_doc, "type", str),
                                 [e],
+                                detailed_message=f"the `type` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -17300,8 +18597,8 @@ class WorkflowOutputParameter(OutputParameter):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -17435,7 +18732,7 @@ class WorkflowStepInput(Sink):
         linkMerge: Optional[Any] = None,
         default: Optional[Any] = None,
         valueFrom: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -17504,13 +18801,17 @@ class WorkflowStepInput(Sink):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17521,6 +18822,8 @@ class WorkflowStepInput(Sink):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -17554,13 +18857,17 @@ class WorkflowStepInput(Sink):
                         )
                     )
                 else:
+                    val = _doc.get("source")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("source"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `source` field is not valid because:",
                                 SourceLine(_doc, "source", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17571,6 +18878,8 @@ class WorkflowStepInput(Sink):
                                 "the `source` field is not valid because:",
                                 SourceLine(_doc, "source", str),
                                 [e],
+                                detailed_message=f"the `source` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         linkMerge = None
@@ -17595,13 +18904,17 @@ class WorkflowStepInput(Sink):
                         )
                     )
                 else:
+                    val = _doc.get("linkMerge")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("linkMerge"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `linkMerge` field is not valid because:",
                                 SourceLine(_doc, "linkMerge", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17612,6 +18925,8 @@ class WorkflowStepInput(Sink):
                                 "the `linkMerge` field is not valid because:",
                                 SourceLine(_doc, "linkMerge", str),
                                 [e],
+                                detailed_message=f"the `linkMerge` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         default = None
@@ -17636,13 +18951,17 @@ class WorkflowStepInput(Sink):
                         )
                     )
                 else:
+                    val = _doc.get("default")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("default"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `default` field is not valid because:",
                                 SourceLine(_doc, "default", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17653,6 +18972,8 @@ class WorkflowStepInput(Sink):
                                 "the `default` field is not valid because:",
                                 SourceLine(_doc, "default", str),
                                 [e],
+                                detailed_message=f"the `default` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         valueFrom = None
@@ -17677,13 +18998,17 @@ class WorkflowStepInput(Sink):
                         )
                     )
                 else:
+                    val = _doc.get("valueFrom")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("valueFrom"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `valueFrom` field is not valid because:",
                                 SourceLine(_doc, "valueFrom", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17694,9 +19019,11 @@ class WorkflowStepInput(Sink):
                                 "the `valueFrom` field is not valid because:",
                                 SourceLine(_doc, "valueFrom", str),
                                 [e],
+                                detailed_message=f"the `valueFrom` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -17734,8 +19061,8 @@ class WorkflowStepInput(Sink):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -17785,7 +19112,7 @@ class WorkflowStepOutput(Saveable):
     def __init__(
         self,
         id: Any,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -17842,13 +19169,17 @@ class WorkflowStepOutput(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -17859,6 +19190,8 @@ class WorkflowStepOutput(Saveable):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -17870,7 +19203,7 @@ class WorkflowStepOutput(Saveable):
                 _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -17902,8 +19235,8 @@ class WorkflowStepOutput(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -17998,7 +19331,7 @@ class WorkflowStep(Saveable):
         doc: Optional[Any] = None,
         scatter: Optional[Any] = None,
         scatterMethod: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -18088,13 +19421,17 @@ class WorkflowStep(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18105,6 +19442,8 @@ class WorkflowStep(Saveable):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -18139,13 +19478,17 @@ class WorkflowStep(Saveable):
                     )
                 )
             else:
+                val = _doc.get("in")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("in"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `in` field is not valid because:",
                             SourceLine(_doc, "in", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -18156,6 +19499,8 @@ class WorkflowStep(Saveable):
                             "the `in` field is not valid because:",
                             SourceLine(_doc, "in", str),
                             [e],
+                            detailed_message=f"the `in` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -18181,13 +19526,17 @@ class WorkflowStep(Saveable):
                     )
                 )
             else:
+                val = _doc.get("out")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("out"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `out` field is not valid because:",
                             SourceLine(_doc, "out", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -18198,6 +19547,8 @@ class WorkflowStep(Saveable):
                             "the `out` field is not valid because:",
                             SourceLine(_doc, "out", str),
                             [e],
+                            detailed_message=f"the `out` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         requirements = None
@@ -18222,13 +19573,17 @@ class WorkflowStep(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("requirements")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("requirements"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `requirements` field is not valid because:",
                                 SourceLine(_doc, "requirements", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18239,6 +19594,8 @@ class WorkflowStep(Saveable):
                                 "the `requirements` field is not valid because:",
                                 SourceLine(_doc, "requirements", str),
                                 [e],
+                                detailed_message=f"the `requirements` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         hints = None
@@ -18263,13 +19620,17 @@ class WorkflowStep(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("hints")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("hints"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `hints` field is not valid because:",
                                 SourceLine(_doc, "hints", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18280,6 +19641,8 @@ class WorkflowStep(Saveable):
                                 "the `hints` field is not valid because:",
                                 SourceLine(_doc, "hints", str),
                                 [e],
+                                detailed_message=f"the `hints` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         label = None
@@ -18304,13 +19667,17 @@ class WorkflowStep(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18321,6 +19688,8 @@ class WorkflowStep(Saveable):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         doc = None
@@ -18345,13 +19714,17 @@ class WorkflowStep(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18362,6 +19735,8 @@ class WorkflowStep(Saveable):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -18387,13 +19762,17 @@ class WorkflowStep(Saveable):
                     )
                 )
             else:
+                val = _doc.get("run")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("run"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `run` field is not valid because:",
                             SourceLine(_doc, "run", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -18404,6 +19783,8 @@ class WorkflowStep(Saveable):
                             "the `run` field is not valid because:",
                             SourceLine(_doc, "run", str),
                             [e],
+                            detailed_message=f"the `run` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         scatter = None
@@ -18428,13 +19809,17 @@ class WorkflowStep(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("scatter")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("scatter"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `scatter` field is not valid because:",
                                 SourceLine(_doc, "scatter", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18445,6 +19830,8 @@ class WorkflowStep(Saveable):
                                 "the `scatter` field is not valid because:",
                                 SourceLine(_doc, "scatter", str),
                                 [e],
+                                detailed_message=f"the `scatter` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         scatterMethod = None
@@ -18469,13 +19856,17 @@ class WorkflowStep(Saveable):
                         )
                     )
                 else:
+                    val = _doc.get("scatterMethod")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("scatterMethod"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `scatterMethod` field is not valid because:",
                                 SourceLine(_doc, "scatterMethod", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18486,9 +19877,11 @@ class WorkflowStep(Saveable):
                                 "the `scatterMethod` field is not valid because:",
                                 SourceLine(_doc, "scatterMethod", str),
                                 [e],
+                                detailed_message=f"the `scatterMethod` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -18531,8 +19924,8 @@ class WorkflowStep(Saveable):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -18666,7 +20059,7 @@ class Workflow(Process):
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         cwlVersion: Optional[Any] = None,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -18762,13 +20155,17 @@ class Workflow(Process):
                         )
                     )
                 else:
+                    val = _doc.get("id")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("id"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18779,6 +20176,8 @@ class Workflow(Process):
                                 "the `id` field is not valid because:",
                                 SourceLine(_doc, "id", str),
                                 [e],
+                                detailed_message=f"the `id` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
 
@@ -18813,13 +20212,17 @@ class Workflow(Process):
                     )
                 )
             else:
+                val = _doc.get("inputs")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("inputs"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `inputs` field is not valid because:",
                             SourceLine(_doc, "inputs", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -18830,6 +20233,8 @@ class Workflow(Process):
                             "the `inputs` field is not valid because:",
                             SourceLine(_doc, "inputs", str),
                             [e],
+                            detailed_message=f"the `inputs` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         try:
@@ -18855,13 +20260,17 @@ class Workflow(Process):
                     )
                 )
             else:
+                val = _doc.get("outputs")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("outputs"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `outputs` field is not valid because:",
                             SourceLine(_doc, "outputs", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -18872,6 +20281,8 @@ class Workflow(Process):
                             "the `outputs` field is not valid because:",
                             SourceLine(_doc, "outputs", str),
                             [e],
+                            detailed_message=f"the `outputs` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
         requirements = None
@@ -18896,13 +20307,17 @@ class Workflow(Process):
                         )
                     )
                 else:
+                    val = _doc.get("requirements")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("requirements"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `requirements` field is not valid because:",
                                 SourceLine(_doc, "requirements", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18913,6 +20328,8 @@ class Workflow(Process):
                                 "the `requirements` field is not valid because:",
                                 SourceLine(_doc, "requirements", str),
                                 [e],
+                                detailed_message=f"the `requirements` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         hints = None
@@ -18937,13 +20354,17 @@ class Workflow(Process):
                         )
                     )
                 else:
+                    val = _doc.get("hints")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("hints"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `hints` field is not valid because:",
                                 SourceLine(_doc, "hints", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18954,6 +20375,8 @@ class Workflow(Process):
                                 "the `hints` field is not valid because:",
                                 SourceLine(_doc, "hints", str),
                                 [e],
+                                detailed_message=f"the `hints` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         label = None
@@ -18978,13 +20401,17 @@ class Workflow(Process):
                         )
                     )
                 else:
+                    val = _doc.get("label")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("label"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -18995,6 +20422,8 @@ class Workflow(Process):
                                 "the `label` field is not valid because:",
                                 SourceLine(_doc, "label", str),
                                 [e],
+                                detailed_message=f"the `label` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         doc = None
@@ -19019,13 +20448,17 @@ class Workflow(Process):
                         )
                     )
                 else:
+                    val = _doc.get("doc")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("doc"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -19036,6 +20469,8 @@ class Workflow(Process):
                                 "the `doc` field is not valid because:",
                                 SourceLine(_doc, "doc", str),
                                 [e],
+                                detailed_message=f"the `doc` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         cwlVersion = None
@@ -19060,13 +20495,17 @@ class Workflow(Process):
                         )
                     )
                 else:
+                    val = _doc.get("cwlVersion")
                     if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(_doc.get("cwlVersion"))))
+                        val_type = convert_typing(extract_type(type(val)))
                         _errors__.append(
                             ValidationException(
                                 "the `cwlVersion` field is not valid because:",
                                 SourceLine(_doc, "cwlVersion", str),
                                 [ValidationException(f"Value is a {val_type}, "
+                                                     f"but valid {to_print} for this field "
+                                                     f"{verb_tensage} {error_message}",
+                                                     detailed_message=f"Value `{val}` is a {val_type}, "
                                                      f"but valid {to_print} for this field "
                                                      f"{verb_tensage} {error_message}")],
                             )
@@ -19077,6 +20516,8 @@ class Workflow(Process):
                                 "the `cwlVersion` field is not valid because:",
                                 SourceLine(_doc, "cwlVersion", str),
                                 [e],
+                                detailed_message=f"the `cwlVersion` field with value `{val}` "
+                                "is not valid because:",
                             )
                         )
         try:
@@ -19102,13 +20543,17 @@ class Workflow(Process):
                     )
                 )
             else:
+                val = _doc.get("steps")
                 if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(_doc.get("steps"))))
+                    val_type = convert_typing(extract_type(type(val)))
                     _errors__.append(
                         ValidationException(
                             "the `steps` field is not valid because:",
                             SourceLine(_doc, "steps", str),
                             [ValidationException(f"Value is a {val_type}, "
+                                                 f"but valid {to_print} for this field "
+                                                 f"{verb_tensage} {error_message}",
+                                                 detailed_message=f"Value `{val}` is a {val_type}, "
                                                  f"but valid {to_print} for this field "
                                                  f"{verb_tensage} {error_message}")],
                         )
@@ -19119,9 +20564,11 @@ class Workflow(Process):
                             "the `steps` field is not valid because:",
                             SourceLine(_doc, "steps", str),
                             [e],
+                            detailed_message=f"the `steps` field with value `{val}` "
+                            "is not valid because:",
                         )
                     )
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -19163,8 +20610,8 @@ class Workflow(Process):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -19245,7 +20692,7 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
 
     def __init__(
         self,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -19286,7 +20733,7 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
         if _doc.get("class") != "SubworkflowFeatureRequirement":
             raise ValidationException("tried `SubworkflowFeatureRequirement` but")
 
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -19316,8 +20763,8 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -19348,7 +20795,7 @@ class ScatterFeatureRequirement(ProcessRequirement):
 
     def __init__(
         self,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -19389,7 +20836,7 @@ class ScatterFeatureRequirement(ProcessRequirement):
         if _doc.get("class") != "ScatterFeatureRequirement":
             raise ValidationException("tried `ScatterFeatureRequirement` but")
 
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -19419,8 +20866,8 @@ class ScatterFeatureRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -19451,7 +20898,7 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
 
     def __init__(
         self,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -19492,7 +20939,7 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
         if _doc.get("class") != "MultipleInputFeatureRequirement":
             raise ValidationException("tried `MultipleInputFeatureRequirement` but")
 
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -19522,8 +20969,8 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
@@ -19554,7 +21001,7 @@ class StepInputExpressionRequirement(ProcessRequirement):
 
     def __init__(
         self,
-        extension_fields: Optional[Dict[str, Any]] = None,
+        extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
         if extension_fields:
@@ -19595,7 +21042,7 @@ class StepInputExpressionRequirement(ProcessRequirement):
         if _doc.get("class") != "StepInputExpressionRequirement":
             raise ValidationException("tried `StepInputExpressionRequirement` but")
 
-        extension_fields: Dict[str, Any] = {}
+        extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -19625,8 +21072,8 @@ class StepInputExpressionRequirement(ProcessRequirement):
 
     def save(
         self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> Dict[str, Any]:
-        r: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        r: dict[str, Any] = {}
 
         if relative_uris:
             for ef in self.extension_fields:
