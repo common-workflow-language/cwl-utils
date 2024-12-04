@@ -2,5 +2,5 @@ cwl-upgrader >= 1.2.3
 packaging
 rdflib
 requests
-schema-salad >= 8.5, < 9
+schema-salad >= 8.8, < 9
 ruamel.yaml >= 0.17.6, < 0.19
