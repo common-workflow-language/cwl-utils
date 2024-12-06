@@ -5,10 +5,9 @@ import os
 from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
-from typing import IO, Any, Optional, Union, cast
+from typing import Any, IO, Optional, Union, cast
 from urllib.parse import urldefrag
 
-from ruamel import yaml
 from schema_salad.exceptions import ValidationException
 from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import aslist, json_dumps, yaml_no_ts
@@ -17,6 +16,7 @@ import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_2 as cwl
 import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
+from cwl_utils.utils import yaml_dumps
 
 CONTENT_LIMIT: int = 64 * 1024
 
@@ -84,6 +84,16 @@ def _compare_type(type1: Any, type2: Any) -> bool:
         return True
     else:
         return bool(type1 == type2)
+
+
+def _is_all_output_method_loop_step(
+    param_to_step: dict[str, cwl.WorkflowStep], parm_id: str
+) -> bool:
+    if (source_step := param_to_step.get(parm_id)) is not None:
+        for requirement in source_step.requirements or []:
+            if isinstance(requirement, cwl.Loop) and requirement.outputMethod == "all":
+                return True
+    return False
 
 
 def _is_conditional_step(
@@ -230,6 +240,11 @@ def check_all_types(
                                 message="Source is from conditional step, but pickValue is not used",
                             )
                         )
+                    if _is_all_output_method_loop_step(param_to_step, parm_id):
+                        src_typ = type_dict[src_dict[parm_id].id]
+                        type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
+                            items=src_typ, type_="array"
+                        )
             else:
                 parm_id = cast(str, sourceField)
                 if parm_id not in src_dict:
@@ -248,7 +263,7 @@ def check_all_types(
                         )
                     )
                 if _is_conditional_step(param_to_step, parm_id):
-                    src_typ = aslist(type_dict[srcs_of_sink[0].id])
+                    src_typ = aslist(type_dict[src_dict[parm_id].id])
                     snk_typ = type_dict[cast(str, sink.id)]
                     if "null" not in src_typ:
                         src_typ = ["null"] + cast(list[Any], src_typ)
@@ -264,7 +279,12 @@ def check_all_types(
                                 message="Source is from conditional step and may produce `null`",
                             )
                         )
-                    type_dict[srcs_of_sink[0].id] = src_typ
+                    type_dict[src_dict[parm_id].id] = src_typ
+                if _is_all_output_method_loop_step(param_to_step, parm_id):
+                    src_typ = type_dict[src_dict[parm_id].id]
+                    type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
+                        items=src_typ, type_="array"
+                    )
             for src in srcs_of_sink:
                 check_result = check_types(
                     type_dict[cast(str, src.id)],
@@ -496,7 +516,7 @@ def type_for_step_output(
     raise ValidationException(
         "param {} not found in {}.".format(
             sourcename,
-            yaml.main.round_trip_dump(cwl.save(step)),
+            yaml_dumps(cwl.save(step)),
         )
     )
 
@@ -638,11 +658,7 @@ def param_for_source_id(
     raise WorkflowException(
         "param {} not found in {}\n{}.".format(
             sourcename,
-            yaml.main.round_trip_dump(cwl.save(process)),
-            (
-                f" or\n {yaml.main.round_trip_dump(cwl.save(parent))}"
-                if parent is not None
-                else ""
-            ),
+            yaml_dumps(cwl.save(process)),
+            (f" or\n {yaml_dumps(cwl.save(parent))}" if parent is not None else ""),
         )
     )

@@ -36,16 +36,12 @@ def test_static_checker_fail(cwlVersion: str) -> None:
 
         uri = Path(get_data("testdata/checker_wf/broken-wf2.cwl")).resolve().as_uri()
         cwl_obj = load_document_by_uri(uri)
-        with pytest.raises(
-            ValidationException, match="param .* not found in class: CommandLineTool"
-        ):
+        with pytest.raises(ValidationException, match="param .* not found in id: .*"):
             cwl_utils.parser.utils.static_checker(cwl_obj)
 
         uri = Path(get_data("testdata/checker_wf/broken-wf3.cwl")).resolve().as_uri()
         cwl_obj = load_document_by_uri(uri)
-        with pytest.raises(
-            ValidationException, match="param .* not found in class: Workflow"
-        ):
+        with pytest.raises(ValidationException, match="param .* not found in id: .*"):
             cwl_utils.parser.utils.static_checker(cwl_obj)
 
     uri = (
@@ -107,6 +103,8 @@ def test_static_checker_success(cwlVersion: str) -> None:
                 "testdata/cond-wf-004.1.cwl",
                 "testdata/cond-wf-005.1.cwl",
                 "testdata/cond-single-source-wf-005.1.cwl",
+                "testdata/extensions/all-output-loop_v1_2.cwl",
+                "testdata/extensions/single-var-loop_v1_2.cwl",
             ]
         )
     for test_file in test_files:
