@@ -96,8 +96,6 @@ def extract_docker_requirements(
 ) -> Iterator[cwl.DockerRequirement]:
     """Yield an iterator of the docker reqs, normalizing the pull request."""
     for req in extract_docker_reqs(process):
-        if isinstance(req.dockerPull, str) and ":" not in req.dockerPull:
-            req.dockerPull += ":latest"
         yield req
 
 
