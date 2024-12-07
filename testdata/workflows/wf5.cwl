@@ -1,3 +1,4 @@
+#!/usr/bin/env cwl-runner
 # Checks symbolic links on github
 
 class: Workflow

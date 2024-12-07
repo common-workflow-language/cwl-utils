@@ -29,10 +29,10 @@ EXTRAS=
 PYSOURCES=$(filter-out $(MODULE)/parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) \
 	  $(wildcard tests/*.py) create_cwl_from_objects.py load_cwl_by_path.py \
 	  ${MODULE}/parser/cwl_v1_?_utils.py docs/conf.py
-DEVPKGS=build diff_cover pylint pep257 pydocstyle 'tox<4' tox-pyenv \
+DEVPKGS=build diff_cover pylint pep257 ruff 'tox<4' tox-pyenv \
 	wheel autoflake pyupgrade bandit auto-walrus \
 	-rlint-requirements.txt -rtest-requirements.txt -rmypy-requirements.txt
-DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \
+DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage ruff sloccount \
 	   python-flake8 python-mock shellcheck
 VERSION=v$(shell echo $$(tail -n 1 cwl_utils/__meta__.py | awk '{print $$3}'))
 mkfile_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
@@ -45,8 +45,8 @@ all: dev
 help: Makefile
 	@sed -n 's/^##//p' $<
 
-## cleanup                : shortcut for "make sort_imports format flake8 diff_pydocstyle_report"
-cleanup: sort_imports format flake8 diff_pydocstyle_report
+## cleanup                : shortcut for "make sort_imports format flake8 pydocstyle"
+cleanup: sort_imports format flake8 pydocstyle
 
 ## install-dep            : install most of the development dependencies via pip
 install-dep: install-dependencies
@@ -95,14 +95,7 @@ remove_unused_imports: $(PYSOURCES)
 pep257: pydocstyle
 ## pydocstyle             : check Python docstring style
 pydocstyle: $(PYSOURCES)
-	pydocstyle --add-ignore=D100,D101,D102,D103 $^ || true
-
-pydocstyle_report.txt: $(PYSOURCES)
-	pydocstyle $^ > $@ 2>&1 || true
-
-## diff_pydocstyle_report : check Python docstring style for changed files only
-diff_pydocstyle_report: pydocstyle_report.txt
-	diff-quality --compare-branch=main --violations=pydocstyle --fail-under=100 $^
+	ruff check $^
 
 ## codespell              : check for common misspellings
 codespell:
@@ -177,7 +170,7 @@ shellcheck: FORCE
 	shellcheck release-test.sh
 
 pyupgrade: $(PYSOURCES)
-	pyupgrade --exit-zero-even-if-changed --py38-plus $^
+	pyupgrade --exit-zero-even-if-changed --py39-plus $^
 	auto-walrus $^
 
 release-test: FORCE

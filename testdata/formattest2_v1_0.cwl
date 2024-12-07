@@ -1,3 +1,4 @@
+#!/usr/bin/env cwl-runner
 $namespaces:
   edam: http://edamontology.org/
 $schemas:

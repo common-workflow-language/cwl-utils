@@ -12,7 +12,8 @@ import argparse
 import json
 import os
 import sys
-from typing import IO, TYPE_CHECKING, Any, List, MutableMapping, Set, Union, cast
+from collections.abc import MutableMapping
+from typing import IO, TYPE_CHECKING, Any, Union, cast
 
 from cwlformat.formatter import stringify_dict
 from ruamel.yaml.dumper import RoundTripDumper
@@ -65,7 +66,7 @@ def main() -> None:
     sys.exit(run(sys.argv[1:]))
 
 
-def run(args: List[str]) -> int:
+def run(args: list[str]) -> int:
     """Split the packed CWL at the path of the first argument."""
     options = arg_parser().parse_args(args)
 
@@ -127,7 +128,7 @@ def graph_split(
             yaml_dump(entry, output_file, pretty)
 
 
-def rewrite(document: Any, doc_id: str) -> Set[str]:
+def rewrite(document: Any, doc_id: str) -> set[str]:
     """Rewrite the given element from the CWL $graph."""
     imports = set()
     if isinstance(document, list) and not isinstance(document, str):
@@ -214,7 +215,7 @@ def rewrite_types(field: Any, entry_file: str, sameself: bool) -> None:
                     rewrite_types(entry, entry_file, sameself)
 
 
-def rewrite_schemadef(document: MutableMapping[str, Any]) -> Set[str]:
+def rewrite_schemadef(document: MutableMapping[str, Any]) -> set[str]:
     """Dump the schemadefs to their own file."""
     for entry in document["types"]:
         if "$import" in entry:

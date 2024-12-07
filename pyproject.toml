@@ -17,11 +17,11 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: File Formats",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Information Analysis",
@@ -29,7 +29,7 @@ classifiers = [
     "Topic :: System :: Distributed Computing",
     "Typing :: Typed",
 ]
-requires-python = ">=3.8,<3.14"
+requires-python = ">=3.9,<3.14"
 dynamic = ["version", "dependencies"]
 
 [project.urls]
@@ -86,3 +86,19 @@ dependencies = {file = ["requirements.txt"]}
 
 [tool.isort]
 profile = "black"
+
+[tool.ruff.lint]
+select = [
+  "D",   # pydocstyle
+]
+ignore = [
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D107",
+  "D203",
+  "D212",
+]

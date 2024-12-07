@@ -1,11 +1,11 @@
-from typing import Any, List
+from typing import Any
 
 from cwl_utils.pack import pack
 
 from .util import get_data
 
 
-def _find(l_item: List[Any], key: str, val: str) -> Any:
+def _find(l_item: list[Any], key: str, val: str) -> Any:
     return next(_x for _x in l_item if _x[key] == val)
 
 

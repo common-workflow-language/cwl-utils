@@ -4,7 +4,7 @@ import os
 import shutil
 import threading
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 import pytest
 
@@ -49,8 +49,8 @@ def test_value_from_two_concatenated_expressions() -> None:
 
 def hide_nodejs(temp_dir: Path) -> str:
     """Generate a new PATH that hides node{js,}."""
-    paths: List[str] = os.environ.get("PATH", "").split(":")
-    names: List[str] = []
+    paths: list[str] = os.environ.get("PATH", "").split(":")
+    names: list[str] = []
     if "/bin" in paths:
         bin_path = Path("/bin")
         if (
