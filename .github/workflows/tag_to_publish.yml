@@ -11,9 +11,10 @@ concurrency:
 jobs:
   release_to_pypi:
     name: cwl-utils release test
-
     runs-on: ubuntu-24.04
-
+    environment: PyPI
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +47,4 @@ jobs:
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          packages_dir: testenv2/src/cwl-utils/dist/
+          packages-dir: testenv2/src/cwl-utils/dist/
