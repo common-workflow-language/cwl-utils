@@ -89,7 +89,7 @@ class DockerImagePuller(ImagePuller):
 class SingularityImagePuller(ImagePuller):
     """Pull docker image with Singularity."""
 
-    CHARS_TO_REPLACE = ["/"]
+    CHARS_TO_REPLACE = ["/", ":"]
     NEW_CHAR = "_"
 
     def get_image_name(self) -> str:
