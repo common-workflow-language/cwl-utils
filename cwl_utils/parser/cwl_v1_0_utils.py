@@ -5,7 +5,7 @@ import os
 from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
-from typing import IO, Any, Optional, Union, cast
+from typing import Any, IO, Optional, Union, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -417,7 +417,7 @@ def type_for_step_output(
     raise ValidationException(
         "param {} not found in {}.".format(
             sourcename,
-            yaml_dumps(cwl.save(step_run)),
+            yaml_dumps(cwl.save(step)),
         )
     )
 
@@ -551,6 +551,6 @@ def param_for_source_id(
         "param {} not found in {}\n{}.".format(
             sourcename,
             yaml_dumps(cwl.save(process)),
-            f" or\n {yaml_dumps(cwl.save(parent))}" if parent is not None else "",
+            (f" or\n {yaml_dumps(cwl.save(parent))}" if parent is not None else ""),
         )
     )

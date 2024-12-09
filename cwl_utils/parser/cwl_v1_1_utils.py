@@ -5,10 +5,9 @@ import os
 from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
-from typing import IO, Any, Optional, Union, cast
+from typing import Any, IO, Optional, Union, cast
 from urllib.parse import urldefrag
 
-from ruamel import yaml
 from schema_salad.exceptions import ValidationException
 from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import aslist, json_dumps, yaml_no_ts
@@ -17,6 +16,7 @@ import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_1 as cwl
 import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
+from cwl_utils.utils import yaml_dumps
 
 CONTENT_LIMIT: int = 64 * 1024
 
@@ -434,7 +434,7 @@ def type_for_step_output(
     raise ValidationException(
         "param {} not found in {}.".format(
             sourcename,
-            yaml.main.round_trip_dump(cwl.save(step)),
+            yaml_dumps(cwl.save(step)),
         )
     )
 
@@ -568,11 +568,7 @@ def param_for_source_id(
     raise WorkflowException(
         "param {} not found in {}\n{}.".format(
             sourcename,
-            yaml.main.round_trip_dump(cwl.save(process)),
-            (
-                f" or\n {yaml.main.round_trip_dump(cwl.save(parent))}"
-                if parent is not None
-                else ""
-            ),
+            yaml_dumps(cwl.save(process)),
+            (f" or\n {yaml_dumps(cwl.save(parent))}" if parent is not None else ""),
         )
     )
