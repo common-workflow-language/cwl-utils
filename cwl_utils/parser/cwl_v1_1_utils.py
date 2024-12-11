@@ -5,7 +5,7 @@ import os
 from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
-from typing import Any, IO, Optional, Union, cast
+from typing import IO, Any, Optional, Union, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
