@@ -121,3 +121,45 @@ def test_graph_load_all() -> None:
     uri = Path(get_data("testdata/js-expr-req-wf.cwl")).resolve().as_uri()
     cwl_objs = load_document_by_uri(uri, load_all=True)
     assert len(cwl_objs) == 2
+
+
+def test_map_ordering_v1_0() -> None:
+    """Confirm that ID map entries are not sorted during parsing, CWL v1.0."""
+    uri = Path(get_data("testdata/map-ordering-v1_0.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert cwl_obj.inputs[0].id == f"{uri}#09first_input"
+    assert cwl_obj.inputs[1].id == f"{uri}#05second_input"
+    assert cwl_obj.inputs[2].id == f"{uri}#01third_input"
+    assert cwl_obj.steps[0].id == f"{uri}#zz_step_one"
+    assert cwl_obj.steps[1].id == f"{uri}#00_step_two"
+    assert cwl_obj.outputs[0].id == f"{uri}#zz_first_output"
+    assert cwl_obj.outputs[1].id == f"{uri}#ll_second_output"
+    assert cwl_obj.outputs[2].id == f"{uri}#aa_third_output"
+
+
+def test_map_ordering_v1_1() -> None:
+    """Confirm that ID map entries are not sorted during parsing, CWL v1.1."""
+    uri = Path(get_data("testdata/map-ordering-v1_1.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert cwl_obj.inputs[0].id == f"{uri}#09first_input"
+    assert cwl_obj.inputs[1].id == f"{uri}#05second_input"
+    assert cwl_obj.inputs[2].id == f"{uri}#01third_input"
+    assert cwl_obj.steps[0].id == f"{uri}#zz_step_one"
+    assert cwl_obj.steps[1].id == f"{uri}#00_step_two"
+    assert cwl_obj.outputs[0].id == f"{uri}#zz_first_output"
+    assert cwl_obj.outputs[1].id == f"{uri}#ll_second_output"
+    assert cwl_obj.outputs[2].id == f"{uri}#aa_third_output"
+
+
+def test_map_ordering_v1_2() -> None:
+    """Confirm that ID map entries are not sorted during parsing, CWL v1.2."""
+    uri = Path(get_data("testdata/map-ordering-v1_2.cwl")).resolve().as_uri()
+    cwl_obj = load_document_by_uri(uri)
+    assert cwl_obj.inputs[0].id == f"{uri}#09first_input"
+    assert cwl_obj.inputs[1].id == f"{uri}#05second_input"
+    assert cwl_obj.inputs[2].id == f"{uri}#01third_input"
+    assert cwl_obj.steps[0].id == f"{uri}#zz_step_one"
+    assert cwl_obj.steps[1].id == f"{uri}#00_step_two"
+    assert cwl_obj.outputs[0].id == f"{uri}#zz_first_output"
+    assert cwl_obj.outputs[1].id == f"{uri}#ll_second_output"
+    assert cwl_obj.outputs[2].id == f"{uri}#aa_third_output"
