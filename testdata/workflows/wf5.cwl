@@ -2,7 +2,7 @@
 # Checks symbolic links on github
 
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 inputs:
   in1:
     type: ../types/recursive.yml#file_with_sample_meta
