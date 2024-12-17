@@ -2,7 +2,7 @@
 # We have this tool to test both local and remote packing
 
 class: CommandLineTool
-cwlVersion: v1.0
+cwlVersion: v1.2
 inputs:
   in1:
     type: ../types/testtypes.yml#my_boolean_array

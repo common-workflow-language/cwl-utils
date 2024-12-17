@@ -1,6 +1,6 @@
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.0
+cwlVersion: v1.2
 inputs:
   in1: types/testtypes.yml#my_boolean_array
   in2: 
