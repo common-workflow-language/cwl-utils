@@ -79,7 +79,7 @@ def test_cwl_inputs_to_jsonschema(test_param: Dict[str, str]) -> None:
 
 
 def test_cwl_inputs_to_jsonschema_fails() -> None:
-    """Compare tool schema of param 1 against input schema of param 2"""
+    """Compare tool schema of param 1 against input schema of param 2."""
     tool_url = TEST_PARAMS[0]["tool_url"]
     input_url = TEST_PARAMS[3]["input_url"]
 

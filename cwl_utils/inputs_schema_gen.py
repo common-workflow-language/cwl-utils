@@ -238,7 +238,8 @@ def get_is_required_from_input_parameter(
 def generate_json_schema_property_from_input_parameter(
     input_parameter: WorkflowInputParameter,
 ) -> JSONSchemaProperty:
-    """Given an input parameter, generate a JSON schema property.
+    """
+    Given an input parameter, generate a JSON schema property.
 
     :param input_parameter:
     :return:
@@ -319,7 +320,8 @@ def generate_definition_from_schema(schema: InputRecordSchema) -> Dict[str, Any]
 
 
 def cwl_to_jsonschema(cwl_obj: Union[Workflow, CommandLineTool]) -> Any:
-    """cwl_obj: A CWL Object.
+    """
+    cwl_obj: A CWL Object.
 
     Returns:
         A JSONSchema object.
@@ -327,6 +329,7 @@ def cwl_to_jsonschema(cwl_obj: Union[Workflow, CommandLineTool]) -> Any:
     Example:
         cwl_obj = load_document_by_uri(<CWL_URL>)
         jsonschema = cwl_to_jsonschema(cwl_inputs)
+
     """
     # Initialise the schema from the workflow input json schema template
     with open(JSON_TEMPLATE_PATH, "r") as template_h:
@@ -559,7 +562,8 @@ def main() -> None:
 
 
 def get_cwl_url(url: str) -> str:
-    """Conform to uri format.
+    """
+    Conform to uri format.
 
     If no scheme, then assert is a local file path and exists
     if scheme is file, then assert is a local file path and exists

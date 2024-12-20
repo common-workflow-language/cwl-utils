@@ -11,7 +11,7 @@ import urllib.request
 from collections.abc import MutableMapping, MutableSequence
 from copy import deepcopy
 from io import StringIO
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Dict, List
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.parser import ParserError

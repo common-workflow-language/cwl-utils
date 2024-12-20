@@ -21,29 +21,11 @@ Saveable = Union[cwl_v1_0.Saveable, cwl_v1_1.Saveable, cwl_v1_2.Saveable]
 InputParameter = Union[
     cwl_v1_0.InputParameter, cwl_v1_1.InputParameter, cwl_v1_2.InputParameter
 ]
-"""Type union for a CWL v1.x InputParameter object."""
-InputArraySchema = Union[
-    cwl_v1_0.InputArraySchema,
-    cwl_v1_1.InputArraySchema,
-    cwl_v1_2.InputArraySchema,
-]
-"""Type union for a CWL v1.x InputArraySchema object."""
-InputEnumSchema = Union[
-    cwl_v1_0.InputEnumSchema,
-    cwl_v1_1.InputEnumSchema,
-    cwl_v1_2.InputEnumSchema,
-]
 """Type union for a CWL v1.x InputEnumSchema object."""
 InputRecordField = Union[
     cwl_v1_0.InputRecordField,
     cwl_v1_1.InputRecordField,
     cwl_v1_2.InputRecordField,
-]
-"""Type union for a CWL v1.x InputRecordField object."""
-InputRecordSchema = Union[
-    cwl_v1_0.InputRecordSchema,
-    cwl_v1_1.InputRecordSchema,
-    cwl_v1_2.InputRecordSchema,
 ]
 """Type union for a CWL v1.x InputRecordSchema object."""
 OutputParameter = Union[
