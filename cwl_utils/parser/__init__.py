@@ -28,6 +28,8 @@ InputRecordField = Union[
     cwl_v1_2.InputRecordField,
 ]
 """Type union for a CWL v1.x InputRecordSchema object."""
+InputSchema = Union[cwl_v1_0.InputSchema, cwl_v1_1.InputSchema, cwl_v1_2.InputSchema]
+"""Type union for a CWL v1.x InputSchema object."""
 OutputParameter = Union[
     cwl_v1_0.OutputParameter, cwl_v1_1.OutputParameter, cwl_v1_2.OutputParameter
 ]
@@ -243,8 +245,6 @@ def load_document_by_uri(
     load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a URI or a path."""
-    base_uri = ""
-    real_uri = ""
     if isinstance(path, str):
         uri = urlparse(path)
         id_ = uri.fragment or None
@@ -259,8 +259,24 @@ def load_document_by_uri(
         base_uri = path.resolve().parent.as_uri()
         id_ = path.resolve().name.split("#")[1] if "#" in path.resolve().name else None
 
-    if loadingOptions is None:
+    if isinstance(loadingOptions, cwl_v1_0.LoadingOptions):
+        loadingOptions = cwl_v1_0.LoadingOptions(
+            fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
+        )
+    elif isinstance(loadingOptions, cwl_v1_1.LoadingOptions):
+        loadingOptions = cwl_v1_1.LoadingOptions(
+            fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
+        )
+    elif isinstance(loadingOptions, cwl_v1_2.LoadingOptions):
+        loadingOptions = cwl_v1_2.LoadingOptions(
+            fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
+        )
+    elif loadingOptions is None:
         loadingOptions = cwl_v1_2.LoadingOptions(fileuri=real_uri, baseuri=base_uri)
+    else:
+        raise ValidationException(
+            f"Unsupported loadingOptions type: {type(loadingOptions)}"
+        )
 
     doc = loadingOptions.fetcher.fetch_text(real_uri)
     return load_document_by_string(doc, real_uri, loadingOptions, id_, load_all)
