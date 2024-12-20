@@ -53,6 +53,7 @@ cwl-docker-extract = "cwl_utils.docker_extract:main"
 cwl-expression-refactor = "cwl_utils.expression_refactor:main"
 cwl-graph-split = "cwl_utils.graph_split:main"
 cwl-normalizer = "cwl_utils.normalizer:main"
+cwl-inputs-schema-gen = "cwl_utils.inputs_schema_gen:main"
 
 [tool.aliases]
 test = "pytest"
@@ -81,6 +82,9 @@ include-package-data = true
 "cwl_utils.testdata.extensions" = "testdata/extensions"
 "cwl_utils.testdata.types" = "testdata/types"
 "cwl_utils.testdata.workflows" = "testdata/workflows"
+
+[tool.setuptools.package-data]
+"cwl_utils" = ["templates/*.json"]
 
 [tool.setuptools.dynamic]
 version = {attr = "cwl_utils.__meta__.__version__"}

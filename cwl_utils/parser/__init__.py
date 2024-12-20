@@ -21,29 +21,11 @@ Saveable = Union[cwl_v1_0.Saveable, cwl_v1_1.Saveable, cwl_v1_2.Saveable]
 InputParameter = Union[
     cwl_v1_0.InputParameter, cwl_v1_1.InputParameter, cwl_v1_2.InputParameter
 ]
-"""Type union for a CWL v1.x InputParameter object."""
-InputArraySchema = Union[
-    cwl_v1_0.InputArraySchema,
-    cwl_v1_1.InputArraySchema,
-    cwl_v1_2.InputArraySchema,
-]
-"""Type union for a CWL v1.x InputArraySchema object."""
-InputEnumSchema = Union[
-    cwl_v1_0.InputEnumSchema,
-    cwl_v1_1.InputEnumSchema,
-    cwl_v1_2.InputEnumSchema,
-]
 """Type union for a CWL v1.x InputEnumSchema object."""
 InputRecordField = Union[
     cwl_v1_0.InputRecordField,
     cwl_v1_1.InputRecordField,
     cwl_v1_2.InputRecordField,
-]
-"""Type union for a CWL v1.x InputRecordField object."""
-InputRecordSchema = Union[
-    cwl_v1_0.InputRecordSchema,
-    cwl_v1_1.InputRecordSchema,
-    cwl_v1_2.InputRecordSchema,
 ]
 """Type union for a CWL v1.x InputRecordSchema object."""
 OutputParameter = Union[
@@ -110,6 +92,11 @@ WorkflowStepOutput = Union[
 CommandLineTool = Union[
     cwl_v1_0.CommandLineTool, cwl_v1_1.CommandLineTool, cwl_v1_2.CommandLineTool
 ]
+CommandLineToolTypes = (
+    cwl_v1_0.CommandLineTool,
+    cwl_v1_1.CommandLineTool,
+    cwl_v1_2.CommandLineTool,
+)
 """Type union for a CWL v1.x CommandLineTool object."""
 CommandLineBinding = Union[
     cwl_v1_0.CommandLineBinding,
@@ -179,12 +166,36 @@ SoftwareRequirementTypes = (
 )
 """Type union for a CWL v1.x SoftwareRequirement object."""
 ArraySchema = Union[cwl_v1_0.ArraySchema, cwl_v1_1.ArraySchema, cwl_v1_2.ArraySchema]
+InputArraySchema = Union[
+    cwl_v1_0.InputArraySchema, cwl_v1_1.InputArraySchema, cwl_v1_2.InputArraySchema
+]
+InputArraySchemaTypes = (
+    cwl_v1_0.InputArraySchema,
+    cwl_v1_1.InputArraySchema,
+    cwl_v1_2.InputArraySchema,
+)
 """Type Union for a CWL v1.x ArraySchema object."""
 EnumSchema = Union[cwl_v1_0.EnumSchema, cwl_v1_1.EnumSchema, cwl_v1_2.EnumSchema]
+InputEnumSchema = Union[
+    cwl_v1_0.InputEnumSchema, cwl_v1_1.InputEnumSchema, cwl_v1_2.InputEnumSchema
+]
+InputEnumSchemaTypes = (
+    cwl_v1_0.InputEnumSchema,
+    cwl_v1_1.InputEnumSchema,
+    cwl_v1_2.InputEnumSchema,
+)
 """Type Union for a CWL v1.x EnumSchema object."""
 RecordSchema = Union[
     cwl_v1_0.RecordSchema, cwl_v1_1.RecordSchema, cwl_v1_2.RecordSchema
 ]
+InputRecordSchema = Union[
+    cwl_v1_0.InputRecordSchema, cwl_v1_1.InputRecordSchema, cwl_v1_2.InputRecordSchema
+]
+InputRecordSchemaTypes = (
+    cwl_v1_0.InputRecordSchema,
+    cwl_v1_1.InputRecordSchema,
+    cwl_v1_2.InputRecordSchema,
+)
 """Type Union for a CWL v1.x RecordSchema object."""
 File = Union[cwl_v1_0.File, cwl_v1_1.File, cwl_v1_2.File]
 """Type Union for a CWL v1.x File object."""
