@@ -696,7 +696,7 @@ def process_workflow_inputs_and_outputs(
                 )
                 target_type = copy.deepcopy(param2.type_)
                 if isinstance(target_type, cwl.OutputArraySchema):
-                    target_type.name = None
+                    target_type.name = ""
                 target = cwl.WorkflowInputParameter(id=None, type_=target_type)
                 if not isinstance(param2.outputSource, list):
                     sources = param2.outputSource.split("#")[-1]
@@ -1520,7 +1520,7 @@ def traverse_CommandLineTool(
                     new_clt_step = copy.copy(
                         step
                     )  # a deepcopy would be convenient, but params2.cwl gives it problems
-                    new_clt_step.id = cast(str, new_clt_step.id).split("#")[-1]
+                    new_clt_step.id = new_clt_step.id.split("#")[-1]
                     new_clt_step.run = copy.copy(step.run)
                     new_clt_step.run.id = None
                     remove_JSReq(new_clt_step.run, skip_command_line1)
