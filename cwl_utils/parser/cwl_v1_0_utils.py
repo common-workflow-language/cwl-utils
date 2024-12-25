@@ -214,7 +214,7 @@ def check_all_types(
             for src in srcs_of_sink:
                 check_result = check_types(
                     type_dict[cast(str, src.id)],
-                    type_dict[cast(str, sink.id)],
+                    type_dict[sink.id],
                     linkMerge,
                     getattr(sink, "valueFrom", None),
                 )
@@ -312,6 +312,7 @@ def load_inputfile(
         baseuri = cwl.file_uri(os.getcwd()) + "/"
     if loadingOptions is None:
         loadingOptions = cwl.LoadingOptions()
+
     result, metadata = _inputfile_load(
         doc,
         baseuri,
@@ -380,10 +381,7 @@ def type_for_step_input(
     cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
     if step_run and step_run.inputs:
         for step_input in step_run.inputs:
-            if (
-                cast(str, step_input.id).split("#")[-1]
-                == cast(str, in_.id).split("#")[-1]
-            ):
+            if cast(str, step_input.id).split("#")[-1] == in_.id.split("#")[-1]:
                 input_type = step_input.type_
                 if step.scatter is not None and in_.id in aslist(step.scatter):
                     input_type = cwl.ArraySchema(items=input_type, type_="array")
