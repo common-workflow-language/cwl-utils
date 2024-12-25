@@ -4,6 +4,7 @@
 """CWL Expression refactoring tool for CWL v1.1 ."""
 import copy
 import hashlib
+import uuid
 from collections.abc import Mapping, MutableSequence, Sequence
 from typing import Any, Optional, Union, cast
 
@@ -393,6 +394,7 @@ def generate_etool_from_expr(
         find_expressionLib(extra_processes) if extra_processes else None
     )
     return cwl.ExpressionTool(
+        id="_:" + str(uuid.uuid4()),
         inputs=inputs,
         outputs=outputs,
         expression=expression,
@@ -1741,6 +1743,7 @@ def generate_etool_from_expr2(
                 x for x in reqs if not isinstance(x, cwl.InitialWorkDirRequirement)
             ]
     return cwl.ExpressionTool(
+        id="_:" + str(uuid.uuid4()),
         inputs=inputs,
         outputs=outputs,
         expression=expression,
