@@ -1162,6 +1162,7 @@ class RecordField(Documented):
     A field of a record.
     """
 
+    name: str
     class_uri = "https://w3id.org/cwl/salad#RecordField"
 
     def __init__(
@@ -1181,7 +1182,7 @@ class RecordField(Documented):
         else:
             self.loadingOptions = LoadingOptions()
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
@@ -1636,6 +1637,7 @@ class EnumSchema(Saveable):
 
     """
 
+    name: str
     class_uri = "https://w3id.org/cwl/salad#EnumSchema"
 
     def __init__(
@@ -1654,7 +1656,7 @@ class EnumSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.symbols = symbols
         self.type_ = type_
 
@@ -2708,6 +2710,7 @@ class CWLArraySchema(ArraySchema):
 
 
 class CWLRecordField(RecordField):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#CWLRecordField"
 
     def __init__(
@@ -2727,7 +2730,7 @@ class CWLRecordField(RecordField):
         else:
             self.loadingOptions = LoadingOptions()
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
@@ -4569,6 +4572,7 @@ class OutputSchema(IOSchema):
 
 
 class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#InputRecordField"
 
     def __init__(
@@ -4594,7 +4598,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         else:
             self.loadingOptions = LoadingOptions()
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.type_ = type_
         self.label = label
         self.secondaryFiles = secondaryFiles
@@ -5202,6 +5206,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
 
 
 class InputRecordSchema(CWLRecordSchema, InputSchema):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#InputRecordSchema"
 
     def __init__(
@@ -5226,7 +5231,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InputRecordSchema):
@@ -5580,6 +5585,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
 
 
 class InputEnumSchema(EnumSchema, InputSchema):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#InputEnumSchema"
 
     def __init__(
@@ -5600,7 +5606,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.symbols = symbols
         self.type_ = type_
         self.label = label
@@ -5958,6 +5964,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
 
 
 class InputArraySchema(CWLArraySchema, InputSchema):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#InputArraySchema"
 
     def __init__(
@@ -5982,7 +5989,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InputArraySchema):
@@ -6336,6 +6343,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
 
 
 class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#OutputRecordField"
 
     def __init__(
@@ -6359,7 +6367,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
         else:
             self.loadingOptions = LoadingOptions()
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.type_ = type_
         self.label = label
         self.secondaryFiles = secondaryFiles
@@ -6841,6 +6849,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
 
 
 class OutputRecordSchema(CWLRecordSchema, OutputSchema):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#OutputRecordSchema"
 
     def __init__(
@@ -6865,7 +6874,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, OutputRecordSchema):
@@ -7219,6 +7228,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
 
 
 class OutputEnumSchema(EnumSchema, OutputSchema):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#OutputEnumSchema"
 
     def __init__(
@@ -7239,7 +7249,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.symbols = symbols
         self.type_ = type_
         self.label = label
@@ -7597,6 +7607,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
 
 
 class OutputArraySchema(CWLArraySchema, OutputSchema):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#OutputArraySchema"
 
     def __init__(
@@ -7621,7 +7632,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, OutputArraySchema):
@@ -9992,6 +10003,7 @@ class CommandLineBindable(Saveable):
 
 
 class CommandInputRecordField(InputRecordField, CommandLineBindable):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#CommandInputRecordField"
 
     def __init__(
@@ -10018,7 +10030,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         else:
             self.loadingOptions = LoadingOptions()
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.type_ = type_
         self.label = label
         self.secondaryFiles = secondaryFiles
@@ -10687,6 +10699,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
 class CommandInputRecordSchema(
     InputRecordSchema, CommandInputSchema, CommandLineBindable
 ):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#CommandInputRecordSchema"
 
     def __init__(
@@ -10712,7 +10725,7 @@ class CommandInputRecordSchema(
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.inputBinding = inputBinding
 
     def __eq__(self, other: Any) -> bool:
@@ -11132,6 +11145,7 @@ class CommandInputRecordSchema(
 
 
 class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBindable):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#CommandInputEnumSchema"
 
     def __init__(
@@ -11153,7 +11167,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.symbols = symbols
         self.type_ = type_
         self.label = label
@@ -11579,6 +11593,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
 class CommandInputArraySchema(
     InputArraySchema, CommandInputSchema, CommandLineBindable
 ):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#CommandInputArraySchema"
 
     def __init__(
@@ -11604,7 +11619,7 @@ class CommandInputArraySchema(
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.inputBinding = inputBinding
 
     def __eq__(self, other: Any) -> bool:
@@ -12017,6 +12032,7 @@ class CommandInputArraySchema(
 
 
 class CommandOutputRecordField(OutputRecordField):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#CommandOutputRecordField"
 
     def __init__(
@@ -12041,7 +12057,7 @@ class CommandOutputRecordField(OutputRecordField):
         else:
             self.loadingOptions = LoadingOptions()
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.type_ = type_
         self.label = label
         self.secondaryFiles = secondaryFiles
@@ -12590,6 +12606,7 @@ class CommandOutputRecordField(OutputRecordField):
 
 
 class CommandOutputRecordSchema(OutputRecordSchema):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#CommandOutputRecordSchema"
 
     def __init__(
@@ -12614,7 +12631,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandOutputRecordSchema):
@@ -12968,6 +12985,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
 
 
 class CommandOutputEnumSchema(OutputEnumSchema):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#CommandOutputEnumSchema"
 
     def __init__(
@@ -12988,7 +13006,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.symbols = symbols
         self.type_ = type_
         self.label = label
@@ -13346,6 +13364,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
 
 
 class CommandOutputArraySchema(OutputArraySchema):
+    name: str
     class_uri = "https://w3id.org/cwl/cwl#CommandOutputArraySchema"
 
     def __init__(
@@ -13370,7 +13389,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandOutputArraySchema):
@@ -13728,6 +13747,7 @@ class CommandInputParameter(InputParameter):
     An input parameter for a CommandLineTool.
     """
 
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#CommandInputParameter"
 
     def __init__(
@@ -13758,7 +13778,7 @@ class CommandInputParameter(InputParameter):
         self.secondaryFiles = secondaryFiles
         self.streamable = streamable
         self.doc = doc
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.format = format
         self.loadContents = loadContents
         self.loadListing = loadListing
@@ -14482,6 +14502,7 @@ class CommandOutputParameter(OutputParameter):
     An output parameter for a CommandLineTool.
     """
 
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#CommandOutputParameter"
 
     def __init__(
@@ -14509,7 +14530,7 @@ class CommandOutputParameter(OutputParameter):
         self.secondaryFiles = secondaryFiles
         self.streamable = streamable
         self.doc = doc
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.format = format
         self.type_ = type_
         self.outputBinding = outputBinding
@@ -15060,6 +15081,7 @@ class CommandLineTool(Process):
 
     """
 
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#CommandLineTool"
 
     def __init__(
@@ -15091,7 +15113,7 @@ class CommandLineTool(Process):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.label = label
         self.doc = doc
         self.inputs = inputs
@@ -19192,6 +19214,7 @@ class ToolTimeLimit(ProcessRequirement):
 
 
 class ExpressionToolOutputParameter(OutputParameter):
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#ExpressionToolOutputParameter"
 
     def __init__(
@@ -19218,7 +19241,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         self.secondaryFiles = secondaryFiles
         self.streamable = streamable
         self.doc = doc
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.format = format
         self.type_ = type_
 
@@ -19697,6 +19720,7 @@ class ExpressionToolOutputParameter(OutputParameter):
 
 
 class WorkflowInputParameter(InputParameter):
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#WorkflowInputParameter"
 
     def __init__(
@@ -19727,7 +19751,7 @@ class WorkflowInputParameter(InputParameter):
         self.secondaryFiles = secondaryFiles
         self.streamable = streamable
         self.doc = doc
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.format = format
         self.loadContents = loadContents
         self.loadListing = loadListing
@@ -20458,6 +20482,7 @@ class ExpressionTool(Process):
 
     """
 
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#ExpressionTool"
 
     def __init__(
@@ -20482,7 +20507,7 @@ class ExpressionTool(Process):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.label = label
         self.doc = doc
         self.inputs = inputs
@@ -21117,6 +21142,7 @@ class WorkflowOutputParameter(OutputParameter):
 
     """
 
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#WorkflowOutputParameter"
 
     def __init__(
@@ -21145,7 +21171,7 @@ class WorkflowOutputParameter(OutputParameter):
         self.secondaryFiles = secondaryFiles
         self.streamable = streamable
         self.doc = doc
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.format = format
         self.outputSource = outputSource
         self.linkMerge = linkMerge
@@ -21794,6 +21820,7 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
 
     """
 
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#WorkflowStepInput"
 
     def __init__(
@@ -21817,7 +21844,7 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.source = source
         self.linkMerge = linkMerge
         self.loadContents = loadContents
@@ -22375,6 +22402,7 @@ class WorkflowStepOutput(Identified):
 
     """
 
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#WorkflowStepOutput"
 
     def __init__(
@@ -22391,7 +22419,7 @@ class WorkflowStepOutput(Identified):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, WorkflowStepOutput):
@@ -22587,6 +22615,7 @@ class WorkflowStep(Identified, Labeled, Documented):
 
     """
 
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#WorkflowStep"
 
     def __init__(
@@ -22612,7 +22641,7 @@ class WorkflowStep(Identified, Labeled, Documented):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.label = label
         self.doc = doc
         self.in_ = in_
@@ -23320,6 +23349,7 @@ class Workflow(Process):
 
     """
 
+    id: str
     class_uri = "https://w3id.org/cwl/cwl#Workflow"
 
     def __init__(
@@ -23344,7 +23374,7 @@ class Workflow(Process):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.label = label
         self.doc = doc
         self.inputs = inputs
@@ -24593,6 +24623,7 @@ class Secrets(ProcessRequirement):
 
 
 class ProcessGenerator(Process):
+    id: str
     class_uri = "http://commonwl.org/cwltool#ProcessGenerator"
 
     def __init__(
@@ -24617,7 +24648,7 @@ class ProcessGenerator(Process):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id = id
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
         self.label = label
         self.doc = doc
         self.inputs = inputs
