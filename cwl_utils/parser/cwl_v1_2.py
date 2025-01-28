@@ -1163,7 +1163,6 @@ class RecordField(Documented):
     """
 
     name: str
-    class_uri = "https://w3id.org/cwl/salad#RecordField"
 
     def __init__(
         self,
@@ -1431,8 +1430,6 @@ class RecordField(Documented):
 
 
 class RecordSchema(Saveable):
-    class_uri = "https://w3id.org/cwl/salad#RecordSchema"
-
     def __init__(
         self,
         type_: Any,
@@ -1638,7 +1635,6 @@ class EnumSchema(Saveable):
     """
 
     name: str
-    class_uri = "https://w3id.org/cwl/salad#EnumSchema"
 
     def __init__(
         self,
@@ -1906,8 +1902,6 @@ class EnumSchema(Saveable):
 
 
 class ArraySchema(Saveable):
-    class_uri = "https://w3id.org/cwl/salad#ArraySchema"
-
     def __init__(
         self,
         items: Any,
@@ -2107,8 +2101,6 @@ class ArraySchema(Saveable):
 
 
 class MapSchema(Saveable):
-    class_uri = "https://w3id.org/cwl/salad#MapSchema"
-
     def __init__(
         self,
         type_: Any,
@@ -2308,8 +2300,6 @@ class MapSchema(Saveable):
 
 
 class UnionSchema(Saveable):
-    class_uri = "https://w3id.org/cwl/salad#UnionSchema"
-
     def __init__(
         self,
         names: Any,
@@ -2509,8 +2499,6 @@ class UnionSchema(Saveable):
 
 
 class CWLArraySchema(ArraySchema):
-    class_uri = "https://w3id.org/cwl/cwl#CWLArraySchema"
-
     def __init__(
         self,
         items: Any,
@@ -2711,7 +2699,6 @@ class CWLArraySchema(ArraySchema):
 
 class CWLRecordField(RecordField):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#CWLRecordField"
 
     def __init__(
         self,
@@ -2979,8 +2966,6 @@ class CWLRecordField(RecordField):
 
 
 class CWLRecordSchema(RecordSchema):
-    class_uri = "https://w3id.org/cwl/cwl#CWLRecordSchema"
-
     def __init__(
         self,
         type_: Any,
@@ -3250,8 +3235,6 @@ class File(Saveable):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#File"
-
     def __init__(
         self,
         location: Optional[Any] = None,
@@ -3350,7 +3333,8 @@ class File(Saveable):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -3924,7 +3908,12 @@ class File(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.location is not None:
             u = save_relative_uri(self.location, base_url, False, None, relative_uris)
@@ -4045,8 +4034,6 @@ class Directory(Saveable):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#Directory"
-
     def __init__(
         self,
         location: Optional[Any] = None,
@@ -4111,7 +4098,8 @@ class Directory(Saveable):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -4349,7 +4337,12 @@ class Directory(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.location is not None:
             u = save_relative_uri(self.location, base_url, False, None, relative_uris)
@@ -4411,8 +4404,6 @@ class Parameter(FieldBase, Documented, Identified):
 
 
 class InputBinding(Saveable):
-    class_uri = "https://w3id.org/cwl/cwl#InputBinding"
-
     def __init__(
         self,
         loadContents: Optional[Any] = None,
@@ -4573,7 +4564,6 @@ class OutputSchema(IOSchema):
 
 class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#InputRecordField"
 
     def __init__(
         self,
@@ -5207,7 +5197,6 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
 
 class InputRecordSchema(CWLRecordSchema, InputSchema):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#InputRecordSchema"
 
     def __init__(
         self,
@@ -5586,7 +5575,6 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
 
 class InputEnumSchema(EnumSchema, InputSchema):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#InputEnumSchema"
 
     def __init__(
         self,
@@ -5965,7 +5953,6 @@ class InputEnumSchema(EnumSchema, InputSchema):
 
 class InputArraySchema(CWLArraySchema, InputSchema):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#InputArraySchema"
 
     def __init__(
         self,
@@ -6344,7 +6331,6 @@ class InputArraySchema(CWLArraySchema, InputSchema):
 
 class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#OutputRecordField"
 
     def __init__(
         self,
@@ -6850,7 +6836,6 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
 
 class OutputRecordSchema(CWLRecordSchema, OutputSchema):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#OutputRecordSchema"
 
     def __init__(
         self,
@@ -7229,7 +7214,6 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
 
 class OutputEnumSchema(EnumSchema, OutputSchema):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#OutputEnumSchema"
 
     def __init__(
         self,
@@ -7608,7 +7592,6 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
 
 class OutputArraySchema(CWLArraySchema, OutputSchema):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#OutputArraySchema"
 
     def __init__(
         self,
@@ -8027,8 +8010,6 @@ class InlineJavascriptRequirement(ProcessRequirement):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#InlineJavascriptRequirement"
-
     def __init__(
         self,
         expressionLib: Optional[Any] = None,
@@ -8082,7 +8063,8 @@ class InlineJavascriptRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -8176,7 +8158,12 @@ class InlineJavascriptRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.expressionLib is not None:
             r["expressionLib"] = save(
@@ -8217,8 +8204,6 @@ class SchemaDefRequirement(ProcessRequirement):
     - A file can contain a list of type definitions
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#SchemaDefRequirement"
 
     def __init__(
         self,
@@ -8270,7 +8255,8 @@ class SchemaDefRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -8365,7 +8351,12 @@ class SchemaDefRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.types is not None:
             r["types"] = save(
@@ -8400,8 +8391,6 @@ class SecondaryFileSchema(Saveable):
     in the Schema Salad specification.
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#SecondaryFileSchema"
 
     def __init__(
         self,
@@ -8610,8 +8599,6 @@ class LoadListingRequirement(ProcessRequirement):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#LoadListingRequirement"
-
     def __init__(
         self,
         loadListing: Optional[Any] = None,
@@ -8664,7 +8651,8 @@ class LoadListingRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -8758,7 +8746,12 @@ class LoadListingRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.loadListing is not None:
             r["loadListing"] = save(
@@ -8786,8 +8779,6 @@ class EnvironmentDef(Saveable):
     result of executing an expression, such as getting a parameter from input.
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#EnvironmentDef"
 
     def __init__(
         self,
@@ -9029,8 +9020,6 @@ class CommandLineBinding(InputBinding):
       - **null**: Add nothing.
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#CommandLineBinding"
 
     def __init__(
         self,
@@ -9554,8 +9543,6 @@ class CommandOutputBinding(LoadContents):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#CommandOutputBinding"
-
     def __init__(
         self,
         loadContents: Optional[Any] = None,
@@ -9876,8 +9863,6 @@ class CommandOutputBinding(LoadContents):
 
 
 class CommandLineBindable(Saveable):
-    class_uri = "https://w3id.org/cwl/cwl#CommandLineBindable"
-
     def __init__(
         self,
         inputBinding: Optional[Any] = None,
@@ -10026,7 +10011,6 @@ class CommandLineBindable(Saveable):
 
 class CommandInputRecordField(InputRecordField, CommandLineBindable):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandInputRecordField"
 
     def __init__(
         self,
@@ -10722,7 +10706,6 @@ class CommandInputRecordSchema(
     InputRecordSchema, CommandInputSchema, CommandLineBindable
 ):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandInputRecordSchema"
 
     def __init__(
         self,
@@ -11168,7 +11151,6 @@ class CommandInputRecordSchema(
 
 class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBindable):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandInputEnumSchema"
 
     def __init__(
         self,
@@ -11616,7 +11598,6 @@ class CommandInputArraySchema(
     InputArraySchema, CommandInputSchema, CommandLineBindable
 ):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandInputArraySchema"
 
     def __init__(
         self,
@@ -12055,7 +12036,6 @@ class CommandInputArraySchema(
 
 class CommandOutputRecordField(OutputRecordField):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandOutputRecordField"
 
     def __init__(
         self,
@@ -12629,7 +12609,6 @@ class CommandOutputRecordField(OutputRecordField):
 
 class CommandOutputRecordSchema(OutputRecordSchema):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandOutputRecordSchema"
 
     def __init__(
         self,
@@ -13008,7 +12987,6 @@ class CommandOutputRecordSchema(OutputRecordSchema):
 
 class CommandOutputEnumSchema(OutputEnumSchema):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandOutputEnumSchema"
 
     def __init__(
         self,
@@ -13387,7 +13365,6 @@ class CommandOutputEnumSchema(OutputEnumSchema):
 
 class CommandOutputArraySchema(OutputArraySchema):
     name: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandOutputArraySchema"
 
     def __init__(
         self,
@@ -13770,7 +13747,6 @@ class CommandInputParameter(InputParameter):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandInputParameter"
 
     def __init__(
         self,
@@ -14525,7 +14501,6 @@ class CommandOutputParameter(OutputParameter):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandOutputParameter"
 
     def __init__(
         self,
@@ -15104,7 +15079,6 @@ class CommandLineTool(Process):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#CommandLineTool"
 
     def __init__(
         self,
@@ -15284,7 +15258,8 @@ class CommandLineTool(Process):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -16105,7 +16080,12 @@ class CommandLineTool(Process):
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, self.id, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, self.id, False, None, relative_uris)
             r["class"] = u
         if self.label is not None:
             r["label"] = save(
@@ -16273,8 +16253,6 @@ class DockerRequirement(ProcessRequirement):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#DockerRequirement"
-
     def __init__(
         self,
         dockerPull: Optional[Any] = None,
@@ -16353,7 +16331,8 @@ class DockerRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -16687,7 +16666,12 @@ class DockerRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.dockerPull is not None:
             r["dockerPull"] = save(
@@ -16760,8 +16744,6 @@ class SoftwareRequirement(ProcessRequirement):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#SoftwareRequirement"
-
     def __init__(
         self,
         packages: Any,
@@ -16812,7 +16794,8 @@ class SoftwareRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -16907,7 +16890,12 @@ class SoftwareRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.packages is not None:
             r["packages"] = save(
@@ -16926,8 +16914,6 @@ class SoftwareRequirement(ProcessRequirement):
 
 
 class SoftwarePackage(Saveable):
-    class_uri = "https://w3id.org/cwl/cwl#SoftwarePackage"
-
     def __init__(
         self,
         package: Any,
@@ -17196,8 +17182,6 @@ class Dirent(Saveable):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#Dirent"
-
     def __init__(
         self,
         entry: Any,
@@ -17463,8 +17447,6 @@ class InitialWorkDirRequirement(ProcessRequirement):
     Normally files are staged within the designated output directory. However, when running inside containers, files may be staged at arbitrary locations, see discussion for [`Dirent.entryname`](#Dirent). Together with `DockerRequirement.dockerOutputDirectory` it is possible to control the locations of both input and output files when running in containers.
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#InitialWorkDirRequirement"
-
     def __init__(
         self,
         listing: Any,
@@ -17515,7 +17497,8 @@ class InitialWorkDirRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -17610,7 +17593,12 @@ class InitialWorkDirRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.listing is not None:
             r["listing"] = save(
@@ -17634,8 +17622,6 @@ class EnvVarRequirement(ProcessRequirement):
     execution environment of the tool.  See `EnvironmentDef` for details.
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#EnvVarRequirement"
 
     def __init__(
         self,
@@ -17687,7 +17673,8 @@ class EnvVarRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -17782,7 +17769,12 @@ class EnvVarRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.envDef is not None:
             r["envDef"] = save(
@@ -17811,8 +17803,6 @@ class ShellCommandRequirement(ProcessRequirement):
     the use of shell metacharacters such as `|` for pipes.
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#ShellCommandRequirement"
 
     def __init__(
         self,
@@ -17862,7 +17852,8 @@ class ShellCommandRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -17906,7 +17897,12 @@ class ShellCommandRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
 
         # top refers to the directory level
@@ -17949,8 +17945,6 @@ class ResourceRequirement(ProcessRequirement):
     If neither "min" nor "max" is specified for a resource, use the default values below.
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#ResourceRequirement"
 
     def __init__(
         self,
@@ -18038,7 +18032,8 @@ class ResourceRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -18468,7 +18463,12 @@ class ResourceRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.coresMin is not None:
             r["coresMin"] = save(
@@ -18552,8 +18552,6 @@ class WorkReuse(ProcessRequirement):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#WorkReuse"
-
     def __init__(
         self,
         enableReuse: Any,
@@ -18606,7 +18604,8 @@ class WorkReuse(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -18701,7 +18700,12 @@ class WorkReuse(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.enableReuse is not None:
             r["enableReuse"] = save(
@@ -18741,8 +18745,6 @@ class NetworkAccess(ProcessRequirement):
     address or the ability to accept inbound connections.
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#NetworkAccess"
 
     def __init__(
         self,
@@ -18797,7 +18799,8 @@ class NetworkAccess(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -18892,7 +18895,12 @@ class NetworkAccess(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.networkAccess is not None:
             r["networkAccess"] = save(
@@ -18948,8 +18956,6 @@ class InplaceUpdateRequirement(ProcessRequirement):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#InplaceUpdateRequirement"
-
     def __init__(
         self,
         inplaceUpdate: Any,
@@ -19003,7 +19009,8 @@ class InplaceUpdateRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -19098,7 +19105,12 @@ class InplaceUpdateRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.inplaceUpdate is not None:
             r["inplaceUpdate"] = save(
@@ -19130,8 +19142,6 @@ class ToolTimeLimit(ProcessRequirement):
     wall-time for the execution of the command line itself.
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#ToolTimeLimit"
 
     def __init__(
         self,
@@ -19185,7 +19195,8 @@ class ToolTimeLimit(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -19280,7 +19291,12 @@ class ToolTimeLimit(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.timelimit is not None:
             r["timelimit"] = save(
@@ -19303,7 +19319,6 @@ class ToolTimeLimit(ProcessRequirement):
 
 class ExpressionToolOutputParameter(OutputParameter):
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#ExpressionToolOutputParameter"
 
     def __init__(
         self,
@@ -19809,7 +19824,6 @@ class ExpressionToolOutputParameter(OutputParameter):
 
 class WorkflowInputParameter(InputParameter):
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#WorkflowInputParameter"
 
     def __init__(
         self,
@@ -20571,7 +20585,6 @@ class ExpressionTool(Process):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#ExpressionTool"
 
     def __init__(
         self,
@@ -20723,7 +20736,8 @@ class ExpressionTool(Process):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -21209,7 +21223,12 @@ class ExpressionTool(Process):
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, self.id, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, self.id, False, None, relative_uris)
             r["class"] = u
         if self.label is not None:
             r["label"] = save(
@@ -21290,7 +21309,6 @@ class WorkflowOutputParameter(OutputParameter):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#WorkflowOutputParameter"
 
     def __init__(
         self,
@@ -22090,7 +22108,6 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#WorkflowStepInput"
 
     def __init__(
         self,
@@ -22729,7 +22746,6 @@ class WorkflowStepOutput(Identified):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#WorkflowStepOutput"
 
     def __init__(
         self,
@@ -22966,7 +22982,6 @@ class WorkflowStep(Identified, Labeled, Documented):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#WorkflowStep"
 
     def __init__(
         self,
@@ -23763,7 +23778,6 @@ class Workflow(Process):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#Workflow"
 
     def __init__(
         self,
@@ -23915,7 +23929,8 @@ class Workflow(Process):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -24401,7 +24416,12 @@ class Workflow(Process):
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, self.id, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, self.id, False, None, relative_uris)
             r["class"] = u
         if self.label is not None:
             r["label"] = save(
@@ -24473,8 +24493,6 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
 
     """
 
-    class_uri = "https://w3id.org/cwl/cwl#SubworkflowFeatureRequirement"
-
     def __init__(
         self,
         extension_fields: Optional[dict[str, Any]] = None,
@@ -24523,7 +24541,8 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -24567,7 +24586,12 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
 
         # top refers to the directory level
@@ -24587,8 +24611,6 @@ class ScatterFeatureRequirement(ProcessRequirement):
     `scatterMethod` fields of [WorkflowStep](#WorkflowStep).
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#ScatterFeatureRequirement"
 
     def __init__(
         self,
@@ -24638,7 +24660,8 @@ class ScatterFeatureRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -24682,7 +24705,12 @@ class ScatterFeatureRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
 
         # top refers to the directory level
@@ -24702,8 +24730,6 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
     listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#MultipleInputFeatureRequirement"
 
     def __init__(
         self,
@@ -24753,7 +24779,8 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -24797,7 +24824,12 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
 
         # top refers to the directory level
@@ -24817,8 +24849,6 @@ class StepInputExpressionRequirement(ProcessRequirement):
     of [WorkflowStepInput](#WorkflowStepInput).
 
     """
-
-    class_uri = "https://w3id.org/cwl/cwl#StepInputExpressionRequirement"
 
     def __init__(
         self,
@@ -24868,7 +24898,8 @@ class StepInputExpressionRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -24912,7 +24943,12 @@ class StepInputExpressionRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
 
         # top refers to the directory level
@@ -24933,7 +24969,6 @@ class OperationInputParameter(InputParameter):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#OperationInputParameter"
 
     def __init__(
         self,
@@ -25629,7 +25664,6 @@ class OperationOutputParameter(OutputParameter):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#OperationOutputParameter"
 
     def __init__(
         self,
@@ -26146,7 +26180,6 @@ class Operation(Process):
     """
 
     id: str
-    class_uri = "https://w3id.org/cwl/cwl#Operation"
 
     def __init__(
         self,
@@ -26294,7 +26327,8 @@ class Operation(Process):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -26731,7 +26765,12 @@ class Operation(Process):
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, self.id, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, self.id, False, None, relative_uris)
             r["class"] = u
         if self.label is not None:
             r["label"] = save(
@@ -26792,8 +26831,6 @@ class Operation(Process):
 
 
 class Secrets(ProcessRequirement):
-    class_uri = "http://commonwl.org/cwltool#Secrets"
-
     def __init__(
         self,
         secrets: Any,
@@ -26844,7 +26881,8 @@ class Secrets(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -26939,7 +26977,12 @@ class Secrets(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.secrets is not None:
             u = save_relative_uri(self.secrets, base_url, False, 0, relative_uris)
@@ -26958,7 +27001,6 @@ class Secrets(ProcessRequirement):
 
 class ProcessGenerator(Process):
     id: str
-    class_uri = "http://commonwl.org/cwltool#ProcessGenerator"
 
     def __init__(
         self,
@@ -27110,7 +27152,8 @@ class ProcessGenerator(Process):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -27598,7 +27641,12 @@ class ProcessGenerator(Process):
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, self.id, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, self.id, False, None, relative_uris)
             r["class"] = u
         if self.label is not None:
             r["label"] = save(
@@ -27668,8 +27716,6 @@ class MPIRequirement(ProcessRequirement):
 
     """
 
-    class_uri = "http://commonwl.org/cwltool#MPIRequirement"
-
     def __init__(
         self,
         processes: Any,
@@ -27722,7 +27768,8 @@ class MPIRequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -27817,7 +27864,12 @@ class MPIRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.processes is not None:
             r["processes"] = save(
@@ -27843,8 +27895,6 @@ class CUDARequirement(ProcessRequirement):
     Require support for NVIDA CUDA (GPU hardware acceleration).
 
     """
-
-    class_uri = "http://commonwl.org/cwltool#CUDARequirement"
 
     def __init__(
         self,
@@ -27916,7 +27966,8 @@ class CUDARequirement(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -28156,7 +28207,12 @@ class CUDARequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.cudaComputeCapability is not None:
             r["cudaComputeCapability"] = save(
@@ -28208,7 +28264,6 @@ class CUDARequirement(ProcessRequirement):
 
 class LoopInput(Saveable):
     id: str
-    class_uri = "http://commonwl.org/cwltool#LoopInput"
 
     def __init__(
         self,
@@ -28666,8 +28721,6 @@ class Loop(ProcessRequirement):
 
     """
 
-    class_uri = "http://commonwl.org/cwltool#Loop"
-
     def __init__(
         self,
         loop: Any,
@@ -28727,7 +28780,8 @@ class Loop(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -28920,7 +28974,12 @@ class Loop(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.loop is not None:
             r["loop"] = save(
@@ -28950,8 +29009,6 @@ class Loop(ProcessRequirement):
 
 
 class ShmSize(ProcessRequirement):
-    class_uri = "http://commonwl.org/cwltool#ShmSize"
-
     def __init__(
         self,
         shmSize: Any,
@@ -29002,7 +29059,8 @@ class ShmSize(ProcessRequirement):
                 loadingOptions,
                 lc=_doc.get("class")
             )
-            if class_ != cls.__name__ and class_ != cls.class_uri:
+
+            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -29097,7 +29155,12 @@ class ShmSize(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            u = save_relative_uri(self.class_, base_url, False, None, relative_uris)
+            uri = self.loadingOptions.vocab[self.class_]
+            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+                uri = f"{p}:{self.class_}"
+            else:
+                uri = self.class_
+            u = save_relative_uri(uri, base_url, False, None, relative_uris)
             r["class"] = u
         if self.shmSize is not None:
             r["shmSize"] = save(
