@@ -6,12 +6,12 @@ import subprocess  # nosec
 import sys
 import urllib.error
 import urllib.parse
-from urllib.parse import urlparse
 import urllib.request
 from collections.abc import MutableMapping, MutableSequence
 from copy import deepcopy
 from io import StringIO
-from typing import Any, Optional, Union, Dict, List
+from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlparse
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.parser import ParserError
@@ -24,8 +24,8 @@ from cwl_utils.loghandler import _logger
 from cwl_utils.parser import InputRecordSchemaTypes
 
 # Load as 1.2 files
-from cwl_utils.parser.cwl_v1_2 import InputEnumSchema as InputEnumSchemaV1_2
 from cwl_utils.parser.cwl_v1_2 import InputArraySchema as InputArraySchemaV1_2
+from cwl_utils.parser.cwl_v1_2 import InputEnumSchema as InputEnumSchemaV1_2
 
 fast_yaml = YAML(typ="safe")
 
@@ -260,7 +260,7 @@ def to_pascal_case(name: str) -> str:
 
 
 def sanitise_schema_field(
-    schema_field_item: Union[Dict[str, Any], str]
+    schema_field_item: Union[Dict[str, Any], str],
 ) -> Union[Dict[str, Any], str]:
     """
     Schemas need to be resolved before converted to JSON properties.

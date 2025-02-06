@@ -5,13 +5,14 @@
 
 """Generate JSON Schema from CWL inputs object."""
 import argparse
+import json
 import logging
 import sys
-import json
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, List, Union, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
+
 import requests
 
 # Get typeguard from extensions if we're running in python3.8
@@ -22,25 +23,25 @@ else:
 
 from cwl_utils.loghandler import _logger as _cwlutilslogger
 from cwl_utils.parser import (
-    load_document_by_uri,
-    InputArraySchemaTypes,
-    InputEnumSchemaTypes,
-    InputRecordSchemaTypes,
-    File,
-    Directory,
-    WorkflowInputParameter,
-    InputRecordSchema,
-    InputEnumSchema,
-    InputArraySchema,
-    Workflow,
     CommandLineTool,
+    Directory,
+    File,
+    InputArraySchema,
+    InputArraySchemaTypes,
+    InputEnumSchema,
+    InputEnumSchemaTypes,
+    InputRecordSchema,
+    InputRecordSchemaTypes,
+    Workflow,
+    WorkflowInputParameter,
+    load_document_by_uri,
 )
 from cwl_utils.utils import (
-    sanitise_schema_field,
-    is_uri,
-    to_pascal_case,
     get_value_from_uri,
     is_local_uri,
+    is_uri,
+    sanitise_schema_field,
+    to_pascal_case,
 )
 
 _logger = logging.getLogger("cwl-inputs-schema-gen")  # pylint: disable=invalid-name

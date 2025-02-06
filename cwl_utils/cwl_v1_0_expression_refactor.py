@@ -49,7 +49,7 @@ def escape_expression_field(contents: str) -> str:
 
 
 def clean_type_ids(
-    cwltype: Union[cwl.ArraySchema, cwl.InputRecordSchema]
+    cwltype: Union[cwl.ArraySchema, cwl.InputRecordSchema],
 ) -> Union[cwl.ArraySchema, cwl.InputRecordSchema]:
     """Simplify type identifiers."""
     result = copy.deepcopy(cwltype)
@@ -427,7 +427,7 @@ def get_input_for_id(
 def find_expressionLib(
     processes: Sequence[
         Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool, cwl.WorkflowStep]
-    ]
+    ],
 ) -> Optional[list[str]]:
     """
     Return the expressionLib from the highest priority InlineJavascriptRequirement.
