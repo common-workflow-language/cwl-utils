@@ -2,15 +2,16 @@
 """Tests for cwl-inputs-schema-gen."""
 from pathlib import Path
 from typing import Dict
+
 import pytest
 import requests
-from jsonschema.exceptions import ValidationError, SchemaError
+from jsonschema.exceptions import SchemaError, ValidationError
 from jsonschema.validators import validate
 from ruamel.yaml import YAML
 
 from cwl_utils.inputs_schema_gen import cwl_to_jsonschema
-from cwl_utils.parser import load_document_by_uri
 from cwl_utils.loghandler import _logger as _cwlutilslogger
+from cwl_utils.parser import load_document_by_uri
 
 TEST_ROOT_URL = (
     "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/main/tests"
