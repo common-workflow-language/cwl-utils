@@ -138,14 +138,15 @@ def load_step(
     step: cwl_utils.parser.WorkflowStep,
 ) -> Process:
     if isinstance(step.run, str):
-        step_run = cwl_utils.parser.load_document_by_uri(
-            path=step.loadingOptions.fetcher.urljoin(
-                base_url=cast(str, step.loadingOptions.fileuri),
-                url=step.run,
+        return cast(
+            Process,
+            cwl_utils.parser.load_document_by_uri(
+                path=step.loadingOptions.fetcher.urljoin(
+                    base_url=cast(str, step.loadingOptions.fileuri),
+                    url=step.run,
+                ),
             ),
-            loadingOptions=step.loadingOptions,
         )
-        return cast(Process, step_run)
     else:
         return cast(Process, copy.deepcopy(step.run))
 
