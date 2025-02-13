@@ -2,6 +2,6 @@ cwl-upgrader >= 1.2.3
 packaging
 rdflib
 requests
-schema-salad @ git+https://github.com/common-workflow-language/schema_salad.git@refs/pull/911/head
+schema-salad >= 8.8.20250205075315,<9
 ruamel.yaml >= 0.17.6, < 0.19
 typing_extensions;python_version<'3.10'
