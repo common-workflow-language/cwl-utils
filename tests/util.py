@@ -1,22 +1,28 @@
+import atexit
 import os
 import shutil
+from contextlib import ExitStack
+from importlib.resources import as_file, files
 from pathlib import Path
 
 import pytest
-from pkg_resources import Requirement, ResolutionError, resource_filename
 
 
 def get_path(filename: str) -> Path:
+    """Get the filepath for a given test file."""
     # normalizing path depending on OS or else it will cause problem when joining path
     filename = os.path.normpath(filename)
     filepath = None
     try:
-        filepath = resource_filename(Requirement.parse("cwl-utils"), filename)
-    except ResolutionError:
+        file_manager = ExitStack()
+        atexit.register(file_manager.close)
+        traversable = files("cwl-utils") / filename
+        filepath = file_manager.enter_context(as_file(traversable))
+    except ModuleNotFoundError:
         pass
-    if not filepath or not os.path.isfile(filepath):
-        filepath = os.path.join(os.path.dirname(__file__), os.pardir, filename)
-    return Path(filepath).resolve()
+    if not filepath or not filepath.is_file():
+        filepath = Path(os.path.dirname(__file__), os.pardir, filename)
+    return filepath.resolve()
 
 
 def get_data(filename: str) -> str:
