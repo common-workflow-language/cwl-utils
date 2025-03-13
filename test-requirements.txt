@@ -1,6 +1,8 @@
 pytest < 9
 pytest-cov
-pytest-xdist
+pytest-xdist[psutil]
 cwlformat
 pytest-mock >= 1.10.0
 jsonschema >= 4.21.1
+udocker
+cwltool
