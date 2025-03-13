@@ -11,84 +11,84 @@ from cwl_utils.inputs_schema_gen import cwl_to_jsonschema
 from cwl_utils.loghandler import _logger as _cwlutilslogger
 from cwl_utils.parser import load_document_by_uri
 
-from .util import get_data
+from .util import get_path
 
 TEST_PARAMS = [
     # Packed Case
     (
-        Path(get_data("testdata/revsort-packed.cwl")).as_uri(),
-        get_data("testdata/revsort-job.json"),
+        get_path("testdata/revsort-packed.cwl"),
+        get_path("testdata/revsort-job.json"),
     ),
     # The number of parameters is a little large, and the definition itself is a straightforward case.
     (
-        Path(get_data("testdata/bwa-mem-tool.cwl")).as_uri(),
-        get_data("testdata/bwa-mem-job.json"),
+        get_path("testdata/bwa-mem-tool.cwl"),
+        get_path("testdata/bwa-mem-job.json"),
     ),
     # The case where CommandInputParameter is shortened (e.g., param: string)
     (
-        Path(get_data("testdata/env-tool1.cwl")).as_uri(),
-        get_data("testdata/env-job.json"),
+        get_path("testdata/env-tool1.cwl"),
+        get_path("testdata/env-job.json"),
     ),
     # Dir
     (
-        Path(get_data("testdata/dir.cwl")).as_uri(),
-        get_data("testdata/dir-job.yml"),
+        get_path("testdata/dir.cwl"),
+        get_path("testdata/dir-job.yml"),
     ),
     # SecondaryFiles
     (
-        Path(get_data("testdata/rename-inputs.cwl")).as_uri(),
-        get_data("testdata/rename-inputs.yml"),
+        get_path("testdata/rename-inputs.cwl"),
+        get_path("testdata/rename-inputs.yml"),
     ),
     # Stage array
     (
-        Path(get_data("testdata/stage-array.cwl")).as_uri(),
-        get_data("testdata/stage-array-job.json"),
+        get_path("testdata/stage-array.cwl"),
+        get_path("testdata/stage-array-job.json"),
     ),
 ]
 
 
-@pytest.mark.parametrize("tool_url,input_loc", TEST_PARAMS)
-def test_cwl_inputs_to_jsonschema(tool_url: str, input_loc: str) -> None:
-    cwl_obj = load_document_by_uri(tool_url)
+@pytest.mark.parametrize("tool_path,inputs_path", TEST_PARAMS)
+def test_cwl_inputs_to_jsonschema(tool_path: Path, inputs_path: Path) -> None:
+    cwl_obj = load_document_by_uri(tool_path.as_uri())
 
-    _cwlutilslogger.info(f"Generating schema for {Path(tool_url).name}")
+    _cwlutilslogger.info(f"Generating schema for {tool_path.name}")
     json_schema = cwl_to_jsonschema(cwl_obj)
 
     _cwlutilslogger.info(
-        f"Testing {Path(input_loc).name} against schema generated for input {Path(tool_url).name}"
+        f"Testing {inputs_path.name} against schema generated for input {tool_path.name}"
     )
 
     yaml = YAML()
 
-    input_obj = yaml.load(Path(input_loc))
+    input_obj = yaml.load(inputs_path)
 
     try:
         validate(input_obj, json_schema)
     except (ValidationError, SchemaError) as err:
         _cwlutilslogger.error(
-            f"Validation failed for {Path(input_loc).name} "
-            f"against schema generated for input {Path(tool_url).name}"
+            f"Validation failed for {inputs_path.name} "
+            f"against schema generated for input {tool_path.name}"
         )
-        raise SchemaError(f"{Path(input_loc).name} failed schema validation") from err
+        raise SchemaError(f"{inputs_path.name} failed schema validation") from err
 
 
 def test_cwl_inputs_to_jsonschema_fails() -> None:
     """Compare tool schema of param 1 against input schema of param 2."""
-    tool_url = TEST_PARAMS[0][0]
-    input_loc = TEST_PARAMS[3][1]
+    tool_path: Path = TEST_PARAMS[0][0]
+    inputs_path: Path = TEST_PARAMS[3][1]
 
-    cwl_obj = load_document_by_uri(tool_url)
+    cwl_obj = load_document_by_uri(tool_path.as_uri())
 
-    _cwlutilslogger.info(f"Generating schema for {Path(tool_url).name}")
+    _cwlutilslogger.info(f"Generating schema for {tool_path.name}")
     json_schema = cwl_to_jsonschema(cwl_obj)
 
     _cwlutilslogger.info(
-        f"Testing {Path(input_loc).name} against schema generated for input {Path(tool_url).name}"
+        f"Testing {inputs_path.name} against schema generated for input {tool_path.name}"
     )
 
     yaml = YAML()
 
-    input_obj = yaml.load(Path(input_loc))
+    input_obj = yaml.load(inputs_path)
 
     # We expect this to fail
     with pytest.raises(ValidationError):

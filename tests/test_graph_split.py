@@ -7,7 +7,7 @@ import requests
 
 from cwl_utils.graph_split import graph_split
 
-from .util import get_data
+from .util import get_path
 
 URI = (
     "https://gist.githubusercontent.com/altairwei/"
@@ -25,5 +25,5 @@ def test_graph_split(tmp_path: Path) -> None:
 
 def test_graph_split_offline(tmp_path: Path) -> None:
     """Confirm that a local provided example produces no exception."""
-    with open(get_data("testdata/js-expr-req-wf.cwl")) as handle:
+    with get_path("testdata/js-expr-req-wf.cwl").open() as handle:
         graph_split(handle, tmp_path, "yaml", "main.cwl", True)

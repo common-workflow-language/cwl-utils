@@ -17,7 +17,7 @@ from cwl_utils.file_formats import check_format
 from cwl_utils.parser import load_document_by_uri
 from cwl_utils.types import CWLObjectType
 
-from .util import get_data
+from .util import get_path
 
 
 def _create_file(format_: Optional[str] = None) -> CWLObjectType:
@@ -34,8 +34,9 @@ def _create_file(format_: Optional[str] = None) -> CWLObjectType:
     return obj
 
 
-def _load_format(fetchurl: str) -> Graph:
+def _load_format(fetchpath: Path) -> Graph:
     fetcher = DefaultFetcher({}, requests.Session())
+    fetchurl = fetchpath.as_uri()
     content = fetcher.fetch_text(fetchurl)
     graph = Graph()
     for fmt in ["xml", "turtle", "rdfa"]:
@@ -47,8 +48,8 @@ def _load_format(fetchurl: str) -> Graph:
     return graph
 
 
-EDAM = _load_format(Path(get_data("testdata/EDAM_subset.owl")).as_uri())
-GX = _load_format(Path(get_data("testdata/gx_edam.ttl")).as_uri())
+EDAM = _load_format(get_path("testdata/EDAM_subset.owl"))
+GX = _load_format(get_path("testdata/gx_edam.ttl"))
 
 
 def test_check_format() -> None:
@@ -137,55 +138,47 @@ def test_check_format_no_ontology() -> None:
 
 def test_loading_options_graph_property_v1_0() -> None:
     """Test that RDFLib Graph representations of $schema properties are correctly loaded, CWL v1.0."""
-    uri = Path(get_data("testdata/formattest2_v1_0.cwl")).resolve().as_uri()
+    uri = get_path("testdata/formattest2_v1_0.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(EDAM)
 
 
 def test_loading_options_graph_property_v1_1() -> None:
     """Test that RDFLib Graph representations of $schema properties are correctly loaded, CWL v1.1."""
-    uri = Path(get_data("testdata/formattest2_v1_1.cwl")).resolve().as_uri()
+    uri = get_path("testdata/formattest2_v1_1.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(EDAM)
 
 
 def test_loading_options_graph_property_v1_2() -> None:
     """Test that RDFLib Graph representations of $schema properties are correctly loaded, CWL v1.2."""
-    uri = Path(get_data("testdata/formattest2.cwl")).resolve().as_uri()
+    uri = get_path("testdata/formattest2.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(EDAM)
 
 
 def test_loading_options_missing_graph_v1_0() -> None:
     """Affirm that v1.0 documents without $schema still produce an empty graph property."""
-    uri = Path(get_data("testdata/workflow_input_format_expr.cwl")).resolve().as_uri()
+    uri = get_path("testdata/workflow_input_format_expr.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
 
 
 def test_loading_options_missing_graph_v1_1() -> None:
     """Affirm that v1.1 documents without $schema still produce an empty graph property."""
-    uri = (
-        Path(get_data("testdata/workflow_input_format_expr_v1_1.cwl"))
-        .resolve()
-        .as_uri()
-    )
+    uri = get_path("testdata/workflow_input_format_expr_v1_1.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
 
 
 def test_loading_options_missing_graph_v1_2() -> None:
     """Affirm that v1.2 documents without $schema still produce an empty graph property."""
-    uri = (
-        Path(get_data("testdata/workflow_input_format_expr_v1_2.cwl"))
-        .resolve()
-        .as_uri()
-    )
+    uri = get_path("testdata/workflow_input_format_expr_v1_2.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(Graph())
 
 
 def test_loading_format_without_schema_v1_0() -> None:
     """Test that format fields without accompanying schemas are tolerated, CWL v1.0."""
-    uri = Path(get_data("testdata/revsort-run-1-packed.cwl")).resolve().as_uri()
+    uri = get_path("testdata/revsort-run-1-packed.cwl").as_uri()
     load_document_by_uri(uri)

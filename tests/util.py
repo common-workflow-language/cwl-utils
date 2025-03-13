@@ -6,7 +6,7 @@ import pytest
 from pkg_resources import Requirement, ResolutionError, resource_filename
 
 
-def get_data(filename: str) -> str:
+def get_path(filename: str) -> Path:
     # normalizing path depending on OS or else it will cause problem when joining path
     filename = os.path.normpath(filename)
     filepath = None
@@ -16,7 +16,11 @@ def get_data(filename: str) -> str:
         pass
     if not filepath or not os.path.isfile(filepath):
         filepath = os.path.join(os.path.dirname(__file__), os.pardir, filename)
-    return str(Path(filepath).resolve())
+    return Path(filepath).resolve()
+
+
+def get_data(filename: str) -> str:
+    return str(get_path(filename))
 
 
 needs_docker = pytest.mark.skipif(
