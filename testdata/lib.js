@@ -3,5 +3,5 @@ var foo = function(x) {
 }
 
 var bar = function(n, x) {
-    return `{n} engineers walk into a {x}`
+    return n + " engineers walk into a " + x
 }

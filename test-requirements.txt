@@ -5,3 +5,4 @@ cwlformat
 pytest-mock >= 1.10.0
 jsonschema >= 4.21.1
 udocker
+cwltool

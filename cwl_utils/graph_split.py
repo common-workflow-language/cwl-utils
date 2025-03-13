@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import (
     IO,
     Any,
-    TextIO,
     Union,
     cast,
 )
@@ -146,7 +145,8 @@ def graph_split(
         if output_format == "json":
             json_dump(entry, output_file)
         elif output_format == "yaml":
-            yaml_dump(entry, output_file, pretty)
+            with output_file.open("w", encoding="utf-8") as output_handle:
+                yaml_dump(entry, output_handle, pretty)
 
 
 def rewrite(
@@ -247,7 +247,7 @@ def rewrite_schemadef(
             rewrite_import(entry)
         elif "name" in entry and "/" in entry["name"]:
             entry_file, entry["name"] = entry["name"].lstrip("#").split("/")
-            for field in entry["fields"]:
+            for field in entry.get("fields", []):
                 field["name"] = field["name"].split("/")[2]
                 rewrite_types(field, entry_file, True)
             with (output_dir / entry_file).open("a", encoding="utf-8") as entry_handle:
@@ -255,7 +255,8 @@ def rewrite_schemadef(
             entry["$import"] = entry_file
             del entry["name"]
             del entry["type"]
-            del entry["fields"]
+            if "fields" in entry:
+                del entry["fields"]
     seen_imports = set()
 
     def seen_import(entry: MutableMapping[str, Any]) -> bool:
@@ -280,32 +281,18 @@ def json_dump(entry: Any, output_file: Path) -> None:
 
 def yaml_dump(
     entry: Any,
-    output_file_or_handle: Union[str, Path, TextIOWrapper, TextIO],
+    output_handle: TextIOWrapper,
     pretty: bool,
 ) -> None:
     """Output object as YAML."""
+    if pretty:
+        output_handle.write(stringify_dict(entry))
+        return
     yaml = YAML(typ="rt", pure=True)
     yaml.default_flow_style = False
     yaml.indent = 4
     yaml.block_seq_indent = 2
-
-    if isinstance(output_file_or_handle, (str, Path)):
-        with open(output_file_or_handle, "w", encoding="utf-8") as result_handle:
-            if pretty:
-                result_handle.write(stringify_dict(entry))
-                return
-            yaml.dump(entry, result_handle)
-            return
-    elif isinstance(output_file_or_handle, (TextIOWrapper, TextIO)):
-        if pretty:
-            output_file_or_handle.write(stringify_dict(entry))
-            return
-        yaml.dump(entry, output_file_or_handle)
-        return
-    else:
-        raise ValueError(
-            f"output_file_or_handle must be a string or a file handle but got {type(output_file_or_handle)}"
-        )
+    yaml.dump(entry, output_handle)
 
 
 if __name__ == "__main__":
