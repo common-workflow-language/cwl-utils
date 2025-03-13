@@ -11,7 +11,7 @@ def get_data(filename: str) -> str:
     filename = os.path.normpath(filename)
     filepath = None
     try:
-        filepath = resource_filename(Requirement.parse("schema-salad"), filename)
+        filepath = resource_filename(Requirement.parse("cwl-utils"), filename)
     except ResolutionError:
         pass
     if not filepath or not os.path.isfile(filepath):
