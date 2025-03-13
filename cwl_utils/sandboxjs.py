@@ -301,11 +301,11 @@ class NodeJSEngine(JSEngine):
 
         if nodejs is None or nodejs is not None and required_node_version is False:
             try:
-                nodeimg = "docker.io/node:alpine"
+                nodeimg = "node:alpine"
                 if container_engine == "singularity":
-                    nodeimg = f"docker://{nodeimg}"
+                    nodeimg = f"docker://docker.io/{nodeimg}"
                 elif container_engine in ("podman", "udocker"):
-                    nodeimg = "docker.io/library/node:alpine"
+                    nodeimg = f"docker.io/library/{nodeimg}"
 
                 if not self.have_node_slim:
                     singularity_cache: Optional[str] = None
