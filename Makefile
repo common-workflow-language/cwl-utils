@@ -145,11 +145,11 @@ diff-cover.html: coverage.xml
 
 ## test                   : run the cwl-utils test suite
 test: $(PYSOURCES)
-	python -m pytest -rsx ${PYTEST_EXTRA}
+	python -m pytest ${PYTEST_EXTRA}
 
 ## testcov                : run the cwl-utils test suite and collect coverage
 testcov: $(PYSOURCES)
-	pytest --cov ${PYTEST_EXTRA}
+	python -m pytest --cov ${PYTEST_EXTRA}
 
 sloccount.sc: $(PYSOURCES) Makefile
 	sloccount --duplicates --wide --details $^ > $@

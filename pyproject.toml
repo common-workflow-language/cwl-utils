@@ -60,6 +60,7 @@ test = "pytest"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-rsx -n auto"
 
 [tool.setuptools]
 packages = [
