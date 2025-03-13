@@ -10,7 +10,7 @@ import logging
 import sys
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
 import requests
@@ -85,22 +85,22 @@ class JSONSchemaProperty:
     def __init__(
         self,
         name: str,
-        type_: Union[InputType, List[InputType], str, Any],
+        type_: Union[InputType, list[InputType], str, Any],
         description: Optional[str] = "",
         required: Optional[bool] = False,
     ):
         """Initialise the JSONSchemaProperty object."""
         # Initialise values
         self.name: str = name
-        self.type_: Union[InputType, List[InputType], str, Any] = type_
+        self.type_: Union[InputType, list[InputType], str, Any] = type_
         self.description = description
         self.required = required
         self.type_dict = self.generate_type_dict()
 
-    def generate_type_dict(self) -> Dict[str, Any]:
+    def generate_type_dict(self) -> dict[str, Any]:
         """Generate the type dict for a property from a CWL input parameter type."""
         # If the type is a list and contains null, then the property is not required
-        if isinstance(self.type_, List) and "null" in self.type_:
+        if isinstance(self.type_, list) and "null" in self.type_:
             self.required = False
             self.type_ = list(filter(lambda type_item: type_item != "null", self.type_))
 
@@ -109,7 +109,7 @@ class JSONSchemaProperty:
                 self.type_ = self.type_[0]
 
         # type_ is still a list therefore we offer multiple input types for this parameter
-        if isinstance(self.type_, List):
+        if isinstance(self.type_, list):
             # We use the oneOf keyword to specify multiple types
             type_dict = self.generate_type_dict_from_type_list(self.type_)
         # type_ is a single type
@@ -121,7 +121,7 @@ class JSONSchemaProperty:
 
         return type_dict
 
-    def generate_type_dict_from_type(self, type_item: Any) -> Dict[str, Any]:
+    def generate_type_dict_from_type(self, type_item: Any) -> dict[str, Any]:
         """
         Generate the type dict for a property from a CWL input parameter type.
 
@@ -162,7 +162,7 @@ class JSONSchemaProperty:
         elif isinstance(type_item, InputRecordSchemaTypes):
             if type_item.fields is None:
                 return {"type": "object"}
-            if not isinstance(type_item.fields, List):
+            if not isinstance(type_item.fields, list):
                 _cwlutilslogger.error(
                     "Expected fields of InputRecordSchemaType to be a list"
                 )
@@ -176,7 +176,7 @@ class JSONSchemaProperty:
                     for prop in type_item.fields
                 },
             }
-        elif isinstance(type_item, Dict):
+        elif isinstance(type_item, dict):
             # Nested import
             # {'$import': '../relative/path/to/schema'}
             if "$import" in type_item.keys():
@@ -186,7 +186,7 @@ class JSONSchemaProperty:
                 }
             else:
                 raise ValueError(f"Unknown type: {type_item}")
-        elif isinstance(type_item, List):
+        elif isinstance(type_item, list):
             # Nested schema
             return {
                 "oneOf": list(
@@ -200,8 +200,8 @@ class JSONSchemaProperty:
             raise ValueError(f"Unknown type: {type_item}")
 
     def generate_type_dict_from_type_list(
-        self, type_: List[InputType]
-    ) -> Dict[str, Any]:
+        self, type_: list[InputType]
+    ) -> dict[str, Any]:
         """Given a list of types, generate a JSON schema property dict wrapped in oneOf list."""
         return {
             "oneOf": list(
@@ -212,7 +212,7 @@ class JSONSchemaProperty:
             )
         }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return as a dictionary."""
         return {self.name: self.type_dict}
 
@@ -225,7 +225,7 @@ def get_is_required_from_input_parameter(
         return False
     if input_parameter.default is not None:
         return False
-    if isinstance(input_parameter.type_, List) and "null" in input_parameter.type_:
+    if isinstance(input_parameter.type_, list) and "null" in input_parameter.type_:
         return False
     if isinstance(input_parameter.type_, InputRecordSchemaTypes):
         if input_parameter.type_ is not None:
@@ -258,7 +258,7 @@ def generate_json_schema_property_from_input_parameter(
     )
 
 
-def generate_definition_from_schema(schema: InputRecordSchema) -> Dict[str, Any]:
+def generate_definition_from_schema(schema: InputRecordSchema) -> dict[str, Any]:
     """
     Given a schema, generate a JSON schema definition.
 
@@ -291,7 +291,7 @@ def generate_definition_from_schema(schema: InputRecordSchema) -> Dict[str, Any]
         if isinstance(prop_obj, str):
             raise TypeError("Property Object should be a dictionary")
 
-        if isinstance(prop_obj.get("type", []), List):
+        if isinstance(prop_obj.get("type", []), list):
             if "null" in prop_obj.get("type", []):
                 required = False
             prop_obj["type"] = list(
@@ -333,7 +333,7 @@ def cwl_to_jsonschema(cwl_obj: Union[Workflow, CommandLineTool]) -> Any:
 
     """
     # Initialise the schema from the workflow input json schema template
-    with open(JSON_TEMPLATE_PATH, "r") as template_h:
+    with open(JSON_TEMPLATE_PATH) as template_h:
         input_json_schema = json.load(template_h)
 
     # Get the complex schema keys
@@ -354,7 +354,7 @@ def cwl_to_jsonschema(cwl_obj: Union[Workflow, CommandLineTool]) -> Any:
             return True
         return False
 
-    complex_schema_keys: List[str] = list(
+    complex_schema_keys: list[str] = list(
         filter(
             lambda idx_iter: is_complex_record_schema_key(idx_iter),
             cwl_obj.loadingOptions.idx.keys(),
@@ -376,7 +376,7 @@ def cwl_to_jsonschema(cwl_obj: Union[Workflow, CommandLineTool]) -> Any:
 
         return input_record_schema
 
-    complex_schema_values: List[InputRecordSchema] = list(
+    complex_schema_values: list[InputRecordSchema] = list(
         map(
             lambda idx_iter: get_complex_schema_values(idx_iter),
             complex_schema_keys,
@@ -462,9 +462,9 @@ def cwl_to_jsonschema(cwl_obj: Union[Workflow, CommandLineTool]) -> Any:
 
 # Traverse the properties and return all definitions that are used
 def _recursive_search(
-    json_data: Dict[str, Any],
+    json_data: dict[str, Any],
     target_key: str,
-) -> List[Any]:
+) -> list[Any]:
     """Given a target key return all instances of a key in a json object."""
     result = []
 
@@ -482,16 +482,16 @@ def _recursive_search(
 
 
 # Get all the property dependencies
-def _get_all_ref_attributes(json_object: Dict[str, Any]) -> List[Any]:
+def _get_all_ref_attributes(json_object: dict[str, Any]) -> list[Any]:
     """Given a json object, return all the reference attributes."""
     return _recursive_search(json_object, "$ref")
 
 
 def get_property_dependencies(
-    property_dict: Dict[str, Any],
-    input_json_schema: Dict[str, Any],
-    existing_property_dependencies: Optional[List[Any]] = None,
-) -> List[str]:
+    property_dict: dict[str, Any],
+    input_json_schema: dict[str, Any],
+    existing_property_dependencies: Optional[list[Any]] = None,
+) -> list[str]:
     """Recursively collect all dependencies for a property."""
     # Initialise return list
     if existing_property_dependencies is None:
@@ -516,7 +516,7 @@ def get_property_dependencies(
     return existing_property_dependencies
 
 
-def slim_definitions(input_json_schema: Dict[str, Any]) -> Dict[str, Any]:
+def slim_definitions(input_json_schema: dict[str, Any]) -> dict[str, Any]:
     """
     Slim down the schema to only the definitions that are used by the properties.
 
@@ -552,7 +552,7 @@ def arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args(args: List[str]) -> argparse.Namespace:
+def parse_args(args: list[str]) -> argparse.Namespace:
     """Parse the command line arguments."""
     return arg_parser().parse_args(args)
 

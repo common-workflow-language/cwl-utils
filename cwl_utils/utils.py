@@ -10,7 +10,7 @@ import urllib.request
 from collections.abc import MutableMapping, MutableSequence
 from copy import deepcopy
 from io import StringIO
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
 from ruamel.yaml.main import YAML
@@ -260,8 +260,8 @@ def to_pascal_case(name: str) -> str:
 
 
 def sanitise_schema_field(
-    schema_field_item: Union[Dict[str, Any], str],
-) -> Union[Dict[str, Any], str]:
+    schema_field_item: Union[dict[str, Any], str],
+) -> Union[dict[str, Any], str]:
     """
     Schemas need to be resolved before converted to JSON properties.
 
@@ -344,7 +344,7 @@ def sanitise_schema_field(
     if isinstance(schema_field_item, InputRecordSchemaTypes):
         return schema_field_item
 
-    if isinstance(schema_field_item.get("type"), List):
+    if isinstance(schema_field_item.get("type"), list):
         if "null" in schema_field_item.get("type", []):
             required = False
         schema_field_item["type"] = list(
@@ -380,7 +380,7 @@ def sanitise_schema_field(
                 type_="array", items=schema_field_item.get("type", "")
             )
 
-    if isinstance(schema_field_item.get("type"), Dict):
+    if isinstance(schema_field_item.get("type"), dict):
         # Likely an enum
         if schema_field_item.get("type", {}).get("type", "") == "enum":
             schema_field_item["type"] = InputEnumSchemaV1_2(
@@ -398,7 +398,7 @@ def sanitise_schema_field(
             raise ValueError(f"Unknown type: {schema_field_item.get('type')}")
 
     if not required:
-        if isinstance(schema_field_item.get("type"), List):
+        if isinstance(schema_field_item.get("type"), list):
             schema_field_item["type"] = ["null"] + schema_field_item.get("type", [])
         else:
             schema_field_item["type"] = ["null", schema_field_item.get("type", "")]
