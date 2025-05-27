@@ -1,17 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test the CWL $graph document splitter tool."""
-from io import StringIO
 import json
+from io import StringIO
 from pathlib import Path
 
 import pytest
 import requests
+from cwltool.tests.util import get_main_output
 
 from cwl_utils.graph_split import graph_split
 
 from .util import get_path
-
-from cwltool.tests.util import get_main_output
 
 URI = (
     "https://gist.githubusercontent.com/altairwei/"
