@@ -15,7 +15,7 @@ inputs:
 
 steps:
   s1:
-    run: ../tools/link-to-clt1.cwl
+    run: link-to-clt1.cwl
     in:
       in1: "#in1"   # This should be normalized out
       in2: in2

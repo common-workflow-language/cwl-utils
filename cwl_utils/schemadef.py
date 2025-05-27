@@ -141,7 +141,6 @@ def _inline_type(
     v: Any, base_url: urllib.parse.ParseResult, user_defined_types: dict[str, Any]
 ) -> Any:
     global _inline_type_name_uniq_id
-    global _inline_type_names
 
     _inline_type_name_uniq_id += 1
 
