@@ -90,7 +90,7 @@ def load_linked_file(
     new_url = resolved_path(base_url, link)
 
     if new_url.scheme in ["file://", ""]:
-        contents = pathlib.Path(new_url.path).open().read()
+        contents = pathlib.Path(new_url.path).read_text()
     else:
         try:
             contents = (
