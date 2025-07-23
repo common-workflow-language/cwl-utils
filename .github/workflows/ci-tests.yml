@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         py-ver-major: [3]
-        py-ver-minor: [9, 10, 11, 12, 13]
+        py-ver-minor: [9, 10, 11, 12, 13, 14]
         step: [lint, unit, bandit, mypy]
 
     env:
@@ -31,7 +31,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          allow-prereleases: true
 
       - name: Set up Singularity
         if: ${{ matrix.step == 'unit' || matrix.step == 'mypy' }}
@@ -48,6 +47,9 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             tox.ini
+
+      - name: install dev libraries
+        run: sudo apt-get install -y libxml2-dev libxslt-dev
 
       - name: Upgrade setuptools and install tox
         run: |
