@@ -27,6 +27,8 @@ from . import (
     cwl_v1_1_utils,
     cwl_v1_2,
     cwl_v1_2_utils,
+    cwl_v1_3,
+    cwl_v1_3_utils,
 )
 
 _logger = logging.getLogger("cwl_utils")
@@ -41,6 +43,8 @@ def convert_stdstreams_to_files(process: Process) -> None:
             cwl_v1_1_utils.convert_stdstreams_to_files(process)
         case cwl_v1_2.CommandLineTool():
             cwl_v1_2_utils.convert_stdstreams_to_files(process)
+        case cwl_v1_3.CommandLineTool():
+            cwl_v1_3_utils.convert_stdstreams_to_files(process)
 
 
 def load_inputfile_by_uri(
@@ -71,6 +75,8 @@ def load_inputfile_by_uri(
                 loadingOptions = cwl_v1_1.LoadingOptions(fileuri=baseuri)
             case "v1.2":
                 loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
+            case "v1.3.0-dev1":
+                loadingOptions = cwl_v1_3.LoadingOptions(fileuri=baseuri)
             case _:
                 raise ValidationException(
                     f"Version error. Did not recognise {version} as a CWL version"
@@ -124,6 +130,10 @@ def load_inputfile_by_yaml(
         case "v1.2":
             return cwl_v1_2_utils.load_inputfile_by_yaml(
                 yaml, uri, cast(Optional[cwl_v1_2.LoadingOptions], loadingOptions)
+            )
+        case "v1.3.0-dev1":
+            return cwl_v1_3_utils.load_inputfile_by_yaml(
+                yaml, uri, cast(Optional[cwl_v1_3.LoadingOptions], loadingOptions)
             )
         case None:
             raise ValidationException("could not get the cwlVersion")
@@ -184,6 +194,11 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
                         cwl_v1_2.WorkflowStepOutput(s) if isinstance(s, str) else s
                         for s in step.out
                     ]
+                case "v1.3.0-dev1":
+                    step_outs = [
+                        cwl_v1_3.WorkflowStepOutput(s) if isinstance(s, str) else s
+                        for s in step.out
+                    ]
                 case _:
                     raise Exception(f"Unsupported CWL version {workflow.cwlVersion}")
             step_outputs.extend(step_outs)
@@ -230,6 +245,14 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
                 src_dict, step_inputs, param_to_step, type_dict
             )
             workflow_outputs_val = cwl_v1_2_utils.check_all_types(
+                src_dict, workflow.outputs, param_to_step, type_dict
+            )
+        case "v1.3.0-dev1":
+            parser = cwl_v1_3
+            step_inputs_val = cwl_v1_3_utils.check_all_types(
+                src_dict, step_inputs, param_to_step, type_dict
+            )
+            workflow_outputs_val = cwl_v1_3_utils.check_all_types(
                 src_dict, workflow.outputs, param_to_step, type_dict
             )
         case _ as cwlVersion:
@@ -373,6 +396,21 @@ def type_for_source(
                 linkMerge,
                 pickValue,
             )
+        case "v1.3.0-dev1":
+            return cwl_v1_3_utils.type_for_source(
+                cast(
+                    Union[
+                        cwl_v1_3.CommandLineTool,
+                        cwl_v1_3.Workflow,
+                        cwl_v1_3.ExpressionTool,
+                    ],
+                    process,
+                ),
+                sourcenames,
+                cast(Optional[cwl_v1_3.Workflow], parent),
+                linkMerge,
+                pickValue,
+            )
         case None:
             raise ValidationException("could not get the cwlVersion")
         case _ as cwlVersion:
@@ -398,6 +436,10 @@ def type_for_step_input(
             return cwl_v1_2_utils.type_for_step_input(
                 cast(cwl_v1_2.WorkflowStep, step), cast(cwl_v1_2.WorkflowStepInput, in_)
             )
+        case "v1.3.0-dev1":
+            return cwl_v1_3_utils.type_for_step_input(
+                cast(cwl_v1_3.WorkflowStep, step), cast(cwl_v1_3.WorkflowStepInput, in_)
+            )
 
 
 def type_for_step_output(step: WorkflowStep, sourcename: str, cwlVersion: str) -> Any:
@@ -414,6 +456,10 @@ def type_for_step_output(step: WorkflowStep, sourcename: str, cwlVersion: str) -
         case "v1.2":
             return cwl_v1_2_utils.type_for_step_output(
                 cast(cwl_v1_2.WorkflowStep, step), sourcename
+            )
+        case "v1.3.0-dev1":
+            return cwl_v1_3_utils.type_for_step_output(
+                cast(cwl_v1_3.WorkflowStep, step), sourcename
             )
 
 
@@ -455,6 +501,10 @@ def param_for_source_id(
         | cwl_utils.parser.cwl_v1_2.CommandOutputParameter
         | cwl_utils.parser.cwl_v1_2.WorkflowInputParameter
     )
+    | (
+        list[cwl_utils.parser.cwl_v1_3.WorkflowInputParameter]
+        | cwl_utils.parser.cwl_v1_3.WorkflowInputParameter
+    )
 ):
     match process.cwlVersion:
         case "v1.0":
@@ -491,6 +541,20 @@ def param_for_source_id(
                 ),
                 sourcenames,
                 cast(cwl_utils.parser.cwl_v1_2.Workflow, parent),
+                scatter_context,
+            )
+        case "v1.3.0-dev1":
+            return cwl_utils.parser.cwl_v1_3_utils.param_for_source_id(
+                cast(
+                    Union[
+                        cwl_utils.parser.cwl_v1_3.CommandLineTool,
+                        cwl_utils.parser.cwl_v1_3.Workflow,
+                        cwl_utils.parser.cwl_v1_3.ExpressionTool,
+                    ],
+                    process,
+                ),
+                sourcenames,
+                cast(cwl_utils.parser.cwl_v1_3.Workflow, parent),
                 scatter_context,
             )
         case None:

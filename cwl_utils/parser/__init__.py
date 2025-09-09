@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from abc import ABC
 from collections.abc import MutableMapping, MutableSequence
 from pathlib import Path
 from typing import Any, Optional, TypeAlias, cast
@@ -11,105 +10,107 @@ from schema_salad.exceptions import ValidationException
 from schema_salad.utils import yaml_no_ts
 
 from ..errors import GraphTargetMissingException
-from . import cwl_v1_0, cwl_v1_1, cwl_v1_2
-
-
-class NoType(ABC):
-    pass
-
+from . import cwl_v1_0, cwl_v1_1, cwl_v1_2, cwl_v1_3
 
 LoadingOptions: TypeAlias = (
-    cwl_v1_0.LoadingOptions | cwl_v1_1.LoadingOptions | cwl_v1_2.LoadingOptions
+    cwl_v1_0.LoadingOptions | cwl_v1_1.LoadingOptions | cwl_v1_2.LoadingOptions | cwl_v1_3.LoadingOptions
 )
 """Type union for a CWL v1.x LoadingOptions object."""
-Saveable: TypeAlias = cwl_v1_0.Saveable | cwl_v1_1.Saveable | cwl_v1_2.Saveable
+Saveable: TypeAlias = cwl_v1_0.Saveable | cwl_v1_1.Saveable | cwl_v1_2.Saveable | cwl_v1_3.Saveable
 """Type union for a CWL v1.x Saveable object."""
 InputParameter: TypeAlias = (
-    cwl_v1_0.InputParameter | cwl_v1_1.InputParameter | cwl_v1_2.InputParameter
+    cwl_v1_0.InputParameter | cwl_v1_1.InputParameter | cwl_v1_2.InputParameter | cwl_v1_3.InputParameter
 )
 """Type union for a CWL v1.x InputEnumSchema object."""
 InputRecordField: TypeAlias = (
-    cwl_v1_0.InputRecordField | cwl_v1_1.InputRecordField | cwl_v1_2.InputRecordField
+    cwl_v1_0.InputRecordField | cwl_v1_1.InputRecordField | cwl_v1_2.InputRecordField | cwl_v1_3.InputRecordField
 )
 """Type union for a CWL v1.x InputRecordSchema object."""
 InputSchema: TypeAlias = (
-    cwl_v1_0.InputSchema | cwl_v1_1.InputSchema | cwl_v1_2.InputSchema
+    cwl_v1_0.InputSchema | cwl_v1_1.InputSchema | cwl_v1_2.InputSchema | cwl_v1_3.InputSchema
 )
 """Type union for a CWL v1.x InputSchema object."""
 OutputParameter: TypeAlias = (
-    cwl_v1_0.OutputParameter | cwl_v1_1.OutputParameter | cwl_v1_2.OutputParameter
+    cwl_v1_0.OutputParameter | cwl_v1_1.OutputParameter | cwl_v1_2.OutputParameter | cwl_v1_3.OutputParameter
 )
 """Type union for a CWL v1.x OutputParameter object."""
 OutputArraySchema: TypeAlias = (
-    cwl_v1_0.OutputArraySchema | cwl_v1_1.OutputArraySchema | cwl_v1_2.OutputArraySchema
+    cwl_v1_0.OutputArraySchema | cwl_v1_1.OutputArraySchema | cwl_v1_2.OutputArraySchema | cwl_v1_3.OutputArraySchema
 )
 """Type union for a CWL v1.x OutputArraySchema object."""
 OutputEnumSchema: TypeAlias = (
-    cwl_v1_0.OutputEnumSchema | cwl_v1_1.OutputEnumSchema | cwl_v1_2.OutputEnumSchema
+    cwl_v1_0.OutputEnumSchema | cwl_v1_1.OutputEnumSchema | cwl_v1_2.OutputEnumSchema | cwl_v1_3.OutputEnumSchema
 )
 """Type union for a CWL v1.x OutputEnumSchema object."""
 OutputRecordField: TypeAlias = (
-    cwl_v1_0.OutputRecordField | cwl_v1_1.OutputRecordField | cwl_v1_2.OutputRecordField
+    cwl_v1_0.OutputRecordField | cwl_v1_1.OutputRecordField | cwl_v1_2.OutputRecordField | cwl_v1_3.OutputRecordField
 )
 """Type union for a CWL v1.x OutputRecordField object."""
 OutputRecordSchema: TypeAlias = (
     cwl_v1_0.OutputRecordSchema
     | cwl_v1_1.OutputRecordSchema
     | cwl_v1_2.OutputRecordSchema
+    | cwl_v1_3.OutputRecordSchema
 )
 """Type union for a CWL v1.x OutputRecordSchema object."""
 OutputSchema: TypeAlias = (
-    cwl_v1_0.OutputSchema | cwl_v1_1.OutputSchema | cwl_v1_2.OutputSchema
+    cwl_v1_0.OutputSchema | cwl_v1_1.OutputSchema | cwl_v1_2.OutputSchema | cwl_v1_3.OutputSchema
 )
 """Type union for a CWL v1.x OutputSchema object."""
-Workflow: TypeAlias = cwl_v1_0.Workflow | cwl_v1_1.Workflow | cwl_v1_2.Workflow
-WorkflowTypes = (cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow)
+Workflow: TypeAlias = cwl_v1_0.Workflow | cwl_v1_1.Workflow | cwl_v1_2.Workflow | cwl_v1_3.Workflow
+WorkflowTypes = (cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow, cwl_v1_3.Workflow)
 """Type union for a CWL v1.x Workflow object."""
 WorkflowInputParameter: TypeAlias = (
     cwl_v1_0.InputParameter
     | cwl_v1_1.WorkflowInputParameter
     | cwl_v1_2.WorkflowInputParameter
+    | cwl_v1_3.WorkflowInputParameter
 )
 """Type union for a CWL v1.x WorkflowInputParameter object."""
 WorkflowOutputParameter: TypeAlias = (
     cwl_v1_0.WorkflowOutputParameter
     | cwl_v1_1.WorkflowOutputParameter
     | cwl_v1_2.WorkflowOutputParameter
+    | cwl_v1_3.WorkflowOutputParameter
 )
 """Type union for a CWL v1.x WorkflowOutputParameter object."""
 WorkflowStep: TypeAlias = (
-    cwl_v1_0.WorkflowStep | cwl_v1_1.WorkflowStep | cwl_v1_2.WorkflowStep
+    cwl_v1_0.WorkflowStep | cwl_v1_1.WorkflowStep | cwl_v1_2.WorkflowStep | cwl_v1_3.AbstractWorkflowStep
 )
 """Type union for a CWL v1.x WorkflowStep object."""
 ScatterWorkflowStep: TypeAlias = (
-    cwl_v1_0.WorkflowStep | cwl_v1_1.WorkflowStep | cwl_v1_2.WorkflowStep
+    cwl_v1_0.WorkflowStep | cwl_v1_1.WorkflowStep | cwl_v1_2.WorkflowStep | cwl_v1_3.ScatterWorkflowStep
 )
 """Type union for a CWL v1.x ScatterWorkflowStep object."""
-LoopWorkflowStep: TypeAlias = NoType
+LoopWorkflowStep: TypeAlias = cwl_v1_3.LoopWorkflowStep
 """Type union for a CWL v1.x LoopWorkflowStep object."""
 WorkflowStepInput: TypeAlias = (
-    cwl_v1_0.WorkflowStepInput | cwl_v1_1.WorkflowStepInput | cwl_v1_2.WorkflowStepInput
+    cwl_v1_0.WorkflowStepInput | cwl_v1_1.WorkflowStepInput | cwl_v1_2.WorkflowStepInput | cwl_v1_3.WorkflowStepInput
 )
 """Type union for a CWL v1.x WorkflowStepInput object."""
 WorkflowStepOutput: TypeAlias = (
     cwl_v1_0.WorkflowStepOutput
     | cwl_v1_1.WorkflowStepOutput
     | cwl_v1_2.WorkflowStepOutput
+    | cwl_v1_3.WorkflowStepOutput
 )
 """Type union for a CWL v1.x WorkflowStepOutput object."""
 CommandLineTool: TypeAlias = (
-    cwl_v1_0.CommandLineTool | cwl_v1_1.CommandLineTool | cwl_v1_2.CommandLineTool
+    cwl_v1_0.CommandLineTool | cwl_v1_1.CommandLineTool | cwl_v1_2.CommandLineTool | cwl_v1_3.CommandLineTool
 )
+
 CommandLineToolTypes = (
     cwl_v1_0.CommandLineTool,
     cwl_v1_1.CommandLineTool,
     cwl_v1_2.CommandLineTool,
+    cwl_v1_3.CommandLineTool
 )
 """Type union for a CWL v1.x CommandLineTool object."""
 CommandLineBinding: TypeAlias = (
     cwl_v1_0.CommandLineBinding
     | cwl_v1_1.CommandLineBinding
     | cwl_v1_2.CommandLineBinding
+    | cwl_v1_3.CommandLineBinding
 )
 
 """Type union for a CWL v1.x CommandLineBinding object."""
@@ -117,18 +118,21 @@ CommandOutputBinding: TypeAlias = (
     cwl_v1_0.CommandOutputBinding
     | cwl_v1_1.CommandOutputBinding
     | cwl_v1_2.CommandOutputBinding
+    | cwl_v1_3.CommandOutputBinding
 )
 """Type union for a CWL v1.x CommandOutputBinding object."""
 CommandInputParameter: TypeAlias = (
     cwl_v1_0.CommandInputParameter
     | cwl_v1_1.CommandInputParameter
     | cwl_v1_2.CommandInputParameter
+    | cwl_v1_3.CommandInputParameter
 )
 """Type union for a CWL v1.x CommandInputParameter object."""
 CommandOutputParameter: TypeAlias = (
     cwl_v1_0.CommandOutputParameter
     | cwl_v1_1.CommandOutputParameter
     | cwl_v1_2.CommandOutputParameter
+    | cwl_v1_3.CommandOutputParameter
 )
 
 """Type union for a CWL v1.x CommandOutputParameter object."""
@@ -136,109 +140,125 @@ CommandOutputRecordField: TypeAlias = (
     cwl_v1_0.CommandOutputRecordField
     | cwl_v1_1.CommandOutputRecordField
     | cwl_v1_2.CommandOutputRecordField
+    | cwl_v1_3.CommandOutputRecordField
 )
 """Type union for a CWL v1.x CommandOutputRecordField object."""
 ExpressionTool: TypeAlias = (
-    cwl_v1_0.ExpressionTool | cwl_v1_1.ExpressionTool | cwl_v1_2.ExpressionTool
+    cwl_v1_0.ExpressionTool | cwl_v1_1.ExpressionTool | cwl_v1_2.ExpressionTool | cwl_v1_3.ExpressionTool
 )
 """Type union for a CWL v1.x ExpressionTool object."""
 ExpressionToolOutputParameter: TypeAlias = (
     cwl_v1_0.ExpressionToolOutputParameter
     | cwl_v1_1.ExpressionToolOutputParameter
     | cwl_v1_2.ExpressionToolOutputParameter
+    | cwl_v1_3.ExpressionToolOutputParameter
 )
 """Type union for a CWL v1.x ExpressionToolOutputParameter object."""
 DockerRequirement: TypeAlias = (
-    cwl_v1_0.DockerRequirement | cwl_v1_1.DockerRequirement | cwl_v1_2.DockerRequirement
+    cwl_v1_0.DockerRequirement | cwl_v1_1.DockerRequirement | cwl_v1_2.DockerRequirement | cwl_v1_3.DockerRequirement
 )
 DockerRequirementTypes = (
     cwl_v1_0.DockerRequirement,
     cwl_v1_1.DockerRequirement,
     cwl_v1_2.DockerRequirement,
+    cwl_v1_3.DockerRequirement,
 )
-"""Type union for a CWL v1.x DockerRequirement object."""
-Process: TypeAlias = Workflow | CommandLineTool | ExpressionTool | cwl_v1_2.Operation
+Operation = cwl_v1_2.Operation | cwl_v1_3.Operation
+"""Type Union for a CWL v1.x Operation object."""
+Process = Workflow | CommandLineTool | ExpressionTool | Operation
 """Type Union for a CWL v1.x Process object."""
-ProcessRequirement: TypeAlias = (
+ProcessRequirement = (
     cwl_v1_0.ProcessRequirement
     | cwl_v1_1.ProcessRequirement
     | cwl_v1_2.ProcessRequirement
+    | cwl_v1_3.ProcessRequirement
 )
 """Type Union for a CWL v1.x ProcessRequirement object."""
 ProcessRequirementTypes = (
     cwl_v1_0.ProcessRequirement,
     cwl_v1_1.ProcessRequirement,
     cwl_v1_2.ProcessRequirement,
+    cwl_v1_3.ProcessRequirement,
 )
 SoftwareRequirement: TypeAlias = (
     cwl_v1_0.SoftwareRequirement
     | cwl_v1_1.SoftwareRequirement
     | cwl_v1_2.SoftwareRequirement
+    | cwl_v1_3.SoftwareRequirement
 )
 SoftwareRequirementTypes = (
     cwl_v1_0.SoftwareRequirement,
     cwl_v1_1.SoftwareRequirement,
     cwl_v1_2.SoftwareRequirement,
+    cwl_v1_3.SoftwareRequirement,
 )
 """Type union for a CWL v1.x SoftwareRequirement object."""
 ArraySchema: TypeAlias = (
-    cwl_v1_0.ArraySchema | cwl_v1_1.ArraySchema | cwl_v1_2.ArraySchema
+    cwl_v1_0.ArraySchema | cwl_v1_1.ArraySchema | cwl_v1_2.ArraySchema | cwl_v1_3.ArraySchema
 )
 InputArraySchema: TypeAlias = (
-    cwl_v1_0.InputArraySchema | cwl_v1_1.InputArraySchema | cwl_v1_2.InputArraySchema
+    cwl_v1_0.InputArraySchema | cwl_v1_1.InputArraySchema | cwl_v1_2.InputArraySchema | cwl_v1_3.InputArraySchema
 )
 InputArraySchemaTypes = (
     cwl_v1_0.InputArraySchema,
     cwl_v1_1.InputArraySchema,
     cwl_v1_2.InputArraySchema,
+    cwl_v1_3.InputArraySchema,
 )
 """Type Union for a CWL v1.x ArraySchema object."""
-EnumSchema: TypeAlias = cwl_v1_0.EnumSchema | cwl_v1_1.EnumSchema | cwl_v1_2.EnumSchema
+EnumSchema: TypeAlias = cwl_v1_0.EnumSchema | cwl_v1_1.EnumSchema | cwl_v1_2.EnumSchema | cwl_v1_3.EnumSchema
 InputEnumSchema: TypeAlias = (
-    cwl_v1_0.InputEnumSchema | cwl_v1_1.InputEnumSchema | cwl_v1_2.InputEnumSchema
+    cwl_v1_0.InputEnumSchema | cwl_v1_1.InputEnumSchema | cwl_v1_2.InputEnumSchema | cwl_v1_3.InputEnumSchema
 )
 InputEnumSchemaTypes = (
     cwl_v1_0.InputEnumSchema,
     cwl_v1_1.InputEnumSchema,
     cwl_v1_2.InputEnumSchema,
+    cwl_v1_3.InputEnumSchema,
 )
 """Type Union for a CWL v1.x EnumSchema object."""
 RecordSchema: TypeAlias = (
-    cwl_v1_0.RecordSchema | cwl_v1_1.RecordSchema | cwl_v1_2.RecordSchema
+    cwl_v1_0.RecordSchema | cwl_v1_1.RecordSchema | cwl_v1_2.RecordSchema | cwl_v1_3.RecordSchema
 )
 InputRecordSchema: TypeAlias = (
-    cwl_v1_0.InputRecordSchema | cwl_v1_1.InputRecordSchema | cwl_v1_2.InputRecordSchema
+    cwl_v1_0.InputRecordSchema | cwl_v1_1.InputRecordSchema | cwl_v1_2.InputRecordSchema | cwl_v1_3.InputRecordSchema
 )
 InputRecordSchemaTypes = (
     cwl_v1_0.InputRecordSchema,
     cwl_v1_1.InputRecordSchema,
     cwl_v1_2.InputRecordSchema,
+    cwl_v1_3.InputRecordSchema,
 )
 """Type Union for a CWL v1.x RecordSchema object."""
-File: TypeAlias = cwl_v1_0.File | cwl_v1_1.File | cwl_v1_2.File
+File: TypeAlias = cwl_v1_0.File | cwl_v1_1.File | cwl_v1_2.File | cwl_v1_3.File
 """Type Union for a CWL v1.x File object."""
 SecondaryFileSchema: TypeAlias = (
-    cwl_v1_1.SecondaryFileSchema | cwl_v1_2.SecondaryFileSchema
+    cwl_v1_1.SecondaryFileSchema | cwl_v1_2.SecondaryFileSchema | cwl_v1_3.SecondaryFileSchema
 )
 """Type Union for a CWL v1.x SecondaryFileSchema object."""
-Directory: TypeAlias = cwl_v1_0.Directory | cwl_v1_1.Directory | cwl_v1_2.Directory
+Directory: TypeAlias = cwl_v1_0.Directory | cwl_v1_1.Directory | cwl_v1_2.Directory | cwl_v1_3.Directory
 """Type Union for a CWL v1.x Directory object."""
-Dirent: TypeAlias = cwl_v1_0.Dirent | cwl_v1_1.Dirent | cwl_v1_2.Dirent
+Dirent: TypeAlias = cwl_v1_0.Dirent | cwl_v1_1.Dirent | cwl_v1_2.Dirent | cwl_v1_3.Dirent
 """Type Union for a CWL v1.x Dirent object."""
 LoadContents: TypeAlias = (
     cwl_v1_1.CommandInputParameter
     | cwl_v1_2.CommandInputParameter
+    | cwl_v1_3.CommandInputParameter
     | cwl_v1_1.CommandOutputBinding
     | cwl_v1_2.CommandOutputBinding
+    | cwl_v1_3.CommandOutputBinding
     | cwl_v1_1.InputRecordField
     | cwl_v1_2.InputRecordField
+    | cwl_v1_3.InputRecordField
     | cwl_v1_1.WorkflowInputParameter
     | cwl_v1_2.WorkflowInputParameter
+    | cwl_v1_3.WorkflowInputParameter
     | cwl_v1_1.WorkflowStepInput
     | cwl_v1_2.WorkflowStepInput
+    | cwl_v1_3.WorkflowStepInput
 )
 """Type Union for a CWL v1.x LoadContents object."""
-_Loader: TypeAlias = cwl_v1_0._Loader | cwl_v1_1._Loader | cwl_v1_2._Loader
+_Loader: TypeAlias = cwl_v1_0._Loader | cwl_v1_1._Loader | cwl_v1_2._Loader | cwl_v1_3._Loader
 """Type union for a CWL v1.x _Loader."""
 
 
@@ -323,8 +343,19 @@ def load_document_by_uri(
                 id_,
                 load_all,
             )
+        case cwl_v1_3.LoadingOptions():
+            loadingOptions = cwl_v1_3.LoadingOptions(
+                fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
+            )
+            return load_document_by_string(
+                loadingOptions.fetcher.fetch_text(real_uri),
+                real_uri,
+                loadingOptions,
+                id_,
+                load_all,
+            )
         case None:
-            loadingOptions = cwl_v1_2.LoadingOptions(fileuri=real_uri, baseuri=base_uri)
+            loadingOptions = cwl_v1_3.LoadingOptions(fileuri=real_uri, baseuri=base_uri)
             return load_document_by_string(
                 loadingOptions.fetcher.fetch_text(real_uri),
                 real_uri,
@@ -390,6 +421,10 @@ def load_document_by_yaml(
             result = cwl_v1_2.load_document_by_yaml(
                 yaml, uri, cast(Optional[cwl_v1_2.LoadingOptions], loadingOptions)
             )
+        case "v1.3.0-dev1":
+            result = cwl_v1_3.load_document_by_yaml(
+                yaml, uri, cast(Optional[cwl_v1_3.LoadingOptions], loadingOptions)
+            )
         case None:
             raise ValidationException("could not get the cwlVersion")
         case _:
@@ -415,7 +450,12 @@ def save(
 ) -> Any:
     """Convert a CWL Python object into a JSON/YAML serializable object."""
     match val:
-        case cwl_v1_0.Saveable() | cwl_v1_1.Saveable() | cwl_v1_2.Saveable():
+        case (
+            cwl_v1_0.Saveable()
+            | cwl_v1_1.Saveable()
+            | cwl_v1_2.Saveable()
+            | cwl_v1_3.Saveable()
+        ):
             return val.save(top=top, base_url=base_url, relative_uris=relative_uris)
         case MutableSequence():
             lst = [
@@ -443,7 +483,9 @@ def save(
 
 def is_process(v: Any) -> bool:
     """Test to see if the object is a CWL v1.x Python Process object."""
-    return isinstance(v, cwl_v1_0.Process | cwl_v1_1.Process | cwl_v1_2.Process)
+    return isinstance(
+        v, cwl_v1_0.Process | cwl_v1_1.Process | cwl_v1_2.Process | cwl_v1_3.Process
+    )
 
 
 def version_split(version: str) -> MutableSequence[int]:
