@@ -10,7 +10,7 @@ steps:
     in:
       in1: val
       a_new_var: val
-    run: foo-array.cwl
+    run: foo-array.v1_2.cwl
     when: $(inputs.in1 < 1)
     out: [out1]
 

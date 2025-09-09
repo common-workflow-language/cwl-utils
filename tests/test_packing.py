@@ -15,7 +15,7 @@ def test_port_normalization() -> None:
     step_in1 = _find(step_s1.get("in"), "id", "in1")
     assert step_in1["source"] == "in1"
 
-    cwl = pack(get_data("testdata/wf2.cwl"))
+    cwl = pack(get_data("testdata/wf2.v1_2.cwl"))
     step_s1 = _find(cwl.get("steps", []), "id", "s1")
     step_in1 = _find(step_s1.get("in"), "id", "in1")
     assert step_in1["source"] == "in1"
@@ -46,7 +46,7 @@ def test_schema_def1() -> None:
 
 
 def test_schema_def2() -> None:
-    cwl = pack(get_data("testdata/wf2.cwl"))
+    cwl = pack(get_data("testdata/wf2.v1_2.cwl"))
     _type = _find(cwl.get("inputs", []), "id", "in2").get("type")
     assert isinstance(_type, dict)
     assert _type.get("type") == "enum"
