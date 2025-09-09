@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+from abc import ABC
 from collections.abc import MutableMapping, MutableSequence
 from pathlib import Path
 from typing import Any, Optional, Union, cast
@@ -11,6 +12,11 @@ from schema_salad.utils import yaml_no_ts
 
 from ..errors import GraphTargetMissingException
 from . import cwl_v1_0, cwl_v1_1, cwl_v1_2
+
+
+class NoType(ABC):
+    pass
+
 
 LoadingOptions = Union[
     cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions
@@ -81,6 +87,14 @@ WorkflowStep = Union[
     cwl_v1_0.WorkflowStep, cwl_v1_1.WorkflowStep, cwl_v1_2.WorkflowStep
 ]
 """Type union for a CWL v1.x WorkflowStep object."""
+ScatterWorkflowStep = Union[
+    cwl_v1_0.WorkflowStep,
+    cwl_v1_1.WorkflowStep,
+    cwl_v1_2.WorkflowStep,
+]
+"""Type union for a CWL v1.x ScatterWorkflowStep object."""
+LoopWorkflowStep = NoType
+"""Type union for a CWL v1.x LoopWorkflowStep object."""
 WorkflowStepInput = Union[
     cwl_v1_0.WorkflowStepInput, cwl_v1_1.WorkflowStepInput, cwl_v1_2.WorkflowStepInput
 ]
