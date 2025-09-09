@@ -15,9 +15,11 @@ from pytest import raises
 import cwl_utils.parser.cwl_v1_0 as parser
 import cwl_utils.parser.cwl_v1_1 as parser1
 import cwl_utils.parser.cwl_v1_2 as parser2
+import cwl_utils.parser.cwl_v1_3 as parser3
 from cwl_utils.cwl_v1_0_expression_refactor import traverse as traverse0
 from cwl_utils.cwl_v1_1_expression_refactor import traverse as traverse1
 from cwl_utils.cwl_v1_2_expression_refactor import traverse as traverse2
+from cwl_utils.cwl_v1_3_expression_refactor import traverse as traverse3
 from cwl_utils.errors import WorkflowException
 from cwl_utils.expression_refactor import run as expression_refactor
 
@@ -143,6 +145,46 @@ def test_v1_2_workflow_top_level_sf_expr_array() -> None:
         )
 
 
+def test_v1_3_workflow_top_level_format_expr() -> None:
+    """Test for the correct error when converting a format expression in a workflow level input."""
+    with raises(WorkflowException, match=r".*format specification.*"):
+        result, modified = traverse3(
+            parser3.load_document(
+                get_data("testdata/workflow_input_format_expr_v1_3.cwl")
+            ),
+            False,
+            False,
+            False,
+            False,
+        )
+
+
+def test_v1_3_workflow_top_level_sf_expr() -> None:
+    """Test for the correct error when converting a secondaryFiles expression in a workflow level input."""
+    with raises(WorkflowException, match=r".*secondaryFiles.*"):
+        result, modified = traverse3(
+            parser3.load_document(get_data("testdata/workflow_input_sf_expr_v1_3.cwl")),
+            False,
+            False,
+            False,
+            False,
+        )
+
+
+def test_v1_3_workflow_top_level_sf_expr_array() -> None:
+    """Test for the correct error when converting a secondaryFiles expression (array form) in a workflow level input."""  # noqa: B950
+    with raises(WorkflowException, match=r".*secondaryFiles.*"):
+        result, modified = traverse3(
+            parser3.load_document(
+                get_data("testdata/workflow_input_sf_expr_array_v1_3.cwl")
+            ),
+            False,
+            False,
+            False,
+            False,
+        )
+
+
 def test_v1_0_step_valuefrom_expr_multisource() -> None:
     """Convert a valueFrom expression that has multiple sources."""
     result, modified = traverse0(
@@ -169,6 +211,17 @@ def test_v1_2_step_valuefrom_expr_multisource() -> None:
     """Convert a valueFrom expression that has multiple sources."""
     result, modified = traverse2(
         parser2.load_document(get_data("testdata/step-valuefrom2-wf_v1_2.cwl")),
+        False,
+        False,
+        False,
+        False,
+    )
+
+
+def test_v1_3_step_valuefrom_expr_multisource() -> None:
+    """Convert a valueFrom expression that has multiple sources."""
+    result, modified = traverse3(
+        parser3.load_document(get_data("testdata/step-valuefrom2-wf_v1_3.cwl")),
         False,
         False,
         False,
@@ -209,10 +262,32 @@ def test_v1_2_step_valuefrom_expr_sibling_inputs() -> None:
     )
 
 
+def test_v1_3_step_valuefrom_expr_sibling_inputs() -> None:
+    """Convert a valueFrom expression from a step input that has uninvolved sibling inputs."""
+    result, modified = traverse3(
+        parser3.load_document(get_data("testdata/step-valuefrom3-wf_v1_3.cwl")),
+        False,
+        False,
+        False,
+        False,
+    )
+
+
 def test_v1_2_workflow_output_pickvalue_expr() -> None:
     """Convert a workflow output pickValue expression."""
     result, modified = traverse2(
-        parser2.load_document(get_data("testdata/cond-wf-003.1.cwl")),
+        parser2.load_document(get_data("testdata/cond-wf-003.1.v1_2.cwl")),
+        False,
+        False,
+        False,
+        False,
+    )
+
+
+def test_v1_3_workflow_output_pickvalue_expr() -> None:
+    """Convert a workflow output pickValue expression."""
+    result, modified = traverse3(
+        parser3.load_document(get_data("testdata/cond-wf-003.1.v1_3.cwl")),
         False,
         False,
         False,
@@ -222,7 +297,7 @@ def test_v1_2_workflow_output_pickvalue_expr() -> None:
 
 def test_expression_refactor(tmp_path: Path) -> None:
     """Functional test."""
-    input_path = get_data("testdata/cond-wf-003.1.cwl")
+    input_path = get_data("testdata/cond-wf-003.1.v1_2.cwl")
     result = expression_refactor([str(tmp_path), input_path])
     assert result == 0
 
