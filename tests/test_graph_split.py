@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 import requests
-from cwltool.tests.util import get_main_output
 
 from cwl_utils.graph_split import graph_split
 
@@ -28,6 +27,8 @@ def test_graph_split(tmp_path: Path) -> None:
 
 def test_graph_split_offline(tmp_path: Path) -> None:
     """Confirm that a local provided example produces no exception."""
+    from cwltool.tests.util import get_main_output
+
     with get_path("testdata/js-expr-req-wf.cwl").open() as handle:
         graph_split(handle, tmp_path, "yaml", "main.cwl", True)
     target = tmp_path / "wf.cwl"
@@ -42,6 +43,8 @@ def test_graph_split_offline(tmp_path: Path) -> None:
 
 def test_graph_split_json_offline(tmp_path: Path) -> None:
     """Confirm that a local provided example produces no exception in JSON mode."""
+    from cwltool.tests.util import get_main_output
+
     target = tmp_path / "subdir" / "wf.cwl"
     with get_path("testdata/js-expr-req-wf.cwl").open() as handle:
         graph_split(handle, target.parent, "json", "main.cwl", True)
