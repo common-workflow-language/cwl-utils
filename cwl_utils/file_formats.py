@@ -5,7 +5,6 @@ CWL file formats utilities.
 For more information, please visit https://www.commonwl.org/user_guide/16-file-formats/
 """
 
-from typing import Optional, Union
 
 from rdflib import OWL, RDFS, Graph, URIRef
 from schema_salad.exceptions import ValidationException
@@ -15,7 +14,7 @@ from cwl_utils.types import CWLObjectType
 
 
 def formatSubclassOf(
-    fmt: str, cls: str, ontology: Optional[Graph], visited: set[str]
+    fmt: str, cls: str, ontology: Graph | None, visited: set[str]
 ) -> bool:
     """Determine if `fmt` is a subclass of `cls`."""
     if URIRef(fmt) == URIRef(cls):
@@ -50,9 +49,9 @@ def formatSubclassOf(
 
 
 def check_format(
-    actual_file: Union[CWLObjectType, list[CWLObjectType]],
-    input_formats: Union[list[str], str],
-    ontology: Optional[Graph],
+    actual_file: CWLObjectType | list[CWLObjectType],
+    input_formats: list[str] | str,
+    ontology: Graph | None,
 ) -> None:
     """Confirm that the format present is valid for the allowed formats."""
     for afile in aslist(actual_file):

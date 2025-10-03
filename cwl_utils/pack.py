@@ -20,7 +20,7 @@ import sys
 import urllib.parse
 import urllib.request
 from collections.abc import ItemsView
-from typing import TYPE_CHECKING, Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Union, cast
 
 from packaging import version
 
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 def get_inner_dict(
     cwl: dict[str, Any], path: list[dict[str, Any]]
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     if len(path) == 0:
         return cwl
 
@@ -56,7 +56,7 @@ def pack_process(
     cwl: dict[str, Any],
     base_url: urllib.parse.ParseResult,
     cwl_version: str,
-    parent_user_defined_types: Optional[dict[str, Any]] = None,
+    parent_user_defined_types: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     cwl = listify_everything(cwl)
     cwl = normalize_sources(cwl)
@@ -144,7 +144,7 @@ def _normalize(s: str) -> str:
 def load_schemadefs(
     cwl: dict[str, Any],
     base_url: urllib.parse.ParseResult,
-    parent_user_defined_types: Optional[dict[str, Any]] = None,
+    parent_user_defined_types: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Internalize any SchemaDefRequirement, and remove it."""
     user_defined_types = schemadef.build_user_defined_type_dict(cwl, base_url)
@@ -196,7 +196,7 @@ def resolve_steps(
     cwl: dict[str, Any],
     base_url: urllib.parse.ParseResult,
     cwl_version: str,
-    parent_user_defined_types: Optional[dict[str, Any]] = None,
+    parent_user_defined_types: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Load and pack all "run" sections of the workflow steps."""
     if isinstance(cwl, str):

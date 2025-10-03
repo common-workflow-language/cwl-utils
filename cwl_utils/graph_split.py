@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import (
     IO,
     Any,
-    Union,
     cast,
 )
 
@@ -167,7 +166,7 @@ def rewrite(
                     document[key] = value[len(doc_id) + 2 :]
                 elif key == "out" and isinstance(value, list):
 
-                    def rewrite_id(entry: Any) -> Union[MutableMapping[Any, Any], str]:
+                    def rewrite_id(entry: Any) -> MutableMapping[Any, Any] | str:
                         if isinstance(entry, MutableMapping):
                             if entry["id"].startswith(this_id):
                                 assert isinstance(this_id, str)  # nosec B101

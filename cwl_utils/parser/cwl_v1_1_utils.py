@@ -5,7 +5,7 @@ import os
 from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
-from typing import IO, Any, Optional, Union, cast
+from typing import IO, Any, Union, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -87,10 +87,10 @@ def _compare_type(type1: Any, type2: Any) -> bool:
 
 
 def _inputfile_load(
-    doc: Union[str, MutableMapping[str, Any], MutableSequence[Any]],
+    doc: str | MutableMapping[str, Any] | MutableSequence[Any],
     baseuri: str,
     loadingOptions: cwl.LoadingOptions,
-    addl_metadata_fields: Optional[MutableSequence[str]] = None,
+    addl_metadata_fields: MutableSequence[str] | None = None,
 ) -> tuple[Any, cwl.LoadingOptions]:
     loader = cwl.CWLInputFileLoader
     if isinstance(doc, str):
@@ -181,7 +181,7 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
 
 def check_all_types(
     src_dict: dict[str, Any],
-    sinks: MutableSequence[Union[cwl.WorkflowStepInput, cwl.WorkflowOutputParameter]],
+    sinks: MutableSequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
     type_dict: dict[str, Any],
 ) -> dict[str, list[SrcSink]]:
     """Given a list of sinks, check if their types match with the types of their sources."""
@@ -228,8 +228,8 @@ def check_all_types(
 def check_types(
     srctype: Any,
     sinktype: Any,
-    linkMerge: Optional[str],
-    valueFrom: Optional[str] = None,
+    linkMerge: str | None,
+    valueFrom: str | None = None,
 ) -> str:
     """
     Check if the source and sink types are correct.
@@ -320,8 +320,8 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
 
 def load_inputfile(
     doc: Any,
-    baseuri: Optional[str] = None,
-    loadingOptions: Optional[cwl.LoadingOptions] = None,
+    baseuri: str | None = None,
+    loadingOptions: cwl.LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.1 input file from a serialized YAML string or a YAML object."""
     if baseuri is None:
@@ -340,7 +340,7 @@ def load_inputfile(
 def load_inputfile_by_string(
     string: Any,
     uri: str,
-    loadingOptions: Optional[cwl.LoadingOptions] = None,
+    loadingOptions: cwl.LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.1 input file from a serialized YAML string."""
     yaml = yaml_no_ts()
@@ -361,7 +361,7 @@ def load_inputfile_by_string(
 def load_inputfile_by_yaml(
     yaml: Any,
     uri: str,
-    loadingOptions: Optional[cwl.LoadingOptions] = None,
+    loadingOptions: cwl.LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.1 input file from a YAML object."""
     add_lc_filename(yaml, uri)
@@ -437,13 +437,13 @@ def type_for_step_output(
 
 
 def type_for_source(
-    process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
-    sourcenames: Union[str, list[str]],
-    parent: Optional[cwl.Workflow] = None,
-    linkMerge: Optional[str] = None,
+    process: cwl.CommandLineTool | cwl.Workflow | cwl.ExpressionTool,
+    sourcenames: str | list[str],
+    parent: cwl.Workflow | None = None,
+    linkMerge: str | None = None,
 ) -> Any:
     """Determine the type for the given sourcenames."""
-    scatter_context: list[Optional[tuple[int, str]]] = []
+    scatter_context: list[tuple[int, str] | None] = []
     params = param_for_source_id(process, sourcenames, parent, scatter_context)
     if not isinstance(params, list):
         new_type = params.type_
@@ -489,11 +489,11 @@ def type_for_source(
 
 
 def param_for_source_id(
-    process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
-    sourcenames: Union[str, list[str]],
-    parent: Optional[cwl.Workflow] = None,
-    scatter_context: Optional[list[Optional[tuple[int, str]]]] = None,
-) -> Union[list[cwl.WorkflowInputParameter], cwl.WorkflowInputParameter]:
+    process: cwl.CommandLineTool | cwl.Workflow | cwl.ExpressionTool,
+    sourcenames: str | list[str],
+    parent: cwl.Workflow | None = None,
+    scatter_context: list[tuple[int, str] | None] | None = None,
+) -> list[cwl.WorkflowInputParameter] | cwl.WorkflowInputParameter:
     """Find the process input parameter that matches one of the given sourcenames."""
     if isinstance(sourcenames, str):
         sourcenames = [sourcenames]

@@ -5,7 +5,6 @@ import os
 import subprocess  # nosec
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Union
 
 from .singularity import get_version as get_singularity_version
 from .singularity import is_version_2_6 as is_singularity_version_2_6
@@ -19,7 +18,7 @@ class ImagePuller(ABC):
     def __init__(
         self,
         req: str,
-        save_directory: Optional[Union[str, Path]],
+        save_directory: str | Path | None,
         cmd: str,
         force_pull: bool,
     ) -> None:
@@ -109,7 +108,7 @@ class SingularityImagePuller(ImagePuller):
 
     def save_docker_image(self) -> None:
         """Pull down the Docker software container image and save it in the Singularity image format."""
-        save_directory: Union[str, Path]
+        save_directory: str | Path
         if self.save_directory:
             save_directory = self.save_directory
         if (
