@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Mapping, MutableMapping, MutableSequence
 from importlib.resources import files
 from io import BytesIO
-from typing import Any, Deque, Optional, Union, cast
+from typing import Any, Deque, cast
 
 from schema_salad.utils import json_dumps
 
@@ -64,7 +64,7 @@ class JSEngine(ABC):
     @abstractmethod
     def eval(
         self, scan: str, jslib: str = "", **kwargs: Any
-    ) -> Union[CWLOutputType, Awaitable[CWLOutputType]]: ...
+    ) -> CWLOutputType | Awaitable[CWLOutputType]: ...
 
     @abstractmethod
     def regex_eval(
@@ -73,7 +73,7 @@ class JSEngine(ABC):
         remaining_string: str,
         current_value: CWLOutputType,
         **kwargs: Any,
-    ) -> Union[CWLOutputType, Awaitable[CWLOutputType]]: ...
+    ) -> CWLOutputType | Awaitable[CWLOutputType]: ...
 
 
 class NodeJSEngine(JSEngine):
@@ -148,7 +148,7 @@ class NodeJSEngine(JSEngine):
         js_text: str,
         timeout: float = default_timeout,
         js_console: bool = False,
-        context: Optional[str] = None,
+        context: str | None = None,
         force_docker_pull: bool = False,
         container_engine: str = "docker",
     ) -> tuple[int, str, str]:
@@ -273,7 +273,7 @@ class NodeJSEngine(JSEngine):
     ) -> "subprocess.Popen[str]":
         """Return a subprocess ready to submit javascript to."""
         required_node_version, docker = (False,) * 2
-        nodejs = None  # type: Optional[subprocess.Popen[str]]
+        nodejs: subprocess.Popen[str] | None = None
         trynodes = ("nodejs", "node")
         for n in trynodes:
             try:
@@ -308,7 +308,7 @@ class NodeJSEngine(JSEngine):
                     nodeimg = f"docker.io/library/{nodeimg}"
 
                 if not self.have_node_slim:
-                    singularity_cache: Optional[str] = None
+                    singularity_cache: str | None = None
                     if container_engine in ("docker", "podman"):
                         dockerimgs = subprocess.check_output(  # nosec
                             [container_engine, "images", "-q", nodeimg],
@@ -515,7 +515,7 @@ class NodeJSEngine(JSEngine):
             if not m:
                 return current_value
             next_segment_str = m.group(1)
-            key: Optional[Union[str, int]] = None
+            key: str | int | None = None
             if next_segment_str[0] == ".":
                 key = next_segment_str[1:]
             elif next_segment_str[1] in ("'", '"'):

@@ -1,6 +1,5 @@
 from rdflib.graph import ConjunctiveGraph, Graph
 
-
 class IsomorphicGraph(ConjunctiveGraph):
     pass
 

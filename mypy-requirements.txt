@@ -1,5 +1,4 @@
 mypy==1.18.2
-typing_extensions
 types-requests
 types-jsonschema
 types-setuptools>=57.4.0

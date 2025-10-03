@@ -226,7 +226,7 @@ _Loader = Union[cwl_v1_0._Loader, cwl_v1_1._Loader, cwl_v1_2._Loader]
 """Type union for a CWL v1.x _Loader."""
 
 
-def _get_id_from_graph(yaml: MutableMapping[str, Any], id_: Optional[str]) -> Any:
+def _get_id_from_graph(yaml: MutableMapping[str, Any], id_: str | None) -> Any:
     if id_ is None:
         id_ = "main"
     for el in yaml["$graph"]:
@@ -238,7 +238,7 @@ def _get_id_from_graph(yaml: MutableMapping[str, Any], id_: Optional[str]) -> An
     )
 
 
-def cwl_version(yaml: Any) -> Optional[str]:
+def cwl_version(yaml: Any) -> str | None:
     """
     Return the cwlVersion of a YAML object.
 
@@ -254,8 +254,8 @@ def cwl_version(yaml: Any) -> Optional[str]:
 
 
 def load_document_by_uri(
-    path: Union[str, Path],
-    loadingOptions: Optional[LoadingOptions] = None,
+    path: str | Path,
+    loadingOptions: LoadingOptions | None = None,
     load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a URI or a path."""
@@ -298,9 +298,9 @@ def load_document_by_uri(
 
 def load_document(
     doc: Any,
-    baseuri: Optional[str] = None,
-    loadingOptions: Optional[LoadingOptions] = None,
-    id_: Optional[str] = None,
+    baseuri: str | None = None,
+    loadingOptions: LoadingOptions | None = None,
+    id_: str | None = None,
     load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a serialized YAML string or a YAML object."""
@@ -314,8 +314,8 @@ def load_document(
 def load_document_by_string(
     string: str,
     uri: str,
-    loadingOptions: Optional[LoadingOptions] = None,
-    id_: Optional[str] = None,
+    loadingOptions: LoadingOptions | None = None,
+    id_: str | None = None,
     load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a serialized YAML string."""
@@ -327,8 +327,8 @@ def load_document_by_string(
 def load_document_by_yaml(
     yaml: Any,
     uri: str,
-    loadingOptions: Optional[LoadingOptions] = None,
-    id_: Optional[str] = None,
+    loadingOptions: LoadingOptions | None = None,
+    id_: str | None = None,
     load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a YAML object."""
@@ -366,7 +366,7 @@ def load_document_by_yaml(
 
 
 def save(
-    val: Optional[Union[Saveable, MutableSequence[Saveable]]],
+    val: Saveable | MutableSequence[Saveable] | None,
     top: bool = True,
     base_url: str = "",
     relative_uris: bool = True,

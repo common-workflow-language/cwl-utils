@@ -2,7 +2,6 @@
 
 import re
 from subprocess import check_output  # nosec
-from typing import Optional
 
 from .loghandler import _logger
 
@@ -10,7 +9,7 @@ from .loghandler import _logger
 # This is a list containing major and minor versions as integer.
 # (The number of minor version digits can vary among different distributions,
 #  therefore we need a list here.)
-_SINGULARITY_VERSION: Optional[list[int]] = None
+_SINGULARITY_VERSION: list[int] | None = None
 # Cached flavor / distribution of singularity
 # Can be singularity, singularity-ce or apptainer
 _SINGULARITY_FLAVOR: str = ""

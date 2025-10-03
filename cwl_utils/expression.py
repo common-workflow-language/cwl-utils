@@ -5,7 +5,7 @@ import copy
 import inspect
 import json
 from collections.abc import Awaitable, MutableMapping
-from typing import Any, Optional, Union, cast
+from typing import Any, Union, cast
 
 from schema_salad.utils import json_dumps
 
@@ -20,7 +20,7 @@ def _convert_dumper(string: str) -> str:
     return f"{json.dumps(string)} + "
 
 
-def scanner(scan: str) -> Optional[tuple[int, int]]:
+def scanner(scan: str) -> tuple[int, int] | None:
     """Find JS relevant punctuation in a string."""
     DEFAULT = 0
     DOLLAR = 1
@@ -106,7 +106,7 @@ def evaluator(
     jslib: str,
     fullJS: bool,
     **kwargs: Any,
-) -> Optional[CWLOutputType]:
+) -> CWLOutputType | None:
     js_engine = js_engine or get_js_engine()
     expression_parse_exception = None
 
@@ -174,9 +174,9 @@ def interpolate(
     strip_whitespace: bool = True,
     escaping_behavior: int = 2,
     convert_to_expression: bool = False,
-    js_engine: Optional[JSEngine] = None,
+    js_engine: JSEngine | None = None,
     **kwargs: Any,
-) -> Optional[CWLOutputType]:
+) -> CWLOutputType | None:
     """
     Interpolate and evaluate.
 
@@ -266,18 +266,18 @@ def needs_parsing(snippet: Any) -> bool:
 
 
 def do_eval(
-    ex: Optional[CWLOutputType],
+    ex: CWLOutputType | None,
     jobinput: CWLObjectType,
     requirements: list[CWLObjectType],
-    outdir: Optional[str],
-    tmpdir: Optional[str],
-    resources: dict[str, Union[float, int]],
-    context: Optional[CWLOutputType] = None,
+    outdir: str | None,
+    tmpdir: str | None,
+    resources: dict[str, float | int],
+    context: CWLOutputType | None = None,
     timeout: float = default_timeout,
     strip_whitespace: bool = True,
     cwlVersion: str = "",
     **kwargs: Any,
-) -> Optional[CWLOutputType]:
+) -> CWLOutputType | None:
     """
     Evaluate the given CWL expression, in context.
 
