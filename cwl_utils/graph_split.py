@@ -148,6 +148,19 @@ def graph_split(
                 yaml_dump(entry, output_handle, pretty)
 
 
+def rewrite_id(entry: Any, this_id: str | None) -> MutableMapping[Any, Any] | str:
+    if isinstance(entry, MutableMapping):
+        if entry["id"].startswith(this_id):
+            assert isinstance(this_id, str)  # nosec B101
+            entry["id"] = cast(str, entry["id"])[len(this_id) + 1 :]
+        return entry
+    elif isinstance(entry, str):
+        if this_id and entry.startswith(this_id):
+            return entry[len(this_id) + 1 :]
+        return entry
+    raise Exception(f"{entry} is neither a dictionary nor string.")
+
+
 def rewrite(
     document: Any, doc_id: str, output_dir: Path, pretty: bool = False
 ) -> set[str]:
@@ -160,50 +173,40 @@ def rewrite(
         this_id = document["id"] if "id" in document else None
         for key, value in document.items():
             with SourceLine(document, key, Exception):
-                if key == "run" and isinstance(value, str) and value[0] == "#":
-                    document[key] = f"{re.sub('.cwl$', '', value[1:])}.cwl"
-                elif key in ("id", "outputSource") and value.startswith("#" + doc_id):
-                    document[key] = value[len(doc_id) + 2 :]
-                elif key == "out" and isinstance(value, list):
-
-                    def rewrite_id(entry: Any) -> MutableMapping[Any, Any] | str:
-                        if isinstance(entry, MutableMapping):
-                            if entry["id"].startswith(this_id):
-                                assert isinstance(this_id, str)  # nosec B101
-                                entry["id"] = cast(str, entry["id"])[len(this_id) + 1 :]
-                            return entry
-                        elif isinstance(entry, str):
-                            if this_id and entry.startswith(this_id):
-                                return entry[len(this_id) + 1 :]
-                            return entry
-                        raise Exception(f"{entry} is neither a dictionary nor string.")
-
-                    document[key][:] = [rewrite_id(entry) for entry in value]
-                elif key in ("source", "scatter", "items", "format"):
-                    if (
-                        isinstance(value, str)
-                        and value.startswith("#")
-                        and "/" in value
-                    ):
-                        referrant_file, sub = value[1:].split("/", 1)
-                        if referrant_file == doc_id:
-                            document[key] = sub
-                        else:
-                            document[key] = f"{referrant_file}#{sub}"
-                    elif isinstance(value, list):
-                        new_sources = list()
-                        for entry in value:
-                            if entry.startswith("#" + doc_id):
-                                new_sources.append(entry[len(doc_id) + 2 :])
+                match key:
+                    case "run" if isinstance(value, str) and value[0] == "#":
+                        document[key] = f"{re.sub('.cwl$', '', value[1:])}.cwl"
+                    case "id" | "outputSource" if value.startswith("#" + doc_id):
+                        document[key] = value[len(doc_id) + 2 :]
+                    case "out" if isinstance(value, list):
+                        document[key][:] = [
+                            rewrite_id(entry, this_id) for entry in value
+                        ]
+                    case "source" | "scatter" | "items" | "format":
+                        if (
+                            isinstance(value, str)
+                            and value.startswith("#")
+                            and "/" in value
+                        ):
+                            referrant_file, sub = value[1:].split("/", 1)
+                            if referrant_file == doc_id:
+                                document[key] = sub
                             else:
-                                new_sources.append(entry)
-                        document[key] = new_sources
-                elif key == "$import":
-                    rewrite_import(document)
-                elif key == "class" and value == "SchemaDefRequirement":
-                    return rewrite_schemadef(document, output_dir, pretty)
-                else:
-                    imports.update(rewrite(value, doc_id, output_dir, pretty))
+                                document[key] = f"{referrant_file}#{sub}"
+                        elif isinstance(value, list):
+                            new_sources = list()
+                            for entry in value:
+                                if entry.startswith("#" + doc_id):
+                                    new_sources.append(entry[len(doc_id) + 2 :])
+                                else:
+                                    new_sources.append(entry)
+                            document[key] = new_sources
+                    case "$import":
+                        rewrite_import(document)
+                    case "class" if value == "SchemaDefRequirement":
+                        return rewrite_schemadef(document, output_dir, pretty)
+                    case _:
+                        imports.update(rewrite(value, doc_id, output_dir, pretty))
     return imports
 
 
