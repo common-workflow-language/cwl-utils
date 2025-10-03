@@ -5,7 +5,7 @@ import os
 from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
-from typing import IO, Any, Optional, Union, cast
+from typing import IO, Any, Union, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -63,85 +63,90 @@ def _compare_records(
 
 
 def _compare_type(type1: Any, type2: Any) -> bool:
-    if isinstance(type1, cwl.ArraySchema) and isinstance(type2, cwl.ArraySchema):
-        return _compare_type(type1.items, type2.items)
-    elif isinstance(type1, cwl.RecordSchema) and isinstance(type2, cwl.RecordSchema):
-        fields1 = {
-            cwl.shortname(field.name): field.type_ for field in (type1.fields or {})
-        }
-        fields2 = {
-            cwl.shortname(field.name): field.type_ for field in (type2.fields or {})
-        }
-        if fields1.keys() != fields2.keys():
-            return False
-        return all(_compare_type(fields1[k], fields2[k]) for k in fields1.keys())
-    elif isinstance(type1, MutableSequence) and isinstance(type2, MutableSequence):
-        if len(type1) != len(type2):
-            return False
-        for t1 in type1:
-            if not any(_compare_type(t1, t2) for t2 in type2):
+    match (type1, type1):
+        case cwl.ArraySchema() as t1, cwl.ArraySchema() as t2:
+            return _compare_type(t1.items, t2.items)
+        case cwl.RecordSchema(), cwl.RecordSchema():
+            fields1 = {
+                cwl.shortname(field.name): field.type_ for field in (type1.fields or {})
+            }
+            fields2 = {
+                cwl.shortname(field.name): field.type_ for field in (type2.fields or {})
+            }
+            if fields1.keys() != fields2.keys():
                 return False
-        return True
-    else:
-        return bool(type1 == type2)
+            return all(_compare_type(fields1[k], fields2[k]) for k in fields1.keys())
+        case MutableSequence(), MutableSequence():
+            if len(type1) != len(type2):
+                return False
+            for t1 in type1:
+                if not any(_compare_type(t1, t2) for t2 in type2):
+                    return False
+            return True
+        case _:
+            return bool(type1 == type2)
 
 
 def _inputfile_load(
-    doc: Union[str, MutableMapping[str, Any], MutableSequence[Any]],
+    doc: str | MutableMapping[str, Any] | MutableSequence[Any],
     baseuri: str,
     loadingOptions: cwl.LoadingOptions,
-    addl_metadata_fields: Optional[MutableSequence[str]] = None,
+    addl_metadata_fields: MutableSequence[str] | None = None,
 ) -> tuple[Any, cwl.LoadingOptions]:
     loader = cwl.CWLInputFileLoader
-    if isinstance(doc, str):
-        url = loadingOptions.fetcher.urljoin(baseuri, doc)
-        if url in loadingOptions.idx:
+    match doc:
+        case str():
+            url = loadingOptions.fetcher.urljoin(baseuri, doc)
+            if url in loadingOptions.idx:
+                return loadingOptions.idx[url]
+            doc_url, frg = urldefrag(url)
+            text = loadingOptions.fetcher.fetch_text(doc_url)
+            textIO = StringIO(text)
+            textIO.name = str(doc_url)
+            yaml = yaml_no_ts()
+            result = yaml.load(textIO)
+            add_lc_filename(result, doc_url)
+            loadingOptions = cwl.LoadingOptions(
+                copyfrom=loadingOptions, fileuri=doc_url
+            )
+            _inputfile_load(
+                result,
+                doc_url,
+                loadingOptions,
+            )
             return loadingOptions.idx[url]
-        doc_url, frg = urldefrag(url)
-        text = loadingOptions.fetcher.fetch_text(doc_url)
-        textIO = StringIO(text)
-        textIO.name = str(doc_url)
-        yaml = yaml_no_ts()
-        result = yaml.load(textIO)
-        add_lc_filename(result, doc_url)
-        loadingOptions = cwl.LoadingOptions(copyfrom=loadingOptions, fileuri=doc_url)
-        _inputfile_load(
-            result,
-            doc_url,
-            loadingOptions,
-        )
-        return loadingOptions.idx[url]
+        case MutableMapping():
+            addl_metadata = {}
+            if addl_metadata_fields is not None:
+                for mf in addl_metadata_fields:
+                    if mf in doc:
+                        addl_metadata[mf] = doc[mf]
 
-    if isinstance(doc, MutableMapping):
-        addl_metadata = {}
-        if addl_metadata_fields is not None:
-            for mf in addl_metadata_fields:
-                if mf in doc:
-                    addl_metadata[mf] = doc[mf]
+            loadingOptions = cwl.LoadingOptions(
+                copyfrom=loadingOptions,
+                baseuri=baseuri,
+                addl_metadata=addl_metadata,
+            )
 
-        loadingOptions = cwl.LoadingOptions(
-            copyfrom=loadingOptions,
-            baseuri=baseuri,
-            addl_metadata=addl_metadata,
-        )
+            loadingOptions.idx[baseuri] = (
+                loader.load(doc, baseuri, loadingOptions, docRoot=baseuri),
+                loadingOptions,
+            )
 
-        loadingOptions.idx[baseuri] = (
-            loader.load(doc, baseuri, loadingOptions, docRoot=baseuri),
-            loadingOptions,
-        )
+            return loadingOptions.idx[baseuri]
 
-        return loadingOptions.idx[baseuri]
+        case MutableSequence():
+            loadingOptions.idx[baseuri] = (
+                loader.load(doc, baseuri, loadingOptions),
+                loadingOptions,
+            )
+            return loadingOptions.idx[baseuri]
 
-    if isinstance(doc, MutableSequence):
-        loadingOptions.idx[baseuri] = (
-            loader.load(doc, baseuri, loadingOptions),
-            loadingOptions,
-        )
-        return loadingOptions.idx[baseuri]
-
-    raise ValidationException(
-        "Expected URI string, MutableMapping or MutableSequence, got %s" % type(doc)
-    )
+        case _:
+            raise ValidationException(
+                "Expected URI string, MutableMapping or MutableSequence, got %s"
+                % type(doc)
+            )
 
 
 def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
@@ -181,20 +186,21 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
 
 def check_all_types(
     src_dict: dict[str, Any],
-    sinks: MutableSequence[Union[cwl.WorkflowStepInput, cwl.WorkflowOutputParameter]],
+    sinks: MutableSequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
     type_dict: dict[str, Any],
 ) -> dict[str, list[SrcSink]]:
     """Given a list of sinks, check if their types match with the types of their sources."""
     validation: dict[str, list[SrcSink]] = {"warning": [], "exception": []}
     for sink in sinks:
-        if isinstance(sink, cwl.WorkflowOutputParameter):
-            sourceName = "outputSource"
-            sourceField = sink.outputSource
-        elif isinstance(sink, cwl.WorkflowStepInput):
-            sourceName = "source"
-            sourceField = sink.source
-        else:
-            continue
+        match sink:
+            case cwl.WorkflowOutputParameter():
+                sourceName = "outputSource"
+                sourceField = sink.outputSource
+            case cwl.WorkflowStepInput():
+                sourceName = "source"
+                sourceField = sink.source
+            case _:
+                continue
         if sourceField is not None:
             if isinstance(sourceField, MutableSequence):
                 linkMerge = sink.linkMerge or (
@@ -218,18 +224,16 @@ def check_all_types(
                     linkMerge,
                     getattr(sink, "valueFrom", None),
                 )
-                if check_result == "warning":
-                    validation["warning"].append(SrcSink(src, sink, linkMerge, None))
-                elif check_result == "exception":
-                    validation["exception"].append(SrcSink(src, sink, linkMerge, None))
+                if check_result in ("warning", "exception"):
+                    validation[check_result].append(SrcSink(src, sink, linkMerge, None))
     return validation
 
 
 def check_types(
     srctype: Any,
     sinktype: Any,
-    linkMerge: Optional[str],
-    valueFrom: Optional[str] = None,
+    linkMerge: str | None,
+    valueFrom: str | None = None,
 ) -> str:
     """
     Check if the source and sink types are correct.
@@ -320,8 +324,8 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
 
 def load_inputfile(
     doc: Any,
-    baseuri: Optional[str] = None,
-    loadingOptions: Optional[cwl.LoadingOptions] = None,
+    baseuri: str | None = None,
+    loadingOptions: cwl.LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.1 input file from a serialized YAML string or a YAML object."""
     if baseuri is None:
@@ -340,7 +344,7 @@ def load_inputfile(
 def load_inputfile_by_string(
     string: Any,
     uri: str,
-    loadingOptions: Optional[cwl.LoadingOptions] = None,
+    loadingOptions: cwl.LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.1 input file from a serialized YAML string."""
     yaml = yaml_no_ts()
@@ -361,7 +365,7 @@ def load_inputfile_by_string(
 def load_inputfile_by_yaml(
     yaml: Any,
     uri: str,
-    loadingOptions: Optional[cwl.LoadingOptions] = None,
+    loadingOptions: cwl.LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.1 input file from a YAML object."""
     add_lc_filename(yaml, uri)
@@ -437,13 +441,13 @@ def type_for_step_output(
 
 
 def type_for_source(
-    process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
-    sourcenames: Union[str, list[str]],
-    parent: Optional[cwl.Workflow] = None,
-    linkMerge: Optional[str] = None,
+    process: cwl.CommandLineTool | cwl.Workflow | cwl.ExpressionTool,
+    sourcenames: str | list[str],
+    parent: cwl.Workflow | None = None,
+    linkMerge: str | None = None,
 ) -> Any:
     """Determine the type for the given sourcenames."""
-    scatter_context: list[Optional[tuple[int, str]]] = []
+    scatter_context: list[tuple[int, str] | None] = []
     params = param_for_source_id(process, sourcenames, parent, scatter_context)
     if not isinstance(params, list):
         new_type = params.type_
@@ -489,11 +493,11 @@ def type_for_source(
 
 
 def param_for_source_id(
-    process: Union[cwl.CommandLineTool, cwl.Workflow, cwl.ExpressionTool],
-    sourcenames: Union[str, list[str]],
-    parent: Optional[cwl.Workflow] = None,
-    scatter_context: Optional[list[Optional[tuple[int, str]]]] = None,
-) -> Union[list[cwl.WorkflowInputParameter], cwl.WorkflowInputParameter]:
+    process: cwl.CommandLineTool | cwl.Workflow | cwl.ExpressionTool,
+    sourcenames: str | list[str],
+    parent: cwl.Workflow | None = None,
+    scatter_context: list[tuple[int, str] | None] | None = None,
+) -> list[cwl.WorkflowInputParameter] | cwl.WorkflowInputParameter:
     """Find the process input parameter that matches one of the given sourcenames."""
     if isinstance(sourcenames, str):
         sourcenames = [sourcenames]

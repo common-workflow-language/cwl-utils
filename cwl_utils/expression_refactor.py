@@ -6,9 +6,9 @@ import argparse
 import logging
 import shutil
 import sys
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import Callable, MutableMapping, MutableSequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import Any, Optional, Protocol, Union
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.scalarstring import walk_tree
@@ -21,11 +21,6 @@ from cwl_utils import (
 from cwl_utils.errors import WorkflowException
 from cwl_utils.loghandler import _logger as _cwlutilslogger
 from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
-
-if TYPE_CHECKING:
-    from typing_extensions import Protocol
-else:
-    Protocol = object
 
 _logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
@@ -108,27 +103,28 @@ def refactor(args: argparse.Namespace) -> int:
         _logger.info("Processing %s.", document)
         with open(document) as doc_handle:
             result = yaml.load(doc_handle)
-        version = result["cwlVersion"]
         uri = Path(document).resolve().as_uri()
-        if version == "v1.0":
-            top = cwl_v1_0.load_document_by_yaml(result, uri)
-            traverse: Callable[[Any, bool, bool, bool, bool], tuple[Any, bool]] = (
-                cwl_v1_0_expression_refactor.traverse
-            )
-            save: saveCWL = cwl_v1_0.save
-        elif version == "v1.1":
-            top = cwl_v1_1.load_document_by_yaml(result, uri)
-            traverse = cwl_v1_1_expression_refactor.traverse
-            save = cwl_v1_1.save
-        elif version == "v1.2":
-            top = cwl_v1_2.load_document_by_yaml(result, uri)
-            traverse = cwl_v1_2_expression_refactor.traverse
-            save = cwl_v1_2.save
-        else:
-            _logger.error(
-                "Sorry, %s is not a supported CWL version by this tool.", version
-            )
-            return -1
+        match result["cwlVersion"]:
+            case "v1.0":
+                top = cwl_v1_0.load_document_by_yaml(result, uri)
+                traverse: Callable[[Any, bool, bool, bool, bool], tuple[Any, bool]] = (
+                    cwl_v1_0_expression_refactor.traverse
+                )
+                save: saveCWL = cwl_v1_0.save
+            case "v1.1":
+                top = cwl_v1_1.load_document_by_yaml(result, uri)
+                traverse = cwl_v1_1_expression_refactor.traverse
+                save = cwl_v1_1.save
+            case "v1.2":
+                top = cwl_v1_2.load_document_by_yaml(result, uri)
+                traverse = cwl_v1_2_expression_refactor.traverse
+                save = cwl_v1_2.save
+            case _:
+                _logger.error(
+                    "Sorry, %s is not a supported CWL version by this tool.",
+                    result["cwlVersion"],
+                )
+                return -1
         try:
             result, modified = traverse(
                 top, not args.etools, False, args.skip_some1, args.skip_some2
