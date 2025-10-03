@@ -273,24 +273,25 @@ def load_document_by_uri(
         base_uri = path.resolve().parent.as_uri()
         id_ = path.resolve().name.split("#")[1] if "#" in path.resolve().name else None
 
-    if isinstance(loadingOptions, cwl_v1_0.LoadingOptions):
-        loadingOptions = cwl_v1_0.LoadingOptions(
-            fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
-        )
-    elif isinstance(loadingOptions, cwl_v1_1.LoadingOptions):
-        loadingOptions = cwl_v1_1.LoadingOptions(
-            fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
-        )
-    elif isinstance(loadingOptions, cwl_v1_2.LoadingOptions):
-        loadingOptions = cwl_v1_2.LoadingOptions(
-            fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
-        )
-    elif loadingOptions is None:
-        loadingOptions = cwl_v1_2.LoadingOptions(fileuri=real_uri, baseuri=base_uri)
-    else:
-        raise ValidationException(
-            f"Unsupported loadingOptions type: {type(loadingOptions)}"
-        )
+    match loadingOptions:
+        case cwl_v1_0.LoadingOptions():
+            loadingOptions = cwl_v1_0.LoadingOptions(
+                fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
+            )
+        case cwl_v1_1.LoadingOptions():
+            loadingOptions = cwl_v1_1.LoadingOptions(
+                fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
+            )
+        case cwl_v1_2.LoadingOptions():
+            loadingOptions = cwl_v1_2.LoadingOptions(
+                fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
+            )
+        case None:
+            loadingOptions = cwl_v1_2.LoadingOptions(fileuri=real_uri, baseuri=base_uri)
+        case _:
+            raise ValidationException(
+                f"Unsupported loadingOptions type: {type(loadingOptions)}"
+            )
 
     doc = loadingOptions.fetcher.fetch_text(real_uri)
     return load_document_by_string(doc, real_uri, loadingOptions, id_, load_all)
@@ -336,24 +337,25 @@ def load_document_by_yaml(
     if "$graph" in yaml and not load_all:
         yaml = _get_id_from_graph(yaml, id_)
         yaml["cwlVersion"] = version
-    if version == "v1.0":
-        result = cwl_v1_0.load_document_by_yaml(
-            yaml, uri, cast(Optional[cwl_v1_0.LoadingOptions], loadingOptions)
-        )
-    elif version == "v1.1":
-        result = cwl_v1_1.load_document_by_yaml(
-            yaml, uri, cast(Optional[cwl_v1_1.LoadingOptions], loadingOptions)
-        )
-    elif version == "v1.2":
-        result = cwl_v1_2.load_document_by_yaml(
-            yaml, uri, cast(Optional[cwl_v1_2.LoadingOptions], loadingOptions)
-        )
-    elif version is None:
-        raise ValidationException("could not get the cwlVersion")
-    else:
-        raise ValidationException(
-            f"Version error. Did not recognise {version} as a CWL version"
-        )
+    match version:
+        case "v1.0":
+            result = cwl_v1_0.load_document_by_yaml(
+                yaml, uri, cast(Optional[cwl_v1_0.LoadingOptions], loadingOptions)
+            )
+        case "v1.1":
+            result = cwl_v1_1.load_document_by_yaml(
+                yaml, uri, cast(Optional[cwl_v1_1.LoadingOptions], loadingOptions)
+            )
+        case "v1.2":
+            result = cwl_v1_2.load_document_by_yaml(
+                yaml, uri, cast(Optional[cwl_v1_2.LoadingOptions], loadingOptions)
+            )
+        case None:
+            raise ValidationException("could not get the cwlVersion")
+        case _:
+            raise ValidationException(
+                f"Version error. Did not recognise {version} as a CWL version"
+            )
 
     if isinstance(result, MutableSequence):
         lst = []
@@ -372,33 +374,30 @@ def save(
     relative_uris: bool = True,
 ) -> Any:
     """Convert a CWL Python object into a JSON/YAML serializable object."""
-    if (
-        isinstance(val, cwl_v1_0.Saveable)
-        or isinstance(val, cwl_v1_1.Saveable)
-        or isinstance(val, cwl_v1_2.Saveable)
-    ):
-        return val.save(top=top, base_url=base_url, relative_uris=relative_uris)
-    if isinstance(val, MutableSequence):
-        lst = [
-            save(v, top=top, base_url=base_url, relative_uris=relative_uris)
-            for v in val
-        ]
-        if top and all(is_process(v) for v in val):
-            vers = [
-                e.get("cwlVersion") for i, e in enumerate(lst) if is_process(val[i])
+    match val:
+        case cwl_v1_0.Saveable() | cwl_v1_1.Saveable() | cwl_v1_2.Saveable():
+            return val.save(top=top, base_url=base_url, relative_uris=relative_uris)
+        case MutableSequence():
+            lst = [
+                save(v, top=top, base_url=base_url, relative_uris=relative_uris)
+                for v in val
             ]
-            latest = max(
-                (v for v in vers if v is not None), key=cast(Any, version_split)
-            )
-            return {"cwlVersion": latest, "$graph": lst}
-        return lst
-    if isinstance(val, MutableMapping):
-        newdict = {}
-        for key in val:
-            newdict[key] = save(
-                val[key], top=False, base_url=base_url, relative_uris=relative_uris
-            )
-        return newdict
+            if top and all(is_process(v) for v in val):
+                vers = [
+                    e.get("cwlVersion") for i, e in enumerate(lst) if is_process(val[i])
+                ]
+                latest = max(
+                    (v for v in vers if v is not None), key=cast(Any, version_split)
+                )
+                return {"cwlVersion": latest, "$graph": lst}
+            return lst
+        case MutableMapping():
+            newdict = {}
+            for key in val:
+                newdict[key] = save(
+                    val[key], top=False, base_url=base_url, relative_uris=relative_uris
+                )
+            return newdict
     return val
 
 

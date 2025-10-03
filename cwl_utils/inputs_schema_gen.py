@@ -21,13 +21,14 @@ from cwl_utils.parser import (
     Directory,
     File,
     InputArraySchema,
-    InputArraySchemaTypes,
     InputEnumSchema,
-    InputEnumSchemaTypes,
     InputRecordSchema,
     InputRecordSchemaTypes,
     Workflow,
     WorkflowInputParameter,
+    cwl_v1_0,
+    cwl_v1_1,
+    cwl_v1_2,
     load_document_by_uri,
 )
 from cwl_utils.utils import (
@@ -124,74 +125,90 @@ class JSONSchemaProperty:
         """
         # Primitive types should have a 1-1 mapping
         # Between an CWL Input Parameter type and a JSON schema type
-        if isinstance(type_item, str):
-            if type_item in PRIMITIVE_TYPES_MAPPING.keys():
-                return {"type": PRIMITIVE_TYPES_MAPPING[type_item]}
-            elif type_item in ["stdin"]:
+
+        match type_item:
+            case str() as key if key in PRIMITIVE_TYPES_MAPPING.keys():
+                return {"type": PRIMITIVE_TYPES_MAPPING[key]}
+            case "stdin":
                 return {"$ref": "#/definitions/File"}
-            elif type_item in ["File", "Directory", "Any"]:
+            case "File" | "Directory" | "Any":
                 return {"$ref": f"#/definitions/{type_item}"}
             # When item is a record schema type
-            elif is_uri(type_item):
+            case str() if is_uri(type_item):
                 return {
                     "$ref": f"#/definitions/{to_pascal_case(get_value_from_uri(type_item))}"
                 }
-            else:
+            case str():
                 raise ValueError(f"Unknown type: {type_item}")
-        elif isinstance(type_item, InputArraySchemaTypes):
-            return {
-                "type": "array",
-                "items": self.generate_type_dict_from_type(type_item.items),
-            }
-        elif isinstance(type_item, InputEnumSchemaTypes):
-            return {
-                "type": "string",
-                "enum": list(
-                    map(
-                        lambda symbol_iter: get_value_from_uri(symbol_iter),
-                        type_item.symbols,
-                    )
-                ),
-            }
-        elif isinstance(type_item, InputRecordSchemaTypes):
-            if type_item.fields is None:
-                return {"type": "object"}
-            if not isinstance(type_item.fields, list):
-                _cwlutilslogger.error(
-                    "Expected fields of InputRecordSchemaType to be a list"
-                )
-                raise TypeError
-            return {
-                "type": "object",
-                "properties": {
-                    get_value_from_uri(prop.name): self.generate_type_dict_from_type(
-                        prop.type_
-                    )
-                    for prop in type_item.fields
-                },
-            }
-        elif isinstance(type_item, dict):
-            # Nested import
-            # {'$import': '../relative/path/to/schema'}
-            if "$import" in type_item.keys():
+            case (
+                cwl_v1_0.InputArraySchema()
+                | cwl_v1_1.InputArraySchema()
+                | cwl_v1_2.InputArraySchema()
+            ):
+                return {
+                    "type": "array",
+                    "items": self.generate_type_dict_from_type(type_item.items),
+                }
+            case (
+                cwl_v1_0.InputEnumSchema()
+                | cwl_v1_1.InputEnumSchema()
+                | cwl_v1_2.InputEnumSchema()
+            ):
+                return {
+                    "type": "string",
+                    "enum": list(
+                        map(
+                            lambda symbol_iter: get_value_from_uri(symbol_iter),
+                            type_item.symbols,
+                        )
+                    ),
+                }
+            case (
+                cwl_v1_0.InputRecordSchema(fields=f)
+                | cwl_v1_1.InputRecordSchema(fields=f)
+                | cwl_v1_2.InputRecordSchema(fields=f)
+            ):
+                match f:
+                    case None:
+                        return {"type": "object"}
+                    case list() as fields:
+                        return {
+                            "type": "object",
+                            "properties": {
+                                get_value_from_uri(
+                                    prop.name
+                                ): self.generate_type_dict_from_type(prop.type_)
+                                for prop in fields
+                            },
+                        }
+                    case _:
+                        _cwlutilslogger.error(
+                            "Expected fields of InputRecordSchemaType to be a list"
+                        )
+                        raise TypeError
+            case {"$import": uri}:
                 # This path is a relative path to import
                 return {
-                    "$ref": f"#/definitions/{to_pascal_case(get_value_from_uri(type_item['$import']))}"
+                    "$ref": f"#/definitions/{to_pascal_case(get_value_from_uri(uri))}"
                 }
-            else:
+            # Nested import
+            # {'$import': '../relative/path/to/schema'}
+            case dict():
                 raise ValueError(f"Unknown type: {type_item}")
-        elif isinstance(type_item, list):
-            # Nested schema
-            return {
-                "oneOf": list(
-                    map(
-                        lambda type_iter: self.generate_type_dict_from_type(type_iter),
-                        type_item,
+            case list():
+                # Nested schema
+                return {
+                    "oneOf": list(
+                        map(
+                            lambda type_iter: self.generate_type_dict_from_type(
+                                type_iter
+                            ),
+                            type_item,
+                        )
                     )
-                )
-            }
-        else:
-            raise ValueError(f"Unknown type: {type_item}")
+                }
+            case _:
+                raise ValueError(f"Unknown type: {type_item}")
 
     def generate_type_dict_from_type_list(
         self, type_: list[InputType]

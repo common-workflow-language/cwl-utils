@@ -5,6 +5,7 @@ import copy
 import inspect
 import json
 from collections.abc import Awaitable, MutableMapping
+from enum import Enum
 from typing import Any, Union, cast
 
 from schema_salad.utils import json_dumps
@@ -20,8 +21,9 @@ def _convert_dumper(string: str) -> str:
     return f"{json.dumps(string)} + "
 
 
-def scanner(scan: str) -> tuple[int, int] | None:
-    """Find JS relevant punctuation in a string."""
+class t(Enum):
+    """Tokens."""
+
     DEFAULT = 0
     DOLLAR = 1
     PAREN = 2
@@ -30,67 +32,71 @@ def scanner(scan: str) -> tuple[int, int] | None:
     DOUBLE_QUOTE = 5
     BACKSLASH = 6
 
+
+def scanner(scan: str) -> tuple[int, int] | None:
+    """Find JS relevant punctuation in a string."""
     i = 0
-    stack = [DEFAULT]
+    stack: list[t] = [t.DEFAULT]
     start = 0
     while i < len(scan):
-        state = stack[-1]
         c = scan[i]
 
-        if state == DEFAULT:
-            if c == "$":
-                stack.append(DOLLAR)
-            elif c == "\\":
-                stack.append(BACKSLASH)
-        elif state == BACKSLASH:
-            stack.pop()
-            if stack[-1] == DEFAULT:
-                return i - 1, i + 1
-        elif state == DOLLAR:
-            if c == "(":
-                start = i - 1
-                stack.append(PAREN)
-            elif c == "{":
-                start = i - 1
-                stack.append(BRACE)
-            else:
+        state = stack[-1]
+        match state:
+            case t.DEFAULT:
+                if c == "$":
+                    stack.append(t.DOLLAR)
+                elif c == "\\":
+                    stack.append(t.BACKSLASH)
+            case t.BACKSLASH:
                 stack.pop()
-                i -= 1
-        elif state == PAREN:
-            if c == "(":
-                stack.append(PAREN)
-            elif c == ")":
-                stack.pop()
-                if stack[-1] == DOLLAR:
-                    return start, i + 1
-            elif c == "'":
-                stack.append(SINGLE_QUOTE)
-            elif c == '"':
-                stack.append(DOUBLE_QUOTE)
-        elif state == BRACE:
-            if c == "{":
-                stack.append(BRACE)
-            elif c == "}":
-                stack.pop()
-                if stack[-1] == DOLLAR:
-                    return start, i + 1
-            elif c == "'":
-                stack.append(SINGLE_QUOTE)
-            elif c == '"':
-                stack.append(DOUBLE_QUOTE)
-        elif state == SINGLE_QUOTE:
-            if c == "'":
-                stack.pop()
-            elif c == "\\":
-                stack.append(BACKSLASH)
-        elif state == DOUBLE_QUOTE:
-            if c == '"':
-                stack.pop()
-            elif c == "\\":
-                stack.append(BACKSLASH)
+                if stack[-1] == t.DEFAULT:
+                    return i - 1, i + 1
+            case t.DOLLAR:
+                if c == "(":
+                    start = i - 1
+                    stack.append(t.PAREN)
+                elif c == "{":
+                    start = i - 1
+                    stack.append(t.BRACE)
+                else:
+                    stack.pop()
+                    i -= 1
+            case t.PAREN:
+                if c == "(":
+                    stack.append(t.PAREN)
+                elif c == ")":
+                    stack.pop()
+                    if stack[-1] == t.DOLLAR:
+                        return start, i + 1
+                elif c == "'":
+                    stack.append(t.SINGLE_QUOTE)
+                elif c == '"':
+                    stack.append(t.DOUBLE_QUOTE)
+            case t.BRACE:
+                if c == "{":
+                    stack.append(t.BRACE)
+                elif c == "}":
+                    stack.pop()
+                    if stack[-1] == t.DOLLAR:
+                        return start, i + 1
+                elif c == "'":
+                    stack.append(t.SINGLE_QUOTE)
+                elif c == '"':
+                    stack.append(t.DOUBLE_QUOTE)
+            case t.SINGLE_QUOTE:
+                if c == "'":
+                    stack.pop()
+                elif c == "\\":
+                    stack.append(t.BACKSLASH)
+            case t.DOUBLE_QUOTE:
+                if c == '"':
+                    stack.pop()
+                elif c == "\\":
+                    stack.append(t.BACKSLASH)
         i += 1
 
-    if len(stack) > 1 and not (len(stack) == 2 and stack[1] in (BACKSLASH, DOLLAR)):
+    if len(stack) > 1 and not (len(stack) == 2 and stack[1] in (t.BACKSLASH, t.DOLLAR)):
         raise SubstitutionError(
             "Substitution error, unfinished block starting at position {}: '{}' stack was {}".format(
                 start, scan[start:], stack

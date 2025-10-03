@@ -309,39 +309,40 @@ class NodeJSEngine(JSEngine):
 
                 if not self.have_node_slim:
                     singularity_cache: str | None = None
-                    if container_engine in ("docker", "podman"):
-                        dockerimgs = subprocess.check_output(  # nosec
-                            [container_engine, "images", "-q", nodeimg],
-                            text=True,
-                        )
-                    elif container_engine == "singularity":
-                        singularity_cache = os.environ.get("CWL_SINGULARITY_CACHE")
-                        if singularity_cache:
-                            singularityimgs = glob.glob(
-                                singularity_cache + "/node_alpine.sif"
-                            )
-                        else:
-                            singularityimgs = glob.glob(
-                                os.getcwd() + "/node_alpine.sif"
-                            )
-                        if singularityimgs:
-                            nodeimg = singularityimgs[0]
-                    elif container_engine == "udocker":
-                        matches = re.search(
-                            re.escape(nodeimg),
-                            subprocess.check_output(  # nosec
-                                [container_engine, "images"],
+                    match container_engine:
+                        case "docker" | "podman":
+                            dockerimgs = subprocess.check_output(  # nosec
+                                [container_engine, "images", "-q", nodeimg],
                                 text=True,
-                            ),
-                        )
-                        if matches:
-                            dockerimgs = matches[0]
-                        else:
-                            dockerimgs = ""
-                    else:
-                        raise Exception(
-                            f"Unknown container_engine: {container_engine}."
-                        )
+                            )
+                        case "singularity":
+                            singularity_cache = os.environ.get("CWL_SINGULARITY_CACHE")
+                            if singularity_cache:
+                                singularityimgs = glob.glob(
+                                    singularity_cache + "/node_alpine.sif"
+                                )
+                            else:
+                                singularityimgs = glob.glob(
+                                    os.getcwd() + "/node_alpine.sif"
+                                )
+                            if singularityimgs:
+                                nodeimg = singularityimgs[0]
+                        case "udocker":
+                            matches = re.search(
+                                re.escape(nodeimg),
+                                subprocess.check_output(  # nosec
+                                    [container_engine, "images"],
+                                    text=True,
+                                ),
+                            )
+                            if matches:
+                                dockerimgs = matches[0]
+                            else:
+                                dockerimgs = ""
+                        case _:
+                            raise Exception(
+                                f"Unknown container_engine: {container_engine}."
+                            )
                     # if output is an empty string
                     need_singularity = (
                         container_engine == "singularity" and not singularityimgs
