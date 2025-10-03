@@ -10,7 +10,7 @@ import urllib.request
 from collections.abc import MutableMapping, MutableSequence
 from copy import deepcopy
 from io import StringIO
-from typing import Any, Optional, Union
+from typing import Any
 from urllib.parse import urlparse
 
 from ruamel.yaml.main import YAML
@@ -29,7 +29,7 @@ from cwl_utils.parser.cwl_v1_2 import InputEnumSchema as InputEnumSchemaV1_2
 
 fast_yaml = YAML(typ="safe")
 
-_USERNS: Optional[bool] = None
+_USERNS: bool | None = None
 
 
 def _is_github_symbolic_link(base_url: urllib.parse.ParseResult, contents: str) -> bool:
@@ -55,8 +55,8 @@ def _is_github_symbolic_link(base_url: urllib.parse.ParseResult, contents: str) 
 
 
 def bytes2str_in_dicts(
-    inp: Union[MutableMapping[str, Any], MutableSequence[Any], Any],
-) -> Union[str, MutableSequence[Any], MutableMapping[str, Any]]:
+    inp: MutableMapping[str, Any] | MutableSequence[Any] | Any,
+) -> str | MutableSequence[Any] | MutableMapping[str, Any]:
     """
     Convert any present byte string to unicode string, inplace.
 
@@ -124,9 +124,7 @@ def load_linked_file(
     return _node, new_url
 
 
-def normalize_to_map(
-    obj: Union[list[Any], dict[str, Any]], key_field: str
-) -> dict[str, Any]:
+def normalize_to_map(obj: list[Any] | dict[str, Any], key_field: str) -> dict[str, Any]:
     """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py ."""
     if isinstance(obj, dict):
         return deepcopy(obj)
@@ -146,7 +144,7 @@ def normalize_to_map(
 
 
 def normalize_to_list(
-    obj: Union[list[Any], dict[str, Any]], key_field: str, value_field: Optional[str]
+    obj: list[Any] | dict[str, Any], key_field: str, value_field: str | None
 ) -> list[Any]:
     """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py ."""
     if isinstance(obj, list):
@@ -260,8 +258,8 @@ def to_pascal_case(name: str) -> str:
 
 
 def sanitise_schema_field(
-    schema_field_item: Union[dict[str, Any], str],
-) -> Union[dict[str, Any], str]:
+    schema_field_item: dict[str, Any] | str,
+) -> dict[str, Any] | str:
     """
     Schemas need to be resolved before converted to JSON properties.
 

@@ -3,7 +3,6 @@
 
 import xml.sax
 from pathlib import Path
-from typing import Optional
 
 import requests
 from pytest import raises
@@ -20,7 +19,7 @@ from cwl_utils.types import CWLObjectType
 from .util import get_path
 
 
-def _create_file(format_: Optional[str] = None) -> CWLObjectType:
+def _create_file(format_: str | None = None) -> CWLObjectType:
     obj: CWLObjectType = {
         "class": "File",
         "basename": "example.txt",

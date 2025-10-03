@@ -45,8 +45,8 @@ def convert_stdstreams_to_files(process: Process) -> None:
 
 def load_inputfile_by_uri(
     version: str,
-    path: Union[str, Path],
-    loadingOptions: Optional[LoadingOptions] = None,
+    path: str | Path,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL input file from a URI or a path."""
     if isinstance(path, str):
@@ -82,8 +82,8 @@ def load_inputfile_by_uri(
 def load_inputfile(
     version: str,
     doc: Any,
-    baseuri: Optional[str] = None,
-    loadingOptions: Optional[LoadingOptions] = None,
+    baseuri: str | None = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL input file from a serialized YAML string or a YAML object."""
     if baseuri is None:
@@ -97,7 +97,7 @@ def load_inputfile_by_string(
     version: str,
     string: str,
     uri: str,
-    loadingOptions: Optional[LoadingOptions] = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL input file from a serialized YAML string."""
     yaml = yaml_no_ts()
@@ -109,7 +109,7 @@ def load_inputfile_by_yaml(
     version: str,
     yaml: Any,
     uri: str,
-    loadingOptions: Optional[LoadingOptions] = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL input file from a YAML object."""
     if version == "v1.0":
@@ -329,10 +329,10 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
 
 def type_for_source(
     process: Process,
-    sourcenames: Union[str, list[str]],
-    parent: Optional[Workflow] = None,
-    linkMerge: Optional[str] = None,
-    pickValue: Optional[str] = None,
+    sourcenames: str | list[str],
+    parent: Workflow | None = None,
+    linkMerge: str | None = None,
+    pickValue: str | None = None,
 ) -> Any:
     """Determine the type for the given sourcenames."""
     if process.cwlVersion == "v1.0":
@@ -421,28 +421,28 @@ def type_for_step_output(step: WorkflowStep, sourcename: str, cwlVersion: str) -
 
 
 def param_for_source_id(
-    process: Union[
-        cwl_utils.parser.CommandLineTool,
-        cwl_utils.parser.Workflow,
-        cwl_utils.parser.ExpressionTool,
-    ],
-    sourcenames: Union[str, list[str]],
-    parent: Optional[cwl_utils.parser.Workflow] = None,
-    scatter_context: Optional[list[Optional[tuple[int, str]]]] = None,
-) -> Union[
-    Union[
-        list[cwl_utils.parser.cwl_v1_0.InputParameter],
-        cwl_utils.parser.cwl_v1_0.InputParameter,
-    ],
-    Union[
-        list[cwl_utils.parser.cwl_v1_1.WorkflowInputParameter],
-        cwl_utils.parser.cwl_v1_1.WorkflowInputParameter,
-    ],
-    Union[
-        list[cwl_utils.parser.cwl_v1_2.WorkflowInputParameter],
-        cwl_utils.parser.cwl_v1_2.WorkflowInputParameter,
-    ],
-]:
+    process: (
+        cwl_utils.parser.CommandLineTool
+        | cwl_utils.parser.Workflow
+        | cwl_utils.parser.ExpressionTool
+    ),
+    sourcenames: str | list[str],
+    parent: cwl_utils.parser.Workflow | None = None,
+    scatter_context: list[tuple[int, str] | None] | None = None,
+) -> (
+    (
+        list[cwl_utils.parser.cwl_v1_0.InputParameter]
+        | cwl_utils.parser.cwl_v1_0.InputParameter
+    )
+    | (
+        list[cwl_utils.parser.cwl_v1_1.WorkflowInputParameter]
+        | cwl_utils.parser.cwl_v1_1.WorkflowInputParameter
+    )
+    | (
+        list[cwl_utils.parser.cwl_v1_2.WorkflowInputParameter]
+        | cwl_utils.parser.cwl_v1_2.WorkflowInputParameter
+    )
+):
     if process.cwlVersion == "v1.0":
         return cwl_utils.parser.cwl_v1_0_utils.param_for_source_id(
             cast(

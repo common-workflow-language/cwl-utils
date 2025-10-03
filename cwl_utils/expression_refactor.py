@@ -6,9 +6,9 @@ import argparse
 import logging
 import shutil
 import sys
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import Callable, MutableMapping, MutableSequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import Any, Optional, Protocol, Union
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.scalarstring import walk_tree
@@ -21,11 +21,6 @@ from cwl_utils import (
 from cwl_utils.errors import WorkflowException
 from cwl_utils.loghandler import _logger as _cwlutilslogger
 from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
-
-if TYPE_CHECKING:
-    from typing_extensions import Protocol
-else:
-    Protocol = object
 
 _logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
