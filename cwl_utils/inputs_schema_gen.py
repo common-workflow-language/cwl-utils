@@ -10,16 +10,10 @@ import logging
 import sys
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, TypeGuard, Union
 from urllib.parse import urlparse
 
 import requests
-
-# Get typeguard from extensions if we're running in python3.8
-if sys.version_info[:2] < (3, 10):
-    from typing_extensions import TypeGuard  # Not in 3.8 typing module
-else:
-    from typing import TypeGuard
 
 from cwl_utils.loghandler import _logger as _cwlutilslogger
 from cwl_utils.parser import (
@@ -27,13 +21,14 @@ from cwl_utils.parser import (
     Directory,
     File,
     InputArraySchema,
-    InputArraySchemaTypes,
     InputEnumSchema,
-    InputEnumSchemaTypes,
     InputRecordSchema,
     InputRecordSchemaTypes,
     Workflow,
     WorkflowInputParameter,
+    cwl_v1_0,
+    cwl_v1_1,
+    cwl_v1_2,
     load_document_by_uri,
 )
 from cwl_utils.utils import (
@@ -85,14 +80,14 @@ class JSONSchemaProperty:
     def __init__(
         self,
         name: str,
-        type_: Union[InputType, list[InputType], str, Any],
-        description: Optional[str] = "",
-        required: Optional[bool] = False,
+        type_: InputType | list[InputType] | str | Any,
+        description: str | None = "",
+        required: bool | None = False,
     ):
         """Initialise the JSONSchemaProperty object."""
         # Initialise values
         self.name: str = name
-        self.type_: Union[InputType, list[InputType], str, Any] = type_
+        self.type_: InputType | list[InputType] | str | Any = type_
         self.description = description
         self.required = required
         self.type_dict = self.generate_type_dict()
@@ -130,74 +125,90 @@ class JSONSchemaProperty:
         """
         # Primitive types should have a 1-1 mapping
         # Between an CWL Input Parameter type and a JSON schema type
-        if isinstance(type_item, str):
-            if type_item in PRIMITIVE_TYPES_MAPPING.keys():
-                return {"type": PRIMITIVE_TYPES_MAPPING[type_item]}
-            elif type_item in ["stdin"]:
+
+        match type_item:
+            case str() as key if key in PRIMITIVE_TYPES_MAPPING.keys():
+                return {"type": PRIMITIVE_TYPES_MAPPING[key]}
+            case "stdin":
                 return {"$ref": "#/definitions/File"}
-            elif type_item in ["File", "Directory", "Any"]:
+            case "File" | "Directory" | "Any":
                 return {"$ref": f"#/definitions/{type_item}"}
             # When item is a record schema type
-            elif is_uri(type_item):
+            case str() if is_uri(type_item):
                 return {
                     "$ref": f"#/definitions/{to_pascal_case(get_value_from_uri(type_item))}"
                 }
-            else:
+            case str():
                 raise ValueError(f"Unknown type: {type_item}")
-        elif isinstance(type_item, InputArraySchemaTypes):
-            return {
-                "type": "array",
-                "items": self.generate_type_dict_from_type(type_item.items),
-            }
-        elif isinstance(type_item, InputEnumSchemaTypes):
-            return {
-                "type": "string",
-                "enum": list(
-                    map(
-                        lambda symbol_iter: get_value_from_uri(symbol_iter),
-                        type_item.symbols,
-                    )
-                ),
-            }
-        elif isinstance(type_item, InputRecordSchemaTypes):
-            if type_item.fields is None:
-                return {"type": "object"}
-            if not isinstance(type_item.fields, list):
-                _cwlutilslogger.error(
-                    "Expected fields of InputRecordSchemaType to be a list"
-                )
-                raise TypeError
-            return {
-                "type": "object",
-                "properties": {
-                    get_value_from_uri(prop.name): self.generate_type_dict_from_type(
-                        prop.type_
-                    )
-                    for prop in type_item.fields
-                },
-            }
-        elif isinstance(type_item, dict):
-            # Nested import
-            # {'$import': '../relative/path/to/schema'}
-            if "$import" in type_item.keys():
+            case (
+                cwl_v1_0.InputArraySchema()
+                | cwl_v1_1.InputArraySchema()
+                | cwl_v1_2.InputArraySchema()
+            ):
+                return {
+                    "type": "array",
+                    "items": self.generate_type_dict_from_type(type_item.items),
+                }
+            case (
+                cwl_v1_0.InputEnumSchema()
+                | cwl_v1_1.InputEnumSchema()
+                | cwl_v1_2.InputEnumSchema()
+            ):
+                return {
+                    "type": "string",
+                    "enum": list(
+                        map(
+                            lambda symbol_iter: get_value_from_uri(symbol_iter),
+                            type_item.symbols,
+                        )
+                    ),
+                }
+            case (
+                cwl_v1_0.InputRecordSchema(fields=f)
+                | cwl_v1_1.InputRecordSchema(fields=f)
+                | cwl_v1_2.InputRecordSchema(fields=f)
+            ):
+                match f:
+                    case None:
+                        return {"type": "object"}
+                    case list() as fields:
+                        return {
+                            "type": "object",
+                            "properties": {
+                                get_value_from_uri(
+                                    prop.name
+                                ): self.generate_type_dict_from_type(prop.type_)
+                                for prop in fields
+                            },
+                        }
+                    case _:
+                        _cwlutilslogger.error(
+                            "Expected fields of InputRecordSchemaType to be a list"
+                        )
+                        raise TypeError
+            case {"$import": uri}:
                 # This path is a relative path to import
                 return {
-                    "$ref": f"#/definitions/{to_pascal_case(get_value_from_uri(type_item['$import']))}"
+                    "$ref": f"#/definitions/{to_pascal_case(get_value_from_uri(uri))}"
                 }
-            else:
+            # Nested import
+            # {'$import': '../relative/path/to/schema'}
+            case dict():
                 raise ValueError(f"Unknown type: {type_item}")
-        elif isinstance(type_item, list):
-            # Nested schema
-            return {
-                "oneOf": list(
-                    map(
-                        lambda type_iter: self.generate_type_dict_from_type(type_iter),
-                        type_item,
+            case list():
+                # Nested schema
+                return {
+                    "oneOf": list(
+                        map(
+                            lambda type_iter: self.generate_type_dict_from_type(
+                                type_iter
+                            ),
+                            type_item,
+                        )
                     )
-                )
-            }
-        else:
-            raise ValueError(f"Unknown type: {type_item}")
+                }
+            case _:
+                raise ValueError(f"Unknown type: {type_item}")
 
     def generate_type_dict_from_type_list(
         self, type_: list[InputType]
@@ -320,7 +331,7 @@ def generate_definition_from_schema(schema: InputRecordSchema) -> dict[str, Any]
     }
 
 
-def cwl_to_jsonschema(cwl_obj: Union[Workflow, CommandLineTool]) -> Any:
+def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
     """
     cwl_obj: A CWL Object.
 
@@ -490,7 +501,7 @@ def _get_all_ref_attributes(json_object: dict[str, Any]) -> list[Any]:
 def get_property_dependencies(
     property_dict: dict[str, Any],
     input_json_schema: dict[str, Any],
-    existing_property_dependencies: Optional[list[Any]] = None,
+    existing_property_dependencies: list[Any] | None = None,
 ) -> list[str]:
     """Recursively collect all dependencies for a property."""
     # Initialise return list
