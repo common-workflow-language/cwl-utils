@@ -725,7 +725,9 @@ def process_workflow_inputs_and_outputs(
                         source_type_items.append("null")
                 elif source_type_items != "null":
                     source_type_items = ["null", source_type_items]
-                source_type = cwl.CommandInputParameter(type_=source_type_items)
+                source_type = cwl.CommandInputParameter(
+                    id=None, type_=source_type_items
+                )
                 replace_expr_with_etool(
                     expression,
                     etool_id,
