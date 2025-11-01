@@ -21,7 +21,7 @@ from cwl_utils.errors import MissingKeyField
 from cwl_utils.loghandler import _logger
 
 # Type hinting
-from cwl_utils.parser import InputRecordSchemaTypes
+from cwl_utils.parser import InputArraySchemaTypes, InputRecordSchemaTypes
 
 # Load as 1.2 files
 from cwl_utils.parser.cwl_v1_2 import InputArraySchema as InputArraySchemaV1_2
@@ -341,7 +341,7 @@ def sanitise_schema_field(
     schema_field_item = deepcopy(schema_field_item)
     required = True
 
-    if isinstance(schema_field_item, InputRecordSchemaTypes):
+    if isinstance(schema_field_item, (InputRecordSchemaTypes, InputArraySchemaTypes)):
         return schema_field_item
 
     if isinstance(schema_field_item.get("type"), list):
