@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 import argparse
-import os
 import sys
 from collections.abc import Iterator
+from pathlib import Path
 from typing import cast
 
 import ruamel.yaml
@@ -51,7 +51,7 @@ def run(args: argparse.Namespace) -> list[cwl.DockerRequirement]:
         sys.exit(1)
 
     if args.dir:
-        os.makedirs(args.dir, exist_ok=True)
+        Path(args.dir).mkdir(parents=True, exist_ok=True)
 
     top = cwl.load_document_by_uri(args.input)
     reqs: list[cwl.DockerRequirement] = []

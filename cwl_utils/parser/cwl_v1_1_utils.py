@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
 import logging
-import os
 from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
+from pathlib import Path
 from typing import IO, Any, Union, cast
 from urllib.parse import urldefrag
 
@@ -83,8 +83,7 @@ def _compare_type(type1: Any, type2: Any) -> bool:
                 if not any(_compare_type(t1, t2) for t2 in type2):
                     return False
             return True
-        case _:
-            return bool(type1 == type2)
+    return bool(type1 == type2)
 
 
 def _inputfile_load(
@@ -102,7 +101,7 @@ def _inputfile_load(
             doc_url, frg = urldefrag(url)
             text = loadingOptions.fetcher.fetch_text(doc_url)
             textIO = StringIO(text)
-            textIO.name = str(doc_url)
+            textIO.name = doc_url
             yaml = yaml_no_ts()
             result = yaml.load(textIO)
             add_lc_filename(result, doc_url)
@@ -160,7 +159,7 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
        except for 'null'.
     In strict comparison, all source types must match at least one sink type.
     """
-    if src == "Any" or sink == "Any":
+    if "Any" in (src, sink):
         return True
     if isinstance(src, cwl.ArraySchema) and isinstance(sink, cwl.ArraySchema):
         return can_assign_src_to_sink(src.items, sink.items, strict)
@@ -284,11 +283,9 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
                     "Not allowed to specify outputBinding when using stdout shortcut."
                 )
             if clt.stdout is None:
-                clt.stdout = str(
-                    hashlib.sha1(  # nosec
-                        json_dumps(clt.save(), sort_keys=True).encode("utf-8")
-                    ).hexdigest()
-                )
+                clt.stdout = hashlib.sha1(  # nosec
+                    json_dumps(clt.save(), sort_keys=True).encode("utf-8")
+                ).hexdigest()
             out.type_ = "File"
             out.outputBinding = cwl.CommandOutputBinding(glob=clt.stdout)
         elif out.type_ == "stderr":
@@ -297,11 +294,9 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
                     "Not allowed to specify outputBinding when using stderr shortcut."
                 )
             if clt.stderr is None:
-                clt.stderr = str(
-                    hashlib.sha1(  # nosec
-                        json_dumps(clt.save(), sort_keys=True).encode("utf-8")
-                    ).hexdigest()
-                )
+                clt.stderr = hashlib.sha1(  # nosec
+                    json_dumps(clt.save(), sort_keys=True).encode("utf-8")
+                ).hexdigest()
             out.type_ = "File"
             out.outputBinding = cwl.CommandOutputBinding(glob=clt.stderr)
     for inp in clt.inputs:
@@ -329,7 +324,7 @@ def load_inputfile(
 ) -> Any:
     """Load a CWL v1.1 input file from a serialized YAML string or a YAML object."""
     if baseuri is None:
-        baseuri = cwl.file_uri(os.getcwd()) + "/"
+        baseuri = cwl.file_uri(str(Path.cwd())) + "/"
     if loadingOptions is None:
         loadingOptions = cwl.LoadingOptions()
 
@@ -347,8 +342,7 @@ def load_inputfile_by_string(
     loadingOptions: cwl.LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.1 input file from a serialized YAML string."""
-    yaml = yaml_no_ts()
-    result = yaml.load(string)
+    result = yaml_no_ts().load(string)
     add_lc_filename(result, uri)
 
     if loadingOptions is None:

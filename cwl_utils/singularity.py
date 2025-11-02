@@ -25,8 +25,7 @@ def get_version() -> tuple[list[int], str]:
               - A tuple with major and minor version numbers as integer.
               - A string with the name of the singularity flavor.
     """
-    global _SINGULARITY_VERSION  # pylint: disable=global-statement
-    global _SINGULARITY_FLAVOR  # pylint: disable=global-statement
+    global _SINGULARITY_VERSION, _SINGULARITY_FLAVOR  # pylint: disable=global-statement
     if _SINGULARITY_VERSION is None:
         version_output = check_output(  # nosec
             ["singularity", "--version"], text=True

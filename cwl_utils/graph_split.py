@@ -67,7 +67,7 @@ def arg_parser() -> argparse.ArgumentParser:
         "-C",
         "--outdir",
         type=str,
-        default=os.getcwd(),
+        default=Path.cwd(),
         help="Output folder for the unpacked CWL files.",
     )
     return parser
@@ -194,7 +194,7 @@ def rewrite(
                             else:
                                 document[key] = f"{referrant_file}#{sub}"
                         elif isinstance(value, list):
-                            new_sources = list()
+                            new_sources = []
                             for entry in value:
                                 if entry.startswith("#" + doc_id):
                                     new_sources.append(entry[len(doc_id) + 2 :])

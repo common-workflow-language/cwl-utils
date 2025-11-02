@@ -10,6 +10,7 @@ import urllib.request
 from collections.abc import MutableMapping, MutableSequence
 from copy import deepcopy
 from io import StringIO
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -41,7 +42,7 @@ def _is_github_symbolic_link(base_url: urllib.parse.ParseResult, contents: str) 
 
     https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
     """
-    if base_url.scheme in ["file://", ""]:
+    if base_url.scheme in ("file://", ""):
         return False
 
     idx = contents.find("\n")
@@ -89,7 +90,7 @@ def load_linked_file(
     """From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py ."""
     new_url = resolved_path(base_url, link)
 
-    if new_url.scheme in ["file://", ""]:
+    if new_url.scheme in ("file://", ""):
         contents = pathlib.Path(new_url.path).read_text()
     else:
         try:
@@ -189,7 +190,7 @@ def resolved_path(
 
     elif link_url.scheme == "":
         # Relative path, can be local or remote
-        if base_url.scheme in ["file://", ""]:
+        if base_url.scheme in ("file://", ""):
             # Local relative path
             if link == "":
                 return base_url
@@ -214,9 +215,9 @@ def singularity_supports_userns() -> bool:
     global _USERNS  # pylint: disable=global-statement
     if _USERNS is None:
         try:
-            hello_image = os.path.join(os.path.dirname(__file__), "hello.simg")
+            hello_image = Path(os.path.dirname(__file__), "hello.simg")
             result = subprocess.Popen(  # nosec
-                ["singularity", "exec", "--userns", hello_image, "true"],
+                ["singularity", "exec", "--userns", str(hello_image), "true"],
                 stderr=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
                 universal_newlines=True,
@@ -252,9 +253,7 @@ def to_pascal_case(name: str) -> str:
     :param name:
     :return:
     """
-    return "".join(
-        map(lambda word: word.capitalize(), name.replace("_", "-").split("-"))
-    )
+    return "".join(map(str.capitalize, name.replace("_", "-").split("-")))
 
 
 def sanitise_schema_field(
@@ -345,7 +344,7 @@ def sanitise_schema_field(
             | cwl_v1_2.InputRecordSchema()
         ):
             return schema_field_item
-        case {"type": list() as field_item_type}:
+        case {"type": list(field_item_type)}:
             if "null" in field_item_type:
                 required = False
             schema_field_item["type"] = list(
@@ -357,12 +356,12 @@ def sanitise_schema_field(
                 # Recursively get items
                 schema_field_item["type"] = list(
                     map(
-                        lambda field_subtypes: sanitise_schema_field(field_subtypes),
+                        sanitise_schema_field,
                         schema_field_item.get("type", []),
                     )
                 )
 
-        case {"type": str() as field_item_type}:
+        case {"type": str(field_item_type)}:
             if field_item_type.endswith("?"):
                 required = False
                 schema_field_item["type"] = schema_field_item.get("type", "").replace(
@@ -411,8 +410,7 @@ def is_uri(uri: str) -> bool:
     """
     if not urlparse(uri).scheme == "":
         return True
-    else:
-        return False
+    return False
 
 
 def is_local_uri(uri: str) -> bool:

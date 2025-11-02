@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 def get_inner_dict(
     cwl: dict[str, Any], path: list[dict[str, Any]]
 ) -> dict[str, Any] | None:
-    if len(path) == 0:
+    if not path:
         return cwl
 
     if isinstance(cwl, dict):
@@ -79,7 +79,7 @@ def listify_everything(cwl: dict[str, Any]) -> dict[str, Any]:
 
     See https://www.commonwl.org/v1.1/Workflow.html#map
     """
-    for port in ["inputs", "outputs"]:
+    for port in ("inputs", "outputs"):
         cwl[port] = utils.normalize_to_list(
             cwl.get(port, []), key_field="id", value_field="type"
         )
@@ -137,8 +137,7 @@ def normalize_sources(cwl: dict[str, Any]) -> dict[str, Any]:
 def _normalize(s: str) -> str:
     if s.startswith("#"):
         return s[1:]
-    else:
-        return s
+    return s
 
 
 def load_schemadefs(
@@ -182,7 +181,7 @@ def resolve_imports(cwl: Any, base_url: urllib.parse.ParseResult) -> Any:
         if isinstance(v, dict):
             if len(v) == 1:
                 _k = list(v.keys())[0]
-                if _k in ["$import", "$include"]:
+                if _k in ("$import", "$include"):
                     cwl[k], this_base_url = utils.load_linked_file(
                         base_url, v[_k], is_import=_k == "$import"
                     )

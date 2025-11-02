@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Safe execution of CWL Expressions in a NodeJS sandbox."""
+
 import collections
 import errno
 import glob
@@ -11,8 +12,10 @@ import subprocess  # nosec
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Mapping, MutableMapping, MutableSequence
+from contextlib import suppress
 from importlib.resources import files
 from io import BytesIO
+from pathlib import Path
 from typing import Any, Deque, cast
 
 from schema_salad.utils import json_dumps
@@ -91,7 +94,7 @@ class NodeJSEngine(JSEngine):
         self.processes_to_kill: Deque[subprocess.Popen[str]] = collections.deque()
 
     def __del__(self) -> None:
-        try:
+        with suppress(TypeError):
             while self.processes_to_kill:
                 process = self.processes_to_kill.popleft()
                 if isinstance(process.args, MutableSequence):
@@ -102,7 +105,7 @@ class NodeJSEngine(JSEngine):
                     str(arg).split("=")[1] for arg in args if "--cidfile" in str(arg)
                 ]
                 if cidfile:  # Try to be nice
-                    try:
+                    with suppress(FileNotFoundError):
                         with open(cidfile[0]) as inp_stream:
                             p = subprocess.Popen(  # nosec
                                 [args[0], "kill", inp_stream.read()],
@@ -112,17 +115,11 @@ class NodeJSEngine(JSEngine):
                                 p.wait(timeout=10)
                             except subprocess.TimeoutExpired:
                                 p.kill()
-                    except FileNotFoundError:
-                        pass
                 if process.stdin:
                     process.stdin.close()
-                try:
+                with suppress(subprocess.TimeoutExpired):
                     process.wait(10)
-                except subprocess.TimeoutExpired:
-                    pass
                 process.kill()
-        except TypeError:
-            pass
 
     def check_js_threshold_version(self, working_alias: str) -> bool:
         """
@@ -204,11 +201,9 @@ class NodeJSEngine(JSEngine):
 
         def terminate() -> None:
             """Kill the node process if it exceeds timeout limit."""
-            try:
+            with suppress(OSError):
                 killed.append(True)
                 nodejs.kill()
-            except OSError:
-                pass
 
         timer = threading.Timer(timeout, terminate)
         timer.daemon = True
@@ -299,7 +294,7 @@ class NodeJSEngine(JSEngine):
             except (subprocess.CalledProcessError, OSError):
                 pass
 
-        if nodejs is None or nodejs is not None and required_node_version is False:
+        if nodejs is None or nodejs is not None and not required_node_version:
             try:
                 nodeimg = "node:alpine"
                 if container_engine == "singularity":
@@ -323,7 +318,7 @@ class NodeJSEngine(JSEngine):
                                 )
                             else:
                                 singularityimgs = glob.glob(
-                                    os.getcwd() + "/node_alpine.sif"
+                                    str(Path.cwd() / "node_alpine.sif")
                                 )
                             if singularityimgs:
                                 nodeimg = singularityimgs[0]
@@ -356,9 +351,9 @@ class NodeJSEngine(JSEngine):
                         if force_docker_pull:
                             nodejs_pull_commands.append("--force")
                         nodejs_pull_commands.append(nodeimg)
-                        cwd = singularity_cache if singularity_cache else os.getcwd()
+                        cwd = singularity_cache or Path.cwd()
                         nodejsimg = subprocess.check_output(  # nosec
-                            nodejs_pull_commands, text=True, cwd=cwd
+                            nodejs_pull_commands, text=True, cwd=str(cwd)
                         )
                         _logger.debug(
                             "Pulled Docker image %s %s using %s",
@@ -439,7 +434,7 @@ class NodeJSEngine(JSEngine):
             )
 
         # docker failed, but nodejs is installed on system but the version is below the required version
-        if docker is False and required_node_version is False:
+        if not docker and not required_node_version:
             raise JavascriptException(
                 "NodeJSEngine requires minimum v{} version of Node.js engine.".format(
                     self.minimum_node_version_str

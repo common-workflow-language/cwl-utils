@@ -8,6 +8,7 @@ import argparse
 import json
 import logging
 import sys
+from contextlib import suppress
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, TypeGuard, Union
@@ -127,7 +128,7 @@ class JSONSchemaProperty:
         # Between an CWL Input Parameter type and a JSON schema type
 
         match type_item:
-            case str() as key if key in PRIMITIVE_TYPES_MAPPING.keys():
+            case str(key) if key in PRIMITIVE_TYPES_MAPPING:
                 return {"type": PRIMITIVE_TYPES_MAPPING[key]}
             case "stdin":
                 return {"$ref": "#/definitions/File"}
@@ -158,7 +159,7 @@ class JSONSchemaProperty:
                     "type": "string",
                     "enum": list(
                         map(
-                            lambda symbol_iter: get_value_from_uri(symbol_iter),
+                            get_value_from_uri,
                             type_item.symbols,
                         )
                     ),
@@ -171,7 +172,7 @@ class JSONSchemaProperty:
                 match f:
                     case None:
                         return {"type": "object"}
-                    case list() as fields:
+                    case list(fields):
                         return {
                             "type": "object",
                             "properties": {
@@ -200,9 +201,7 @@ class JSONSchemaProperty:
                 return {
                     "oneOf": list(
                         map(
-                            lambda type_iter: self.generate_type_dict_from_type(
-                                type_iter
-                            ),
+                            self.generate_type_dict_from_type,
                             type_item,
                         )
                     )
@@ -217,7 +216,7 @@ class JSONSchemaProperty:
         return {
             "oneOf": list(
                 map(
-                    lambda type_item: self.generate_type_dict_from_type(type_item),
+                    self.generate_type_dict_from_type,
                     type_,
                 )
             )
@@ -344,7 +343,7 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
 
     """
     # Initialise the schema from the workflow input json schema template
-    with open(JSON_TEMPLATE_PATH) as template_h:
+    with JSON_TEMPLATE_PATH.open() as template_h:
         input_json_schema = json.load(template_h)
 
     # Get the complex schema keys
@@ -367,7 +366,7 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
 
     complex_schema_keys: list[str] = list(
         filter(
-            lambda idx_iter: is_complex_record_schema_key(idx_iter),
+            is_complex_record_schema_key,
             cwl_obj.loadingOptions.idx.keys(),
         )
     )
@@ -389,7 +388,7 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
 
     complex_schema_values: list[InputRecordSchema] = list(
         map(
-            lambda idx_iter: get_complex_schema_values(idx_iter),
+            get_complex_schema_values,
             complex_schema_keys,
         )
     )
@@ -397,15 +396,13 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
     # Load in all $imports to be referred by complex input types
     workflow_schema_definitions_list = list(
         map(
-            lambda complex_schema_values_iter: generate_definition_from_schema(
-                complex_schema_values_iter
-            ),
+            generate_definition_from_schema,
             complex_schema_values,
         )
     )
 
     if cwl_obj.requirements is not None:
-        try:
+        with suppress(StopIteration):
             schema_def_requirement = next(
                 filter(
                     lambda requirement_iter: requirement_iter.class_
@@ -417,16 +414,11 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
             workflow_schema_definitions_list.extend(
                 list(
                     map(
-                        lambda schema_def_iter: generate_definition_from_schema(
-                            schema_def_iter
-                        ),
+                        generate_definition_from_schema,
                         schema_def_requirement.types,
                     )
                 )
             )
-
-        except StopIteration:
-            pass
 
     # Convert schema definitions to dict
     workflow_schema_definitions_dict = {}
@@ -436,9 +428,7 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
     # Generate JSON Schema Properties
     properties = list(
         map(
-            lambda workflow_parameter_input_obj: generate_json_schema_property_from_input_parameter(
-                workflow_parameter_input_obj
-            ),
+            generate_json_schema_property_from_input_parameter,
             cwl_obj.inputs,
         )
     )

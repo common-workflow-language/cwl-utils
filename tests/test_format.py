@@ -38,9 +38,9 @@ def _load_format(fetchpath: Path) -> Graph:
     fetchurl = fetchpath.as_uri()
     content = fetcher.fetch_text(fetchurl)
     graph = Graph()
-    for fmt in ["xml", "turtle", "rdfa"]:
+    for fmt in ("xml", "turtle", "rdfa"):
         try:
-            graph.parse(data=content, format=fmt, publicID=str(fetchurl))
+            graph.parse(data=content, format=fmt, publicID=fetchurl)
             break
         except (xml.sax.SAXParseException, TypeError, BadSyntax):
             pass

@@ -252,8 +252,7 @@ def interpolate(
         scan = scan[w[1] :]
         w = scanner(scan)
     if convert_to_expression:
-        parts.append(f'"{scan}"')  # noqa: B907
-        parts.append(";}")
+        parts.extend((f'"{scan}"', ";}"))  # noqa: B907
     else:
         parts.append(scan)
     return "".join(parts)
@@ -290,8 +289,8 @@ def do_eval(
     :param timeout: The maximum number of seconds to wait while executing.
     """
     runtime = cast(MutableMapping[str, Union[int, str, None]], copy.deepcopy(resources))
-    runtime["tmpdir"] = tmpdir if tmpdir else None
-    runtime["outdir"] = outdir if outdir else None
+    runtime["tmpdir"] = tmpdir or None
+    runtime["outdir"] = outdir or None
 
     rootvars = cast(
         CWLObjectType,

@@ -6,6 +6,7 @@ import copy
 import hashlib
 import uuid
 from collections.abc import Mapping, MutableSequence, Sequence
+from contextlib import suppress
 from typing import Any, Optional, cast
 
 from ruamel import yaml
@@ -30,11 +31,9 @@ def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool
                 result = copy.deepcopy(process)
             stdout_path = process.stdout
             if not stdout_path:
-                stdout_path = str(
-                    hashlib.sha1(  # nosec
-                        json_dumps(cwl.save(process)).encode("utf-8")
-                    ).hexdigest()
-                )
+                stdout_path = hashlib.sha1(  # nosec
+                    json_dumps(cwl.save(process)).encode("utf-8")
+                ).hexdigest()
                 result.stdout = stdout_path
             result.outputs[index].type_ = "File"
             output.outputBinding = cwl.CommandOutputBinding(stdout_path, None, None)
@@ -532,12 +531,10 @@ def empty_inputs(
             elif param.source is None and param.default:
                 result[param_id] = param.default
             else:
-                try:
+                with suppress(WorkflowException):
                     result[param_id] = example_input(
                         utils.type_for_source(process_or_step.run, param.source, parent)
                     )
-                except WorkflowException:
-                    pass
     return result
 
 
@@ -799,8 +796,8 @@ def process_workflow_reqs_and_hints(
                                             isinstance(expr_result, Mapping)
                                             and "class" in expr_result
                                             and (
-                                                expr_result["class"] == "File"
-                                                or expr_result["class"] == "Directory"
+                                                expr_result["class"]
+                                                in ("File", "Directory")
                                             )
                                         ):
                                             target = cwl.WorkflowInputParameter(
