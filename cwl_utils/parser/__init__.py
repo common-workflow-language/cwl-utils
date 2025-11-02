@@ -306,7 +306,7 @@ def load_document(
 ) -> Any:
     """Load a CWL object from a serialized YAML string or a YAML object."""
     if baseuri is None:
-        baseuri = cwl_v1_0.file_uri(os.getcwd()) + "/"
+        baseuri = cwl_v1_0.file_uri(str(Path.cwd())) + "/"
     if isinstance(doc, str):
         return load_document_by_string(doc, baseuri, loadingOptions, id_)
     return load_document_by_yaml(doc, baseuri, loadingOptions, id_, load_all)
@@ -320,8 +320,7 @@ def load_document_by_string(
     load_all: bool = False,
 ) -> Any:
     """Load a CWL object from a serialized YAML string."""
-    yaml = yaml_no_ts()
-    result = yaml.load(string)
+    result = yaml_no_ts().load(string)
     return load_document_by_yaml(result, uri, loadingOptions, id_, load_all)
 
 
@@ -403,11 +402,7 @@ def save(
 
 def is_process(v: Any) -> bool:
     """Test to see if the object is a CWL v1.x Python Process object."""
-    return (
-        isinstance(v, cwl_v1_0.Process)
-        or isinstance(v, cwl_v1_1.Process)
-        or isinstance(v, cwl_v1_2.Process)
-    )
+    return isinstance(v, cwl_v1_0.Process | cwl_v1_1.Process | cwl_v1_2.Process)
 
 
 def version_split(version: str) -> MutableSequence[int]:

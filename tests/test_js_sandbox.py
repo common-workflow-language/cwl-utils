@@ -71,7 +71,7 @@ def hide_nodejs(temp_dir: Path) -> str:
             new_dir.mkdir()
             for entry in os.listdir(dirname):
                 if entry not in ("nodejs", "node"):
-                    os.symlink(os.path.join(dirname, entry), new_dir / entry)
+                    os.symlink(Path(dirname, entry), new_dir / entry)
             paths.append(str(new_dir))
     return ":".join(paths)
 

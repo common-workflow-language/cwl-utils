@@ -2,7 +2,6 @@
 
 import copy
 import logging
-import os
 from collections.abc import MutableSequence
 from pathlib import Path
 from types import ModuleType
@@ -62,7 +61,7 @@ def load_inputfile_by_uri(
     if version is None:
         raise ValidationException("could not get the cwlVersion")
 
-    baseuri = str(real_path)
+    baseuri: str = real_path
 
     if loadingOptions is None:
         match version:
@@ -89,7 +88,7 @@ def load_inputfile(
 ) -> Any:
     """Load a CWL input file from a serialized YAML string or a YAML object."""
     if baseuri is None:
-        baseuri = cwl_v1_0.file_uri(os.getcwd()) + "/"
+        baseuri = cwl_v1_0.file_uri(str(Path.cwd())) + "/"
     if isinstance(doc, str):
         return load_inputfile_by_string(version, doc, baseuri, loadingOptions)
     return load_inputfile_by_yaml(version, doc, baseuri, loadingOptions)
@@ -102,8 +101,7 @@ def load_inputfile_by_string(
     loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL input file from a serialized YAML string."""
-    yaml = yaml_no_ts()
-    result = yaml.load(string)
+    result = yaml_no_ts().load(string)
     return load_inputfile_by_yaml(version, result, uri, loadingOptions)
 
 
@@ -147,8 +145,7 @@ def load_step(
             loadingOptions=step.loadingOptions,
         )
         return cast(Process, step_run)
-    else:
-        return cast(Process, copy.deepcopy(step.run))
+    return cast(Process, copy.deepcopy(step.run))
 
 
 def static_checker(workflow: cwl_utils.parser.Workflow) -> None:

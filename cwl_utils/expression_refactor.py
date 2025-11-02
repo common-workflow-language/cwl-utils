@@ -139,11 +139,7 @@ def refactor(args: argparse.Namespace) -> int:
             if not isinstance(result, MutableSequence):
                 result_json = save(
                     result,
-                    base_url=(
-                        result.loadingOptions.fileuri
-                        if result.loadingOptions.fileuri
-                        else ""
-                    ),
+                    base_url=(result.loadingOptions.fileuri or ""),
                 )
             #   ^^ Setting the base_url and keeping the default value
             #      for relative_uris=True means that the IDs in the generated
@@ -155,7 +151,7 @@ def refactor(args: argparse.Namespace) -> int:
                 ]
             walk_tree(result_json)
             # ^ converts multiline strings to nice multiline YAML
-            with open(output, "w", encoding="utf-8") as output_filehandle:
+            with output.open("w", encoding="utf-8") as output_filehandle:
                 output_filehandle.write(
                     "#!/usr/bin/env cwl-runner\n"
                 )  # TODO: teach the codegen to do this?

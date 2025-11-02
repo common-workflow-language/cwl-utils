@@ -58,9 +58,7 @@ def test_cwl_inputs_to_jsonschema(tool_path: Path, inputs_path: Path) -> None:
         f"Testing {inputs_path.name} against schema generated for input {tool_path.name}"
     )
 
-    yaml = YAML()
-
-    input_obj = yaml.load(inputs_path)
+    input_obj = YAML().load(inputs_path)
 
     try:
         validate(input_obj, json_schema)
@@ -86,9 +84,7 @@ def test_cwl_inputs_to_jsonschema_fails() -> None:
         f"Testing {inputs_path.name} against schema generated for input {tool_path.name}"
     )
 
-    yaml = YAML()
-
-    input_obj = yaml.load(inputs_path)
+    input_obj = YAML().load(inputs_path)
 
     # We expect this to fail
     with pytest.raises(ValidationError):

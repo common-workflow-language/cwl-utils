@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test the CWL Expression refactoring tool."""
-import os
 import shutil
 import sys
 import tarfile
@@ -262,4 +261,4 @@ def cwl_v1_0_dir(
         else:
             tf.extractall(path=tmp_path)
     yield str(tmp_path / "common-workflow-language-1.0.2")
-    shutil.rmtree(os.path.join(tmp_path))
+    shutil.rmtree(Path(tmp_path))
