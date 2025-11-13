@@ -1,9 +1,22 @@
-from cwl_utils.parser.cwl_v1_2 import ResourceRequirement, WorkflowStep, Workflow, CommandLineTool, save
+from typing import Optional, List, Any
+
+from cwl_utils.parser.cwl_v1_2 import (
+    ResourceRequirement,
+    WorkflowStep,
+    Workflow,
+    CommandLineTool,
+    save,
+)
 import pytest
 from schema_salad.exceptions import ValidationException
 
+
 # Helper functions
-def create_commandlinetool(requirements=None, inputs=None, outputs=None):
+def create_commandlinetool(
+    requirements: Optional[List[Any]] = None,
+    inputs: Optional[List[Any]] = None,
+    outputs: Optional[List[Any]] = None,
+) -> CommandLineTool:
     return CommandLineTool(
         requirements=requirements or [],
         inputs=inputs or [],
@@ -11,7 +24,12 @@ def create_commandlinetool(requirements=None, inputs=None, outputs=None):
     )
 
 
-def create_workflow(requirements=None, steps=None, inputs=None, outputs=None):
+def create_workflow(
+    requirements: Optional[List[Any]] = None,
+    steps: Optional[List[Any]] = None,
+    inputs: Optional[List[Any]] = None,
+    outputs: Optional[List[Any]] = None,
+) -> Workflow:
     return Workflow(
         requirements=requirements or [],
         steps=steps or [],
@@ -20,13 +38,19 @@ def create_workflow(requirements=None, steps=None, inputs=None, outputs=None):
     )
 
 
-def create_step(requirements=None, run=None, in_=None, out=None):
+def create_step(
+    requirements: Optional[List[Any]] = None,
+    run: Any = None,
+    in_: Optional[List[Any]] = None,
+    out: Optional[List[Any]] = None,
+) -> WorkflowStep:
     return WorkflowStep(
         requirements=requirements or [],
         run=run,
         in_=in_ or [],
         out=out or [],
     )
+
 
 @pytest.mark.parametrize(
     "bad_min_max_reqs",
@@ -41,10 +65,8 @@ def create_step(requirements=None, run=None, in_=None, out=None):
         ResourceRequirement(outdirMin=512, outdirMax=256),
     ],
 )
-def test_bad_min_max_resource_reqs(bad_min_max_reqs):
-    """
-    Test invalid min/max resource requirements in CWL objects.
-    """
+def test_bad_min_max_resource_reqs(bad_min_max_reqs: ResourceRequirement) -> None:
+    # Test invalid min/max resource requirements in CWL objects.
 
     # CommandlineTool with bad minmax reqs
     clt = create_commandlinetool(requirements=[bad_min_max_reqs])
