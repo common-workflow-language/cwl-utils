@@ -535,27 +535,26 @@ def param_for_source_id(
                                         ):
                                             params.append(output)
                                             if scatter_context is not None:
-                                                if scatter_context is not None:
-                                                    if isinstance(step.scatter, str):
-                                                        scatter_context.append(
-                                                            (
-                                                                1,
-                                                                step.scatterMethod
-                                                                or "dotproduct",
-                                                            )
+                                                if isinstance(step.scatter, str):
+                                                    scatter_context.append(
+                                                        (
+                                                            1,
+                                                            step.scatterMethod
+                                                            or "dotproduct",
                                                         )
-                                                    elif isinstance(
-                                                        step.scatter, MutableSequence
-                                                    ):
-                                                        scatter_context.append(
-                                                            (
-                                                                len(step.scatter),
-                                                                step.scatterMethod
-                                                                or "dotproduct",
-                                                            )
+                                                    )
+                                                elif isinstance(
+                                                    step.scatter, MutableSequence
+                                                ):
+                                                    scatter_context.append(
+                                                        (
+                                                            len(step.scatter),
+                                                            step.scatterMethod
+                                                            or "dotproduct",
                                                         )
-                                                    else:
-                                                        scatter_context.append(None)
+                                                    )
+                                                else:
+                                                    scatter_context.append(None)
     if len(params) == 1:
         return params[0]
     elif len(params) > 1:
