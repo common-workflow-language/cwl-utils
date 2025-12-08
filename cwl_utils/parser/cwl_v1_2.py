@@ -4378,6 +4378,10 @@ class Identified(Saveable):
     pass
 
 
+class IdentifierRequired(Identified):
+    pass
+
+
 class LoadContents(Saveable):
     pass
 
@@ -4394,7 +4398,7 @@ class OutputFormat(Saveable):
     pass
 
 
-class Parameter(FieldBase, Documented, Identified):
+class Parameter(FieldBase, Documented, IdentifierRequired):
     """
     Define an input or output parameter to a process.
 
@@ -13750,12 +13754,12 @@ class CommandInputParameter(InputParameter):
 
     def __init__(
         self,
+        id: Any,
         type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
         doc: Optional[Any] = None,
-        id: Optional[Any] = None,
         format: Optional[Any] = None,
         loadContents: Optional[Any] = None,
         loadListing: Optional[Any] = None,
@@ -13837,7 +13841,7 @@ class CommandInputParameter(InputParameter):
             try:
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -13885,7 +13889,7 @@ class CommandInputParameter(InputParameter):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
         label = None
@@ -14504,12 +14508,12 @@ class CommandOutputParameter(OutputParameter):
 
     def __init__(
         self,
+        id: Any,
         type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
         doc: Optional[Any] = None,
-        id: Optional[Any] = None,
         format: Optional[Any] = None,
         outputBinding: Optional[Any] = None,
         extension_fields: Optional[dict[str, Any]] = None,
@@ -14579,7 +14583,7 @@ class CommandOutputParameter(OutputParameter):
             try:
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -14627,7 +14631,7 @@ class CommandOutputParameter(OutputParameter):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
         label = None
@@ -19322,12 +19326,12 @@ class ExpressionToolOutputParameter(OutputParameter):
 
     def __init__(
         self,
+        id: Any,
         type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
         doc: Optional[Any] = None,
-        id: Optional[Any] = None,
         format: Optional[Any] = None,
         extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
@@ -19393,7 +19397,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             try:
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -19441,7 +19445,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
         label = None
@@ -19827,12 +19831,12 @@ class WorkflowInputParameter(InputParameter):
 
     def __init__(
         self,
+        id: Any,
         type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
         doc: Optional[Any] = None,
-        id: Optional[Any] = None,
         format: Optional[Any] = None,
         loadContents: Optional[Any] = None,
         loadListing: Optional[Any] = None,
@@ -19914,7 +19918,7 @@ class WorkflowInputParameter(InputParameter):
             try:
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -19962,7 +19966,7 @@ class WorkflowInputParameter(InputParameter):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
         label = None
@@ -21312,12 +21316,12 @@ class WorkflowOutputParameter(OutputParameter):
 
     def __init__(
         self,
+        id: Any,
         type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
         doc: Optional[Any] = None,
-        id: Optional[Any] = None,
         format: Optional[Any] = None,
         outputSource: Optional[Any] = None,
         linkMerge: Optional[Any] = None,
@@ -21395,7 +21399,7 @@ class WorkflowOutputParameter(OutputParameter):
             try:
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -21443,7 +21447,7 @@ class WorkflowOutputParameter(OutputParameter):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
         label = None
@@ -21994,7 +21998,7 @@ class Sink(Saveable):
     pass
 
 
-class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
+class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
     """
     The input of a workflow step connects an upstream parameter (from the
     workflow inputs, or the outputs of other workflows steps) with the input
@@ -22111,7 +22115,7 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
 
     def __init__(
         self,
-        id: Optional[Any] = None,
+        id: Any,
         source: Optional[Any] = None,
         linkMerge: Optional[Any] = None,
         pickValue: Optional[Any] = None,
@@ -22190,7 +22194,7 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
             try:
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -22238,7 +22242,7 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
         source = None
@@ -22732,7 +22736,7 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
     )
 
 
-class WorkflowStepOutput(Identified):
+class WorkflowStepOutput(IdentifierRequired):
     """
     Associate an output parameter of the underlying process with a workflow
     parameter.  The workflow parameter (given in the `id` field) be may be used
@@ -22749,7 +22753,7 @@ class WorkflowStepOutput(Identified):
 
     def __init__(
         self,
-        id: Optional[Any] = None,
+        id: Any,
         extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
     ) -> None:
@@ -22790,7 +22794,7 @@ class WorkflowStepOutput(Identified):
             try:
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -22838,7 +22842,7 @@ class WorkflowStepOutput(Identified):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
         extension_fields: dict[str, Any] = {}
@@ -22897,7 +22901,7 @@ class WorkflowStepOutput(Identified):
     attrs = frozenset(["id"])
 
 
-class WorkflowStep(Identified, Labeled, Documented):
+class WorkflowStep(IdentifierRequired, Labeled, Documented):
     """
     A workflow step is an executable element of a workflow.  It specifies the
     underlying process implementation (such as `CommandLineTool` or another
@@ -22985,10 +22989,10 @@ class WorkflowStep(Identified, Labeled, Documented):
 
     def __init__(
         self,
+        id: Any,
         in_: Any,
         out: Any,
         run: Any,
-        id: Optional[Any] = None,
         label: Optional[Any] = None,
         doc: Optional[Any] = None,
         requirements: Optional[Any] = None,
@@ -23072,7 +23076,7 @@ class WorkflowStep(Identified, Labeled, Documented):
             try:
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -23120,7 +23124,7 @@ class WorkflowStep(Identified, Labeled, Documented):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
         label = None
@@ -24972,12 +24976,12 @@ class OperationInputParameter(InputParameter):
 
     def __init__(
         self,
+        id: Any,
         type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
         doc: Optional[Any] = None,
-        id: Optional[Any] = None,
         format: Optional[Any] = None,
         loadContents: Optional[Any] = None,
         loadListing: Optional[Any] = None,
@@ -25055,7 +25059,7 @@ class OperationInputParameter(InputParameter):
             try:
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -25103,7 +25107,7 @@ class OperationInputParameter(InputParameter):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
         label = None
@@ -25667,12 +25671,12 @@ class OperationOutputParameter(OutputParameter):
 
     def __init__(
         self,
+        id: Any,
         type_: Any,
         label: Optional[Any] = None,
         secondaryFiles: Optional[Any] = None,
         streamable: Optional[Any] = None,
         doc: Optional[Any] = None,
-        id: Optional[Any] = None,
         format: Optional[Any] = None,
         extension_fields: Optional[dict[str, Any]] = None,
         loadingOptions: Optional[LoadingOptions] = None,
@@ -25738,7 +25742,7 @@ class OperationOutputParameter(OutputParameter):
             try:
                 id = load_field(
                     _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
+                    uri_strtype_True_False_None_None,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("id")
@@ -25786,7 +25790,7 @@ class OperationOutputParameter(OutputParameter):
             if docRoot is not None:
                 id = docRoot
             else:
-                id = "_:" + str(_uuid__.uuid4())
+                _errors__.append(ValidationException("missing id"))
         if not __original_id_is_none:
             baseuri = cast(str, id)
         label = None
@@ -29219,6 +29223,7 @@ _vocab = {
     "File": "https://w3id.org/cwl/cwl#File",
     "IOSchema": "https://w3id.org/cwl/cwl#IOSchema",
     "Identified": "https://w3id.org/cwl/cwl#Identified",
+    "IdentifierRequired": "https://w3id.org/cwl/cwl#IdentifierRequired",
     "InitialWorkDirRequirement": "https://w3id.org/cwl/cwl#InitialWorkDirRequirement",
     "InlineJavascriptRequirement": "https://w3id.org/cwl/cwl#InlineJavascriptRequirement",
     "InplaceUpdateRequirement": "https://w3id.org/cwl/cwl#InplaceUpdateRequirement",
@@ -29371,6 +29376,7 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#File": "File",
     "https://w3id.org/cwl/cwl#IOSchema": "IOSchema",
     "https://w3id.org/cwl/cwl#Identified": "Identified",
+    "https://w3id.org/cwl/cwl#IdentifierRequired": "IdentifierRequired",
     "https://w3id.org/cwl/cwl#InitialWorkDirRequirement": "InitialWorkDirRequirement",
     "https://w3id.org/cwl/cwl#InlineJavascriptRequirement": "InlineJavascriptRequirement",
     "https://w3id.org/cwl/cwl#InplaceUpdateRequirement": "InplaceUpdateRequirement",
