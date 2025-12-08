@@ -4378,6 +4378,10 @@ class Identified(Saveable):
     pass
 
 
+class IdentifierRequired(Identified):
+    pass
+
+
 class LoadContents(Saveable):
     pass
 
@@ -4394,7 +4398,7 @@ class OutputFormat(Saveable):
     pass
 
 
-class Parameter(FieldBase, Documented, Identified):
+class Parameter(FieldBase, Documented, IdentifierRequired):
     """
     Define an input or output parameter to a process.
 
@@ -21994,7 +21998,7 @@ class Sink(Saveable):
     pass
 
 
-class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
+class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
     """
     The input of a workflow step connects an upstream parameter (from the
     workflow inputs, or the outputs of other workflows steps) with the input
@@ -22732,7 +22736,7 @@ class WorkflowStepInput(Identified, Sink, LoadContents, Labeled):
     )
 
 
-class WorkflowStepOutput(Identified):
+class WorkflowStepOutput(IdentifierRequired):
     """
     Associate an output parameter of the underlying process with a workflow
     parameter.  The workflow parameter (given in the `id` field) be may be used
@@ -22897,7 +22901,7 @@ class WorkflowStepOutput(Identified):
     attrs = frozenset(["id"])
 
 
-class WorkflowStep(Identified, Labeled, Documented):
+class WorkflowStep(IdentifierRequired, Labeled, Documented):
     """
     A workflow step is an executable element of a workflow.  It specifies the
     underlying process implementation (such as `CommandLineTool` or another
@@ -29219,6 +29223,7 @@ _vocab = {
     "File": "https://w3id.org/cwl/cwl#File",
     "IOSchema": "https://w3id.org/cwl/cwl#IOSchema",
     "Identified": "https://w3id.org/cwl/cwl#Identified",
+    "IdentifierRequired": "https://w3id.org/cwl/cwl#IdentifierRequired",
     "InitialWorkDirRequirement": "https://w3id.org/cwl/cwl#InitialWorkDirRequirement",
     "InlineJavascriptRequirement": "https://w3id.org/cwl/cwl#InlineJavascriptRequirement",
     "InplaceUpdateRequirement": "https://w3id.org/cwl/cwl#InplaceUpdateRequirement",
@@ -29371,6 +29376,7 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#File": "File",
     "https://w3id.org/cwl/cwl#IOSchema": "IOSchema",
     "https://w3id.org/cwl/cwl#Identified": "Identified",
+    "https://w3id.org/cwl/cwl#IdentifierRequired": "IdentifierRequired",
     "https://w3id.org/cwl/cwl#InitialWorkDirRequirement": "InitialWorkDirRequirement",
     "https://w3id.org/cwl/cwl#InlineJavascriptRequirement": "InlineJavascriptRequirement",
     "https://w3id.org/cwl/cwl#InplaceUpdateRequirement": "InplaceUpdateRequirement",
