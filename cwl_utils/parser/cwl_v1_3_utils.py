@@ -13,7 +13,7 @@ from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import aslist, json_dumps, yaml_no_ts
 
 import cwl_utils.parser
-import cwl_utils.parser.cwl_v1_2 as cwl
+import cwl_utils.parser.cwl_v1_3 as cwl
 import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
 from cwl_utils.utils import yaml_dumps
@@ -90,9 +90,11 @@ def _is_all_output_method_loop_step(
     param_to_step: dict[str, cwl.WorkflowStep], parm_id: str
 ) -> bool:
     if (source_step := param_to_step.get(parm_id)) is not None:
-        for requirement in source_step.requirements or []:
-            if isinstance(requirement, cwl.Loop) and requirement.outputMethod == "all":
-                return True
+        if (
+            isinstance(source_step, cwl.LoopWorkflowStep)
+            and source_step.outputMethod == "all_iterations"
+        ):
+            return True
     return False
 
 
@@ -478,7 +480,9 @@ def type_for_step_input(
         for step_input in step_run.inputs:
             if cast(str, step_input.id).split("#")[-1] == in_.id.split("#")[-1]:
                 input_type = step_input.type_
-                if step.scatter is not None and in_.id in aslist(step.scatter):
+                if isinstance(step, cwl.ScatterWorkflowStep) and in_.id in aslist(
+                    step.scatter
+                ):
                     input_type = cwl.ArraySchema(items=input_type, type_="array")
                 return input_type
     return "Any"
@@ -498,7 +502,7 @@ def type_for_step_output(
                 == sourcename.split("#")[-1].split("/")[-1]
             ):
                 output_type = output.type_
-                if step.scatter is not None:
+                if isinstance(step, cwl.ScatterWorkflowStep):
                     if step.scatterMethod == "nested_crossproduct":
                         for _ in range(len(aslist(step.scatter))):
                             output_type = cwl.ArraySchema(
@@ -624,24 +628,27 @@ def param_for_source_id(
                                         ):
                                             params.append(output)
                                             if scatter_context is not None:
-                                                if isinstance(step.scatter, str):
-                                                    scatter_context.append(
-                                                        (
-                                                            1,
-                                                            step.scatterMethod
-                                                            or "dotproduct",
-                                                        )
-                                                    )
-                                                elif isinstance(
-                                                    step.scatter, MutableSequence
+                                                if isinstance(
+                                                    step, cwl.ScatterWorkflowStep
                                                 ):
-                                                    scatter_context.append(
-                                                        (
-                                                            len(step.scatter),
-                                                            step.scatterMethod
-                                                            or "dotproduct",
+                                                    if isinstance(step.scatter, str):
+                                                        scatter_context.append(
+                                                            (
+                                                                1,
+                                                                step.scatterMethod
+                                                                or "dotproduct",
+                                                            )
                                                         )
-                                                    )
+                                                    elif isinstance(
+                                                        step.scatter, MutableSequence
+                                                    ):
+                                                        scatter_context.append(
+                                                            (
+                                                                len(step.scatter),
+                                                                step.scatterMethod
+                                                                or "dotproduct",
+                                                            )
+                                                        )
                                                 else:
                                                     scatter_context.append(None)
     if len(params) == 1:

@@ -151,7 +151,7 @@ def test_loading_options_graph_property_v1_1() -> None:
 
 def test_loading_options_graph_property_v1_2() -> None:
     """Test that RDFLib Graph representations of $schema properties are correctly loaded, CWL v1.2."""
-    uri = get_path("testdata/formattest2.cwl").as_uri()
+    uri = get_path("testdata/formattest2_v1_2.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     assert to_isomorphic(cwl_obj.loadingOptions.graph) == to_isomorphic(EDAM)
 

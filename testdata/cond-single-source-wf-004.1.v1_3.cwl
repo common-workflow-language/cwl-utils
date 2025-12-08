@@ -1,6 +1,6 @@
 #!/usr/bin/env cwl-runner
 class: Workflow
-cwlVersion: v1.2
+cwlVersion: v1.3.0-dev1
 inputs:
   val: int
 
@@ -10,15 +10,15 @@ steps:
     in:
       in1: val
       a_new_var: val
-    run: foo-array.cwl
+    run: foo-array.v1_3.cwl
     when: $(inputs.in1 < 1)
     out: [out1]
 
 outputs:
   out1:
-    type: string[]
+    type: string
     outputSource: step1/out1
-    pickValue: all_non_null
+    pickValue: the_only_non_null
 
 requirements:
   InlineJavascriptRequirement: {}
