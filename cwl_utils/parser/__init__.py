@@ -138,6 +138,12 @@ CommandOutputParameter = Union[
     cwl_v1_2.CommandOutputParameter,
 ]
 """Type union for a CWL v1.x CommandOutputParameter object."""
+CommandOutputRecordField = Union[
+    cwl_v1_0.CommandOutputRecordField,
+    cwl_v1_1.CommandOutputRecordField,
+    cwl_v1_2.CommandOutputRecordField,
+]
+"""Type union for a CWL v1.x CommandOutputRecordField object."""
 ExpressionTool = Union[
     cwl_v1_0.ExpressionTool, cwl_v1_1.ExpressionTool, cwl_v1_2.ExpressionTool
 ]
