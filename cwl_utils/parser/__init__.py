@@ -4,246 +4,241 @@ import os
 from abc import ABC
 from collections.abc import MutableMapping, MutableSequence
 from pathlib import Path
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, TypeAlias, cast
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
 from schema_salad.utils import yaml_no_ts
 
-from ..errors import GraphTargetMissingException
 from . import cwl_v1_0, cwl_v1_1, cwl_v1_2
+from ..errors import GraphTargetMissingException
 
 
 class NoType(ABC):
     pass
 
 
-LoadingOptions = Union[
-    cwl_v1_0.LoadingOptions, cwl_v1_1.LoadingOptions, cwl_v1_2.LoadingOptions
-]
+LoadingOptions: TypeAlias = (
+    cwl_v1_0.LoadingOptions | cwl_v1_1.LoadingOptions | cwl_v1_2.LoadingOptions
+)
 """Type union for a CWL v1.x LoadingOptions object."""
-Saveable = Union[cwl_v1_0.Saveable, cwl_v1_1.Saveable, cwl_v1_2.Saveable]
+Saveable: TypeAlias = cwl_v1_0.Saveable | cwl_v1_1.Saveable | cwl_v1_2.Saveable
 """Type union for a CWL v1.x Saveable object."""
-InputParameter = Union[
-    cwl_v1_0.InputParameter, cwl_v1_1.InputParameter, cwl_v1_2.InputParameter
-]
+InputParameter: TypeAlias = (
+    cwl_v1_0.InputParameter | cwl_v1_1.InputParameter | cwl_v1_2.InputParameter
+)
 """Type union for a CWL v1.x InputEnumSchema object."""
-InputRecordField = Union[
-    cwl_v1_0.InputRecordField,
-    cwl_v1_1.InputRecordField,
-    cwl_v1_2.InputRecordField,
-]
+InputRecordField: TypeAlias = (
+    cwl_v1_0.InputRecordField | cwl_v1_1.InputRecordField | cwl_v1_2.InputRecordField
+)
 """Type union for a CWL v1.x InputRecordSchema object."""
-InputSchema = Union[cwl_v1_0.InputSchema, cwl_v1_1.InputSchema, cwl_v1_2.InputSchema]
+InputSchema: TypeAlias = (
+    cwl_v1_0.InputSchema | cwl_v1_1.InputSchema | cwl_v1_2.InputSchema
+)
 """Type union for a CWL v1.x InputSchema object."""
-OutputParameter = Union[
-    cwl_v1_0.OutputParameter, cwl_v1_1.OutputParameter, cwl_v1_2.OutputParameter
-]
+OutputParameter: TypeAlias = (
+    cwl_v1_0.OutputParameter | cwl_v1_1.OutputParameter | cwl_v1_2.OutputParameter
+)
 """Type union for a CWL v1.x OutputParameter object."""
-OutputArraySchema = Union[
-    cwl_v1_0.OutputArraySchema,
-    cwl_v1_1.OutputArraySchema,
-    cwl_v1_2.OutputArraySchema,
-]
+OutputArraySchema: TypeAlias = (
+    cwl_v1_0.OutputArraySchema | cwl_v1_1.OutputArraySchema | cwl_v1_2.OutputArraySchema
+)
 """Type union for a CWL v1.x OutputArraySchema object."""
-OutputEnumSchema = Union[
-    cwl_v1_0.OutputEnumSchema,
-    cwl_v1_1.OutputEnumSchema,
-    cwl_v1_2.OutputEnumSchema,
-]
+OutputEnumSchema: TypeAlias = (
+    cwl_v1_0.OutputEnumSchema | cwl_v1_1.OutputEnumSchema | cwl_v1_2.OutputEnumSchema
+)
 """Type union for a CWL v1.x OutputEnumSchema object."""
-OutputRecordField = Union[
-    cwl_v1_0.OutputRecordField,
-    cwl_v1_1.OutputRecordField,
-    cwl_v1_2.OutputRecordField,
-]
+OutputRecordField: TypeAlias = (
+    cwl_v1_0.OutputRecordField | cwl_v1_1.OutputRecordField | cwl_v1_2.OutputRecordField
+)
 """Type union for a CWL v1.x OutputRecordField object."""
-OutputRecordSchema = Union[
-    cwl_v1_0.OutputRecordSchema,
-    cwl_v1_1.OutputRecordSchema,
-    cwl_v1_2.OutputRecordSchema,
-]
+OutputRecordSchema: TypeAlias = (
+    cwl_v1_0.OutputRecordSchema
+    | cwl_v1_1.OutputRecordSchema
+    | cwl_v1_2.OutputRecordSchema
+)
 """Type union for a CWL v1.x OutputRecordSchema object."""
-OutputSchema = Union[
-    cwl_v1_0.OutputSchema, cwl_v1_1.OutputSchema, cwl_v1_2.OutputSchema
-]
+OutputSchema: TypeAlias = (
+    cwl_v1_0.OutputSchema | cwl_v1_1.OutputSchema | cwl_v1_2.OutputSchema
+)
 """Type union for a CWL v1.x OutputSchema object."""
-Workflow = Union[cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow]
+Workflow: TypeAlias = cwl_v1_0.Workflow | cwl_v1_1.Workflow | cwl_v1_2.Workflow
 WorkflowTypes = (cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow)
 """Type union for a CWL v1.x Workflow object."""
-WorkflowInputParameter = Union[
-    cwl_v1_0.InputParameter,
-    cwl_v1_1.WorkflowInputParameter,
-    cwl_v1_2.WorkflowInputParameter,
-]
+WorkflowInputParameter: TypeAlias = (
+    cwl_v1_0.InputParameter
+    | cwl_v1_1.WorkflowInputParameter
+    | cwl_v1_2.WorkflowInputParameter
+)
 """Type union for a CWL v1.x WorkflowInputParameter object."""
-WorkflowOutputParameter = Union[
-    cwl_v1_0.WorkflowOutputParameter,
-    cwl_v1_1.WorkflowOutputParameter,
-    cwl_v1_2.WorkflowOutputParameter,
-]
+WorkflowOutputParameter: TypeAlias = (
+    cwl_v1_0.WorkflowOutputParameter
+    | cwl_v1_1.WorkflowOutputParameter
+    | cwl_v1_2.WorkflowOutputParameter
+)
 """Type union for a CWL v1.x WorkflowOutputParameter object."""
-WorkflowStep = Union[
-    cwl_v1_0.WorkflowStep, cwl_v1_1.WorkflowStep, cwl_v1_2.WorkflowStep
-]
+WorkflowStep: TypeAlias = (
+    cwl_v1_0.WorkflowStep | cwl_v1_1.WorkflowStep | cwl_v1_2.WorkflowStep
+)
 """Type union for a CWL v1.x WorkflowStep object."""
-ScatterWorkflowStep = Union[
-    cwl_v1_0.WorkflowStep,
-    cwl_v1_1.WorkflowStep,
-    cwl_v1_2.WorkflowStep,
-]
+ScatterWorkflowStep: TypeAlias = (
+    cwl_v1_0.WorkflowStep | cwl_v1_1.WorkflowStep | cwl_v1_2.WorkflowStep
+)
 """Type union for a CWL v1.x ScatterWorkflowStep object."""
-LoopWorkflowStep = NoType
+LoopWorkflowStep: TypeAlias = NoType
 """Type union for a CWL v1.x LoopWorkflowStep object."""
-WorkflowStepInput = Union[
-    cwl_v1_0.WorkflowStepInput, cwl_v1_1.WorkflowStepInput, cwl_v1_2.WorkflowStepInput
-]
+WorkflowStepInput: TypeAlias = (
+    cwl_v1_0.WorkflowStepInput | cwl_v1_1.WorkflowStepInput | cwl_v1_2.WorkflowStepInput
+)
 """Type union for a CWL v1.x WorkflowStepInput object."""
-WorkflowStepOutput = Union[
-    cwl_v1_0.WorkflowStepOutput,
-    cwl_v1_1.WorkflowStepOutput,
-    cwl_v1_2.WorkflowStepOutput,
-]
+WorkflowStepOutput: TypeAlias = (
+    cwl_v1_0.WorkflowStepOutput
+    | cwl_v1_1.WorkflowStepOutput
+    | cwl_v1_2.WorkflowStepOutput
+)
 """Type union for a CWL v1.x WorkflowStepOutput object."""
-CommandLineTool = Union[
-    cwl_v1_0.CommandLineTool, cwl_v1_1.CommandLineTool, cwl_v1_2.CommandLineTool
-]
+CommandLineTool: TypeAlias = (
+    cwl_v1_0.CommandLineTool | cwl_v1_1.CommandLineTool | cwl_v1_2.CommandLineTool
+)
 CommandLineToolTypes = (
     cwl_v1_0.CommandLineTool,
     cwl_v1_1.CommandLineTool,
     cwl_v1_2.CommandLineTool,
 )
 """Type union for a CWL v1.x CommandLineTool object."""
-CommandLineBinding = Union[
-    cwl_v1_0.CommandLineBinding,
-    cwl_v1_1.CommandLineBinding,
-    cwl_v1_2.CommandLineBinding,
-]
+CommandLineBinding: TypeAlias = (
+    cwl_v1_0.CommandLineBinding
+    | cwl_v1_1.CommandLineBinding
+    | cwl_v1_2.CommandLineBinding
+)
+
 """Type union for a CWL v1.x CommandLineBinding object."""
-CommandOutputBinding = Union[
-    cwl_v1_0.CommandOutputBinding,
-    cwl_v1_1.CommandOutputBinding,
-    cwl_v1_2.CommandOutputBinding,
-]
+CommandOutputBinding: TypeAlias = (
+    cwl_v1_0.CommandOutputBinding
+    | cwl_v1_1.CommandOutputBinding
+    | cwl_v1_2.CommandOutputBinding
+)
 """Type union for a CWL v1.x CommandOutputBinding object."""
-CommandInputParameter = Union[
-    cwl_v1_0.CommandInputParameter,
-    cwl_v1_1.CommandInputParameter,
-    cwl_v1_2.CommandInputParameter,
-]
+CommandInputParameter: TypeAlias = (
+    cwl_v1_0.CommandInputParameter
+    | cwl_v1_1.CommandInputParameter
+    | cwl_v1_2.CommandInputParameter
+)
 """Type union for a CWL v1.x CommandInputParameter object."""
-CommandOutputParameter = Union[
-    cwl_v1_0.CommandOutputParameter,
-    cwl_v1_1.CommandOutputParameter,
-    cwl_v1_2.CommandOutputParameter,
-]
+CommandOutputParameter: TypeAlias = (
+    cwl_v1_0.CommandOutputParameter
+    | cwl_v1_1.CommandOutputParameter
+    | cwl_v1_2.CommandOutputParameter
+)
+
 """Type union for a CWL v1.x CommandOutputParameter object."""
-CommandOutputRecordField = Union[
-    cwl_v1_0.CommandOutputRecordField,
-    cwl_v1_1.CommandOutputRecordField,
-    cwl_v1_2.CommandOutputRecordField,
-]
+CommandOutputRecordField: TypeAlias = (
+    cwl_v1_0.CommandOutputRecordField
+    | cwl_v1_1.CommandOutputRecordField
+    | cwl_v1_2.CommandOutputRecordField
+)
 """Type union for a CWL v1.x CommandOutputRecordField object."""
-ExpressionTool = Union[
-    cwl_v1_0.ExpressionTool, cwl_v1_1.ExpressionTool, cwl_v1_2.ExpressionTool
-]
+ExpressionTool: TypeAlias = (
+    cwl_v1_0.ExpressionTool | cwl_v1_1.ExpressionTool | cwl_v1_2.ExpressionTool
+)
 """Type union for a CWL v1.x ExpressionTool object."""
-ExpressionToolOutputParameter = Union[
-    cwl_v1_0.ExpressionToolOutputParameter,
-    cwl_v1_1.ExpressionToolOutputParameter,
-    cwl_v1_2.ExpressionToolOutputParameter,
-]
+ExpressionToolOutputParameter: TypeAlias = (
+    cwl_v1_0.ExpressionToolOutputParameter
+    | cwl_v1_1.ExpressionToolOutputParameter
+    | cwl_v1_2.ExpressionToolOutputParameter
+)
 """Type union for a CWL v1.x ExpressionToolOutputParameter object."""
-DockerRequirement = Union[
-    cwl_v1_0.DockerRequirement, cwl_v1_1.DockerRequirement, cwl_v1_2.DockerRequirement
-]
+DockerRequirement: TypeAlias = (
+    cwl_v1_0.DockerRequirement | cwl_v1_1.DockerRequirement | cwl_v1_2.DockerRequirement
+)
 DockerRequirementTypes = (
     cwl_v1_0.DockerRequirement,
     cwl_v1_1.DockerRequirement,
     cwl_v1_2.DockerRequirement,
 )
 """Type union for a CWL v1.x DockerRequirement object."""
-Process = Union[Workflow, CommandLineTool, ExpressionTool, cwl_v1_2.Operation]
+Process: TypeAlias = Workflow | CommandLineTool | ExpressionTool | cwl_v1_2.Operation
 """Type Union for a CWL v1.x Process object."""
-ProcessRequirement = Union[
-    cwl_v1_0.ProcessRequirement,
-    cwl_v1_1.ProcessRequirement,
-    cwl_v1_2.ProcessRequirement,
-]
+ProcessRequirement: TypeAlias = (
+    cwl_v1_0.ProcessRequirement
+    | cwl_v1_1.ProcessRequirement
+    | cwl_v1_2.ProcessRequirement
+)
 """Type Union for a CWL v1.x ProcessRequirement object."""
 ProcessRequirementTypes = (
     cwl_v1_0.ProcessRequirement,
     cwl_v1_1.ProcessRequirement,
     cwl_v1_2.ProcessRequirement,
 )
-SoftwareRequirement = Union[
-    cwl_v1_0.SoftwareRequirement,
-    cwl_v1_1.SoftwareRequirement,
-    cwl_v1_2.SoftwareRequirement,
-]
+SoftwareRequirement: TypeAlias = (
+    cwl_v1_0.SoftwareRequirement
+    | cwl_v1_1.SoftwareRequirement
+    | cwl_v1_2.SoftwareRequirement
+)
 SoftwareRequirementTypes = (
     cwl_v1_0.SoftwareRequirement,
     cwl_v1_1.SoftwareRequirement,
     cwl_v1_2.SoftwareRequirement,
 )
 """Type union for a CWL v1.x SoftwareRequirement object."""
-ArraySchema = Union[cwl_v1_0.ArraySchema, cwl_v1_1.ArraySchema, cwl_v1_2.ArraySchema]
-InputArraySchema = Union[
-    cwl_v1_0.InputArraySchema, cwl_v1_1.InputArraySchema, cwl_v1_2.InputArraySchema
-]
+ArraySchema: TypeAlias = (
+    cwl_v1_0.ArraySchema | cwl_v1_1.ArraySchema | cwl_v1_2.ArraySchema
+)
+InputArraySchema: TypeAlias = (
+    cwl_v1_0.InputArraySchema | cwl_v1_1.InputArraySchema | cwl_v1_2.InputArraySchema
+)
 InputArraySchemaTypes = (
     cwl_v1_0.InputArraySchema,
     cwl_v1_1.InputArraySchema,
     cwl_v1_2.InputArraySchema,
 )
 """Type Union for a CWL v1.x ArraySchema object."""
-EnumSchema = Union[cwl_v1_0.EnumSchema, cwl_v1_1.EnumSchema, cwl_v1_2.EnumSchema]
-InputEnumSchema = Union[
-    cwl_v1_0.InputEnumSchema, cwl_v1_1.InputEnumSchema, cwl_v1_2.InputEnumSchema
-]
+EnumSchema: TypeAlias = cwl_v1_0.EnumSchema | cwl_v1_1.EnumSchema | cwl_v1_2.EnumSchema
+InputEnumSchema: TypeAlias = (
+    cwl_v1_0.InputEnumSchema | cwl_v1_1.InputEnumSchema | cwl_v1_2.InputEnumSchema
+)
 InputEnumSchemaTypes = (
     cwl_v1_0.InputEnumSchema,
     cwl_v1_1.InputEnumSchema,
     cwl_v1_2.InputEnumSchema,
 )
 """Type Union for a CWL v1.x EnumSchema object."""
-RecordSchema = Union[
-    cwl_v1_0.RecordSchema, cwl_v1_1.RecordSchema, cwl_v1_2.RecordSchema
-]
-InputRecordSchema = Union[
-    cwl_v1_0.InputRecordSchema, cwl_v1_1.InputRecordSchema, cwl_v1_2.InputRecordSchema
-]
+RecordSchema: TypeAlias = (
+    cwl_v1_0.RecordSchema | cwl_v1_1.RecordSchema | cwl_v1_2.RecordSchema
+)
+InputRecordSchema: TypeAlias = (
+    cwl_v1_0.InputRecordSchema | cwl_v1_1.InputRecordSchema | cwl_v1_2.InputRecordSchema
+)
 InputRecordSchemaTypes = (
     cwl_v1_0.InputRecordSchema,
     cwl_v1_1.InputRecordSchema,
     cwl_v1_2.InputRecordSchema,
 )
 """Type Union for a CWL v1.x RecordSchema object."""
-File = Union[cwl_v1_0.File, cwl_v1_1.File, cwl_v1_2.File]
+File: TypeAlias = cwl_v1_0.File | cwl_v1_1.File | cwl_v1_2.File
 """Type Union for a CWL v1.x File object."""
-SecondaryFileSchema = Union[cwl_v1_1.SecondaryFileSchema, cwl_v1_2.SecondaryFileSchema]
+SecondaryFileSchema: TypeAlias = (
+    cwl_v1_1.SecondaryFileSchema | cwl_v1_2.SecondaryFileSchema
+)
 """Type Union for a CWL v1.x SecondaryFileSchema object."""
-Directory = Union[cwl_v1_0.Directory, cwl_v1_1.Directory, cwl_v1_2.Directory]
+Directory: TypeAlias = cwl_v1_0.Directory | cwl_v1_1.Directory | cwl_v1_2.Directory
 """Type Union for a CWL v1.x Directory object."""
-Dirent = Union[cwl_v1_0.Dirent, cwl_v1_1.Dirent, cwl_v1_2.Dirent]
+Dirent: TypeAlias = cwl_v1_0.Dirent | cwl_v1_1.Dirent | cwl_v1_2.Dirent
 """Type Union for a CWL v1.x Dirent object."""
-LoadContents = Union[
-    cwl_v1_1.CommandInputParameter,
-    cwl_v1_2.CommandInputParameter,
-    cwl_v1_1.CommandOutputBinding,
-    cwl_v1_2.CommandOutputBinding,
-    cwl_v1_1.InputBinding,
-    cwl_v1_2.InputBinding,
-    cwl_v1_1.InputRecordField,
-    cwl_v1_2.InputRecordField,
-    cwl_v1_1.WorkflowInputParameter,
-    cwl_v1_2.WorkflowInputParameter,
-    cwl_v1_1.WorkflowStepInput,
-    cwl_v1_2.WorkflowStepInput,
-]
+LoadContents: TypeAlias = (
+    cwl_v1_1.CommandInputParameter
+    | cwl_v1_2.CommandInputParameter
+    | cwl_v1_1.CommandOutputBinding
+    | cwl_v1_2.CommandOutputBinding
+    | cwl_v1_1.InputRecordField
+    | cwl_v1_2.InputRecordField
+    | cwl_v1_1.WorkflowInputParameter
+    | cwl_v1_2.WorkflowInputParameter
+    | cwl_v1_1.WorkflowStepInput
+    | cwl_v1_2.WorkflowStepInput
+)
 """Type Union for a CWL v1.x LoadContents object."""
-
-_Loader = Union[cwl_v1_0._Loader, cwl_v1_1._Loader, cwl_v1_2._Loader]
+_Loader: TypeAlias = cwl_v1_0._Loader | cwl_v1_1._Loader | cwl_v1_2._Loader
 """Type union for a CWL v1.x _Loader."""
 
 
