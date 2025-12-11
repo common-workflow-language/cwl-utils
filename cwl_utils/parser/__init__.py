@@ -227,6 +227,21 @@ Directory = Union[cwl_v1_0.Directory, cwl_v1_1.Directory, cwl_v1_2.Directory]
 """Type Union for a CWL v1.x Directory object."""
 Dirent = Union[cwl_v1_0.Dirent, cwl_v1_1.Dirent, cwl_v1_2.Dirent]
 """Type Union for a CWL v1.x Dirent object."""
+LoadContents = Union[
+    cwl_v1_1.CommandInputParameter,
+    cwl_v1_2.CommandInputParameter,
+    cwl_v1_1.CommandOutputBinding,
+    cwl_v1_2.CommandOutputBinding,
+    cwl_v1_1.InputBinding,
+    cwl_v1_2.InputBinding,
+    cwl_v1_1.InputRecordField,
+    cwl_v1_2.InputRecordField,
+    cwl_v1_1.WorkflowInputParameter,
+    cwl_v1_2.WorkflowInputParameter,
+    cwl_v1_1.WorkflowStepInput,
+    cwl_v1_2.WorkflowStepInput,
+]
+"""Type Union for a CWL v1.x LoadContents object."""
 
 _Loader = Union[cwl_v1_0._Loader, cwl_v1_1._Loader, cwl_v1_2._Loader]
 """Type union for a CWL v1.x _Loader."""
