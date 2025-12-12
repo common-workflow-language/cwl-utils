@@ -14,20 +14,22 @@ from schema_salad.fetcher import DefaultFetcher
 
 from cwl_utils.file_formats import check_format
 from cwl_utils.parser import load_document_by_uri
-from cwl_utils.types import CWLObjectType
+from cwl_utils.types import CWLFileType
 
 from .util import get_path
 
 
-def _create_file(format_: str | None = None) -> CWLObjectType:
-    obj: CWLObjectType = {
-        "class": "File",
-        "basename": "example.txt",
-        "size": 23,
-        "contents": "hoopla",
-        "nameroot": "example",
-        "nameext": "txt",
-    }
+def _create_file(format_: str | None = None) -> CWLFileType:
+    obj = CWLFileType(
+        **{
+            "class": "File",
+            "basename": "example.txt",
+            "size": 23,
+            "contents": "hoopla",
+            "nameroot": "example",
+            "nameext": "txt",
+        }
+    )
     if format_:
         obj["format"] = format_
     return obj
@@ -120,7 +122,7 @@ def test_check_format_no_format() -> None:
 def test_check_format_missing_file() -> None:
     """Confirm that a missing file produces no error."""
     check_format(
-        actual_file=[{}],
+        actual_file=[],
         input_formats="http://edamontology.org/format_2330",
         ontology=EDAM,
     )

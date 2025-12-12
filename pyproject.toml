@@ -38,6 +38,7 @@ dependencies = [
     "requests",
     "schema-salad >= 8.8.20250205075315,<9",
     "ruamel.yaml >= 0.17.6, < 0.19",
+    "typing_extensions >= 4.10.0",
 ]
 
 [project.urls]

@@ -5,7 +5,7 @@
 import copy
 import hashlib
 import uuid
-from collections.abc import Mapping, MutableSequence, Sequence
+from collections.abc import MutableSequence, Sequence
 from contextlib import suppress
 from typing import Any, Optional, cast
 
@@ -18,10 +18,13 @@ import cwl_utils.parser.cwl_v1_0_utils as utils
 from cwl_utils.errors import JavascriptException, WorkflowException
 from cwl_utils.expression import do_eval, interpolate
 from cwl_utils.types import (
+    CWLDirectoryType,
+    CWLFileType,
     CWLObjectType,
     CWLOutputType,
     CWLParameterContext,
     CWLRuntimeParameterContext,
+    is_file_or_directory,
 )
 
 
@@ -547,31 +550,37 @@ def example_input(some_type: Any) -> Any:
     """Produce a fake input for the given type."""
     # TODO: accept some sort of context object with local custom type definitions
     if some_type == "Directory":
-        return {
-            "class": "Directory",
-            "location": "https://www.example.com/example",
-            "basename": "example",
-            "listing": [
-                {
-                    "class": "File",
-                    "basename": "example.txt",
-                    "size": 23,
-                    "contents": "hoopla",
-                    "nameroot": "example",
-                    "nameext": "txt",
-                }
-            ],
-        }
+        return CWLDirectoryType(
+            **{
+                "class": "Directory",
+                "location": "https://www.example.com/example",
+                "basename": "example",
+                "listing": [
+                    CWLFileType(
+                        **{
+                            "class": "File",
+                            "basename": "example.txt",
+                            "size": 23,
+                            "contents": "hoopla",
+                            "nameroot": "example",
+                            "nameext": "txt",
+                        }
+                    )
+                ],
+            }
+        )
     if some_type == "File":
-        return {
-            "class": "File",
-            "location": "https://www.example.com/example.txt",
-            "basename": "example.txt",
-            "size": 23,
-            "contents": "hoopla",
-            "nameroot": "example",
-            "nameext": "txt",
-        }
+        return CWLFileType(
+            **{
+                "class": "File",
+                "location": "https://www.example.com/example.txt",
+                "basename": "example.txt",
+                "size": 23,
+                "contents": "hoopla",
+                "nameroot": "example",
+                "nameext": "txt",
+            }
+        )
     if some_type == "int":
         return 23
     if some_type == "string":
@@ -581,12 +590,14 @@ def example_input(some_type: Any) -> Any:
     return None
 
 
-EMPTY_FILE: CWLOutputType = {
-    "class": "File",
-    "basename": "em.pty",
-    "nameroot": "em",
-    "nameext": "pty",
-}
+EMPTY_FILE = CWLFileType(
+    **{
+        "class": "File",
+        "basename": "em.pty",
+        "nameroot": "em",
+        "nameext": "pty",
+    }
+)
 
 TOPLEVEL_SF_EXPR_ERROR = (
     "Input '{}'. Sorry, CWL Expressions as part of a secondaryFiles "
@@ -793,14 +804,7 @@ def process_workflow_reqs_and_hints(
                                             resources={},
                                         )
                                         modified = True
-                                        if (
-                                            isinstance(expr_result, Mapping)
-                                            and "class" in expr_result
-                                            and (
-                                                expr_result["class"]
-                                                in ("File", "Directory")
-                                            )
-                                        ):
+                                        if is_file_or_directory(expr_result):
                                             target = cwl.InputParameter(
                                                 id=None,
                                                 type_=expr_result["class"],

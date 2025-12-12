@@ -18,6 +18,8 @@ import cwl_utils.parser.cwl_v1_2_utils as utils
 from cwl_utils.errors import JavascriptException, WorkflowException
 from cwl_utils.expression import do_eval, interpolate
 from cwl_utils.types import (
+    CWLDirectoryType,
+    CWLFileType,
     CWLObjectType,
     CWLOutputType,
     CWLParameterContext,
@@ -545,31 +547,37 @@ def example_input(some_type: Any) -> Any:
     """Produce a fake input for the given type."""
     # TODO: accept some sort of context object with local custom type definitions
     if some_type == "Directory":
-        return {
-            "class": "Directory",
-            "location": "https://www.example.com/example",
-            "basename": "example",
-            "listing": [
-                {
-                    "class": "File",
-                    "basename": "example.txt",
-                    "size": 23,
-                    "contents": "hoopla",
-                    "nameroot": "example",
-                    "nameext": "txt",
-                }
-            ],
-        }
+        return CWLDirectoryType(
+            **{
+                "class": "Directory",
+                "location": "https://www.example.com/example",
+                "basename": "example",
+                "listing": [
+                    CWLFileType(
+                        **{
+                            "class": "File",
+                            "basename": "example.txt",
+                            "size": 23,
+                            "contents": "hoopla",
+                            "nameroot": "example",
+                            "nameext": "txt",
+                        }
+                    )
+                ],
+            }
+        )
     if some_type == "File":
-        return {
-            "class": "File",
-            "location": "https://www.example.com/example.txt",
-            "basename": "example.txt",
-            "size": 23,
-            "contents": "hoopla",
-            "nameroot": "example",
-            "nameext": "txt",
-        }
+        return CWLFileType(
+            **{
+                "class": "File",
+                "location": "https://www.example.com/example.txt",
+                "basename": "example.txt",
+                "size": 23,
+                "contents": "hoopla",
+                "nameroot": "example",
+                "nameext": "txt",
+            }
+        )
     if some_type == "int":
         return 23
     if some_type == "string":
@@ -579,12 +587,14 @@ def example_input(some_type: Any) -> Any:
     return None
 
 
-EMPTY_FILE: CWLOutputType = {
-    "class": "File",
-    "basename": "em.pty",
-    "nameroot": "em",
-    "nameext": "pty",
-}
+EMPTY_FILE = CWLFileType(
+    **{
+        "class": "File",
+        "basename": "em.pty",
+        "nameroot": "em",
+        "nameext": "pty",
+    }
+)
 
 TOPLEVEL_SF_EXPR_ERROR = (
     "Input '{}'. Sorry, CWL Expressions as part of a secondaryFiles "
