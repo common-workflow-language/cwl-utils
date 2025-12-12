@@ -13,7 +13,7 @@ from schema_salad.utils import json_dumps
 from cwl_utils.errors import JavascriptException, SubstitutionError, WorkflowException
 from cwl_utils.loghandler import _logger
 from cwl_utils.sandboxjs import JSEngine, default_timeout, get_js_engine, param_re
-from cwl_utils.types import CWLObjectType, CWLOutputType
+from cwl_utils.types import CWLObjectType, CWLOutputType, CWLParameterContext
 from cwl_utils.utils import bytes2str_in_dicts
 
 
@@ -108,7 +108,7 @@ def scanner(scan: str) -> tuple[int, int] | None:
 def evaluator(
     js_engine: JSEngine,
     ex: str,
-    obj: CWLObjectType,
+    obj: CWLParameterContext,
     jslib: str,
     fullJS: bool,
     **kwargs: Any,
@@ -133,7 +133,7 @@ def evaluator(
                         js_engine.regex_eval(
                             first_symbol,
                             ex[first_symbol_end:-1],
-                            cast(CWLOutputType, obj[first_symbol]),
+                            cast(CWLOutputType, obj[first_symbol]),  # type: ignore[literal-required]
                             **kwargs,
                         ),
                     )
@@ -144,7 +144,7 @@ def evaluator(
                     js_engine.regex_eval(
                         first_symbol,
                         ex[first_symbol_end:-1],
-                        cast(CWLOutputType, obj[first_symbol]),
+                        cast(CWLOutputType, obj[first_symbol]),  # type: ignore[literal-required]
                         **kwargs,
                     ),
                 )
@@ -174,7 +174,7 @@ def evaluator(
 
 def interpolate(
     scan: str,
-    rootvars: CWLObjectType,
+    rootvars: CWLParameterContext,
     jslib: str = "",
     fullJS: bool = False,
     strip_whitespace: bool = True,
@@ -258,7 +258,7 @@ def interpolate(
     return "".join(parts)
 
 
-def jshead(engine_config: list[str], rootvars: CWLObjectType) -> str:
+def jshead(engine_config: list[str], rootvars: CWLParameterContext) -> str:
     """Make sure all the byte strings are converted to str in `rootvars` dict."""
     return "\n".join(
         engine_config
@@ -293,7 +293,7 @@ def do_eval(
     runtime["outdir"] = outdir or None
 
     rootvars = cast(
-        CWLObjectType,
+        CWLParameterContext,
         bytes2str_in_dicts({"inputs": jobinput, "self": context, "runtime": runtime}),
     )
 
