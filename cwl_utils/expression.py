@@ -6,7 +6,7 @@ import inspect
 import json
 from collections.abc import Awaitable, MutableMapping
 from enum import Enum
-from typing import Any, Union, cast
+from typing import Any, Literal, Union, cast
 
 from schema_salad.utils import json_dumps
 
@@ -123,31 +123,35 @@ def evaluator(
         if first_symbol_end + 1 == len(ex) and first_symbol == "null":
             return None
         try:
-            if first_symbol not in obj:
-                raise WorkflowException("%s is not defined" % first_symbol)
-
-            if inspect.iscoroutinefunction(js_engine.regex_eval):
-                return asyncio.get_event_loop().run_until_complete(
-                    cast(
-                        Awaitable[CWLOutputType],
+            if first_symbol in ("inputs", "self", "runtime"):
+                symbol = cast(
+                    Literal["inputs"] | Literal["self"] | Literal["runtime"],
+                    first_symbol,
+                )
+                if inspect.iscoroutinefunction(js_engine.regex_eval):
+                    return asyncio.get_event_loop().run_until_complete(
+                        cast(
+                            Awaitable[CWLOutputType],
+                            js_engine.regex_eval(
+                                first_symbol,
+                                ex[first_symbol_end:-1],
+                                cast(CWLOutputType, obj[symbol]),
+                                **kwargs,
+                            ),
+                        )
+                    )
+                else:
+                    return cast(
+                        CWLOutputType,
                         js_engine.regex_eval(
                             first_symbol,
                             ex[first_symbol_end:-1],
-                            cast(CWLOutputType, obj[first_symbol]),  # type: ignore[literal-required]
+                            cast(CWLOutputType, obj[symbol]),
                             **kwargs,
                         ),
                     )
-                )
             else:
-                return cast(
-                    CWLOutputType,
-                    js_engine.regex_eval(
-                        first_symbol,
-                        ex[first_symbol_end:-1],
-                        cast(CWLOutputType, obj[first_symbol]),  # type: ignore[literal-required]
-                        **kwargs,
-                    ),
-                )
+                raise WorkflowException(f"{first_symbol} is unexpected.")
         except WorkflowException as werr:
             expression_parse_exception = werr
     if fullJS:
