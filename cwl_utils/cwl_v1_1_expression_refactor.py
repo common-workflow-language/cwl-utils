@@ -91,7 +91,12 @@ def get_expression(
         return string
     if "$(" in string:
         runtime = CWLRuntimeParameterContext(
-            cores=0, ram=0, outdir="/root", tmpdir="/tmp", outdirSize=0, tmpdirSize=0
+            cores=0,
+            ram=0,
+            outdir="/root",
+            tmpdir="/tmp",  # nosec
+            outdirSize=0,
+            tmpdirSize=0,
         )
         try:
             do_eval(
