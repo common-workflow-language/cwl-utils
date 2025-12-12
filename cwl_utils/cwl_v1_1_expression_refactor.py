@@ -17,7 +17,12 @@ import cwl_utils.parser.cwl_v1_1 as cwl
 import cwl_utils.parser.cwl_v1_1_utils as utils
 from cwl_utils.errors import JavascriptException, WorkflowException
 from cwl_utils.expression import do_eval, interpolate
-from cwl_utils.types import CWLObjectType, CWLOutputType
+from cwl_utils.types import (
+    CWLObjectType,
+    CWLOutputType,
+    CWLParameterContext,
+    CWLRuntimeParameterContext,
+)
 
 
 def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool:
@@ -85,14 +90,14 @@ def get_expression(
     if string.strip().startswith("${"):
         return string
     if "$(" in string:
-        runtime: CWLObjectType = {
-            "cores": 0,
-            "ram": 0,
-            "outdir": "/root",
-            "tmpdir": "/tmp",  # nosec
-            "outdirSize": 0,
-            "tmpdirSize": 0,
-        }
+        runtime = CWLRuntimeParameterContext(
+            cores=0,
+            ram=0,
+            outdir="/root",
+            tmpdir="/tmp",  # nosec
+            outdirSize=0,
+            tmpdirSize=0,
+        )
         try:
             do_eval(
                 string,
@@ -114,11 +119,9 @@ def get_expression(
                     str,
                     interpolate(
                         scan=string,
-                        rootvars={
-                            "inputs": inputs,
-                            "context": self,
-                            "runtime": runtime,
-                        },
+                        rootvars=CWLParameterContext(
+                            inputs=inputs, self=self, runtime=runtime
+                        ),
                         fullJS=True,
                         escaping_behavior=2,
                         convert_to_expression=True,
