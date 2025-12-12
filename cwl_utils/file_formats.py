@@ -10,7 +10,7 @@ from rdflib import OWL, RDFS, Graph, URIRef
 from schema_salad.exceptions import ValidationException
 from schema_salad.utils import aslist, json_dumps
 
-from cwl_utils.types import CWLObjectType
+from cwl_utils.types import CWLFileType
 
 
 def formatSubclassOf(
@@ -49,7 +49,7 @@ def formatSubclassOf(
 
 
 def check_format(
-    actual_file: CWLObjectType | list[CWLObjectType],
+    actual_file: CWLFileType | list[CWLFileType],
     input_formats: list[str] | str,
     ontology: Graph | None,
 ) -> None:

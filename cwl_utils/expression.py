@@ -6,14 +6,19 @@ import inspect
 import json
 from collections.abc import Awaitable, MutableMapping
 from enum import Enum
-from typing import Any, Literal, Union, cast
+from typing import Any, Union, cast
 
 from schema_salad.utils import json_dumps
 
 from cwl_utils.errors import JavascriptException, SubstitutionError, WorkflowException
 from cwl_utils.loghandler import _logger
 from cwl_utils.sandboxjs import JSEngine, default_timeout, get_js_engine, param_re
-from cwl_utils.types import CWLObjectType, CWLOutputType, CWLParameterContext
+from cwl_utils.types import (
+    CWLObjectType,
+    CWLOutputType,
+    CWLParameterContext,
+    is_cwl_parameter_context_key,
+)
 from cwl_utils.utils import bytes2str_in_dicts
 
 
@@ -123,11 +128,7 @@ def evaluator(
         if first_symbol_end + 1 == len(ex) and first_symbol == "null":
             return None
         try:
-            if first_symbol in ("inputs", "self", "runtime"):
-                symbol = cast(
-                    Literal["inputs"] | Literal["self"] | Literal["runtime"],
-                    first_symbol,
-                )
+            if is_cwl_parameter_context_key(first_symbol):
                 if inspect.iscoroutinefunction(js_engine.regex_eval):
                     return asyncio.get_event_loop().run_until_complete(
                         cast(
@@ -135,7 +136,7 @@ def evaluator(
                             js_engine.regex_eval(
                                 first_symbol,
                                 ex[first_symbol_end:-1],
-                                cast(CWLOutputType, obj[symbol]),
+                                cast(CWLOutputType, obj[first_symbol]),
                                 **kwargs,
                             ),
                         )
@@ -146,7 +147,7 @@ def evaluator(
                         js_engine.regex_eval(
                             first_symbol,
                             ex[first_symbol_end:-1],
-                            cast(CWLOutputType, obj[symbol]),
+                            cast(CWLOutputType, obj[first_symbol]),
                             **kwargs,
                         ),
                     )

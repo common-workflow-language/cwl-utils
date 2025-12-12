@@ -22,7 +22,13 @@ from schema_salad.utils import json_dumps
 
 from cwl_utils.errors import JavascriptException, WorkflowException
 from cwl_utils.loghandler import _logger
-from cwl_utils.types import CWLOutputType
+from cwl_utils.types import (
+    CWLOutputType,
+    is_directory,
+    is_directory_key,
+    is_file,
+    is_file_key,
+)
 from cwl_utils.utils import singularity_supports_userns
 
 default_timeout: float = 20
@@ -557,11 +563,35 @@ class NodeJSEngine(JSEngine):
 
             if isinstance(current_value, Mapping):
                 try:
-                    return self.regex_eval(
-                        parsed_string + remaining_string,
-                        remaining_string[m.end(1) :],
-                        cast(CWLOutputType, current_value[cast(str, key)]),
-                    )
+                    if is_directory(current_value) and is_directory_key(key):
+                        return self.regex_eval(
+                            parsed_string + remaining_string,
+                            remaining_string[m.end(1) :],
+                            cast(
+                                CWLOutputType,
+                                current_value[key],
+                            ),
+                        )
+                    elif is_file(current_value) and is_file_key(key):
+                        return self.regex_eval(
+                            parsed_string + remaining_string,
+                            remaining_string[m.end(1) :],
+                            cast(
+                                CWLOutputType,
+                                current_value[key],
+                            ),
+                        )
+                    else:
+                        return self.regex_eval(
+                            parsed_string + remaining_string,
+                            remaining_string[m.end(1) :],
+                            cast(
+                                CWLOutputType,
+                                cast(MutableMapping[str, Any], current_value)[
+                                    cast(str, key)
+                                ],
+                            ),
+                        )
                 except KeyError as exc:
                     raise WorkflowException(
                         f"{parsed_string!r} doesn't have property {key!r}."
