@@ -10,6 +10,7 @@ import logging
 import sys
 from contextlib import suppress
 from copy import deepcopy
+from importlib.resources import files
 from pathlib import Path
 from typing import Any, TypeGuard, Union
 from urllib.parse import urlparse
@@ -58,13 +59,6 @@ PRIMITIVE_TYPES_MAPPING = {
     "double": "number",
     "null": "null",
 }
-
-JSON_TEMPLATE_PATH = (
-    Path(__file__)
-    .parent.joinpath("./templates/workflow_input_json_schema_template.json")
-    .absolute()
-    .resolve()
-)
 
 # Some type hinting
 InputType = Union[
@@ -343,7 +337,12 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
 
     """
     # Initialise the schema from the workflow input json schema template
-    with JSON_TEMPLATE_PATH.open() as template_h:
+
+    with (
+        files("cwl_utils")
+        .joinpath("./templates/workflow_input_json_schema_template.json")
+        .open() as template_h
+    ):
         input_json_schema = json.load(template_h)
 
     # Get the complex schema keys

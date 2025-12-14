@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 """Miscellaneous utility functions."""
-import os
 import pathlib
 import subprocess  # nosec
 import sys
@@ -9,8 +8,8 @@ import urllib.parse
 import urllib.request
 from collections.abc import MutableMapping, MutableSequence
 from copy import deepcopy
+from importlib.resources import files
 from io import StringIO
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -215,7 +214,7 @@ def singularity_supports_userns() -> bool:
     global _USERNS  # pylint: disable=global-statement
     if _USERNS is None:
         try:
-            hello_image = Path(os.path.dirname(__file__), "hello.simg")
+            hello_image = files("cwl_utils").joinpath("hello.simg")
             result = subprocess.Popen(  # nosec
                 ["singularity", "exec", "--userns", str(hello_image), "true"],
                 stderr=subprocess.PIPE,
