@@ -25,7 +25,7 @@ from cwl_utils.loghandler import _logger
 from cwl_utils.types import CWLOutputType
 from cwl_utils.utils import singularity_supports_userns
 
-default_timeout = 20
+default_timeout: float = 20
 """Default number of seconds to wait while running a javascript engine."""
 
 seg_symbol = r"""\w+"""
@@ -66,7 +66,15 @@ def stdfmt(data: str) -> str:
 class JSEngine(ABC):
     @abstractmethod
     def eval(
-        self, scan: str, jslib: str = "", **kwargs: Any
+        self,
+        scan: str,
+        jslib: str = "",
+        timeout: float = default_timeout,
+        force_docker_pull: bool = False,
+        debug: bool = False,
+        js_console: bool = False,
+        container_engine: str = "docker",
+        **kwargs: Any,
     ) -> CWLOutputType | Awaitable[CWLOutputType]: ...
 
     @abstractmethod
