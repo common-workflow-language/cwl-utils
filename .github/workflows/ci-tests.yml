@@ -45,7 +45,6 @@ jobs:
           python-version: ${{ env.py-semver }}
           cache: pip
           cache-dependency-path: |
-            requirements.txt
             tox.ini
 
       - name: install dev libraries
@@ -136,9 +135,6 @@ jobs:
         with:
           python-version: 3.12
           cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            test-requirements.txt
 
       - name: Install packages
         run: |
