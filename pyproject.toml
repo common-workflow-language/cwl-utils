@@ -143,3 +143,6 @@ ignore = [
   "D203",
   "D212",
 ]
+
+[tool.bandit]
+exclude_dirs = ["cwl_utils/tests"]
