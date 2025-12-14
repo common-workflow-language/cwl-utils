@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.2"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
 
 [project]
 name = "cwl-utils"
@@ -30,7 +30,15 @@ classifiers = [
     "Typing :: Typed",
 ]
 requires-python = ">=3.10,<3.15"
-dynamic = ["version", "dependencies"]
+dynamic = ["version"]
+dependencies = [
+    "cwl-upgrader >= 1.2.3",
+    "packaging",
+    "rdflib",
+    "requests",
+    "schema-salad >= 8.8.20250205075315,<9",
+    "ruamel.yaml >= 0.17.6, < 0.19",
+]
 
 [project.urls]
 Documentation = "https://cwl-utils.readthedocs.io/"
@@ -44,7 +52,13 @@ Changelog = "https://github.com/common-workflow-language/cwl-utils/releases"
 pretty = ["cwlformat"]
 testing = [
     "pytest<10",
-    "pytest-mock",
+    "pytest-cov",
+    "pytest-xdist[psutil]",
+    "cwl-utils[pretty]",
+    "pytest-mock >= 1.10.0",
+    "jsonschema >= 4.21.1",
+    "udocker",
+    "cwltool",
 ]
 
 [project.scripts]
@@ -55,41 +69,61 @@ cwl-graph-split = "cwl_utils.graph_split:main"
 cwl-normalizer = "cwl_utils.normalizer:main"
 cwl-inputs-schema-gen = "cwl_utils.inputs_schema_gen:main"
 
-[tool.aliases]
-test = "pytest"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-rsx -n auto"
 
-[tool.setuptools]
-packages = [
+[tool.hatch.version]
+path = "cwl_utils/__meta__.py"
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+    ".flake8",
+    ".coveragerc",
+    "create_cwl_from_objects.py",
+    "CONTRIBUTING.md",
     "cwl_utils",
-    "cwl_utils.parser",
-    "cwl_utils.tests",
-    "cwl_utils.testdata",
-    "cwl_utils.testdata.checker_wf",
-    "cwl_utils.testdata.extensions",
-    "cwl_utils.testdata.types",
-    "cwl_utils.testdata.workflows",
+    "docs",
+    "LICENSE",
+    "lint-requirements.txt",
+    "load_cwl_by_path.py",
+    "Makefile",
+    "mypy.ini",
+    "mypy-requirements.txt",
+    "mypy-stubs",
+    "README.rst",
+    "tox.ini"
 ]
-include-package-data = true
 
-[tool.setuptools.package-dir]
-"cwl_utils.parser" = "cwl_utils/parser"
-"cwl_utils.tests" = "tests"
-"cwl_utils.testdata" = "testdata"
-"cwl_utils.testdata.checker_wf" = "testdata/checker_wf"
-"cwl_utils.testdata.extensions" = "testdata/extensions"
-"cwl_utils.testdata.types" = "testdata/types"
-"cwl_utils.testdata.workflows" = "testdata/workflows"
+[tool.hatch.build.targets.wheel]
+only-include = [
+    "cwl_utils",
+    "LICENSE",
+    "README.rst"
+]
 
-[tool.setuptools.package-data]
-"cwl_utils" = ["templates/*.json"]
+[tool.hatch.build.targets.wheel.hooks.mypyc]
+enable-by-default = false
+dependencies = [
+    "hatch-mypyc>=0.16.0",
+    "mypy==1.19.0",
+    "types-requests",
+    "types-jsonschema",
+    "types-setuptools>=57.4.0",
+]
+require-runtime-dependencies = true
+exclude = [
+"/create_cwl_from_objects.py",
+"/load_cwl_by_path.py",
+"/cwl_utils/tests",
+"/cwl_utils/testdata",
+]
+include = [
+"/cwl_utils/parser",
+]
 
-[tool.setuptools.dynamic]
-version = {attr = "cwl_utils.__meta__.__version__"}
-dependencies = {file = ["requirements.txt"]}
+[tool.hatch.envs.test]
+features = ["testing"]
 
 [tool.isort]
 profile = "black"

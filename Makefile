@@ -22,16 +22,16 @@
 
 MODULE=cwl_utils
 PACKAGE=cwl-utils
-EXTRAS=
+EXTRAS="[testing]"
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
 PYSOURCES=$(filter-out $(MODULE)/parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) \
-	  $(wildcard tests/*.py) create_cwl_from_objects.py load_cwl_by_path.py \
+	  create_cwl_from_objects.py load_cwl_by_path.py \
 	  ${MODULE}/parser/cwl_v1_?_utils.py docs/conf.py
-DEVPKGS=build diff_cover pylint pep257 ruff 'tox<4' tox-pyenv \
+DEVPKGS=build diff_cover pylint pep257 ruff 'tox>=4' \
 	wheel autoflake pyupgrade bandit auto-walrus \
-	-rlint-requirements.txt -rtest-requirements.txt -rmypy-requirements.txt
+	-rlint-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage ruff sloccount \
 	   python-flake8 python-mock shellcheck
 VERSION=v$(shell echo $$(tail -n 1 cwl_utils/__meta__.py | awk '{print $$3}'))
@@ -52,7 +52,7 @@ cleanup: sort_imports format flake8 pydocstyle
 install-dep: install-dependencies
 
 install-dependencies:
-	pip install -U pip setuptools wheel
+	pip install -U pip wheel build
 	pip install --upgrade $(DEVPKGS)
 
 ## install-deb-dep        : install many of the dev dependencies via apt-get
@@ -65,14 +65,14 @@ install: FORCE
 
 ## dev                    : install the cwl-utils package in dev mode
 dev: install-dep
-	pip install -U pip setuptools wheel
+	pip install -U pip wheel
 	pip install -e .$(EXTRAS)
 
 ## dist                   : create a module package for distribution
 dist: dist/${MODULE}-$(VERSION).tar.gz
 
 dist/${MODULE}-$(VERSION).tar.gz: $(SOURCES)
-	python -m build
+	python3 -m build
 
 ## docs                   : make the docs
 docs: FORCE
@@ -80,42 +80,42 @@ docs: FORCE
 
 ## clean                  : clean up all temporary / machine-generated files
 clean: FORCE
-	rm -f ${MODULE}/*.pyc tests/*.pyc
+	rm -f ${MODULE}/*.pyc ${MODULE}/tests/*.pyc
 	rm -Rf .coverage
 	rm -f diff-cover.html
 
 # Linting and code style related targets
 ## sort_import            : sorting imports using isort: https://github.com/timothycrosley/isort
-sort_imports: $(PYSOURCES)
-	isort $^
+sort_imports: FORCE
+	isort $(PYSOURCES)
 
-remove_unused_imports: $(PYSOURCES)
-	autoflake --in-place --remove-all-unused-imports $^
+remove_unused_imports: FORCE
+	autoflake --in-place --remove-all-unused-imports $(PYSOURCES)
 
 pep257: pydocstyle
 ## pydocstyle             : check Python docstring style
-pydocstyle: $(PYSOURCES)
-	ruff check $^
+pydocstyle: FORCE
+	ruff check $(PYSOURCES)
 
 ## codespell              : check for common misspellings
-codespell:
+codespell: FORCE
 	codespell -w $(shell git ls-files | grep -v mypy-stubs)
 
 ## format                 : check/fix all code indentation and formatting (runs black)
-format: $(PYSOURCES) FORCE
+format: FORCE
 	black $(PYSOURCES)
 
-format-check: $(PYSOURCES)
-	black --diff --check $^
+format-check: FORCE
+	black --diff --check $(PYSOURCES)
 
 ## pylint                 : run static code analysis on Python code
-pylint: $(PYSOURCES)
+pylint: FORCE
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
-                $^ -j0|| true
+                $(PYSOURCES) -j0|| true
 
-pylint_report.txt: $(PYSOURCES)
+pylint_report.txt: FORCE
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
-		$^ -j0> $@ || true
+		$(PYSOURCES) -j0> $@ || true
 
 diff_pylint_report: pylint_report.txt
 	diff-quality --compare-branch=main --violations=pylint pylint_report.txt
@@ -144,34 +144,37 @@ diff-cover.html: coverage.xml
 	diff-cover --compare-branch=main $^ --html-report $@
 
 ## test                   : run the cwl-utils test suite
-test: $(PYSOURCES)
-	python -m pytest ${PYTEST_EXTRA}
+test: FORCE
+	python3 -m pytest ${PYTEST_EXTRA}
 
 ## testcov                : run the cwl-utils test suite and collect coverage
-testcov: $(PYSOURCES)
-	python -m pytest --cov ${PYTEST_EXTRA}
+testcov: FORCE
+	python3 -m pytest --cov ${PYTEST_EXTRA}
 
-sloccount.sc: $(PYSOURCES) Makefile
-	sloccount --duplicates --wide --details $^ > $@
+sloccount.sc: FORCE
+	sloccount --duplicates --wide --details $(PYSOURCES) Makefile > $@
 
 ## sloccount              : count lines of code
-sloccount: $(PYSOURCES) Makefile
-	sloccount $^
+sloccount: FORCE
+	sloccount $(PYSOURCES) Makefile
 
 list-author-emails:
 	@echo 'name, E-Mail Address'
 	@git log --format='%aN,%aE' | sort -u | grep -v 'root'
 
-mypy3: mypy
-mypy: ${PYSOURCES}
-	MYPYPATH=$$MYPYPATH:mypy-stubs mypy $^
+mypy: FORCE
+	MYPYPATH=$$MYPYPATH:mypy-stubs mypy $(PYSOURCES)
+
+mypyc: FORCE
+	MYPYPATH=mypy-stubs HATCH_BUILD_HOOKS_ENABLE=1 pip install --verbose -e . \
+		 && pytest "${PYTEST_EXTRA}"
 
 shellcheck: FORCE
 	shellcheck release-test.sh
 
-pyupgrade: $(PYSOURCES)
-	pyupgrade --exit-zero-even-if-changed --py310-plus $^
-	auto-walrus $^
+pyupgrade: FORCE
+	pyupgrade --exit-zero-even-if-changed --py310-plus $(PYSOURCES)
+	auto-walrus $(PYSOURCES)
 
 release-test: FORCE
 	git diff-index --quiet HEAD -- || ( echo You have uncommitted changes, please commit them and try again; false )
@@ -180,13 +183,13 @@ release-test: FORCE
 release: release-test
 	. testenv2/bin/activate && \
 		pip install build && \
-		python -m build testenv2/src/${PACKAGE} && \
+		python3 -m build testenv2/src/${PACKAGE} && \
 		pip install twine && \
 		twine upload testenv2/src/${PACKAGE}/dist/* && \
 		git tag ${VERSION} && git push --tags
 
-flake8: $(PYSOURCES)
-	flake8 $^
+flake8: FORCE
+	flake8 $(PYSOURCES)
 
 cwl_utils/parser/cwl_v1_0.py: FORCE
 	schema-salad-tool --codegen python \

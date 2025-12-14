@@ -1,1 +1,1 @@
-tests/load_cwl_by_path.py
+cwl_utils/tests/load_cwl_by_path.py

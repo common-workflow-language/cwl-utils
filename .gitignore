@@ -65,6 +65,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+docs/autoapi/
 
 # PyBuilder
 target/
@@ -110,3 +111,9 @@ testenv*/
 # PyCharm
 .idea/
 
+# Backup files
+*.orig
+*~
+
+# Temporary files
+*.swp
