@@ -19,7 +19,7 @@ from .util import get_path
 TEST_v1_0_CWL = get_path("testdata/md5sum.cwl")
 TEST_v1_0_CWL_REMOTE = (
     "https://raw.githubusercontent.com/"
-    "common-workflow-language/cwl-utils/main/testdata/md5sum.cwl"
+    "common-workflow-language/cwl-utils/main/cwl_utils/testdata/md5sum.cwl"
 )
 TEST_v1_2_CWL = get_path("testdata/workflow_input_format_expr_v1_2.cwl")
 yaml = YAML(typ="rt")
