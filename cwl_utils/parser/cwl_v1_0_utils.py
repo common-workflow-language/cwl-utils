@@ -75,8 +75,8 @@ def _compare_type(type1: Any, type2: Any) -> bool:
         case MutableSequence(), MutableSequence():
             if len(type1) != len(type2):
                 return False
-            for t1 in type1:
-                if not any(_compare_type(t1, t2) for t2 in type2):
+            for t3 in type1:
+                if not any(_compare_type(t3, t2) for t2 in type2):
                     return False
             return True
     return bool(type1 == type2)
@@ -470,11 +470,15 @@ def param_for_source_id(
     sourcenames: str | list[str],
     parent: cwl.Workflow | None = None,
     scatter_context: list[tuple[int, str] | None] | None = None,
-) -> MutableSequence[cwl.InputParameter] | cwl.InputParameter:
+) -> (
+    cwl.InputParameter
+    | cwl.CommandOutputParameter
+    | MutableSequence[cwl.InputParameter | cwl.CommandOutputParameter]
+):
     """Find the process input parameter that matches one of the given sourcenames."""
     if isinstance(sourcenames, str):
         sourcenames = [sourcenames]
-    params: MutableSequence[cwl.InputParameter] = []
+    params: MutableSequence[cwl.InputParameter | cwl.CommandOutputParameter] = []
     for sourcename in sourcenames:
         if not isinstance(process, cwl.Workflow):
             for param in process.inputs:

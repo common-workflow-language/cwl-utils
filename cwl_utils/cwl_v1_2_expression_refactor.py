@@ -1800,7 +1800,11 @@ def cltool_step_outputs_to_workflow_outputs(
 def generate_etool_from_expr2(
     expr: str,
     target: cwl.CommandInputParameter | cwl.WorkflowInputParameter,
-    inputs: Sequence[cwl.WorkflowInputParameter | cwl.CommandInputParameter],
+    inputs: Sequence[
+        cwl.WorkflowInputParameter
+        | cwl.CommandInputParameter
+        | cwl.CommandOutputParameter
+    ],
     self_name: str | None = None,
     process: cwl.CommandLineTool | cwl.ExpressionTool | None = None,
     extra_processes: None | (
@@ -1922,9 +1926,12 @@ def traverse_step(
                 input_source_id = None
                 source_type: None | (
                     MutableSequence[
-                        cwl.CommandInputParameter | cwl.WorkflowInputParameter
+                        cwl.CommandInputParameter
+                        | cwl.CommandOutputParameter
+                        | cwl.WorkflowInputParameter
                     ]
                     | cwl.CommandInputParameter
+                    | cwl.CommandOutputParameter
                     | cwl.WorkflowInputParameter
                 ) = None
                 if inp.source:
@@ -2021,7 +2028,9 @@ def traverse_step(
 
 def workflow_step_to_WorkflowInputParameters(
     step_ins: list[cwl.WorkflowStepInput], parent: cwl.Workflow, except_in_id: str
-) -> MutableSequence[cwl.CommandInputParameter | cwl.WorkflowInputParameter]:
+) -> MutableSequence[
+    cwl.CommandInputParameter | cwl.CommandOutputParameter | cwl.WorkflowInputParameter
+]:
     """Create WorkflowInputParameters to match the given WorkflowStep inputs."""
     params = []
     for inp in step_ins:
@@ -2057,8 +2066,13 @@ def replace_step_valueFrom_expr_with_etool(
     replace_etool: bool,
     source_type: None | (
         cwl.CommandInputParameter
+        | cwl.CommandOutputParameter
         | cwl.WorkflowInputParameter
-        | MutableSequence[cwl.CommandInputParameter | cwl.WorkflowInputParameter]
+        | MutableSequence[
+            cwl.CommandInputParameter
+            | cwl.CommandOutputParameter
+            | cwl.WorkflowInputParameter
+        ]
     ) = None,
 ) -> None:
     """Replace a WorkflowStep level 'valueFrom' expression with a sibling ExpressionTool step."""

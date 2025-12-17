@@ -113,14 +113,9 @@ dependencies = [
     "types-setuptools>=57.4.0",
 ]
 require-runtime-dependencies = true
-exclude = [
-"/create_cwl_from_objects.py",
-"/load_cwl_by_path.py",
-"/cwl_utils/tests",
-"/cwl_utils/testdata",
-]
 include = [
-"/cwl_utils/parser",
+    "/cwl_utils/parser",
+    "/cwl_utils/expression.py"
 ]
 
 [tool.hatch.envs.test]

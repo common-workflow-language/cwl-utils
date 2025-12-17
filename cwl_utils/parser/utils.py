@@ -427,23 +427,31 @@ def param_for_source_id(
     scatter_context: list[tuple[int, str] | None] | None = None,
 ) -> (
     (
-        MutableSequence[cwl_utils.parser.cwl_v1_0.InputParameter]
+        MutableSequence[
+            cwl_utils.parser.cwl_v1_0.InputParameter
+            | cwl_utils.parser.cwl_v1_0.CommandOutputParameter
+        ]
         | cwl_utils.parser.cwl_v1_0.InputParameter
+        | cwl_utils.parser.cwl_v1_0.CommandOutputParameter
     )
     | (
         MutableSequence[
             cwl_utils.parser.cwl_v1_1.CommandInputParameter
+            | cwl_utils.parser.cwl_v1_1.CommandOutputParameter
             | cwl_utils.parser.cwl_v1_1.WorkflowInputParameter
         ]
         | cwl_utils.parser.cwl_v1_1.CommandInputParameter
+        | cwl_utils.parser.cwl_v1_1.CommandOutputParameter
         | cwl_utils.parser.cwl_v1_1.WorkflowInputParameter
     )
     | (
         MutableSequence[
             cwl_utils.parser.cwl_v1_2.CommandInputParameter
+            | cwl_utils.parser.cwl_v1_2.CommandOutputParameter
             | cwl_utils.parser.cwl_v1_2.WorkflowInputParameter
         ]
         | cwl_utils.parser.cwl_v1_2.CommandInputParameter
+        | cwl_utils.parser.cwl_v1_2.CommandOutputParameter
         | cwl_utils.parser.cwl_v1_2.WorkflowInputParameter
     )
 ):
