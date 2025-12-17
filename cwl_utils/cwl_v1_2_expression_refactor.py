@@ -7,7 +7,7 @@ import hashlib
 import uuid
 from collections.abc import Mapping, MutableSequence, Sequence
 from contextlib import suppress
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine
@@ -442,7 +442,7 @@ def find_expressionLib(
         if process.requirements:
             for req in process.requirements:
                 if isinstance(req, cwl.InlineJavascriptRequirement):
-                    return cast(Optional[list[str]], copy.deepcopy(req.expressionLib))
+                    return cast(list[str] | None, copy.deepcopy(req.expressionLib))
     return None
 
 
@@ -1921,7 +1921,11 @@ def traverse_step(
                     raise WorkflowException("target not found")
                 input_source_id = None
                 source_type: None | (
-                    list[cwl.WorkflowInputParameter] | cwl.WorkflowInputParameter
+                    MutableSequence[
+                        cwl.CommandInputParameter | cwl.WorkflowInputParameter
+                    ]
+                    | cwl.CommandInputParameter
+                    | cwl.WorkflowInputParameter
                 ) = None
                 if inp.source:
                     if isinstance(inp.source, MutableSequence):
@@ -2017,7 +2021,7 @@ def traverse_step(
 
 def workflow_step_to_WorkflowInputParameters(
     step_ins: list[cwl.WorkflowStepInput], parent: cwl.Workflow, except_in_id: str
-) -> list[cwl.WorkflowInputParameter]:
+) -> MutableSequence[cwl.CommandInputParameter | cwl.WorkflowInputParameter]:
     """Create WorkflowInputParameters to match the given WorkflowStep inputs."""
     params = []
     for inp in step_ins:
@@ -2028,7 +2032,7 @@ def workflow_step_to_WorkflowInputParameters(
             param = copy.deepcopy(
                 utils.param_for_source_id(parent, sourcenames=inp.source)
             )
-            if isinstance(param, list):
+            if isinstance(param, MutableSequence):
                 for p in param:
                     p.id = inp_id
                     p.type_ = clean_type_ids(p.type_)
@@ -2052,7 +2056,9 @@ def replace_step_valueFrom_expr_with_etool(
     source: str | list[str] | None,
     replace_etool: bool,
     source_type: None | (
-        cwl.WorkflowInputParameter | list[cwl.WorkflowInputParameter]
+        cwl.CommandInputParameter
+        | cwl.WorkflowInputParameter
+        | MutableSequence[cwl.CommandInputParameter | cwl.WorkflowInputParameter]
     ) = None,
 ) -> None:
     """Replace a WorkflowStep level 'valueFrom' expression with a sibling ExpressionTool step."""

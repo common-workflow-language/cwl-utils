@@ -7,7 +7,7 @@ import hashlib
 import uuid
 from collections.abc import MutableSequence, Sequence
 from contextlib import suppress
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine
@@ -445,7 +445,7 @@ def find_expressionLib(
         if process.requirements:
             for req in process.requirements:
                 if isinstance(req, cwl.InlineJavascriptRequirement):
-                    return cast(Optional[list[str]], copy.deepcopy(req.expressionLib))
+                    return cast(list[str] | None, copy.deepcopy(req.expressionLib))
     return None
 
 
@@ -1815,9 +1815,9 @@ def traverse_step(
                 if not target:
                     raise WorkflowException("target not found")
                 input_source_id = None
-                source_type: None | (list[cwl.InputParameter] | cwl.InputParameter) = (
-                    None
-                )
+                source_type: (
+                    None | MutableSequence[cwl.InputParameter] | cwl.InputParameter
+                ) = None
                 if inp.source:
                     if isinstance(inp.source, MutableSequence):
                         input_source_id = []
@@ -1915,7 +1915,7 @@ def workflow_step_to_InputParameters(
             param = copy.deepcopy(
                 utils.param_for_source_id(parent, sourcenames=inp.source)
             )
-            if isinstance(param, list):
+            if isinstance(param, MutableSequence):
                 for p in param:
                     if not p.type_:
                         raise WorkflowException(
@@ -1946,7 +1946,7 @@ def replace_step_valueFrom_expr_with_etool(
     original_step_ins: list[cwl.WorkflowStepInput],
     source: str | list[str] | None,
     replace_etool: bool,
-    source_type: cwl.InputParameter | list[cwl.InputParameter] | None = None,
+    source_type: cwl.InputParameter | MutableSequence[cwl.InputParameter] | None = None,
 ) -> None:
     """Replace a WorkflowStep level 'valueFrom' expression with a sibling ExpressionTool step."""
     if not step_inp.id:

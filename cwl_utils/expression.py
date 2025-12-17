@@ -6,7 +6,7 @@ import inspect
 import json
 from collections.abc import Awaitable, MutableMapping
 from enum import Enum
-from typing import Any, Union, cast
+from typing import Any, cast
 
 from schema_salad.utils import json_dumps
 
@@ -293,7 +293,7 @@ def do_eval(
 
     :param timeout: The maximum number of seconds to wait while executing.
     """
-    runtime = cast(MutableMapping[str, Union[int, str, None]], copy.deepcopy(resources))
+    runtime = cast(MutableMapping[str, int | str | None], copy.deepcopy(resources))
     runtime["tmpdir"] = tmpdir or None
     runtime["outdir"] = outdir or None
 
