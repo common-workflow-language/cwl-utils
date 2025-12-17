@@ -5,7 +5,7 @@ from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
 from pathlib import Path
-from typing import IO, Any, Union, cast
+from typing import Any, IO, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -48,12 +48,8 @@ def _compare_records(
             _logger.info(
                 "Record comparison failure for %s and %s\n"
                 "Did not match fields for %s: %s and %s",
-                cast(
-                    Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], src
-                ).name,
-                cast(
-                    Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], sink
-                ).name,
+                cast(cwl.InputRecordSchema | cwl.CommandOutputRecordSchema, src).name,
+                cast(cwl.InputRecordSchema | cwl.CommandOutputRecordSchema, sink).name,
                 key,
                 srcfields.get(key),
                 sinkfields.get(key),
@@ -225,7 +221,7 @@ def check_all_types(
                 continue
         if sourceField is not None:
             if isinstance(sourceField, MutableSequence):
-                linkMerge = sink.linkMerge or (
+                linkMerge: str | None = sink.linkMerge or (
                     "merge_nested" if len(sourceField) > 1 else None
                 )
                 if sink.pickValue in ("first_non_null", "the_only_non_null"):
@@ -525,7 +521,7 @@ def type_for_source(
     """Determine the type for the given sourcenames."""
     scatter_context: list[tuple[int, str] | None] = []
     params = param_for_source_id(process, sourcenames, parent, scatter_context)
-    if not isinstance(params, list):
+    if not isinstance(params, MutableSequence):
         new_type = params.type_
         if scatter_context[0] is not None:
             if scatter_context[0][1] == "nested_crossproduct":
@@ -580,11 +576,15 @@ def param_for_source_id(
     sourcenames: str | list[str],
     parent: cwl.Workflow | None = None,
     scatter_context: list[tuple[int, str] | None] | None = None,
-) -> list[cwl.WorkflowInputParameter] | cwl.WorkflowInputParameter:
+) -> (
+    cwl.CommandInputParameter
+    | cwl.WorkflowInputParameter
+    | MutableSequence[cwl.CommandInputParameter | cwl.WorkflowInputParameter]
+):
     """Find the process input parameter that matches one of the given sourcenames."""
     if isinstance(sourcenames, str):
         sourcenames = [sourcenames]
-    params: list[cwl.WorkflowInputParameter] = []
+    params: MutableSequence[cwl.CommandInputParameter | cwl.WorkflowInputParameter] = []
     for sourcename in sourcenames:
         if not isinstance(process, cwl.Workflow):
             for param in process.inputs:

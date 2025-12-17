@@ -8,7 +8,7 @@ import shutil
 import sys
 from collections.abc import Callable, MutableMapping, MutableSequence
 from pathlib import Path
-from typing import Any, Optional, Protocol, Union
+from typing import Any, Protocol
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.scalarstring import walk_tree
@@ -28,9 +28,9 @@ _logger.addHandler(defaultStreamHandler)
 _logger.setLevel(logging.INFO)
 _cwlutilslogger.setLevel(100)
 
-save_type = Optional[
-    Union[MutableMapping[str, Any], MutableSequence[Any], int, float, bool, str]
-]
+save_type = (
+    MutableMapping[str, Any] | MutableSequence[Any] | int | float | bool | str | None
+)
 
 
 class saveCWL(Protocol):

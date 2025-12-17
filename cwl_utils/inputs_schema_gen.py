@@ -12,7 +12,7 @@ from contextlib import suppress
 from copy import deepcopy
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, TypeGuard, Union
+from typing import Any, TypeGuard
 from urllib.parse import urlparse
 
 import requests
@@ -61,9 +61,9 @@ PRIMITIVE_TYPES_MAPPING = {
 }
 
 # Some type hinting
-InputType = Union[
-    InputArraySchema, InputEnumSchema, InputRecordSchema, str, File, Directory
-]
+InputType = (
+    InputArraySchema | InputEnumSchema | InputRecordSchema | str | File | Directory
+)
 
 
 # Don't need type checking at runtime

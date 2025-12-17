@@ -5,7 +5,7 @@ import logging
 from collections.abc import MutableSequence
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, cast
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
@@ -14,7 +14,6 @@ from schema_salad.utils import json_dumps, yaml_no_ts
 
 import cwl_utils
 import cwl_utils.parser
-
 from . import (
     LoadingOptions,
     Process,
@@ -339,43 +338,37 @@ def type_for_source(
         case "v1.0":
             return cwl_v1_0_utils.type_for_source(
                 cast(
-                    Union[
-                        cwl_v1_0.CommandLineTool,
-                        cwl_v1_0.Workflow,
-                        cwl_v1_0.ExpressionTool,
-                    ],
+                    cwl_v1_0.CommandLineTool
+                    | cwl_v1_0.Workflow
+                    | cwl_v1_0.ExpressionTool,
                     process,
                 ),
                 sourcenames,
-                cast(Optional[cwl_v1_0.Workflow], parent),
+                cast(cwl_v1_0.Workflow | None, parent),
                 linkMerge,
             )
         case "v1.1":
             return cwl_v1_1_utils.type_for_source(
                 cast(
-                    Union[
-                        cwl_v1_1.CommandLineTool,
-                        cwl_v1_1.Workflow,
-                        cwl_v1_1.ExpressionTool,
-                    ],
+                    cwl_v1_1.CommandLineTool
+                    | cwl_v1_1.Workflow
+                    | cwl_v1_1.ExpressionTool,
                     process,
                 ),
                 sourcenames,
-                cast(Optional[cwl_v1_1.Workflow], parent),
+                cast(cwl_v1_1.Workflow | None, parent),
                 linkMerge,
             )
         case "v1.2":
             return cwl_v1_2_utils.type_for_source(
                 cast(
-                    Union[
-                        cwl_v1_2.CommandLineTool,
-                        cwl_v1_2.Workflow,
-                        cwl_v1_2.ExpressionTool,
-                    ],
+                    cwl_v1_2.CommandLineTool
+                    | cwl_v1_2.Workflow
+                    | cwl_v1_2.ExpressionTool,
                     process,
                 ),
                 sourcenames,
-                cast(Optional[cwl_v1_2.Workflow], parent),
+                cast(cwl_v1_2.Workflow | None, parent),
                 linkMerge,
                 pickValue,
             )
@@ -434,15 +427,23 @@ def param_for_source_id(
     scatter_context: list[tuple[int, str] | None] | None = None,
 ) -> (
     (
-        list[cwl_utils.parser.cwl_v1_0.InputParameter]
+        MutableSequence[cwl_utils.parser.cwl_v1_0.InputParameter]
         | cwl_utils.parser.cwl_v1_0.InputParameter
     )
     | (
-        list[cwl_utils.parser.cwl_v1_1.WorkflowInputParameter]
+        MutableSequence[
+            cwl_utils.parser.cwl_v1_1.CommandInputParameter
+            | cwl_utils.parser.cwl_v1_1.WorkflowInputParameter
+        ]
+        | cwl_utils.parser.cwl_v1_1.CommandInputParameter
         | cwl_utils.parser.cwl_v1_1.WorkflowInputParameter
     )
     | (
-        list[cwl_utils.parser.cwl_v1_2.WorkflowInputParameter]
+        MutableSequence[
+            cwl_utils.parser.cwl_v1_2.CommandInputParameter
+            | cwl_utils.parser.cwl_v1_2.WorkflowInputParameter
+        ]
+        | cwl_utils.parser.cwl_v1_2.CommandInputParameter
         | cwl_utils.parser.cwl_v1_2.WorkflowInputParameter
     )
 ):
@@ -450,11 +451,9 @@ def param_for_source_id(
         case "v1.0":
             return cwl_utils.parser.cwl_v1_0_utils.param_for_source_id(
                 cast(
-                    Union[
-                        cwl_utils.parser.cwl_v1_0.CommandLineTool,
-                        cwl_utils.parser.cwl_v1_0.Workflow,
-                        cwl_utils.parser.cwl_v1_0.ExpressionTool,
-                    ],
+                    cwl_utils.parser.cwl_v1_0.CommandLineTool
+                    | cwl_utils.parser.cwl_v1_0.Workflow
+                    | cwl_utils.parser.cwl_v1_0.ExpressionTool,
                     process,
                 ),
                 sourcenames,
@@ -464,11 +463,9 @@ def param_for_source_id(
         case "v1.1":
             return cwl_utils.parser.cwl_v1_1_utils.param_for_source_id(
                 cast(
-                    Union[
-                        cwl_utils.parser.cwl_v1_1.CommandLineTool,
-                        cwl_utils.parser.cwl_v1_1.Workflow,
-                        cwl_utils.parser.cwl_v1_1.ExpressionTool,
-                    ],
+                    cwl_utils.parser.cwl_v1_1.CommandLineTool
+                    | cwl_utils.parser.cwl_v1_1.Workflow
+                    | cwl_utils.parser.cwl_v1_1.ExpressionTool,
                     process,
                 ),
                 sourcenames,
@@ -478,11 +475,9 @@ def param_for_source_id(
         case "v1.2":
             return cwl_utils.parser.cwl_v1_2_utils.param_for_source_id(
                 cast(
-                    Union[
-                        cwl_utils.parser.cwl_v1_2.CommandLineTool,
-                        cwl_utils.parser.cwl_v1_2.Workflow,
-                        cwl_utils.parser.cwl_v1_2.ExpressionTool,
-                    ],
+                    cwl_utils.parser.cwl_v1_2.CommandLineTool
+                    | cwl_utils.parser.cwl_v1_2.Workflow
+                    | cwl_utils.parser.cwl_v1_2.ExpressionTool,
                     process,
                 ),
                 sourcenames,
