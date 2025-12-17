@@ -1695,7 +1695,9 @@ def cltool_step_outputs_to_workflow_outputs(
 def generate_etool_from_expr2(
     expr: str,
     target: cwl.InputParameter,
-    inputs: Sequence[cwl.InputParameter | cwl.CommandInputParameter],
+    inputs: Sequence[
+        cwl.InputParameter | cwl.CommandInputParameter | cwl.CommandOutputParameter
+    ],
     self_name: str | None = None,
     process: cwl.CommandLineTool | cwl.ExpressionTool | None = None,
     extra_processes: None | (
@@ -1816,7 +1818,10 @@ def traverse_step(
                     raise WorkflowException("target not found")
                 input_source_id = None
                 source_type: (
-                    None | MutableSequence[cwl.InputParameter] | cwl.InputParameter
+                    None
+                    | MutableSequence[cwl.InputParameter | cwl.CommandOutputParameter]
+                    | cwl.InputParameter
+                    | cwl.CommandOutputParameter
                 ) = None
                 if inp.source:
                     if isinstance(inp.source, MutableSequence):
@@ -1904,7 +1909,7 @@ def traverse_step(
 
 def workflow_step_to_InputParameters(
     step_ins: list[cwl.WorkflowStepInput], parent: cwl.Workflow, except_in_id: str
-) -> list[cwl.InputParameter]:
+) -> list[cwl.InputParameter | cwl.CommandOutputParameter]:
     """Create InputParameters to match the given WorkflowStep inputs."""
     params = []
     for inp in step_ins:
@@ -1946,7 +1951,12 @@ def replace_step_valueFrom_expr_with_etool(
     original_step_ins: list[cwl.WorkflowStepInput],
     source: str | list[str] | None,
     replace_etool: bool,
-    source_type: cwl.InputParameter | MutableSequence[cwl.InputParameter] | None = None,
+    source_type: (
+        cwl.InputParameter
+        | cwl.CommandOutputParameter
+        | MutableSequence[cwl.InputParameter | cwl.CommandOutputParameter]
+        | None
+    ) = None,
 ) -> None:
     """Replace a WorkflowStep level 'valueFrom' expression with a sibling ExpressionTool step."""
     if not step_inp.id:

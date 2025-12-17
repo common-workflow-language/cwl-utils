@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """CWL Expression parsing."""
 import asyncio
-import copy
 import inspect
 import json
-from collections.abc import Awaitable, MutableMapping
+from collections.abc import Awaitable, Container
 from enum import Enum
-from typing import Any, cast
+from typing import Any, Final, cast
 
 from schema_salad.utils import json_dumps
 
@@ -20,6 +19,15 @@ from cwl_utils.types import (
     is_cwl_parameter_context_key,
 )
 from cwl_utils.utils import bytes2str_in_dicts
+
+OLD_ESCAPE_CWL_VERSIONS: Final[Container[str]] = (
+    "v1.0",
+    "v1.1.0-dev1",
+    "v1.1",
+    "v1.2.0-dev1",
+    "v1.2.0-dev2",
+    "v1.2.0-dev3",
+)
 
 
 def _convert_dumper(string: str) -> str:
@@ -293,9 +301,7 @@ def do_eval(
 
     :param timeout: The maximum number of seconds to wait while executing.
     """
-    runtime = cast(MutableMapping[str, int | str | None], copy.deepcopy(resources))
-    runtime["tmpdir"] = tmpdir or None
-    runtime["outdir"] = outdir or None
+    runtime = resources | {"tmpdir": tmpdir or None, "outdir": outdir or None}
 
     rootvars = cast(
         CWLParameterContext,
@@ -319,19 +325,7 @@ def do_eval(
                 fullJS=fullJS,
                 jslib=jslib,
                 strip_whitespace=strip_whitespace,
-                escaping_behavior=(
-                    1
-                    if cwlVersion
-                    in (
-                        "v1.0",
-                        "v1.1.0-dev1",
-                        "v1.1",
-                        "v1.2.0-dev1",
-                        "v1.2.0-dev2",
-                        "v1.2.0-dev3",
-                    )
-                    else 2
-                ),
+                escaping_behavior=1 if cwlVersion in OLD_ESCAPE_CWL_VERSIONS else 2,
                 **kwargs,
             )
 
