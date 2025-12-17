@@ -294,23 +294,48 @@ def load_document_by_uri(
             loadingOptions = cwl_v1_0.LoadingOptions(
                 fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
             )
+            return load_document_by_string(
+                loadingOptions.fetcher.fetch_text(real_uri),
+                real_uri,
+                loadingOptions,
+                id_,
+                load_all,
+            )
         case cwl_v1_1.LoadingOptions():
             loadingOptions = cwl_v1_1.LoadingOptions(
                 fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
+            )
+            return load_document_by_string(
+                loadingOptions.fetcher.fetch_text(real_uri),
+                real_uri,
+                loadingOptions,
+                id_,
+                load_all,
             )
         case cwl_v1_2.LoadingOptions():
             loadingOptions = cwl_v1_2.LoadingOptions(
                 fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
             )
+            return load_document_by_string(
+                loadingOptions.fetcher.fetch_text(real_uri),
+                real_uri,
+                loadingOptions,
+                id_,
+                load_all,
+            )
         case None:
             loadingOptions = cwl_v1_2.LoadingOptions(fileuri=real_uri, baseuri=base_uri)
+            return load_document_by_string(
+                loadingOptions.fetcher.fetch_text(real_uri),
+                real_uri,
+                None,
+                id_,
+                load_all,
+            )
         case _:
             raise ValidationException(
                 f"Unsupported loadingOptions type: {type(loadingOptions)}"
             )
-
-    doc = loadingOptions.fetcher.fetch_text(real_uri)
-    return load_document_by_string(doc, real_uri, loadingOptions, id_, load_all)
 
 
 def load_document(
