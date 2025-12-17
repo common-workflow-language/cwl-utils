@@ -71,7 +71,7 @@ cwl-normalizer = "cwl_utils.normalizer:main"
 cwl-inputs-schema-gen = "cwl_utils.inputs_schema_gen:main"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["cwl_utils/tests"]
 addopts = "-rsx -n auto"
 
 [tool.hatch.version]
