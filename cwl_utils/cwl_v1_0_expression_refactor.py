@@ -1241,7 +1241,7 @@ def traverse_CommandLineTool(
     """Extract any CWL Expressions within the given CommandLineTool into sibling steps."""
     modified = False
     # don't modify clt, modify step.run
-    target_clt = step.run
+    target_clt = cast(cwl.CommandLineTool, step.run)
     inputs = empty_inputs(clt)
     if not step.id:
         return False
@@ -1465,6 +1465,7 @@ def traverse_CommandLineTool(
                         inp.linkMerge = None
                     for index, out in enumerate(new_clt_step.out):
                         new_clt_step.out[index] = out.split("/")[-1]
+
                     for tool_inp in new_clt_step.run.inputs:
                         tool_inp.id = tool_inp.id.split("#")[-1]
                     for tool_out in new_clt_step.run.outputs:

@@ -247,7 +247,7 @@ def check_all_types(
                             items=src_typ, type_="array"
                         )
             else:
-                parm_id = cast(str, sourceField)
+                parm_id = sourceField
                 if parm_id not in src_dict:
                     raise SourceLine(sink, sourceName, ValidationException).makeError(
                         f"{sourceName} not found: {parm_id}"
@@ -388,8 +388,7 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
                 )
             else:
                 clt.stdin = (
-                    "$(inputs.%s.path)"
-                    % cast(str, inp.id).rpartition("#")[2].split("/")[-1]
+                    "$(inputs.%s.path)" % inp.id.rpartition("#")[2].split("/")[-1]
                 )
                 inp.type_ = "File"
 
@@ -472,7 +471,7 @@ def type_for_step_input(
     cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
     if step_run and step_run.inputs:
         for step_input in step_run.inputs:
-            if cast(str, step_input.id).split("#")[-1] == in_.id.split("#")[-1]:
+            if step_input.id.split("#")[-1] == in_.id.split("#")[-1]:
                 input_type = step_input.type_
                 if step.scatter is not None and in_.id in aslist(step.scatter):
                     input_type = cwl.ArraySchema(items=input_type, type_="array")

@@ -159,9 +159,7 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
             param_to_step.update({s.id: step for s in step.in_})
             type_dict.update(
                 {
-                    cast(str, s.id): type_for_step_input(
-                        step, s, cast(str, workflow.cwlVersion)
-                    )
+                    s.id: type_for_step_input(step, s, cast(str, workflow.cwlVersion))
                     for s in step.in_
                 }
             )
@@ -482,12 +480,7 @@ def param_for_source_id(
             )
         case "v1.2":
             return cwl_utils.parser.cwl_v1_2_utils.param_for_source_id(
-                cast(
-                    cwl_utils.parser.cwl_v1_2.CommandLineTool
-                    | cwl_utils.parser.cwl_v1_2.Workflow
-                    | cwl_utils.parser.cwl_v1_2.ExpressionTool,
-                    process,
-                ),
+                process,
                 sourcenames,
                 cast(cwl_utils.parser.cwl_v1_2.Workflow, parent),
                 scatter_context,

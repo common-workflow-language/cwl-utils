@@ -163,6 +163,7 @@ def test_v1_0_stdout_to_file() -> None:
     )
     cwl_utils.parser.cwl_v1_0_utils.convert_stdstreams_to_files(clt)
     assert clt.stdout is not None
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stdout == clt.outputs[0].outputBinding.glob
 
 
@@ -195,6 +196,7 @@ def test_v1_0_stdout_to_file_preserve_original() -> None:
     )
     cwl_utils.parser.cwl_v1_0_utils.convert_stdstreams_to_files(clt)
     assert clt.stdout == "original.txt"
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stdout == clt.outputs[0].outputBinding.glob
 
 
@@ -208,6 +210,7 @@ def test_v1_0_stderr_to_file() -> None:
     )
     cwl_utils.parser.cwl_v1_0_utils.convert_stdstreams_to_files(clt)
     assert clt.stderr is not None
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stderr == clt.outputs[0].outputBinding.glob
 
 
@@ -240,6 +243,7 @@ def test_v1_0_stderr_to_file_preserve_original() -> None:
     )
     cwl_utils.parser.cwl_v1_0_utils.convert_stdstreams_to_files(clt)
     assert clt.stderr == "original.txt"
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stderr == clt.outputs[0].outputBinding.glob
 
 
@@ -469,6 +473,7 @@ def test_v1_1_stdout_to_file() -> None:
     )
     cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
     assert clt.stdout is not None
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stdout == clt.outputs[0].outputBinding.glob
 
 
@@ -501,6 +506,7 @@ def test_v1_1_stdout_to_file_preserve_original() -> None:
     )
     cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
     assert clt.stdout == "original.txt"
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stdout == clt.outputs[0].outputBinding.glob
 
 
@@ -514,6 +520,7 @@ def test_v1_1_stderr_to_file() -> None:
     )
     cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
     assert clt.stderr is not None
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stderr == clt.outputs[0].outputBinding.glob
 
 
@@ -546,6 +553,7 @@ def test_v1_1_stderr_to_file_preserve_original() -> None:
     )
     cwl_utils.parser.cwl_v1_1_utils.convert_stdstreams_to_files(clt)
     assert clt.stderr == "original.txt"
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stderr == clt.outputs[0].outputBinding.glob
 
 
@@ -819,6 +827,7 @@ def test_v1_2_stdout_to_file() -> None:
     )
     cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
     assert clt.stdout is not None
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stdout == clt.outputs[0].outputBinding.glob
 
 
@@ -851,6 +860,7 @@ def test_v1_2_stdout_to_file_preserve_original() -> None:
     )
     cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
     assert clt.stdout == "original.txt"
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stdout == clt.outputs[0].outputBinding.glob
 
 
@@ -864,6 +874,7 @@ def test_v1_2_stderr_to_file() -> None:
     )
     cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
     assert clt.stderr is not None
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stderr == clt.outputs[0].outputBinding.glob
 
 
@@ -896,6 +907,7 @@ def test_v1_2_stderr_to_file_preserve_original() -> None:
     )
     cwl_utils.parser.cwl_v1_2_utils.convert_stdstreams_to_files(clt)
     assert clt.stderr == "original.txt"
+    assert clt.outputs[0].outputBinding is not None
     assert clt.stderr == clt.outputs[0].outputBinding.glob
 
 

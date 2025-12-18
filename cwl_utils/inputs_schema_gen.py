@@ -12,7 +12,7 @@ from contextlib import suppress
 from copy import deepcopy
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, TypeGuard
+from typing import Any, TypeGuard, cast
 from urllib.parse import urlparse
 
 import requests
@@ -26,6 +26,7 @@ from cwl_utils.parser import (
     InputEnumSchema,
     InputRecordSchema,
     InputRecordSchemaTypes,
+    SchemaDefRequirement,
     Workflow,
     WorkflowInputParameter,
     cwl_v1_0,
@@ -402,12 +403,15 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
 
     if cwl_obj.requirements is not None:
         with suppress(StopIteration):
-            schema_def_requirement = next(
-                filter(
-                    lambda requirement_iter: requirement_iter.class_
-                    == "SchemaDefRequirement",
-                    cwl_obj.requirements,
-                )
+            schema_def_requirement = cast(
+                SchemaDefRequirement,
+                next(
+                    filter(
+                        lambda requirement_iter: requirement_iter.class_
+                        == "SchemaDefRequirement",
+                        cwl_obj.requirements,
+                    )
+                ),
             )
 
             workflow_schema_definitions_list.extend(
