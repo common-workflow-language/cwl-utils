@@ -195,16 +195,9 @@ def check_all_types(
                 sourceName = "source"
                 sourceField = sink.source
             case _:
-                continue
+                raise WorkflowException(f"Invalid sink type {sink.__class__.__name__}")
         if sourceField is not None:
-            if isinstance(sourceField, Sequence):
-                linkMerge = sink.linkMerge or (
-                    "merge_nested" if len(sourceField) > 1 else None
-                )
-                srcs_of_sink = []
-                for parm_id in sourceField:
-                    srcs_of_sink += [src_dict[parm_id]]
-            else:
+            if isinstance(sourceField, str):
                 parm_id = sourceField
                 if parm_id not in src_dict:
                     raise SourceLine(sink, sourceName, ValidationException).makeError(
@@ -212,6 +205,13 @@ def check_all_types(
                     )
                 srcs_of_sink = [src_dict[parm_id]]
                 linkMerge = None
+            else:
+                linkMerge = sink.linkMerge or (
+                    "merge_nested" if len(sourceField) > 1 else None
+                )
+                srcs_of_sink = []
+                for parm_id in sourceField:
+                    srcs_of_sink += [src_dict[parm_id]]
             for src in srcs_of_sink:
                 check_result = check_types(
                     type_dict[cast(str, src.id)],
