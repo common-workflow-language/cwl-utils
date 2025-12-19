@@ -39,7 +39,7 @@
         <oboInOwl:hasSubset>data &quot;EDAM types of data&quot;</oboInOwl:hasSubset>
         <oboInOwl:hasSubset>relations &quot;EDAM relations&quot;</oboInOwl:hasSubset>
         <oboInOwl:hasSubset>edam &quot;EDAM&quot;</oboInOwl:hasSubset>
-        <oboOther:remark>EDAM editors: Jon Ison, Matus Kalas, and Herve Menager. Contributors: Inge Jonassen, Dan Bolser, Hamish McWilliam, Mahmut Uludag, James Malone, Rodrigo Lopez, Steve Pettifer, and Peter Rice. Contibutions from these projects: EMBRACE, ELIXIR, and BioMedBridges (EU); EMBOSS (BBSRC, UK); eSysbio, FUGE Bioinformatics Platform, and ELIXIR.NO/Norwegian Bioinformatics Platform (Research Council of Norway). See http://edamontology.org for documentation and licence.</oboOther:remark>
+        <oboOther:remark>EDAM editors: Jon Ison, Matus Kalas, and Herve Menager. Contributors: Inge Jonassen, Dan Bolser, Hamish McWilliam, Mahmut Uludag, James Malone, Rodrigo Lopez, Steve Pettifer, and Peter Rice. Contributions from these projects: EMBRACE, ELIXIR, and BioMedBridges (EU); EMBOSS (BBSRC, UK); eSysbio, FUGE Bioinformatics Platform, and ELIXIR.NO/Norwegian Bioinformatics Platform (Research Council of Norway). See http://edamontology.org for documentation and licence.</oboOther:remark>
         <oboInOwl:hasSubset>operations &quot;EDAM operations&quot;</oboInOwl:hasSubset>
         <oboOther:idspace>EDAM http://edamontology.org/ &quot;EDAM relations and concept properties&quot;</oboOther:idspace>
         <dc:format>application/rdf+xml</dc:format>
@@ -97,7 +97,7 @@
 
     <owl:AnnotationProperty rdf:about="http://edamontology.org/example">
         <rdfs:label>Example</rdfs:label>
-        <oboInOwl:hasDefinition>&apos;Example&apos; concept property (&apos;example&apos; metadat tag) lists examples of valid values of types of identifiers (accessions). Applicable to some other types of data, too.</oboInOwl:hasDefinition>
+        <oboInOwl:hasDefinition>&apos;Example&apos; concept property (&apos;example&apos; metadata tag) lists examples of valid values of types of identifiers (accessions). Applicable to some other types of data, too.</oboInOwl:hasDefinition>
         <oboOther:is_metadata_tag>true</oboOther:is_metadata_tag>
         <oboInOwl:inSubset>concept_properties</oboInOwl:inSubset>
     </owl:AnnotationProperty>

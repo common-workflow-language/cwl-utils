@@ -142,3 +142,6 @@ ignore = [
 
 [tool.bandit]
 exclude_dirs = ["cwl_utils/tests"]
+
+[tool.codespell]
+ignore-words-list = "afile"
