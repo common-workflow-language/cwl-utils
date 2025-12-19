@@ -210,6 +210,7 @@ def check_all_types(
         extra_message = (
             "pickValue is %s" % sink.pickValue if sink.pickValue is not None else None
         )
+        sink_type = type_dict[sink.id]
         match sink:
             case cwl.WorkflowOutputParameter():
                 sourceName = "outputSource"
@@ -231,7 +232,10 @@ def check_all_types(
                     srcs_of_sink += [src_dict[parm_id]]
                     if (
                         _is_conditional_step(param_to_step, parm_id)
-                        and sink.pickValue is not None
+                        and "null" != sink_type
+                        and isinstance(sink_type, MutableSequence)
+                        and "null" not in sink_type
+                        and sink.pickValue is None
                     ):
                         validation["warning"].append(
                             SrcSink(
@@ -289,8 +293,9 @@ def check_all_types(
             for src in srcs_of_sink:
                 check_result = check_types(
                     type_dict[cast(str, src.id)],
-                    type_dict[sink.id],
+                    sink_type,
                     linkMerge,
+                    sink.pickValue,
                     getattr(sink, "valueFrom", None),
                 )
                 if check_result in ("warning", "exception"):
@@ -304,6 +309,7 @@ def check_types(
     srctype: Any,
     sinktype: Any,
     linkMerge: str | None,
+    pickValue: str | None = None,
     valueFrom: str | None = None,
 ) -> str:
     """
@@ -313,19 +319,49 @@ def check_types(
     """
     if valueFrom is not None:
         return "pass"
-    if linkMerge is None:
-        if can_assign_src_to_sink(srctype, sinktype, strict=True):
-            return "pass"
-        if can_assign_src_to_sink(srctype, sinktype, strict=False):
-            return "warning"
-        return "exception"
-    if linkMerge == "merge_nested":
-        return check_types(
-            cwl.ArraySchema(items=srctype, type_="array"), sinktype, None, None
-        )
-    if linkMerge == "merge_flattened":
-        return check_types(merge_flatten_type(srctype), sinktype, None, None)
-    raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
+    if pickValue is not None:
+        if isinstance(srctype, cwl.ArraySchema):
+            match pickValue:
+                case "all_non_null":
+                    srctype = cwl.ArraySchema(items=srctype.items, type_="array")
+                    if (
+                        isinstance(srctype.items, MutableSequence)
+                        and "null" in srctype.items
+                    ):
+                        srctype.items = [
+                            elem for elem in srctype.items if elem != "null"
+                        ]
+                case "first_non_null" | "the_only_non_null":
+                    if (
+                        isinstance(srctype.items, MutableSequence)
+                        and "null" in srctype.items
+                    ):
+                        srctype = [elem for elem in srctype.items if elem != "null"]
+                    else:
+                        srctype = srctype.items
+                case _:
+                    raise ValidationException(
+                        f"Invalid value {pickValue} for pickValue field."
+                    )
+    match linkMerge:
+        case None:
+            if can_assign_src_to_sink(srctype, sinktype, strict=True):
+                return "pass"
+            if can_assign_src_to_sink(srctype, sinktype, strict=False):
+                return "warning"
+            return "exception"
+        case "merge_nested":
+            return check_types(
+                cwl.ArraySchema(items=srctype, type_="array"),
+                sinktype,
+                None,
+                None,
+                None,
+            )
+        case "merge_flattened":
+            return check_types(merge_flatten_type(srctype), sinktype, None, None, None)
+        case _:
+            raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
 
 
 def content_limit_respected_read_bytes(f: IO[bytes]) -> bytes:
