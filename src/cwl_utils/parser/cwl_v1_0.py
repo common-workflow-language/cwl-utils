@@ -18,7 +18,7 @@ from collections.abc import MutableMapping, MutableSequence, Sequence
 from collections.abc import Collection  # pylint: disable=unused-import # noqa: F401
 from io import StringIO
 from itertools import chain
-from mypy_extensions import trait
+from mypy_extensions import i32, i64, trait
 from typing import Any, Final, Generic, TypeAlias, TypeVar, cast
 from typing import ClassVar, Literal, Mapping  # pylint: disable=unused-import # noqa: F401
 from urllib.parse import quote, urldefrag, urlparse, urlsplit, urlunsplit
@@ -265,7 +265,7 @@ def load_field(
 
 
 save_type: TypeAlias = (
-    None | MutableMapping[str, Any] | MutableSequence[Any] | int | float | bool | str
+    None | MutableMapping[str, Any] | MutableSequence[Any] | i32 | i64 | float | bool | str
 )
 
 
@@ -343,7 +343,7 @@ def save(
         for key in val:
             newdict[key] = save(val[key], top=False, base_url=base_url, relative_uris=relative_uris)
         return newdict
-    if val is None or isinstance(val, (int, float, bool, str)):
+    if val is None or isinstance(val, (i32, i64, float, bool, str)):
         return val
     raise Exception("Not Saveable: %s" % type(val))
 
@@ -1187,7 +1187,7 @@ def parser_info() -> str:
 
 
 @trait
-class Documented(Saveable):
+class Documented(Saveable, metaclass=ABCMeta):
     pass
 
 
@@ -3974,7 +3974,7 @@ class File(Saveable):
         nameroot: None | str = None,
         nameext: None | str = None,
         checksum: None | str = None,
-        size: None | int = None,
+        size: None | i32 = None,
         secondaryFiles: None | Sequence[Directory | File] = None,
         format: None | str = None,
         contents: None | str = None,
@@ -3989,7 +3989,7 @@ class File(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#File"
+        self.class_: Final[str] = "File"
         self.location = location
         self.path = path
         self.basename = basename
@@ -4395,7 +4395,7 @@ class Directory(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#Directory"
+        self.class_: Final[str] = "Directory"
         self.location = location
         self.path = path
         self.basename = basename
@@ -4407,12 +4407,12 @@ class Directory(Saveable):
 
 
 @trait
-class SchemaBase(Saveable):
+class SchemaBase(Saveable, metaclass=ABCMeta):
     pass
 
 
 @trait
-class Parameter(SchemaBase):
+class Parameter(SchemaBase, metaclass=ABCMeta):
     """
     Define an input or output parameter to a process.
 
@@ -4422,22 +4422,22 @@ class Parameter(SchemaBase):
 
 
 @trait
-class InputBinding(Saveable):
+class InputBinding(Saveable, metaclass=ABCMeta):
     pass
 
 
 @trait
-class OutputBinding(Saveable):
+class OutputBinding(Saveable, metaclass=ABCMeta):
     pass
 
 
 @trait
-class InputSchema(SchemaBase):
+class InputSchema(SchemaBase, metaclass=ABCMeta):
     pass
 
 
 @trait
-class OutputSchema(SchemaBase):
+class OutputSchema(SchemaBase, metaclass=ABCMeta):
     pass
 
 
@@ -8281,7 +8281,7 @@ class OutputParameter(Parameter):
 
 
 @trait
-class ProcessRequirement(Saveable):
+class ProcessRequirement(Saveable, metaclass=ABCMeta):
     """
     A process requirement declares a prerequisite that may or must be fulfilled
     before executing a process.  See [`Process.hints`](#process) and
@@ -8296,7 +8296,7 @@ class ProcessRequirement(Saveable):
 
 
 @trait
-class Process(Saveable):
+class Process(Saveable, metaclass=ABCMeta):
     """
 
     The base executable type in CWL is the `Process` object defined by the
@@ -8484,7 +8484,7 @@ class InlineJavascriptRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#InlineJavascriptRequirement"
+        self.class_: Final[str] = "InlineJavascriptRequirement"
         self.expressionLib = expressionLib
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "expressionLib"])
@@ -8665,7 +8665,7 @@ class SchemaDefRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#SchemaDefRequirement"
+        self.class_: Final[str] = "SchemaDefRequirement"
         self.types = types
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "types"])
@@ -9389,7 +9389,7 @@ class CommandLineBinding(InputBinding):
     def __init__(
         self,
         loadContents: None | bool = None,
-        position: None | int = None,
+        position: None | i32 = None,
         prefix: None | str = None,
         separate: None | bool = None,
         itemSeparator: None | str = None,
@@ -14687,9 +14687,9 @@ class CommandLineTool(Process):
         stdin: None | str = None,
         stderr: None | str = None,
         stdout: None | str = None,
-        successCodes: None | Sequence[int] = None,
-        temporaryFailCodes: None | Sequence[int] = None,
-        permanentFailCodes: None | Sequence[int] = None,
+        successCodes: None | Sequence[i32] = None,
+        temporaryFailCodes: None | Sequence[i32] = None,
+        permanentFailCodes: None | Sequence[i32] = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -14709,7 +14709,7 @@ class CommandLineTool(Process):
         self.label = label
         self.doc = doc
         self.cwlVersion = cwlVersion
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#CommandLineTool"
+        self.class_: Final[str] = "CommandLineTool"
         self.baseCommand = baseCommand
         self.arguments = arguments
         self.stdin = stdin
@@ -15243,7 +15243,7 @@ class DockerRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#DockerRequirement"
+        self.class_: Final[str] = "DockerRequirement"
         self.dockerPull = dockerPull
         self.dockerLoad = dockerLoad
         self.dockerFile = dockerFile
@@ -15434,7 +15434,7 @@ class SoftwareRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#SoftwareRequirement"
+        self.class_: Final[str] = "SoftwareRequirement"
         self.packages = packages
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "packages"])
@@ -16132,7 +16132,7 @@ class InitialWorkDirRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#InitialWorkDirRequirement"
+        self.class_: Final[str] = "InitialWorkDirRequirement"
         self.listing = listing
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "listing"])
@@ -16308,7 +16308,7 @@ class EnvVarRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#EnvVarRequirement"
+        self.class_: Final[str] = "EnvVarRequirement"
         self.envDef = envDef
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "envDef"])
@@ -16433,7 +16433,7 @@ class ShellCommandRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#ShellCommandRequirement"
+        self.class_: Final[str] = "ShellCommandRequirement"
 
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
@@ -17011,14 +17011,14 @@ class ResourceRequirement(ProcessRequirement):
 
     def __init__(
         self,
-        coresMin: None | int | str = None,
-        coresMax: None | int | str = None,
-        ramMin: None | int | str = None,
-        ramMax: None | int | str = None,
-        tmpdirMin: None | int | str = None,
-        tmpdirMax: None | int | str = None,
-        outdirMin: None | int | str = None,
-        outdirMax: None | int | str = None,
+        coresMin: None | i32 | str = None,
+        coresMax: None | i32 | str = None,
+        ramMin: None | i32 | str = None,
+        ramMax: None | i32 | str = None,
+        tmpdirMin: None | i32 | str = None,
+        tmpdirMax: None | i32 | str = None,
+        outdirMin: None | i32 | str = None,
+        outdirMax: None | i32 | str = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -17030,7 +17030,7 @@ class ResourceRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#ResourceRequirement"
+        self.class_: Final[str] = "ResourceRequirement"
         self.coresMin = coresMin
         self.coresMax = coresMax
         self.ramMin = ramMin
@@ -18270,7 +18270,7 @@ class ExpressionTool(Process):
         self.label = label
         self.doc = doc
         self.cwlVersion = cwlVersion
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#ExpressionTool"
+        self.class_: Final[str] = "ExpressionTool"
         self.expression = expression
 
     attrs: ClassVar[Collection[str]] = frozenset(
@@ -18982,7 +18982,7 @@ class WorkflowOutputParameter(OutputParameter):
 
 
 @trait
-class Sink(Saveable):
+class Sink(Saveable, metaclass=ABCMeta):
     pass
 
 
@@ -20995,7 +20995,7 @@ class Workflow(Process):
         self.label = label
         self.doc = doc
         self.cwlVersion = cwlVersion
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#Workflow"
+        self.class_: Final[str] = "Workflow"
         self.steps = steps
 
     attrs: ClassVar[Collection[str]] = frozenset(
@@ -21128,7 +21128,7 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#SubworkflowFeatureRequirement"
+        self.class_: Final[str] = "SubworkflowFeatureRequirement"
 
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
@@ -21247,7 +21247,7 @@ class ScatterFeatureRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#ScatterFeatureRequirement"
+        self.class_: Final[str] = "ScatterFeatureRequirement"
 
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
@@ -21366,7 +21366,7 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#MultipleInputFeatureRequirement"
+        self.class_: Final[str] = "MultipleInputFeatureRequirement"
 
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
@@ -21485,7 +21485,7 @@ class StepInputExpressionRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "https://w3id.org/cwl/cwl#StepInputExpressionRequirement"
+        self.class_: Final[str] = "StepInputExpressionRequirement"
 
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
@@ -21659,7 +21659,7 @@ class LoadListingRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "http://commonwl.org/cwltool#LoadListingRequirement"
+        self.class_: Final[str] = "LoadListingRequirement"
         self.loadListing = loadListing
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "loadListing"])
@@ -21835,7 +21835,7 @@ class InplaceUpdateRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "http://commonwl.org/cwltool#InplaceUpdateRequirement"
+        self.class_: Final[str] = "InplaceUpdateRequirement"
         self.inplaceUpdate = inplaceUpdate
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "inplaceUpdate"])
@@ -22004,7 +22004,7 @@ class Secrets(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "http://commonwl.org/cwltool#Secrets"
+        self.class_: Final[str] = "Secrets"
         self.secrets = secrets
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "secrets"])
@@ -22175,7 +22175,7 @@ class TimeLimit(ProcessRequirement):
 
     def __init__(
         self,
-        timelimit: int | str,
+        timelimit: i32 | str,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -22187,7 +22187,7 @@ class TimeLimit(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "http://commonwl.org/cwltool#TimeLimit"
+        self.class_: Final[str] = "TimeLimit"
         self.timelimit = timelimit
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "timelimit"])
@@ -22375,7 +22375,7 @@ class WorkReuse(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "http://commonwl.org/cwltool#WorkReuse"
+        self.class_: Final[str] = "WorkReuse"
         self.enableReuse = enableReuse
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "enableReuse"])
@@ -22570,7 +22570,7 @@ class NetworkAccess(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "http://commonwl.org/cwltool#NetworkAccess"
+        self.class_: Final[str] = "NetworkAccess"
         self.networkAccess = networkAccess
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "networkAccess"])
@@ -23210,7 +23210,7 @@ class ProcessGenerator(Process):
         self.label = label
         self.doc = doc
         self.cwlVersion = cwlVersion
-        self.class_: Final[str] = "http://commonwl.org/cwltool#ProcessGenerator"
+        self.class_: Final[str] = "ProcessGenerator"
         self.run = run
 
     attrs: ClassVar[Collection[str]] = frozenset(
@@ -23391,7 +23391,7 @@ class MPIRequirement(ProcessRequirement):
 
     def __init__(
         self,
-        processes: int | str,
+        processes: i32 | str,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -23403,7 +23403,7 @@ class MPIRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "http://commonwl.org/cwltool#MPIRequirement"
+        self.class_: Final[str] = "MPIRequirement"
         self.processes = processes
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "processes"])
@@ -23751,8 +23751,8 @@ class CUDARequirement(ProcessRequirement):
         self,
         cudaComputeCapability: Sequence[str] | str,
         cudaVersionMin: str,
-        cudaDeviceCountMax: None | int | str = None,
-        cudaDeviceCountMin: None | int | str = None,
+        cudaDeviceCountMax: None | i32 | str = None,
+        cudaDeviceCountMin: None | i32 | str = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -23764,7 +23764,7 @@ class CUDARequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "http://commonwl.org/cwltool#CUDARequirement"
+        self.class_: Final[str] = "CUDARequirement"
         self.cudaComputeCapability = cudaComputeCapability
         self.cudaDeviceCountMax = cudaDeviceCountMax
         self.cudaDeviceCountMin = cudaDeviceCountMin
@@ -23945,7 +23945,7 @@ class ShmSize(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "http://commonwl.org/cwltool#ShmSize"
+        self.class_: Final[str] = "ShmSize"
         self.shmSize = shmSize
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "shmSize"])
@@ -24197,11 +24197,12 @@ _rvocab.update({
 })
 
 strtype: Final = _PrimitiveLoader(str)
-inttype: Final = _PrimitiveLoader(int)
+inttype: Final = _PrimitiveLoader(i32)
 floattype: Final = _PrimitiveLoader(float)
 booltype: Final = _PrimitiveLoader(bool)
 None_type: Final = _PrimitiveLoader(type(None))
 Any_type: Final = _AnyLoader()
+longtype: Final = _PrimitiveLoader(i64)
 PrimitiveTypeLoader: Final = _EnumLoader(
     (
         "null",
@@ -25549,6 +25550,7 @@ CWLObjectTypeLoader.add_loaders(
     (
         booltype,
         inttype,
+        longtype,
         floattype,
         strtype,
         FileLoader,
@@ -25558,7 +25560,7 @@ CWLObjectTypeLoader.add_loaders(
     )
 )
 CWLObjectType: TypeAlias = (
-    "Directory | File | Mapping[str, CWLObjectType | None] | Sequence[CWLObjectType | None] | bool | float | int | str"
+    "Directory | File | Mapping[str, CWLObjectType | None] | Sequence[CWLObjectType | None] | bool | float | i32 | i64 | str"
 )
 
 
