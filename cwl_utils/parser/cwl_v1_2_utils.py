@@ -295,7 +295,6 @@ def check_all_types(
                     type_dict[cast(str, src.id)],
                     sink_type,
                     linkMerge,
-                    sink.pickValue,
                     getattr(sink, "valueFrom", None),
                 )
                 if check_result in ("warning", "exception"):
@@ -309,7 +308,6 @@ def check_types(
     srctype: Any,
     sinktype: Any,
     linkMerge: str | None,
-    pickValue: str | None = None,
     valueFrom: str | None = None,
 ) -> str:
     """
@@ -319,30 +317,6 @@ def check_types(
     """
     if valueFrom is not None:
         return "pass"
-    if pickValue is not None:
-        if isinstance(srctype, cwl.ArraySchema):
-            match pickValue:
-                case "all_non_null":
-                    srctype = cwl.ArraySchema(items=srctype.items, type_="array")
-                    if (
-                        isinstance(srctype.items, MutableSequence)
-                        and "null" in srctype.items
-                    ):
-                        srctype.items = [
-                            elem for elem in srctype.items if elem != "null"
-                        ]
-                case "first_non_null" | "the_only_non_null":
-                    if (
-                        isinstance(srctype.items, MutableSequence)
-                        and "null" in srctype.items
-                    ):
-                        srctype = [elem for elem in srctype.items if elem != "null"]
-                    else:
-                        srctype = srctype.items
-                case _:
-                    raise ValidationException(
-                        f"Invalid value {pickValue} for pickValue field."
-                    )
     match linkMerge:
         case None:
             if can_assign_src_to_sink(srctype, sinktype, strict=True):
@@ -356,10 +330,9 @@ def check_types(
                 sinktype,
                 None,
                 None,
-                None,
             )
         case "merge_flattened":
-            return check_types(merge_flatten_type(srctype), sinktype, None, None, None)
+            return check_types(merge_flatten_type(srctype), sinktype, None, None)
         case _:
             raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
 
