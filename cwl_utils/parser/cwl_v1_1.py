@@ -4035,7 +4035,7 @@ class Directory(Saveable):
     the same Directory.
 
     When executing a CommandLineTool, Directories must be recursively staged
-    first and have local values of `path` assigend.
+    first and have local values of `path` assigned.
 
     Directory objects in CommandLineTool output must provide either a
     `location` URI or a `path` property in the context of the tool execution
@@ -17590,7 +17590,7 @@ class ShellCommandRequirement(ProcessRequirement):
     Modify the behavior of CommandLineTool to generate a single string
     containing a shell command line.  Each item in the argument list must be
     joined into a string separated by single spaces and quoted to prevent
-    intepretation by the shell, unless `CommandLineBinding` for that argument
+    interpretation by the shell, unless `CommandLineBinding` for that argument
     contains `shellQuote: false`.  If `shellQuote: false` is specified, the
     argument is joined into the command string without quoting, which allows
     the use of shell metacharacters such as `|` for pipes.
@@ -18331,7 +18331,7 @@ class WorkReuse(ProcessRequirement):
     For implementations that support reusing output from past work (on
     the assumption that same code and same input produce same
     results), control whether to enable or disable the reuse behavior
-    for a particular tool or step (to accomodate situations where that
+    for a particular tool or step (to accommodate situations where that
     assumption is incorrect).  A reused step is not executed but
     instead returns the same output as the original execution.
 
@@ -18529,7 +18529,7 @@ class NetworkAccess(ProcessRequirement):
     may apply their own security policies to restrict what is
     accessible by the tool.
 
-    Enabling network access does not imply a publically routable IP
+    Enabling network access does not imply a publicly routable IP
     address or the ability to accept inbound connections.
 
     """
@@ -18727,7 +18727,7 @@ class InplaceUpdateRequirement(ProcessRequirement):
     read-only in every step.
 
     Workflow steps which modify a file must produce the modified file
-    as output.  Downstream steps which futher process the file must
+    as output.  Downstream steps which further process the file must
     use the output of previous steps, and not refer to a common input
     (this is necessary for both ordering and correctness).
 
@@ -21672,7 +21672,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
     workflow inputs, or the outputs of other workflows steps) with the input
     parameters of the process specified by the `run` field. Only input parameters
     declared by the target process will be passed through at runtime to the process
-    though additonal parameters may be specified (for use within `valueFrom`
+    though additional parameters may be specified (for use within `valueFrom`
     expressions for instance) - unconnected or unused parameters do not represent an
     error condition.
 
@@ -23210,7 +23210,7 @@ class Workflow(Process):
     The `source` field expresses the dependency of one parameter on another
     such that when a value is associated with the parameter specified by
     `source`, that value is propagated to the destination parameter.  When all
-    data links inbound to a given step are fufilled, the step is ready to
+    data links inbound to a given step are fulfilled, the step is ready to
     execute.
 
     ## Workflow success and failure

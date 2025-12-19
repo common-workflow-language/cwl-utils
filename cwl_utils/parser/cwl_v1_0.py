@@ -4035,7 +4035,7 @@ class Directory(Saveable):
     the same Directory.
 
     When executing a CommandLineTool, Directories must be recursively staged
-    first and have local values of `path` assigend.
+    first and have local values of `path` assigned.
 
     Directory objects in CommandLineTool output must provide either a
     `location` URI or a `path` property in the context of the tool execution
@@ -16266,7 +16266,7 @@ class ShellCommandRequirement(ProcessRequirement):
     Modify the behavior of CommandLineTool to generate a single string
     containing a shell command line.  Each item in the argument list must be
     joined into a string separated by single spaces and quoted to prevent
-    intepretation by the shell, unless `CommandLineBinding` for that argument
+    interpretation by the shell, unless `CommandLineBinding` for that argument
     contains `shellQuote: false`.  If `shellQuote: false` is specified, the
     argument is joined into the command string without quoting, which allows
     the use of shell metacharacters such as `|` for pipes.
@@ -20275,7 +20275,7 @@ class Workflow(Process):
     The `source` field expresses the dependency of one parameter on another
     such that when a value is associated with the parameter specified by
     `source`, that value is propagated to the destination parameter.  When all
-    data links inbound to a given step are fufilled, the step is ready to
+    data links inbound to a given step are fulfilled, the step is ready to
     execute.
 
     ## Workflow success and failure
