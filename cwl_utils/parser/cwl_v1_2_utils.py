@@ -2,7 +2,7 @@
 import hashlib
 import logging
 from collections import namedtuple
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from io import StringIO
 from pathlib import Path
 from typing import IO, Any, cast
@@ -83,7 +83,7 @@ def _compare_type(type1: Any, type2: Any) -> bool:
 
 
 def _is_all_output_method_loop_step(
-    param_to_step: dict[str, cwl.WorkflowStep], parm_id: str
+    param_to_step: Mapping[str, cwl.WorkflowStep], parm_id: str
 ) -> bool:
     if (source_step := param_to_step.get(parm_id)) is not None:
         for requirement in source_step.requirements or []:
@@ -93,7 +93,7 @@ def _is_all_output_method_loop_step(
 
 
 def _is_conditional_step(
-    param_to_step: dict[str, cwl.WorkflowStep], parm_id: str
+    param_to_step: Mapping[str, cwl.WorkflowStep], parm_id: str
 ) -> bool:
     if (source_step := param_to_step.get(parm_id)) is not None:
         if source_step.when is not None:
@@ -200,8 +200,8 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
 
 def check_all_types(
     src_dict: dict[str, Any],
-    sinks: MutableSequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
-    param_to_step: dict[str, cwl.WorkflowStep],
+    sinks: Sequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
+    param_to_step: Mapping[str, cwl.WorkflowStep],
     type_dict: dict[str, Any],
 ) -> dict[str, list[SrcSink]]:
     """Given a list of sinks, check if their types match with the types of their sources."""
@@ -221,7 +221,7 @@ def check_all_types(
             case _:
                 continue
         if sourceField is not None:
-            if isinstance(sourceField, MutableSequence) and len(sourceField) > 1:
+            if isinstance(sourceField, Sequence) and len (sourceField) > 1:
                 linkMerge: str | None = sink.linkMerge or (
                     "merge_nested" if len(sourceField) > 1 else None
                 )
@@ -595,11 +595,19 @@ def param_for_source_id(
 ) -> (
     cwl.CommandInputParameter
     | cwl.CommandOutputParameter
+    | cwl.ExpressionToolOutputParameter
+    | cwl.OperationInputParameter
+    | cwl.OperationOutputParameter
     | cwl.WorkflowInputParameter
+    | cwl.WorkflowOutputParameter
     | MutableSequence[
         cwl.CommandInputParameter
         | cwl.CommandOutputParameter
+        | cwl.ExpressionToolOutputParameter
+        | cwl.OperationInputParameter
+        | cwl.OperationOutputParameter
         | cwl.WorkflowInputParameter
+        | cwl.WorkflowOutputParameter
     ]
 ):
     """Find the process input parameter that matches one of the given sourcenames."""
@@ -608,7 +616,9 @@ def param_for_source_id(
     params: MutableSequence[
         cwl.CommandInputParameter
         | cwl.CommandOutputParameter
+        | cwl.ExpressionToolOutputParameter
         | cwl.WorkflowInputParameter
+        | cwl.WorkflowOutputParameter
     ] = []
     for sourcename in sourcenames:
         if not isinstance(process, cwl.Workflow):
