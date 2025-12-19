@@ -218,35 +218,9 @@ def check_all_types(
                 sourceName = "source"
                 sourceField = sink.source
             case _:
-                continue
+                raise WorkflowException(f"Invalid sink type {sink.__class__.__name__}")
         if sourceField is not None:
-            if isinstance(sourceField, Sequence):
-                linkMerge: str | None = sink.linkMerge or (
-                    "merge_nested" if len(sourceField) > 1 else None
-                )
-                if sink.pickValue in ("first_non_null", "the_only_non_null"):
-                    linkMerge = None
-                srcs_of_sink = []
-                for parm_id in sourceField:
-                    srcs_of_sink += [src_dict[parm_id]]
-                    if (
-                        _is_conditional_step(param_to_step, parm_id)
-                        and sink.pickValue is not None
-                    ):
-                        validation["warning"].append(
-                            SrcSink(
-                                src_dict[parm_id],
-                                sink,
-                                linkMerge,
-                                message="Source is from conditional step, but pickValue is not used",
-                            )
-                        )
-                    if _is_all_output_method_loop_step(param_to_step, parm_id):
-                        src_typ = type_dict[src_dict[parm_id].id]
-                        type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
-                            items=src_typ, type_="array"
-                        )
-            else:
+            if isinstance(sourceField, str):
                 parm_id = sourceField
                 if parm_id not in src_dict:
                     raise SourceLine(sink, sourceName, ValidationException).makeError(
@@ -269,8 +243,8 @@ def check_all_types(
                     if "null" not in src_typ:
                         src_typ = ["null"] + cast(list[Any], src_typ)
                     if (
-                        not isinstance(snk_typ, MutableSequence)
-                        or "null" not in snk_typ
+                            not isinstance(snk_typ, MutableSequence)
+                            or "null" not in snk_typ
                     ):
                         validation["warning"].append(
                             SrcSink(
@@ -286,6 +260,32 @@ def check_all_types(
                     type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
                         items=src_typ, type_="array"
                     )
+            else:
+                linkMerge: str | None = sink.linkMerge or (
+                    "merge_nested" if len(sourceField) > 1 else None
+                )
+                if sink.pickValue in ("first_non_null", "the_only_non_null"):
+                    linkMerge = None
+                srcs_of_sink = []
+                for parm_id in sourceField:
+                    srcs_of_sink += [src_dict[parm_id]]
+                    if (
+                            _is_conditional_step(param_to_step, parm_id)
+                            and sink.pickValue is not None
+                    ):
+                        validation["warning"].append(
+                            SrcSink(
+                                src_dict[parm_id],
+                                sink,
+                                linkMerge,
+                                message="Source is from conditional step, but pickValue is not used",
+                            )
+                        )
+                    if _is_all_output_method_loop_step(param_to_step, parm_id):
+                        src_typ = type_dict[src_dict[parm_id].id]
+                        type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
+                            items=src_typ, type_="array"
+                        )
             for src in srcs_of_sink:
                 check_result = check_types(
                     type_dict[cast(str, src.id)],
