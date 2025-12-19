@@ -2,7 +2,7 @@
 import hashlib
 import logging
 from collections import namedtuple
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import MutableMapping, MutableSequence, Sequence
 from io import StringIO
 from pathlib import Path
 from typing import Any, IO, cast
@@ -181,7 +181,7 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
 
 def check_all_types(
     src_dict: dict[str, Any],
-    sinks: MutableSequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
+    sinks: Sequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
     type_dict: dict[str, Any],
 ) -> dict[str, list[SrcSink]]:
     """Given a list of sinks, check if their types match with the types of their sources."""
@@ -197,7 +197,7 @@ def check_all_types(
             case _:
                 continue
         if sourceField is not None:
-            if isinstance(sourceField, MutableSequence):
+            if isinstance(sourceField, Sequence):
                 linkMerge = sink.linkMerge or (
                     "merge_nested" if len(sourceField) > 1 else None
                 )
@@ -489,11 +489,15 @@ def param_for_source_id(
 ) -> (
     cwl.CommandInputParameter
     | cwl.CommandOutputParameter
+    | cwl.ExpressionToolOutputParameter
     | cwl.WorkflowInputParameter
+    | cwl.WorkflowOutputParameter
     | MutableSequence[
         cwl.CommandInputParameter
         | cwl.CommandOutputParameter
+        | cwl.ExpressionToolOutputParameter
         | cwl.WorkflowInputParameter
+        | cwl.WorkflowOutputParameter
     ]
 ):
     """Find the process input parameter that matches one of the given sourcenames."""
@@ -502,7 +506,9 @@ def param_for_source_id(
     params: MutableSequence[
         cwl.CommandInputParameter
         | cwl.CommandOutputParameter
+        | cwl.ExpressionToolOutputParameter
         | cwl.WorkflowInputParameter
+        | cwl.WorkflowOutputParameter
     ] = []
     for sourcename in sourcenames:
         if not isinstance(process, cwl.Workflow):
