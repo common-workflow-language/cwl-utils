@@ -5,7 +5,7 @@ from collections import namedtuple
 from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from io import StringIO
 from pathlib import Path
-from typing import Any, IO, cast
+from typing import IO, Any, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -243,8 +243,8 @@ def check_all_types(
                     if "null" not in src_typ:
                         src_typ = ["null"] + cast(list[Any], src_typ)
                     if (
-                            not isinstance(snk_typ, MutableSequence)
-                            or "null" not in snk_typ
+                        not isinstance(snk_typ, MutableSequence)
+                        or "null" not in snk_typ
                     ):
                         validation["warning"].append(
                             SrcSink(
@@ -270,8 +270,8 @@ def check_all_types(
                 for parm_id in sourceField:
                     srcs_of_sink += [src_dict[parm_id]]
                     if (
-                            _is_conditional_step(param_to_step, parm_id)
-                            and sink.pickValue is not None
+                        _is_conditional_step(param_to_step, parm_id)
+                        and sink.pickValue is not None
                     ):
                         validation["warning"].append(
                             SrcSink(
