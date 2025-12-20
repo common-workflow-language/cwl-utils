@@ -2385,7 +2385,7 @@ def replace_step_valueFrom_expr_with_etool(
     source_type: (
         cwl.InputParameter
         | cwl.CommandOutputParameter
-        | MutableSequence[cwl.InputParameter | cwl.CommandOutputParameter]
+        | Sequence[cwl.InputParameter | cwl.CommandOutputParameter]
         | None
     ) = None,
 ) -> None:
