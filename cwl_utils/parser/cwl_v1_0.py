@@ -22751,7 +22751,7 @@ class ProcessGenerator(Process):
 
             outputs = load_field(
                 _doc.get("outputs"),
-                idmap_outputs_array_of_OutputParameterLoader,
+                idmap_outputs_array_of_ExpressionToolOutputParameterLoader,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("outputs")
@@ -23183,7 +23183,7 @@ class ProcessGenerator(Process):
     def __init__(
         self,
         inputs: Sequence[InputParameter],
-        outputs: Sequence[OutputParameter],
+        outputs: Sequence[ExpressionToolOutputParameter],
         run: CommandLineTool | ExpressionTool | ProcessGenerator | Workflow | str,
         id: None | str = None,
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | TimeLimit | WorkReuse] = None,
