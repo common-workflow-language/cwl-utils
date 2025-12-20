@@ -27163,7 +27163,7 @@ class ProcessGenerator(Process):
 
             inputs = load_field(
                 _doc.get("inputs"),
-                idmap_inputs_array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader,
+                idmap_inputs_array_of_WorkflowInputParameterLoader,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("inputs")
@@ -27211,7 +27211,7 @@ class ProcessGenerator(Process):
 
             outputs = load_field(
                 _doc.get("outputs"),
-                idmap_outputs_array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader_or_OperationOutputParameterLoader,
+                idmap_outputs_array_of_ExpressionToolOutputParameterLoader,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("outputs")
@@ -27601,8 +27601,8 @@ class ProcessGenerator(Process):
 
     def __init__(
         self,
-        inputs: Sequence[CommandInputParameter | OperationInputParameter | WorkflowInputParameter],
-        outputs: Sequence[CommandOutputParameter | ExpressionToolOutputParameter | OperationOutputParameter | WorkflowOutputParameter],
+        inputs: Sequence[WorkflowInputParameter],
+        outputs: Sequence[ExpressionToolOutputParameter],
         run: CommandLineTool | ExpressionTool | Operation | ProcessGenerator | Workflow | str,
         id: None | str = None,
         label: None | str = None,
