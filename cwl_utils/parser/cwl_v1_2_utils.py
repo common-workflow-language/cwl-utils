@@ -261,7 +261,7 @@ def check_all_types(
                         items=src_typ, type_="array"
                     )
             else:
-                linkMerge: str | None = sink.linkMerge or (
+                linkMerge = sink.linkMerge or (
                     "merge_nested" if len(sourceField) > 1 else None
                 )
                 if sink.pickValue in ("first_non_null", "the_only_non_null"):
