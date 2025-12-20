@@ -511,8 +511,14 @@ def type_for_step_output(
 
 
 def type_for_source(
-    process: cwl.CommandLineTool | cwl.Workflow | cwl.ExpressionTool,
-    sourcenames: str | list[str],
+    process: (
+        cwl.CommandLineTool
+        | cwl.Workflow
+        | cwl.ExpressionTool
+        | cwl.ProcessGenerator
+        | cwl.Operation
+    ),
+    sourcenames: str | Sequence[str],
     parent: cwl.Workflow | None = None,
     linkMerge: str | None = None,
     pickValue: str | None = None,
@@ -571,8 +577,10 @@ def type_for_source(
 
 
 def param_for_source_id(
-    process: cwl.CommandLineTool | cwl.Workflow | cwl.ExpressionTool,
-    sourcenames: str | list[str],
+    process: (
+        cwl.CommandLineTool | cwl.Workflow | cwl.ExpressionTool | cwl.ProcessGenerator
+    ),
+    sourcenames: str | Sequence[str],
     parent: cwl.Workflow | None = None,
     scatter_context: list[tuple[int, str] | None] | None = None,
 ) -> (
