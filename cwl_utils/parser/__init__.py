@@ -226,16 +226,8 @@ Directory: TypeAlias = cwl_v1_0.Directory | cwl_v1_1.Directory | cwl_v1_2.Direct
 Dirent: TypeAlias = cwl_v1_0.Dirent | cwl_v1_1.Dirent | cwl_v1_2.Dirent
 """Type Union for a CWL v1.x Dirent object."""
 LoadContents: TypeAlias = (
-    cwl_v1_1.CommandInputParameter
-    | cwl_v1_2.CommandInputParameter
-    | cwl_v1_1.CommandOutputBinding
-    | cwl_v1_2.CommandOutputBinding
-    | cwl_v1_1.InputRecordField
-    | cwl_v1_2.InputRecordField
-    | cwl_v1_1.WorkflowInputParameter
-    | cwl_v1_2.WorkflowInputParameter
-    | cwl_v1_1.WorkflowStepInput
-    | cwl_v1_2.WorkflowStepInput
+    cwl_v1_1.LoadContents
+    | cwl_v1_2.LoadContents
 )
 """Type Union for a CWL v1.x LoadContents object."""
 SchemaDefRequirement: TypeAlias = (
