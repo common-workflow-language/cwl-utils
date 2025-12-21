@@ -7,7 +7,7 @@ import hashlib
 import uuid
 from collections.abc import MutableSequence, Sequence
 from contextlib import suppress
-from typing import Any, Literal, TypeAlias, TypeVar, cast
+from typing import Any, cast
 
 from ruamel import yaml
 from schema_salad.sourceline import SourceLine
@@ -17,6 +17,17 @@ import cwl_utils.parser.cwl_v1_1 as cwl
 import cwl_utils.parser.cwl_v1_1_utils as utils
 from cwl_utils.errors import JavascriptException, WorkflowException
 from cwl_utils.expression import do_eval, interpolate
+from cwl_utils.parser.cwl_v1_1_utils import (
+    AnyTypeSchema,
+    BasicCommandInputTypeSchemas,
+    BasicCommandOutputTypeSchemas,
+    BasicInputTypeSchemas,
+    BasicOutputTypeSchemas,
+    CommandInputTypeSchemas,
+    CommandOutputTypeSchemas,
+    InputTypeSchemas,
+    OutputTypeSchemas,
+)
 from cwl_utils.types import (
     CWLDirectoryType,
     CWLFileType,
@@ -56,93 +67,6 @@ def escape_expression_field(contents: str) -> str:
     return contents.replace("${", "$/{").replace("$(", "$/(")
 
 
-BasicInputTypeSchemas: TypeAlias = (
-    cwl.InputArraySchema
-    | cwl.InputEnumSchema
-    | cwl.InputRecordSchema
-    | str
-    | Literal[
-        "null",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "string",
-        "File",
-        "Directory",
-        "stdin",
-    ]
-)
-InputTypeSchemas: TypeAlias = BasicInputTypeSchemas | Sequence[BasicInputTypeSchemas]
-BasicCommandInputTypeSchemas: TypeAlias = (
-    cwl.CommandInputArraySchema
-    | cwl.CommandInputEnumSchema
-    | cwl.CommandInputRecordSchema
-    | str
-    | Literal[
-        "null",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "string",
-        "File",
-        "Directory",
-        "stdin",
-    ]
-)
-CommandInputTypeSchemas: TypeAlias = (
-    BasicCommandInputTypeSchemas | Sequence[BasicCommandInputTypeSchemas]
-)
-BasicOutputTypeSchemas: TypeAlias = (
-    cwl.OutputArraySchema
-    | cwl.OutputEnumSchema
-    | cwl.OutputRecordSchema
-    | str
-    | Literal[
-        "null",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "string",
-        "File",
-        "Directory",
-        "stdout",
-        "stderr",
-    ]
-)
-OutputTypeSchemas: TypeAlias = BasicOutputTypeSchemas | Sequence[BasicOutputTypeSchemas]
-BasicCommandOutputTypeSchemas: TypeAlias = (
-    cwl.CommandOutputArraySchema
-    | cwl.CommandOutputEnumSchema
-    | cwl.CommandOutputRecordSchema
-    | str
-    | Literal[
-        "null",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "string",
-        "File",
-        "Directory",
-        "stdout",
-        "stderr",
-    ]
-)
-CommandOutputTypeSchemas: TypeAlias = (
-    BasicCommandOutputTypeSchemas | Sequence[BasicCommandOutputTypeSchemas]
-)
-AnyTypeSchema = TypeVar(
-    "AnyTypeSchema", bound=InputTypeSchemas | CommandOutputTypeSchemas
-)
-
-
 def _clean_type_ids(
     cwltype: InputTypeSchemas | CommandOutputTypeSchemas,
 ) -> None:
@@ -164,8 +88,6 @@ def _clean_type_ids(
                 for field in cwltype.items.fields:
                     field.name = field.name.split("/")[-1]
     elif isinstance(cwltype, cwl.RecordSchema):
-        if cwltype.name:
-            cwltype.name = cwltype.name.split("/")[-1]
         if cwltype.fields:
             for field in cwltype.fields:
                 field.name = field.name.split("/")[-1]
