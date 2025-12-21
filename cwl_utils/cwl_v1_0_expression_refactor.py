@@ -25,6 +25,7 @@ from cwl_utils.types import (
     CWLParameterContext,
     CWLRuntimeParameterContext,
     is_file_or_directory,
+    is_sequence,
 )
 
 
@@ -144,7 +145,7 @@ def _clean_type_ids(
     cwltype: InputTypeSchemas | CommandOutputTypeSchemas,
 ) -> None:
     if isinstance(cwltype, cwl.ArraySchema):
-        if isinstance(cwltype.items, Sequence):
+        if is_sequence(cwltype.items):
             for item in cwltype.items:
                 if hasattr(item, "id"):
                     item.id = item.id.split("#")[-1]
@@ -173,7 +174,7 @@ def clean_type_ids(
 ) -> AnyTypeSchema:
     """Simplify type identifiers."""
     result = copy.deepcopy(cwltype)
-    if isinstance(result, Sequence):
+    if is_sequence(result):
         for item in result:
             _clean_type_ids(item)
     else:
@@ -190,7 +191,7 @@ def _has_expression(string: str) -> bool:
 
 
 def has_expression(field: str | Sequence[str]) -> bool:
-    if isinstance(field, Sequence):
+    if is_sequence(field):
         for entry in field:
             if _has_expression(entry):
                 return True
@@ -284,7 +285,7 @@ def _plain_input_schema_to_clt_input_schema(
 def plain_input_schema_to_clt_input_schema(
     input_type: InputTypeSchemas,
 ) -> CommandInputTypeSchemas:
-    if isinstance(input_type, Sequence):
+    if is_sequence(input_type):
         return [
             _plain_input_schema_to_clt_input_schema(input_type_item)
             for input_type_item in input_type
@@ -324,7 +325,7 @@ def _plain_input_schema_to_plain_output_schema(
 def plain_input_schema_to_plain_output_schema(
     input_type: InputTypeSchemas,
 ) -> OutputTypeSchemas:
-    if isinstance(input_type, Sequence):
+    if is_sequence(input_type):
         return [
             _plain_input_schema_to_plain_output_schema(input_type_item)
             for input_type_item in input_type
@@ -364,7 +365,7 @@ def _plain_output_type_to_clt_output_type(
 def plain_output_type_to_clt_output_type(
     output_type: OutputTypeSchemas,
 ) -> CommandOutputTypeSchemas:
-    if isinstance(output_type, Sequence):
+    if is_sequence(output_type):
         return [
             _plain_output_type_to_clt_output_type(output_type_item)
             for output_type_item in output_type
@@ -605,11 +606,11 @@ def generate_etool_from_expr(
             self_type = target
         assert self_type is not None
         new_type: InputTypeSchemas
-        if isinstance(self_type, Sequence):
+        if is_sequence(self_type):
             new_type_list: MutableSequence[BasicInputTypeSchemas] = []
             for entry in self_type:
                 clean_type = clean_type_ids(entry.type_)
-                if isinstance(clean_type, Sequence):
+                if is_sequence(clean_type):
                     new_type_list.extend(clean_type)
                 elif clean_type is None:
                     pass
@@ -621,27 +622,21 @@ def generate_etool_from_expr(
         inputs.append(
             cwl.InputParameter(
                 id="self",
-                label=self_type.label if not isinstance(self_type, list) else None,
+                label=self_type.label if not is_sequence(self_type) else None,
                 secondaryFiles=(
-                    self_type.secondaryFiles
-                    if not isinstance(self_type, list)
-                    else None
+                    self_type.secondaryFiles if not is_sequence(self_type) else None
                 ),
                 streamable=(
-                    self_type.streamable if not isinstance(self_type, list) else None
+                    self_type.streamable if not is_sequence(self_type) else None
                 ),
-                doc=self_type.doc if not isinstance(self_type, list) else None,
-                format=self_type.format if not isinstance(self_type, list) else None,
+                doc=self_type.doc if not is_sequence(self_type) else None,
+                format=(self_type.format if not is_sequence(self_type) else None),
                 type_=new_type,
                 extension_fields=(
-                    self_type.extension_fields
-                    if not isinstance(self_type, list)
-                    else None
+                    self_type.extension_fields if not is_sequence(self_type) else None
                 ),
                 loadingOptions=(
-                    self_type.loadingOptions
-                    if not isinstance(self_type, list)
-                    else None
+                    self_type.loadingOptions if not is_sequence(self_type) else None
                 ),
             )
         )
@@ -1782,7 +1777,7 @@ def traverse_CommandLineTool(
                     sub_wf_inputs = process_inputs_to_etool_inputs(clt)
                     orig_step_inputs = copy.deepcopy(step.in_)
                     for orig_step_input in orig_step_inputs:
-                        if isinstance(orig_step_input.source, Sequence):
+                        if is_sequence(orig_step_input.source):
                             new_orig_step_input_source = list(orig_step_input.source)
                             for index, source in enumerate(orig_step_input.source):
                                 new_orig_step_input_source[index] = source.split("#")[
@@ -2238,7 +2233,7 @@ def traverse_step(
                         )
                     else:
                         scattered_source_type = utils.type_for_source(parent, source)
-                        if isinstance(scattered_source_type, list):
+                        if is_sequence(scattered_source_type):
                             for stype in scattered_source_type:
                                 self.append(example_input(stype.type_))
                         else:
@@ -2264,7 +2259,7 @@ def traverse_step(
                         source_id = source.split("#")[-1]
                         input_source_id.append(source_id)
                         temp_type = utils.type_for_source(step.run, source_id, parent)
-                        if isinstance(temp_type, list):
+                        if is_sequence(temp_type):
                             for ttype in temp_type:
                                 if ttype not in source_types:
                                     source_types.append(ttype)
@@ -2347,7 +2342,7 @@ def workflow_step_to_InputParameters(
             param = copy.deepcopy(
                 utils.param_for_source_id(parent, sourcenames=inp.source)
             )
-            if isinstance(param, Sequence):
+            if is_sequence(param):
                 for p in param:
                     if not p.type_:
                         raise WorkflowException(

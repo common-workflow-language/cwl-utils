@@ -2,13 +2,13 @@
 # From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
 """Shared Python type definitions for commons JSON like CWL objects."""
 import sys
-from collections.abc import Mapping, MutableMapping, MutableSequence
+from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from typing import Any, Literal, TypeAlias, TypedDict, TypeGuard
 
 if sys.version_info >= (3, 13):
-    from typing import TypeIs
+    from typing import TypeIs as TypeIs
 else:
-    from typing_extensions import TypeIs
+    from typing_extensions import TypeIs as TypeIs
 
 if sys.version_info >= (3, 11):
     from typing import Required
@@ -160,3 +160,7 @@ def is_file_or_directory(
     value: Any,
 ) -> TypeIs[CWLFileType | CWLDirectoryType]:
     return isinstance(value, Mapping) and value.get("class") in ("File", "Directory")
+
+
+def is_sequence(thing: object) -> TypeIs[Sequence[Any]]:
+    return isinstance(thing, Sequence) and not isinstance(thing, str)
