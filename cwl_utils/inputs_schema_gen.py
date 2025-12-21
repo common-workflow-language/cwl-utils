@@ -5,9 +5,11 @@
 
 """Generate JSON Schema from CWL inputs object."""
 import argparse
+import hashlib
 import json
 import logging
 import sys
+from collections.abc import Sequence
 from contextlib import suppress
 from copy import deepcopy
 from importlib.resources import files
@@ -16,6 +18,7 @@ from typing import Any, TypeGuard, cast
 from urllib.parse import urlparse
 
 import requests
+from schema_salad.utils import json_dumps
 
 from cwl_utils.loghandler import _logger as _cwlutilslogger
 from cwl_utils.parser import (
@@ -34,6 +37,7 @@ from cwl_utils.parser import (
     cwl_v1_2,
     load_document_by_uri,
 )
+from cwl_utils.types import is_sequence
 from cwl_utils.utils import (
     get_value_from_uri,
     is_local_uri,
@@ -252,7 +256,11 @@ def generate_json_schema_property_from_input_parameter(
     """
     # Get the input name and documentation for description
     input_name = get_value_from_uri(str(input_parameter.id))
-    doc = input_parameter.doc
+    doc = (
+        "\n".join(input_parameter.doc)
+        if is_sequence(input_parameter.doc)
+        else input_parameter.doc
+    )
     required = get_is_required_from_input_parameter(input_parameter)
 
     return JSONSchemaProperty(
@@ -263,27 +271,27 @@ def generate_json_schema_property_from_input_parameter(
     )
 
 
-def generate_definition_from_schema(schema: InputRecordSchema) -> dict[str, Any]:
-    """
-    Given a schema, generate a JSON schema definition.
+def generate_definition_from_schema(
+    schema: InputRecordSchema | InputArraySchema | InputEnumSchema,
+) -> dict[str, Any]:
+    """Given a schema, generate a JSON schema definition."""
+    # TODO: handle InputArraySchema & InputEnumSchema (from SchemaDefRequirement.types)
 
-    :param schema:
-    :return:
-    """
     # Sanitise each field of the schema
     sanitised_fields = {}
 
-    if schema.fields is None:
-        return {}
+    if isinstance(schema, InputRecordSchema):
+        if schema.fields is None:
+            return {}
 
-    for field in schema.fields:
-        sanitised_fields.update(
-            {
-                get_value_from_uri(field.name): sanitise_schema_field(
-                    {"type": field.type_}
-                )
-            }
-        )
+        for field in schema.fields:
+            sanitised_fields.update(
+                {
+                    get_value_from_uri(field.name): sanitise_schema_field(
+                        {"type": field.type_}
+                    )
+                }
+            )
 
     # Generate JSON properties
     property_list = []
@@ -316,8 +324,17 @@ def generate_definition_from_schema(schema: InputRecordSchema) -> dict[str, Any]
         )
         property_list.append(prop)
 
+    if not isinstance(schema, cwl_v1_0.InputArraySchema) or hasattr(schema, "name"):
+        schema_name = to_pascal_case(get_value_from_uri(str(schema.name)))
+    else:
+        schema_name = (
+            "AnonymousInputArraySchema"
+            + hashlib.sha1(  # nosec
+                json_dumps(schema.save()).encode("utf-8")
+            ).hexdigest()
+        )
     return {
-        to_pascal_case(get_value_from_uri(str(schema.name))): {
+        schema_name: {
             "type": "object",
             "properties": {prop.name: prop.type_dict for prop in property_list},
             "required": [prop.name for prop in property_list if prop.required],
@@ -325,7 +342,7 @@ def generate_definition_from_schema(schema: InputRecordSchema) -> dict[str, Any]
     }
 
 
-def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
+def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> dict[str, object]:
     """
     cwl_obj: A CWL Object.
 
@@ -386,11 +403,9 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
 
         return input_record_schema
 
-    complex_schema_values: list[InputRecordSchema] = list(
-        map(
-            get_complex_schema_values,
-            complex_schema_keys,
-        )
+    complex_schema_values: map[InputRecordSchema] = map(
+        get_complex_schema_values,
+        complex_schema_keys,
     )
 
     # Load in all $imports to be referred by complex input types
@@ -415,11 +430,9 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
             )
 
             workflow_schema_definitions_list.extend(
-                list(
-                    map(
-                        generate_definition_from_schema,
-                        schema_def_requirement.types,
-                    )
+                map(
+                    generate_definition_from_schema,
+                    schema_def_requirement.types,
                 )
             )
 
@@ -432,7 +445,7 @@ def cwl_to_jsonschema(cwl_obj: Workflow | CommandLineTool) -> Any:
     properties = list(
         map(
             generate_json_schema_property_from_input_parameter,
-            cwl_obj.inputs,
+            cast(Sequence[WorkflowInputParameter], cwl_obj.inputs),
         )
     )
 
