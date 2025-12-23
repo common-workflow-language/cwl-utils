@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test the CWL parsers utility functions."""
+import logging
+import re
 import tempfile
 from collections.abc import MutableSequence
 from typing import cast
 
 import pytest
-from pytest import raises
+from pytest import raises, LogCaptureFixture
 from schema_salad.exceptions import ValidationException
 
 import cwl_utils.parser.cwl_v1_0
@@ -69,6 +71,39 @@ def test_static_checker_fail(cwlVersion: str) -> None:
     cwl_obj7 = load_document_by_uri(uri7)
     with pytest.raises(ValidationException, match=".* pickValue is the_only_non_null"):
         cwl_utils.parser.utils.static_checker(cwl_obj7)
+
+
+def test_static_checker_warning(caplog: LogCaptureFixture) -> None:
+    uri1 = get_path("testdata/checker_wf/warning-wf.cwl").as_uri()
+    cwl_obj1 = load_document_by_uri(uri1)
+    with caplog.at_level(level=logging.WARNING, logger="cwl_utils"):
+        cwl_utils.parser.utils.static_checker(cwl_obj1)
+    assert "Source is from conditional step and may produce `null`" in caplog.text
+    caplog.clear()
+
+    uri2 = get_path("testdata/checker_wf/no-warning-wf.cwl").as_uri()
+    cwl_obj2 = load_document_by_uri(uri2)
+    with caplog.at_level(level=logging.WARNING, logger="cwl_utils"):
+        cwl_utils.parser.utils.static_checker(cwl_obj2)
+    assert not caplog.text
+    caplog.clear()
+
+    uri3 = get_path("testdata/checker_wf/warning-wf2.cwl").as_uri()
+    cwl_obj3 = load_document_by_uri(uri3)
+    with caplog.at_level(level=logging.WARNING, logger="cwl_utils"):
+        cwl_utils.parser.utils.static_checker(cwl_obj3)
+    assert "Source is from conditional step and may produce `null`" in caplog.text
+    caplog.clear()
+
+    uri4 = get_path("testdata/checker_wf/warning-wf3.cwl").as_uri()
+    cwl_obj4 = load_document_by_uri(uri4)
+    with caplog.at_level(level=logging.WARNING, logger="cwl_utils"):
+        cwl_utils.parser.utils.static_checker(cwl_obj4)
+    assert re.search(
+        'with sink \'pair\' of type {"name":.* "items": "File", "type": "array"}',
+        caplog.text,
+    )
+    assert "Source is from conditional step, but pickValue is not used" in caplog.text
 
 
 @pytest.mark.parametrize("cwlVersion", ["v1_0", "v1_1", "v1_2"])
