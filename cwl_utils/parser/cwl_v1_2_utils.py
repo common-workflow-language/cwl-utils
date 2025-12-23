@@ -221,7 +221,7 @@ def check_all_types(
             case _:
                 continue
         if sourceField is not None:
-            if isinstance(sourceField, MutableSequence):
+            if isinstance(sourceField, MutableSequence) and len(sourceField) > 1:
                 linkMerge: str | None = sink.linkMerge or (
                     "merge_nested" if len(sourceField) > 1 else None
                 )
@@ -232,26 +232,34 @@ def check_all_types(
                     srcs_of_sink += [src_dict[parm_id]]
                     if (
                         _is_conditional_step(param_to_step, parm_id)
-                        and "null" != sink_type
-                        and isinstance(sink_type, MutableSequence)
-                        and "null" not in sink_type
                         and sink.pickValue is None
                     ):
-                        validation["warning"].append(
-                            SrcSink(
-                                src_dict[parm_id],
-                                sink,
-                                linkMerge,
-                                message="Source is from conditional step, but pickValue is not used",
+                        src_typ = aslist(type_dict[src_dict[parm_id].id])
+                        if "null" not in src_typ:
+                            src_typ = ["null"] + cast(list[Any], src_typ)
+                        if (
+                            not isinstance(sink_type, MutableSequence)
+                            or "null" not in sink_type
+                        ):
+                            validation["warning"].append(
+                                SrcSink(
+                                    src_dict[parm_id],
+                                    sink,
+                                    linkMerge,
+                                    message="Source is from conditional step, but pickValue is not used",
+                                )
                             )
-                        )
+                        type_dict[src_dict[parm_id].id] = src_typ
                     if _is_all_output_method_loop_step(param_to_step, parm_id):
                         src_typ = type_dict[src_dict[parm_id].id]
                         type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
                             items=src_typ, type_="array"
                         )
             else:
-                parm_id = cast(str, sourceField)
+                if isinstance(sourceField, MutableSequence):
+                    parm_id = cast(str, sourceField[0])
+                else:
+                    parm_id = cast(str, sourceField)
                 if parm_id not in src_dict:
                     raise SourceLine(sink, sourceName, ValidationException).makeError(
                         f"{sourceName} not found: {parm_id}"
