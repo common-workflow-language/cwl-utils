@@ -8099,7 +8099,7 @@ class Process(Identified, Labeled, Documented, metaclass=ABCMeta):
     outputs: Sequence[CommandOutputParameter | ExpressionToolOutputParameter | OperationOutputParameter | WorkflowOutputParameter]
     requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse]
     hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse]
-    cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None
+    cwlVersion: Literal["v1.2"] | None
     intent: None | Sequence[str]
 
 
@@ -16107,7 +16107,7 @@ class CommandLineTool(Process):
         doc: None | Sequence[str] | str = None,
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
         hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
-        cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None = None,
+        cwlVersion: Literal["v1.2"] | None = None,
         intent: None | Sequence[str] = None,
         baseCommand: None | Sequence[str] | str = None,
         arguments: None | Sequence[CommandLineBinding | str] = None,
@@ -16135,7 +16135,7 @@ class CommandLineTool(Process):
         self.outputs: Sequence[CommandOutputParameter] = outputs
         self.requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = requirements
         self.hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = hints
-        self.cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None = cwlVersion
+        self.cwlVersion: Literal["v1.2"] | None = cwlVersion
         self.intent: None | Sequence[str] = intent
         self.class_: Final[str] = "CommandLineTool"
         self.baseCommand: None | Sequence[str] | str = baseCommand
@@ -21228,7 +21228,7 @@ class ExpressionTool(Process):
         doc: None | Sequence[str] | str = None,
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
         hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
-        cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None = None,
+        cwlVersion: Literal["v1.2"] | None = None,
         intent: None | Sequence[str] = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
@@ -21248,7 +21248,7 @@ class ExpressionTool(Process):
         self.outputs: Sequence[ExpressionToolOutputParameter] = outputs
         self.requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = requirements
         self.hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = hints
-        self.cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None = cwlVersion
+        self.cwlVersion: Literal["v1.2"] | None = cwlVersion
         self.intent: None | Sequence[str] = intent
         self.class_: Final[str] = "ExpressionTool"
         self.expression: str = expression
@@ -24421,7 +24421,7 @@ class Workflow(Process):
         doc: None | Sequence[str] | str = None,
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
         hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
-        cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None = None,
+        cwlVersion: Literal["v1.2"] | None = None,
         intent: None | Sequence[str] = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
@@ -24441,7 +24441,7 @@ class Workflow(Process):
         self.outputs: Sequence[WorkflowOutputParameter] = outputs
         self.requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = requirements
         self.hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = hints
-        self.cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None = cwlVersion
+        self.cwlVersion: Literal["v1.2"] | None = cwlVersion
         self.intent: None | Sequence[str] = intent
         self.class_: Final[str] = "Workflow"
         self.steps: Sequence[WorkflowStep] = steps
@@ -26767,7 +26767,7 @@ class Operation(Process):
         doc: None | Sequence[str] | str = None,
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
         hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
-        cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None = None,
+        cwlVersion: Literal["v1.2"] | None = None,
         intent: None | Sequence[str] = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
@@ -26787,7 +26787,7 @@ class Operation(Process):
         self.outputs: Sequence[OperationOutputParameter] = outputs
         self.requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = requirements
         self.hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = hints
-        self.cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None = cwlVersion
+        self.cwlVersion: Literal["v1.2"] | None = cwlVersion
         self.intent: None | Sequence[str] = intent
         self.class_: Final[str] = "Operation"
 
@@ -27645,7 +27645,7 @@ class ProcessGenerator(Process):
         doc: None | Sequence[str] | str = None,
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
         hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
-        cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None = None,
+        cwlVersion: Literal["v1.2"] | None = None,
         intent: None | Sequence[str] = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
@@ -27665,7 +27665,7 @@ class ProcessGenerator(Process):
         self.outputs: Sequence[ExpressionToolOutputParameter] = outputs
         self.requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = requirements
         self.hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | Loop | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = hints
-        self.cwlVersion: Literal["draft-2", "draft-3.dev1", "draft-3.dev2", "draft-3.dev3", "draft-3.dev4", "draft-3.dev5", "draft-3", "draft-4.dev1", "draft-4.dev2", "draft-4.dev3", "v1.0.dev4", "v1.0", "v1.1.0-dev1", "v1.1", "v1.2.0-dev1", "v1.2.0-dev2", "v1.2.0-dev3", "v1.2.0-dev4", "v1.2.0-dev5", "v1.2"] | None = cwlVersion
+        self.cwlVersion: Literal["v1.2"] | None = cwlVersion
         self.intent: None | Sequence[str] = intent
         self.class_: Final[str] = "ProcessGenerator"
         self.run: CommandLineTool | ExpressionTool | Operation | ProcessGenerator | Workflow | str = run
@@ -29268,16 +29268,6 @@ _vocab.update({
     "deep_listing": "https://w3id.org/cwl/cwl#LoadListingEnum/deep_listing",
     "dotproduct": "https://w3id.org/cwl/cwl#ScatterMethod/dotproduct",
     "double": "http://www.w3.org/2001/XMLSchema#double",
-    "draft-2": "https://w3id.org/cwl/cwl#draft-2",
-    "draft-3": "https://w3id.org/cwl/cwl#draft-3",
-    "draft-3.dev1": "https://w3id.org/cwl/cwl#draft-3.dev1",
-    "draft-3.dev2": "https://w3id.org/cwl/cwl#draft-3.dev2",
-    "draft-3.dev3": "https://w3id.org/cwl/cwl#draft-3.dev3",
-    "draft-3.dev4": "https://w3id.org/cwl/cwl#draft-3.dev4",
-    "draft-3.dev5": "https://w3id.org/cwl/cwl#draft-3.dev5",
-    "draft-4.dev1": "https://w3id.org/cwl/cwl#draft-4.dev1",
-    "draft-4.dev2": "https://w3id.org/cwl/cwl#draft-4.dev2",
-    "draft-4.dev3": "https://w3id.org/cwl/cwl#draft-4.dev3",
     "enum": "https://w3id.org/cwl/salad#enum",
     "first_non_null": "https://w3id.org/cwl/cwl#PickValueMethod/first_non_null",
     "flat_crossproduct": "https://w3id.org/cwl/cwl#ScatterMethod/flat_crossproduct",
@@ -29299,16 +29289,7 @@ _vocab.update({
     "string": "http://www.w3.org/2001/XMLSchema#string",
     "the_only_non_null": "https://w3id.org/cwl/cwl#PickValueMethod/the_only_non_null",
     "union": "https://w3id.org/cwl/salad#union",
-    "v1.0": "https://w3id.org/cwl/cwl#v1.0",
-    "v1.0.dev4": "https://w3id.org/cwl/cwl#v1.0.dev4",
-    "v1.1": "https://w3id.org/cwl/cwl#v1.1",
-    "v1.1.0-dev1": "https://w3id.org/cwl/cwl#v1.1.0-dev1",
     "v1.2": "https://w3id.org/cwl/cwl#v1.2",
-    "v1.2.0-dev1": "https://w3id.org/cwl/cwl#v1.2.0-dev1",
-    "v1.2.0-dev2": "https://w3id.org/cwl/cwl#v1.2.0-dev2",
-    "v1.2.0-dev3": "https://w3id.org/cwl/cwl#v1.2.0-dev3",
-    "v1.2.0-dev4": "https://w3id.org/cwl/cwl#v1.2.0-dev4",
-    "v1.2.0-dev5": "https://w3id.org/cwl/cwl#v1.2.0-dev5",
 })
 _rvocab.update({
     "https://w3id.org/cwl/salad#Any": "Any",
@@ -29421,16 +29402,6 @@ _rvocab.update({
     "https://w3id.org/cwl/cwl#LoadListingEnum/deep_listing": "deep_listing",
     "https://w3id.org/cwl/cwl#ScatterMethod/dotproduct": "dotproduct",
     "http://www.w3.org/2001/XMLSchema#double": "double",
-    "https://w3id.org/cwl/cwl#draft-2": "draft-2",
-    "https://w3id.org/cwl/cwl#draft-3": "draft-3",
-    "https://w3id.org/cwl/cwl#draft-3.dev1": "draft-3.dev1",
-    "https://w3id.org/cwl/cwl#draft-3.dev2": "draft-3.dev2",
-    "https://w3id.org/cwl/cwl#draft-3.dev3": "draft-3.dev3",
-    "https://w3id.org/cwl/cwl#draft-3.dev4": "draft-3.dev4",
-    "https://w3id.org/cwl/cwl#draft-3.dev5": "draft-3.dev5",
-    "https://w3id.org/cwl/cwl#draft-4.dev1": "draft-4.dev1",
-    "https://w3id.org/cwl/cwl#draft-4.dev2": "draft-4.dev2",
-    "https://w3id.org/cwl/cwl#draft-4.dev3": "draft-4.dev3",
     "https://w3id.org/cwl/salad#enum": "enum",
     "https://w3id.org/cwl/cwl#PickValueMethod/first_non_null": "first_non_null",
     "https://w3id.org/cwl/cwl#ScatterMethod/flat_crossproduct": "flat_crossproduct",
@@ -29452,16 +29423,7 @@ _rvocab.update({
     "http://www.w3.org/2001/XMLSchema#string": "string",
     "https://w3id.org/cwl/cwl#PickValueMethod/the_only_non_null": "the_only_non_null",
     "https://w3id.org/cwl/salad#union": "union",
-    "https://w3id.org/cwl/cwl#v1.0": "v1.0",
-    "https://w3id.org/cwl/cwl#v1.0.dev4": "v1.0.dev4",
-    "https://w3id.org/cwl/cwl#v1.1": "v1.1",
-    "https://w3id.org/cwl/cwl#v1.1.0-dev1": "v1.1.0-dev1",
     "https://w3id.org/cwl/cwl#v1.2": "v1.2",
-    "https://w3id.org/cwl/cwl#v1.2.0-dev1": "v1.2.0-dev1",
-    "https://w3id.org/cwl/cwl#v1.2.0-dev2": "v1.2.0-dev2",
-    "https://w3id.org/cwl/cwl#v1.2.0-dev3": "v1.2.0-dev3",
-    "https://w3id.org/cwl/cwl#v1.2.0-dev4": "v1.2.0-dev4",
-    "https://w3id.org/cwl/cwl#v1.2.0-dev5": "v1.2.0-dev5",
 })
 
 strtype: Final = _PrimitiveLoader(str)
@@ -29635,33 +29597,9 @@ map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader
 CWLInputFileLoader: Final = (
     map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader
 )
-CWLVersionLoader: Final = _EnumLoader(
-    (
-        "draft-2",
-        "draft-3.dev1",
-        "draft-3.dev2",
-        "draft-3.dev3",
-        "draft-3.dev4",
-        "draft-3.dev5",
-        "draft-3",
-        "draft-4.dev1",
-        "draft-4.dev2",
-        "draft-4.dev3",
-        "v1.0.dev4",
-        "v1.0",
-        "v1.1.0-dev1",
-        "v1.1",
-        "v1.2.0-dev1",
-        "v1.2.0-dev2",
-        "v1.2.0-dev3",
-        "v1.2.0-dev4",
-        "v1.2.0-dev5",
-        "v1.2",
-    ),
-    "CWLVersion",
-)
+CWLVersionLoader: Final = _EnumLoader(("v1.2",), "CWLVersion")
 """
-Version symbols for published CWL document versions.
+Current version symbol for CWL documents.
 """
 LoadListingEnumLoader: Final = _EnumLoader(
     (
