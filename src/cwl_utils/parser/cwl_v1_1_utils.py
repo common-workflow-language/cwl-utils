@@ -40,10 +40,11 @@ BasicInputTypeSchemas: TypeAlias = (
         "string",
         "File",
         "Directory",
-        "stdin",
     ]
 )
-InputTypeSchemas: TypeAlias = BasicInputTypeSchemas | Sequence[BasicInputTypeSchemas]
+InputTypeSchemas: TypeAlias = (
+    BasicInputTypeSchemas | Literal["stdin"] | Sequence[BasicInputTypeSchemas]
+)
 BasicCommandInputTypeSchemas: TypeAlias = (
     cwl.CommandInputArraySchema
     | cwl.CommandInputEnumSchema
@@ -59,11 +60,12 @@ BasicCommandInputTypeSchemas: TypeAlias = (
         "string",
         "File",
         "Directory",
-        "stdin",
     ]
 )
 CommandInputTypeSchemas: TypeAlias = (
-    BasicCommandInputTypeSchemas | Sequence[BasicCommandInputTypeSchemas]
+    BasicCommandInputTypeSchemas
+    | Literal["stdin"]
+    | Sequence[BasicCommandInputTypeSchemas]
 )
 BasicOutputTypeSchemas: TypeAlias = (
     cwl.OutputArraySchema
@@ -80,11 +82,13 @@ BasicOutputTypeSchemas: TypeAlias = (
         "string",
         "File",
         "Directory",
-        "stdout",
-        "stderr",
     ]
 )
-OutputTypeSchemas: TypeAlias = BasicOutputTypeSchemas | Sequence[BasicOutputTypeSchemas]
+OutputTypeSchemas: TypeAlias = (
+    BasicOutputTypeSchemas
+    | Literal["stderr", "stdout"]
+    | Sequence[BasicOutputTypeSchemas]
+)
 BasicCommandOutputTypeSchemas: TypeAlias = (
     cwl.CommandOutputArraySchema
     | cwl.CommandOutputEnumSchema
@@ -100,98 +104,16 @@ BasicCommandOutputTypeSchemas: TypeAlias = (
         "string",
         "File",
         "Directory",
-        "stdout",
-        "stderr",
     ]
 )
 CommandOutputTypeSchemas: TypeAlias = (
-    BasicCommandOutputTypeSchemas | Sequence[BasicCommandOutputTypeSchemas]
+    BasicCommandOutputTypeSchemas
+    | Literal["stderr", "stdout"]
+    | Sequence[BasicCommandOutputTypeSchemas]
 )
 AnyTypeSchema = TypeVar(
     "AnyTypeSchema", bound=InputTypeSchemas | CommandOutputTypeSchemas
 )
-
-
-def _input_type_schema_to_cwl_v1_1_input_type_schema(
-    input_type: cwl_utils.parser.BasicInputTypeSchemas,
-    loading_options: cwl.LoadingOptions,
-) -> BasicInputTypeSchemas:
-    if isinstance(input_type, cwl_utils.parser.InputArraySchemaTypes):
-        return cwl.InputArraySchema.fromDoc(
-            input_type.save(),
-            loading_options.baseuri,
-            loading_options,
-        )
-    if isinstance(input_type, cwl_utils.parser.InputEnumSchemaTypes):
-        return cwl.InputEnumSchema.fromDoc(
-            input_type.save(),
-            loading_options.baseuri,
-            loading_options,
-        )
-    if isinstance(input_type, cwl_utils.parser.InputRecordSchemaTypes):
-        return cwl.InputRecordSchema.fromDoc(
-            input_type.save(),
-            loading_options.baseuri,
-            loading_options,
-        )
-    if isinstance(input_type, str):
-        return input_type
-    raise WorkflowException(f"Unexpected input type: {input_type}.")
-
-
-def input_type_schema_to_cwl_v1_1_input_type_schema(
-    input_type: cwl_utils.parser.InputTypeSchemas, loading_options: cwl.LoadingOptions
-) -> InputTypeSchemas:
-    if is_sequence(input_type):
-        return [
-            _input_type_schema_to_cwl_v1_1_input_type_schema(
-                input_type_item, loading_options
-            )
-            for input_type_item in input_type
-        ]
-    return _input_type_schema_to_cwl_v1_1_input_type_schema(input_type, loading_options)
-
-
-def _output_type_schema_to_cwl_v1_1_output_type_schema(
-    output_type: cwl_utils.parser.BasicOutputTypeSchemas,
-    loading_options: cwl.LoadingOptions,
-) -> BasicOutputTypeSchemas:
-    if isinstance(output_type, cwl_utils.parser.OutputArraySchemaTypes):
-        return cwl.OutputArraySchema.fromDoc(
-            output_type.save(),
-            loading_options.baseuri,
-            loading_options,
-        )
-    if isinstance(output_type, cwl_utils.parser.OutputEnumSchemaTypes):
-        return cwl.OutputEnumSchema.fromDoc(
-            output_type.save(),
-            loading_options.baseuri,
-            loading_options,
-        )
-    if isinstance(output_type, cwl_utils.parser.OutputRecordSchemaTypes):
-        return cwl.OutputRecordSchema.fromDoc(
-            output_type.save(),
-            loading_options.baseuri,
-            loading_options,
-        )
-    if isinstance(output_type, str):
-        return output_type
-    raise WorkflowException(f"Unexpected output type: {output_type}.")
-
-
-def output_type_schema_to_cwl_v1_1_output_type_schema(
-    output_type: cwl_utils.parser.OutputTypeSchemas, loading_options: cwl.LoadingOptions
-) -> OutputTypeSchemas:
-    if is_sequence(output_type):
-        return [
-            _output_type_schema_to_cwl_v1_1_output_type_schema(
-                output_type_item, loading_options
-            )
-            for output_type_item in output_type
-        ]
-    return _output_type_schema_to_cwl_v1_1_output_type_schema(
-        output_type, loading_options
-    )
 
 
 def _in_output_type_schema_to_output_type_schema(
@@ -594,63 +516,62 @@ def merge_flatten_type(src: Any) -> Any:
     return cwl.ArraySchema(type_="array", items=src)
 
 
+def to_input_array(type_: InputTypeSchemas) -> cwl.InputArraySchema:
+    return cwl.InputArraySchema(type_="array", items=type_)
+
+
+def to_output_array(type_: OutputTypeSchemas) -> cwl.OutputArraySchema:
+    return cwl.OutputArraySchema(type_="array", items=type_)
+
+
 def type_for_step_input(
     step: cwl.WorkflowStep,
     in_: cwl.WorkflowStepInput,
-) -> InputTypeSchemas:
+) -> cwl_utils.parser.utils.InputTypeSchemas | None:
     """Determine the type for the given step input."""
     if in_.valueFrom is not None:
         return "Any"
     step_run = cwl_utils.parser.utils.load_step(step)
     cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
-    if step_run and step_run.inputs:
-        for step_input in step_run.inputs:
-            if step_input.id.split("#")[-1] == in_.id.split("#")[-1]:
-                if step_input.type_ is not None:
-                    step_input_type = input_type_schema_to_cwl_v1_1_input_type_schema(
-                        step_input.type_, step.loadingOptions
-                    )
-                else:
-                    step_input_type = "null"
-                if step.scatter is not None and in_.id in aslist(step.scatter):
-                    return cwl.InputArraySchema(items=step_input_type, type_="array")
-                return step_input_type
+    for step_input in step_run.inputs:
+        if step_input.id.split("#")[-1] == in_.id.split("#")[-1]:
+            input_type = step_input.type_
+            if (
+                input_type is not None
+                and step.scatter is not None
+                and in_.id in aslist(step.scatter)
+            ):
+                input_type = cwl_utils.parser.utils.to_input_array(
+                    input_type, step_run.cwlVersion or "v1.1"
+                )
+            return input_type
     return "Any"
 
 
 def type_for_step_output(
     step: cwl.WorkflowStep,
     sourcename: str,
-) -> Any:
+) -> cwl_utils.parser.utils.OutputTypeSchemas | None:
     """Determine the type for the given step output."""
     step_run = cwl_utils.parser.utils.load_step(step)
     cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
-    if step_run and step_run.outputs:
-        for output in step_run.outputs:
-            if (
-                output.id.split("#")[-1].split("/")[-1]
-                == sourcename.split("#")[-1].split("/")[-1]
-            ):
-                output_type = output.type_
-                if step.scatter is not None:
-                    if output_type is not None:
-                        output_type_type = (
-                            output_type_schema_to_cwl_v1_1_output_type_schema(
-                                output_type, step.loadingOptions
-                            )
+    for output in step_run.outputs:
+        if (
+            output.id.split("#")[-1].split("/")[-1]
+            == sourcename.split("#")[-1].split("/")[-1]
+        ):
+            output_type = output.type_
+            if output_type is not None and step.scatter is not None:
+                if step.scatterMethod == "nested_crossproduct":
+                    for _ in range(len(aslist(step.scatter))):
+                        output_type = cwl_utils.parser.utils.to_output_array(
+                            output_type, step_run.cwlVersion or "v1.1"
                         )
-                    else:
-                        output_type_type = "null"
-                    if step.scatterMethod == "nested_crossproduct":
-                        for _ in range(len(aslist(step.scatter))):
-                            output_type_type = cwl.OutputArraySchema(
-                                items=output_type_type, type_="array"
-                            )
-                        return output_type_type
-                    else:
-                        return cwl.OutputArraySchema(
-                            items=output_type_type, type_="array"
-                        )
+                else:
+                    output_type = cwl_utils.parser.utils.to_output_array(
+                        output_type, step_run.cwlVersion or "v1.1"
+                    )
+            return output_type
     raise ValidationException(
         "param {} not found in {}.".format(
             sourcename,
@@ -825,8 +746,8 @@ def param_for_source_id(
                                         ):
                                             params.append(output)
                                             if scatter_context is not None:
-                                                if scatter_context is not None:
-                                                    if isinstance(step.scatter, str):
+                                                match step.scatter:
+                                                    case str():
                                                         scatter_context.append(
                                                             (
                                                                 1,
@@ -834,9 +755,7 @@ def param_for_source_id(
                                                                 or "dotproduct",
                                                             )
                                                         )
-                                                    elif isinstance(
-                                                        step.scatter, MutableSequence
-                                                    ):
+                                                    case Sequence():
                                                         scatter_context.append(
                                                             (
                                                                 len(step.scatter),
@@ -844,7 +763,7 @@ def param_for_source_id(
                                                                 or "dotproduct",
                                                             )
                                                         )
-                                                    else:
+                                                    case _:
                                                         scatter_context.append(None)
     if len(params) == 1:
         return params[0]

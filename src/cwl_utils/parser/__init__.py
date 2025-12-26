@@ -2,9 +2,9 @@
 
 import os
 from abc import ABC
-from collections.abc import MutableMapping, MutableSequence, Sequence
+from collections.abc import MutableMapping, MutableSequence
 from pathlib import Path
-from typing import Any, Literal, Optional, TypeAlias, cast
+from typing import Any, Optional, TypeAlias, cast
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
@@ -76,26 +76,6 @@ OutputRecordSchemaTypes = (
 OutputSchema: TypeAlias = (
     cwl_v1_0.OutputSchema | cwl_v1_1.OutputSchema | cwl_v1_2.OutputSchema
 )
-BasicOutputTypeSchemas: TypeAlias = (
-    OutputArraySchema
-    | OutputEnumSchema
-    | OutputRecordSchema
-    | str
-    | Literal[
-        "null",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "string",
-        "File",
-        "Directory",
-        "stderr",
-        "stdout",
-    ]
-)
-OutputTypeSchemas: TypeAlias = BasicOutputTypeSchemas | Sequence[BasicOutputTypeSchemas]
 """Type union for a CWL v1.x OutputSchema object."""
 Workflow: TypeAlias = cwl_v1_0.Workflow | cwl_v1_1.Workflow | cwl_v1_2.Workflow
 WorkflowTypes = (cwl_v1_0.Workflow, cwl_v1_1.Workflow, cwl_v1_2.Workflow)
@@ -132,10 +112,12 @@ WorkflowStepOutput: TypeAlias = (
     | cwl_v1_2.WorkflowStepOutput
 )
 """Type union for a CWL v1.x WorkflowStepOutput object."""
+Operation: TypeAlias = cwl_v1_2.Operation
+"""Type union for a CWL v1.x Operation object."""
 OperationInputParameter: TypeAlias = cwl_v1_2.OperationInputParameter
-"""Type union for a CWL v1.x WorkflowInputParameter object."""
+"""Type union for a CWL v1.x OperationInputParameter object."""
 OperationOutputParameter: TypeAlias = cwl_v1_2.OperationOutputParameter
-"""Type union for a CWL v1.x WorkflowOutputParameter object."""
+"""Type union for a CWL v1.x OperationOutputParameter object."""
 CommandLineTool: TypeAlias = (
     cwl_v1_0.CommandLineTool | cwl_v1_1.CommandLineTool | cwl_v1_2.CommandLineTool
 )
@@ -254,26 +236,6 @@ InputRecordSchemaTypes = (
     cwl_v1_2.InputRecordSchema,
 )
 """Type Union for a CWL v1.x RecordSchema object."""
-
-BasicInputTypeSchemas: TypeAlias = (
-    InputArraySchema
-    | InputEnumSchema
-    | InputRecordSchema
-    | str
-    | Literal[
-        "null",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "string",
-        "File",
-        "Directory",
-        "stdin",
-    ]
-)
-InputTypeSchemas: TypeAlias = BasicInputTypeSchemas | Sequence[BasicInputTypeSchemas]
 
 File: TypeAlias = cwl_v1_0.File | cwl_v1_1.File | cwl_v1_2.File
 """Type Union for a CWL v1.x File object."""
