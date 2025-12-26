@@ -27,6 +27,13 @@ from cwl_utils.parser import (
     cwl_v1_2,
     cwl_v1_2_utils,
     load_document_by_uri,
+    CommandInputParameter,
+    CommandOutputParameter,
+    ExpressionToolOutputParameter,
+    OperationInputParameter,
+    OperationOutputParameter,
+    WorkflowInputParameter,
+    WorkflowOutputParameter,
 )
 
 _logger = logging.getLogger("cwl_utils")
@@ -431,50 +438,22 @@ def param_for_source_id(
     parent: Workflow | None = None,
     scatter_context: list[tuple[int, str] | None] | None = None,
 ) -> (
-    (
-        MutableSequence[
-            cwl_v1_0.CommandOutputParameter
-            | cwl_v1_0.ExpressionToolOutputParameter
-            | cwl_v1_0.InputParameter
-            | cwl_v1_0.WorkflowOutputParameter
-        ]
-        | cwl_v1_0.CommandOutputParameter
-        | cwl_v1_0.ExpressionToolOutputParameter
-        | cwl_v1_0.InputParameter
-        | cwl_v1_0.WorkflowOutputParameter
-    )
-    | (
-        MutableSequence[
-            cwl_v1_1.CommandInputParameter
-            | cwl_v1_1.CommandOutputParameter
-            | cwl_v1_1.ExpressionToolOutputParameter
-            | cwl_v1_1.WorkflowInputParameter
-            | cwl_v1_1.WorkflowOutputParameter
-        ]
-        | cwl_v1_1.CommandInputParameter
-        | cwl_v1_1.CommandOutputParameter
-        | cwl_v1_1.ExpressionToolOutputParameter
-        | cwl_v1_1.WorkflowInputParameter
-        | cwl_v1_1.WorkflowOutputParameter
-    )
-    | (
-        MutableSequence[
-            cwl_v1_2.CommandInputParameter
-            | cwl_v1_2.CommandOutputParameter
-            | cwl_v1_2.ExpressionToolOutputParameter
-            | cwl_v1_2.OperationInputParameter
-            | cwl_v1_2.OperationOutputParameter
-            | cwl_v1_2.WorkflowInputParameter
-            | cwl_v1_2.WorkflowOutputParameter
-        ]
-        | cwl_v1_2.CommandInputParameter
-        | cwl_v1_2.CommandOutputParameter
-        | cwl_v1_2.ExpressionToolOutputParameter
-        | cwl_v1_2.OperationInputParameter
-        | cwl_v1_2.OperationOutputParameter
-        | cwl_v1_2.WorkflowInputParameter
-        | cwl_v1_2.WorkflowOutputParameter
-    )
+    CommandInputParameter
+    | CommandOutputParameter
+    | ExpressionToolOutputParameter
+    | OperationInputParameter
+    | OperationOutputParameter
+    | WorkflowInputParameter
+    | WorkflowOutputParameter
+    | MutableSequence[
+        CommandInputParameter
+        | CommandOutputParameter
+        | ExpressionToolOutputParameter
+        | OperationInputParameter
+        | OperationOutputParameter
+        | WorkflowInputParameter
+        | WorkflowOutputParameter
+    ]
 ):
     match process.cwlVersion:
         case "v1.0":

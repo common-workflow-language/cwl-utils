@@ -736,25 +736,34 @@ def param_for_source_id(
     parent: cwl.Workflow | None = None,
     scatter_context: list[tuple[int, str] | None] | None = None,
 ) -> (
-    cwl.CommandOutputParameter
-    | cwl.ExpressionToolOutputParameter
-    | cwl.InputParameter
-    | cwl.WorkflowOutputParameter
+    cwl_utils.parser.CommandInputParameter
+    | cwl_utils.parser.CommandOutputParameter
+    | cwl_utils.parser.ExpressionToolOutputParameter
+    | cwl_utils.parser.OperationInputParameter
+    | cwl_utils.parser.OperationOutputParameter
+    | cwl_utils.parser.WorkflowInputParameter
+    | cwl_utils.parser.WorkflowOutputParameter
     | MutableSequence[
-        cwl.CommandOutputParameter
-        | cwl.ExpressionToolOutputParameter
-        | cwl.InputParameter
-        | cwl.WorkflowOutputParameter
+        cwl_utils.parser.CommandInputParameter
+        | cwl_utils.parser.CommandOutputParameter
+        | cwl_utils.parser.ExpressionToolOutputParameter
+        | cwl_utils.parser.OperationInputParameter
+        | cwl_utils.parser.OperationOutputParameter
+        | cwl_utils.parser.WorkflowInputParameter
+        | cwl_utils.parser.WorkflowOutputParameter
     ]
 ):
     """Find the process input parameter that matches one of the given sourcenames."""
     if isinstance(sourcenames, str):
         sourcenames = [sourcenames]
     params: MutableSequence[
-        cwl.CommandOutputParameter
-        | cwl.ExpressionToolOutputParameter
-        | cwl.InputParameter
-        | cwl.WorkflowOutputParameter
+        cwl_utils.parser.CommandInputParameter
+        | cwl_utils.parser.CommandOutputParameter
+        | cwl_utils.parser.ExpressionToolOutputParameter
+        | cwl_utils.parser.OperationInputParameter
+        | cwl_utils.parser.OperationOutputParameter
+        | cwl_utils.parser.WorkflowInputParameter
+        | cwl_utils.parser.WorkflowOutputParameter
     ] = []
     for sourcename in sourcenames:
         if not isinstance(process, cwl.Workflow):

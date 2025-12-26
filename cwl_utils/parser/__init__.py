@@ -132,6 +132,10 @@ WorkflowStepOutput: TypeAlias = (
     | cwl_v1_2.WorkflowStepOutput
 )
 """Type union for a CWL v1.x WorkflowStepOutput object."""
+OperationInputParameter: TypeAlias = cwl_v1_2.OperationInputParameter
+"""Type union for a CWL v1.x WorkflowInputParameter object."""
+OperationOutputParameter: TypeAlias = cwl_v1_2.OperationOutputParameter
+"""Type union for a CWL v1.x WorkflowOutputParameter object."""
 CommandLineTool: TypeAlias = (
     cwl_v1_0.CommandLineTool | cwl_v1_1.CommandLineTool | cwl_v1_2.CommandLineTool
 )
