@@ -2,19 +2,19 @@
 
 import copy
 import logging
-from collections.abc import MutableSequence
+from collections.abc import MutableMapping, MutableSequence
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Optional, cast
+from typing import Any, Final, Optional, cast, Literal, TypeAlias, overload
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
 from schema_salad.sourceline import SourceLine, strip_dup_lineno
 from schema_salad.utils import json_dumps, yaml_no_ts
 
-import cwl_utils
-import cwl_utils.parser
-from . import (
+from cwl_utils.parser import (
+    CommandLineTool,
+    ExpressionTool,
     LoadingOptions,
     Process,
     Workflow,
@@ -26,9 +26,47 @@ from . import (
     cwl_v1_1_utils,
     cwl_v1_2,
     cwl_v1_2_utils,
+    load_document_by_uri,
+    CommandInputParameter,
+    CommandOutputParameter,
+    ExpressionToolOutputParameter,
+    OperationInputParameter,
+    OperationOutputParameter,
+    WorkflowInputParameter,
+    WorkflowOutputParameter,
+    OutputArraySchema,
+    InputArraySchema,
 )
 
 _logger = logging.getLogger("cwl_utils")
+
+
+BasicInputTypeSchemas: TypeAlias = (
+    cwl_v1_0_utils.BasicInputTypeSchemas
+    | cwl_v1_1_utils.BasicInputTypeSchemas
+    | cwl_v1_2_utils.BasicInputTypeSchemas
+)
+
+
+InputTypeSchemas: TypeAlias = (
+    cwl_v1_0_utils.InputTypeSchemas
+    | cwl_v1_1_utils.InputTypeSchemas
+    | cwl_v1_2_utils.InputTypeSchemas
+)
+
+
+BasicOutputTypeSchemas: TypeAlias = (
+    cwl_v1_0_utils.BasicOutputTypeSchemas
+    | cwl_v1_1_utils.BasicOutputTypeSchemas
+    | cwl_v1_2_utils.BasicOutputTypeSchemas
+)
+
+
+OutputTypeSchemas: TypeAlias = (
+    cwl_v1_0_utils.OutputTypeSchemas
+    | cwl_v1_1_utils.OutputTypeSchemas
+    | cwl_v1_2_utils.OutputTypeSchemas
+)
 
 
 def convert_stdstreams_to_files(process: Process) -> None:
@@ -133,10 +171,10 @@ def load_inputfile_by_yaml(
 
 
 def load_step(
-    step: cwl_utils.parser.WorkflowStep,
+    step: WorkflowStep,
 ) -> Process:
     if isinstance(step.run, str):
-        step_run = cwl_utils.parser.load_document_by_uri(
+        step_run = load_document_by_uri(
             path=step.loadingOptions.fetcher.urljoin(
                 base_url=cast(str, step.loadingOptions.fileuri),
                 url=step.run,
@@ -147,21 +185,19 @@ def load_step(
     return cast(Process, copy.deepcopy(step.run))
 
 
-def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
+def static_checker(workflow: Workflow) -> None:
     """Check if all source and sink types of a workflow are compatible before run time."""
-    step_inputs = []
+    step_inputs: Final[MutableSequence[WorkflowStepInput]] = []
     step_outputs = []
     type_dict = {}
-    param_to_step = {}
+    param_to_step: Final[MutableMapping[str, WorkflowStep]] = {}
     for step in workflow.steps:
         if step.in_ is not None:
             step_inputs.extend(step.in_)
             param_to_step.update({s.id: step for s in step.in_})
             type_dict.update(
                 {
-                    cast(str, s.id): type_for_step_input(
-                        step, s, cast(str, workflow.cwlVersion)
-                    )
+                    s.id: type_for_step_input(step, s, cast(str, workflow.cwlVersion))
                     for s in step.in_
                 }
             )
@@ -210,7 +246,9 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         case "v1.0":
             parser = cwl_v1_0
             step_inputs_val = cwl_v1_0_utils.check_all_types(
-                src_dict, step_inputs, type_dict
+                src_dict,
+                cast(MutableSequence[cwl_v1_0.WorkflowStepInput], step_inputs),
+                type_dict,
             )
             workflow_outputs_val = cwl_v1_0_utils.check_all_types(
                 src_dict, workflow.outputs, type_dict
@@ -218,7 +256,9 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         case "v1.1":
             parser = cwl_v1_1
             step_inputs_val = cwl_v1_1_utils.check_all_types(
-                src_dict, step_inputs, type_dict
+                src_dict,
+                cast(MutableSequence[cwl_v1_1.WorkflowStepInput], step_inputs),
+                type_dict,
             )
             workflow_outputs_val = cwl_v1_1_utils.check_all_types(
                 src_dict, workflow.outputs, type_dict
@@ -226,10 +266,16 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         case "v1.2":
             parser = cwl_v1_2
             step_inputs_val = cwl_v1_2_utils.check_all_types(
-                src_dict, step_inputs, param_to_step, type_dict
+                src_dict,
+                cast(MutableSequence[cwl_v1_2.WorkflowStepInput], step_inputs),
+                cast(MutableMapping[str, cwl_v1_2.WorkflowStep], param_to_step),
+                type_dict,
             )
             workflow_outputs_val = cwl_v1_2_utils.check_all_types(
-                src_dict, workflow.outputs, param_to_step, type_dict
+                src_dict,
+                workflow.outputs,
+                cast(MutableMapping[str, cwl_v1_2.WorkflowStep], param_to_step),
+                type_dict,
             )
         case _ as cwlVersion:
             raise Exception(f"Unsupported CWL version {cwlVersion}")
@@ -326,6 +372,78 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         raise ValidationException(all_exception_msg)
 
 
+@overload
+def to_input_array(
+    type_: InputTypeSchemas, cwlVersion: Literal["v1.0"]
+) -> cwl_v1_0.InputArraySchema: ...
+
+
+@overload
+def to_input_array(
+    type_: InputTypeSchemas, cwlVersion: Literal["v1.1"]
+) -> cwl_v1_1.InputArraySchema: ...
+
+
+@overload
+def to_input_array(
+    type_: InputTypeSchemas, cwlVersion: Literal["v1.2"]
+) -> cwl_v1_2.InputArraySchema: ...
+
+
+def to_input_array(
+    type_: InputTypeSchemas, cwlVersion: Literal["v1.0", "v1.1", "v1.2"]
+) -> InputArraySchema:
+    match cwlVersion:
+        case "v1.0":
+            return cwl_v1_0_utils.to_input_array(
+                cast(cwl_v1_0_utils.InputTypeSchemas, type_)
+            )
+        case "v1.1":
+            return cwl_v1_1_utils.to_input_array(
+                cast(cwl_v1_1_utils.InputTypeSchemas, type_)
+            )
+        case "v1.2":
+            return cwl_v1_2_utils.to_input_array(
+                cast(cwl_v1_2_utils.InputTypeSchemas, type_)
+            )
+
+
+@overload
+def to_output_array(
+    type_: OutputTypeSchemas, cwlVersion: Literal["v1.0"]
+) -> cwl_v1_0.OutputArraySchema: ...
+
+
+@overload
+def to_output_array(
+    type_: OutputTypeSchemas, cwlVersion: Literal["v1.1"]
+) -> cwl_v1_1.OutputArraySchema: ...
+
+
+@overload
+def to_output_array(
+    type_: OutputTypeSchemas, cwlVersion: Literal["v1.2"]
+) -> cwl_v1_2.OutputArraySchema: ...
+
+
+def to_output_array(
+    type_: OutputTypeSchemas, cwlVersion: Literal["v1.0", "v1.1", "v1.2"]
+) -> OutputArraySchema:
+    match cwlVersion:
+        case "v1.0":
+            return cwl_v1_0_utils.to_output_array(
+                cast(cwl_v1_0_utils.OutputTypeSchemas, type_)
+            )
+        case "v1.1":
+            return cwl_v1_1_utils.to_output_array(
+                cast(cwl_v1_1_utils.OutputTypeSchemas, type_)
+            )
+        case "v1.2":
+            return cwl_v1_2_utils.to_output_array(
+                cast(cwl_v1_2_utils.OutputTypeSchemas, type_)
+            )
+
+
 def type_for_source(
     process: Process,
     sourcenames: str | list[str],
@@ -337,36 +455,21 @@ def type_for_source(
     match process.cwlVersion:
         case "v1.0":
             return cwl_v1_0_utils.type_for_source(
-                cast(
-                    cwl_v1_0.CommandLineTool
-                    | cwl_v1_0.Workflow
-                    | cwl_v1_0.ExpressionTool,
-                    process,
-                ),
+                process,
                 sourcenames,
                 cast(cwl_v1_0.Workflow | None, parent),
                 linkMerge,
             )
         case "v1.1":
             return cwl_v1_1_utils.type_for_source(
-                cast(
-                    cwl_v1_1.CommandLineTool
-                    | cwl_v1_1.Workflow
-                    | cwl_v1_1.ExpressionTool,
-                    process,
-                ),
+                process,
                 sourcenames,
                 cast(cwl_v1_1.Workflow | None, parent),
                 linkMerge,
             )
         case "v1.2":
             return cwl_v1_2_utils.type_for_source(
-                cast(
-                    cwl_v1_2.CommandLineTool
-                    | cwl_v1_2.Workflow
-                    | cwl_v1_2.ExpressionTool,
-                    process,
-                ),
+                process,
                 sourcenames,
                 cast(cwl_v1_2.Workflow | None, parent),
                 linkMerge,
@@ -382,7 +485,7 @@ def type_for_source(
 
 def type_for_step_input(
     step: WorkflowStep, in_: WorkflowStepInput, cwlVersion: str
-) -> Any:
+) -> InputTypeSchemas | None:
     """Determine the type for the given step output."""
     match cwlVersion:
         case "v1.0":
@@ -397,9 +500,13 @@ def type_for_step_input(
             return cwl_v1_2_utils.type_for_step_input(
                 cast(cwl_v1_2.WorkflowStep, step), cast(cwl_v1_2.WorkflowStepInput, in_)
             )
+        case _:
+            raise Exception(f"Unsupported CWL version {cwlVersion}")
 
 
-def type_for_step_output(step: WorkflowStep, sourcename: str, cwlVersion: str) -> Any:
+def type_for_step_output(
+    step: WorkflowStep, sourcename: str, cwlVersion: str
+) -> OutputTypeSchemas | None:
     """Determine the type for the given step output."""
     match cwlVersion:
         case "v1.0":
@@ -414,82 +521,53 @@ def type_for_step_output(step: WorkflowStep, sourcename: str, cwlVersion: str) -
             return cwl_v1_2_utils.type_for_step_output(
                 cast(cwl_v1_2.WorkflowStep, step), sourcename
             )
+        case _:
+            raise Exception(f"Unsupported CWL version {cwlVersion}")
 
 
 def param_for_source_id(
-    process: (
-        cwl_utils.parser.CommandLineTool
-        | cwl_utils.parser.Workflow
-        | cwl_utils.parser.ExpressionTool
-    ),
+    process: CommandLineTool | Workflow | ExpressionTool,
     sourcenames: str | list[str],
-    parent: cwl_utils.parser.Workflow | None = None,
+    parent: Workflow | None = None,
     scatter_context: list[tuple[int, str] | None] | None = None,
 ) -> (
-    (
-        MutableSequence[
-            cwl_utils.parser.cwl_v1_0.InputParameter
-            | cwl_utils.parser.cwl_v1_0.CommandOutputParameter
-        ]
-        | cwl_utils.parser.cwl_v1_0.InputParameter
-        | cwl_utils.parser.cwl_v1_0.CommandOutputParameter
-    )
-    | (
-        MutableSequence[
-            cwl_utils.parser.cwl_v1_1.CommandInputParameter
-            | cwl_utils.parser.cwl_v1_1.CommandOutputParameter
-            | cwl_utils.parser.cwl_v1_1.WorkflowInputParameter
-        ]
-        | cwl_utils.parser.cwl_v1_1.CommandInputParameter
-        | cwl_utils.parser.cwl_v1_1.CommandOutputParameter
-        | cwl_utils.parser.cwl_v1_1.WorkflowInputParameter
-    )
-    | (
-        MutableSequence[
-            cwl_utils.parser.cwl_v1_2.CommandInputParameter
-            | cwl_utils.parser.cwl_v1_2.CommandOutputParameter
-            | cwl_utils.parser.cwl_v1_2.WorkflowInputParameter
-        ]
-        | cwl_utils.parser.cwl_v1_2.CommandInputParameter
-        | cwl_utils.parser.cwl_v1_2.CommandOutputParameter
-        | cwl_utils.parser.cwl_v1_2.WorkflowInputParameter
-    )
+    CommandInputParameter
+    | CommandOutputParameter
+    | ExpressionToolOutputParameter
+    | OperationInputParameter
+    | OperationOutputParameter
+    | WorkflowInputParameter
+    | WorkflowOutputParameter
+    | MutableSequence[
+        CommandInputParameter
+        | CommandOutputParameter
+        | ExpressionToolOutputParameter
+        | OperationInputParameter
+        | OperationOutputParameter
+        | WorkflowInputParameter
+        | WorkflowOutputParameter
+    ]
 ):
     match process.cwlVersion:
         case "v1.0":
-            return cwl_utils.parser.cwl_v1_0_utils.param_for_source_id(
-                cast(
-                    cwl_utils.parser.cwl_v1_0.CommandLineTool
-                    | cwl_utils.parser.cwl_v1_0.Workflow
-                    | cwl_utils.parser.cwl_v1_0.ExpressionTool,
-                    process,
-                ),
+            return cwl_v1_0_utils.param_for_source_id(
+                process,
                 sourcenames,
-                cast(cwl_utils.parser.cwl_v1_0.Workflow, parent),
+                cast(cwl_v1_0.Workflow, parent),
                 scatter_context,
             )
         case "v1.1":
-            return cwl_utils.parser.cwl_v1_1_utils.param_for_source_id(
-                cast(
-                    cwl_utils.parser.cwl_v1_1.CommandLineTool
-                    | cwl_utils.parser.cwl_v1_1.Workflow
-                    | cwl_utils.parser.cwl_v1_1.ExpressionTool,
-                    process,
-                ),
+            return cwl_v1_1_utils.param_for_source_id(
+                process,
                 sourcenames,
-                cast(cwl_utils.parser.cwl_v1_1.Workflow, parent),
+                cast(cwl_v1_1.Workflow, parent),
                 scatter_context,
             )
         case "v1.2":
-            return cwl_utils.parser.cwl_v1_2_utils.param_for_source_id(
-                cast(
-                    cwl_utils.parser.cwl_v1_2.CommandLineTool
-                    | cwl_utils.parser.cwl_v1_2.Workflow
-                    | cwl_utils.parser.cwl_v1_2.ExpressionTool,
-                    process,
-                ),
+            return cwl_v1_2_utils.param_for_source_id(
+                process,
                 sourcenames,
-                cast(cwl_utils.parser.cwl_v1_2.Workflow, parent),
+                cast(cwl_v1_2.Workflow, parent),
                 scatter_context,
             )
         case None:

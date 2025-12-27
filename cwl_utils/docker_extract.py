@@ -102,7 +102,9 @@ def extract_docker_requirements(
         yield req
 
 
-def extract_docker_reqs(process: cwl.Process) -> Iterator[cwl.DockerRequirement]:
+def extract_docker_reqs(
+    process: cwl.Process | cwl.WorkflowStep,
+) -> Iterator[cwl.DockerRequirement]:
     """For the given process, extract the DockerRequirement(s)."""
     if process.requirements:
         for req in process.requirements:

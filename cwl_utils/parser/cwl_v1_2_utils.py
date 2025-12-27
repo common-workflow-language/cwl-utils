@@ -2,10 +2,10 @@
 import hashlib
 import logging
 from collections import namedtuple
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from io import StringIO
 from pathlib import Path
-from typing import Any, IO, cast
+from typing import IO, Any, Literal, TypeAlias, TypeVar, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -16,6 +16,7 @@ import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_2 as cwl
 import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
+from cwl_utils.types import is_sequence
 from cwl_utils.utils import yaml_dumps
 
 CONTENT_LIMIT: int = 64 * 1024
@@ -23,6 +24,142 @@ CONTENT_LIMIT: int = 64 * 1024
 _logger = logging.getLogger("cwl_utils")
 
 SrcSink = namedtuple("SrcSink", ["src", "sink", "linkMerge", "message"])
+
+BasicInputTypeSchemas: TypeAlias = (
+    cwl.InputArraySchema
+    | cwl.InputEnumSchema
+    | cwl.InputRecordSchema
+    | str
+    | Literal[
+        "null",
+        "boolean",
+        "int",
+        "long",
+        "float",
+        "double",
+        "string",
+        "File",
+        "Directory",
+    ]
+)
+InputTypeSchemas: TypeAlias = (
+    BasicInputTypeSchemas | Literal["stdin"] | Sequence[BasicInputTypeSchemas]
+)
+BasicCommandInputTypeSchemas: TypeAlias = (
+    cwl.CommandInputArraySchema
+    | cwl.CommandInputEnumSchema
+    | cwl.CommandInputRecordSchema
+    | str
+    | Literal[
+        "null",
+        "boolean",
+        "int",
+        "long",
+        "float",
+        "double",
+        "string",
+        "File",
+        "Directory",
+    ]
+)
+CommandInputTypeSchemas: TypeAlias = (
+    BasicCommandInputTypeSchemas
+    | Literal["stdin"]
+    | Sequence[BasicCommandInputTypeSchemas]
+)
+BasicOutputTypeSchemas: TypeAlias = (
+    cwl.OutputArraySchema
+    | cwl.OutputEnumSchema
+    | cwl.OutputRecordSchema
+    | str
+    | Literal[
+        "null",
+        "boolean",
+        "int",
+        "long",
+        "float",
+        "double",
+        "string",
+        "File",
+        "Directory",
+    ]
+)
+OutputTypeSchemas: TypeAlias = (
+    BasicOutputTypeSchemas
+    | Literal["stderr", "stdout"]
+    | Sequence[BasicOutputTypeSchemas]
+)
+BasicCommandOutputTypeSchemas: TypeAlias = (
+    cwl.CommandOutputArraySchema
+    | cwl.CommandOutputEnumSchema
+    | cwl.CommandOutputRecordSchema
+    | str
+    | Literal[
+        "null",
+        "boolean",
+        "int",
+        "long",
+        "float",
+        "double",
+        "string",
+        "File",
+        "Directory",
+    ]
+)
+CommandOutputTypeSchemas: TypeAlias = (
+    BasicCommandOutputTypeSchemas
+    | Literal["stderr", "stdout"]
+    | Sequence[BasicCommandOutputTypeSchemas]
+)
+AnyTypeSchema = TypeVar(
+    "AnyTypeSchema", bound=InputTypeSchemas | CommandOutputTypeSchemas
+)
+
+
+def _in_output_type_schema_to_output_type_schema(
+    schema_type: BasicInputTypeSchemas | BasicOutputTypeSchemas,
+    loading_options: cwl.LoadingOptions,
+) -> BasicOutputTypeSchemas:
+    match schema_type:
+        case cwl.ArraySchema():
+            return cwl.OutputArraySchema.fromDoc(
+                schema_type.save(),
+                loading_options.baseuri,
+                loading_options,
+            )
+        case cwl.EnumSchema():
+            return cwl.OutputEnumSchema.fromDoc(
+                schema_type.save(),
+                loading_options.baseuri,
+                loading_options,
+            )
+        case cwl.RecordSchema():
+            return cwl.OutputRecordSchema.fromDoc(
+                schema_type.save(),
+                loading_options.baseuri,
+                loading_options,
+            )
+        case str():
+            return schema_type
+    raise WorkflowException(f"Unexpected output type: {schema_type}.")
+
+
+def in_output_type_schema_to_output_type_schema(
+    schema_type: (
+        BasicInputTypeSchemas
+        | BasicOutputTypeSchemas
+        | Sequence[BasicInputTypeSchemas | BasicOutputTypeSchemas]
+    ),
+    loading_options: cwl.LoadingOptions,
+) -> OutputTypeSchemas:
+    if is_sequence(schema_type):
+        return [
+            _in_output_type_schema_to_output_type_schema(
+                schema_type_item, loading_options
+            )
+            for schema_type_item in schema_type
+        ]
+    return _in_output_type_schema_to_output_type_schema(schema_type, loading_options)
 
 
 def _compare_records(
@@ -83,7 +220,7 @@ def _compare_type(type1: Any, type2: Any) -> bool:
 
 
 def _is_all_output_method_loop_step(
-    param_to_step: dict[str, cwl.WorkflowStep], parm_id: str
+    param_to_step: Mapping[str, cwl.WorkflowStep], parm_id: str
 ) -> bool:
     if (source_step := param_to_step.get(parm_id)) is not None:
         for requirement in source_step.requirements or []:
@@ -93,7 +230,7 @@ def _is_all_output_method_loop_step(
 
 
 def _is_conditional_step(
-    param_to_step: dict[str, cwl.WorkflowStep], parm_id: str
+    param_to_step: Mapping[str, cwl.WorkflowStep], parm_id: str
 ) -> bool:
     if (source_step := param_to_step.get(parm_id)) is not None:
         if source_step.when is not None:
@@ -200,8 +337,8 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
 
 def check_all_types(
     src_dict: dict[str, Any],
-    sinks: MutableSequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
-    param_to_step: dict[str, cwl.WorkflowStep],
+    sinks: Sequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
+    param_to_step: Mapping[str, cwl.WorkflowStep],
     type_dict: dict[str, Any],
 ) -> dict[str, list[SrcSink]]:
     """Given a list of sinks, check if their types match with the types of their sources."""
@@ -218,36 +355,10 @@ def check_all_types(
                 sourceName = "source"
                 sourceField = sink.source
             case _:
-                continue
+                raise WorkflowException(f"Invalid sink type {sink.__class__.__name__}")
         if sourceField is not None:
-            if isinstance(sourceField, MutableSequence):
-                linkMerge: str | None = sink.linkMerge or (
-                    "merge_nested" if len(sourceField) > 1 else None
-                )
-                if sink.pickValue in ("first_non_null", "the_only_non_null"):
-                    linkMerge = None
-                srcs_of_sink = []
-                for parm_id in sourceField:
-                    srcs_of_sink += [src_dict[parm_id]]
-                    if (
-                        _is_conditional_step(param_to_step, parm_id)
-                        and sink.pickValue is not None
-                    ):
-                        validation["warning"].append(
-                            SrcSink(
-                                src_dict[parm_id],
-                                sink,
-                                linkMerge,
-                                message="Source is from conditional step, but pickValue is not used",
-                            )
-                        )
-                    if _is_all_output_method_loop_step(param_to_step, parm_id):
-                        src_typ = type_dict[src_dict[parm_id].id]
-                        type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
-                            items=src_typ, type_="array"
-                        )
-            else:
-                parm_id = cast(str, sourceField)
+            if isinstance(sourceField, str):
+                parm_id = sourceField
                 if parm_id not in src_dict:
                     raise SourceLine(sink, sourceName, ValidationException).makeError(
                         f"{sourceName} not found: {parm_id}"
@@ -286,6 +397,32 @@ def check_all_types(
                     type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
                         items=src_typ, type_="array"
                     )
+            else:
+                linkMerge = sink.linkMerge or (
+                    "merge_nested" if len(sourceField) > 1 else None
+                )
+                if sink.pickValue in ("first_non_null", "the_only_non_null"):
+                    linkMerge = None
+                srcs_of_sink = []
+                for parm_id in sourceField:
+                    srcs_of_sink += [src_dict[parm_id]]
+                    if (
+                        _is_conditional_step(param_to_step, parm_id)
+                        and sink.pickValue is not None
+                    ):
+                        validation["warning"].append(
+                            SrcSink(
+                                src_dict[parm_id],
+                                sink,
+                                linkMerge,
+                                message="Source is from conditional step, but pickValue is not used",
+                            )
+                        )
+                    if _is_all_output_method_loop_step(param_to_step, parm_id):
+                        src_typ = type_dict[src_dict[parm_id].id]
+                        type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
+                            items=src_typ, type_="array"
+                        )
             for src in srcs_of_sink:
                 check_result = check_types(
                     type_dict[cast(str, src.id)],
@@ -388,8 +525,7 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
                 )
             else:
                 clt.stdin = (
-                    "$(inputs.%s.path)"
-                    % cast(str, inp.id).rpartition("#")[2].split("/")[-1]
+                    "$(inputs.%s.path)" % inp.id.rpartition("#")[2].split("/")[-1]
                 )
                 inp.type_ = "File"
 
@@ -461,48 +597,62 @@ def merge_flatten_type(src: Any) -> Any:
     return cwl.ArraySchema(type_="array", items=src)
 
 
+def to_input_array(type_: InputTypeSchemas) -> cwl.InputArraySchema:
+    return cwl.InputArraySchema(type_="array", items=type_)
+
+
+def to_output_array(type_: OutputTypeSchemas) -> cwl.OutputArraySchema:
+    return cwl.OutputArraySchema(type_="array", items=type_)
+
+
 def type_for_step_input(
     step: cwl.WorkflowStep,
     in_: cwl.WorkflowStepInput,
-) -> Any:
+) -> cwl_utils.parser.utils.InputTypeSchemas | None:
     """Determine the type for the given step input."""
     if in_.valueFrom is not None:
         return "Any"
     step_run = cwl_utils.parser.utils.load_step(step)
     cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
-    if step_run and step_run.inputs:
-        for step_input in step_run.inputs:
-            if cast(str, step_input.id).split("#")[-1] == in_.id.split("#")[-1]:
-                input_type = step_input.type_
-                if step.scatter is not None and in_.id in aslist(step.scatter):
-                    input_type = cwl.ArraySchema(items=input_type, type_="array")
-                return input_type
+    for step_input in step_run.inputs:
+        if step_input.id.split("#")[-1] == in_.id.split("#")[-1]:
+            input_type = step_input.type_
+            if (
+                input_type is not None
+                and step.scatter is not None
+                and in_.id in aslist(step.scatter)
+            ):
+                input_type = cwl_utils.parser.utils.to_input_array(
+                    input_type, step_run.cwlVersion or "v1.2"
+                )
+            return input_type
     return "Any"
 
 
 def type_for_step_output(
     step: cwl.WorkflowStep,
     sourcename: str,
-) -> Any:
+) -> cwl_utils.parser.utils.OutputTypeSchemas | None:
     """Determine the type for the given step output."""
     step_run = cwl_utils.parser.utils.load_step(step)
     cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
-    if step_run and step_run.outputs:
-        for output in step_run.outputs:
-            if (
-                output.id.split("#")[-1].split("/")[-1]
-                == sourcename.split("#")[-1].split("/")[-1]
-            ):
-                output_type = output.type_
-                if step.scatter is not None:
-                    if step.scatterMethod == "nested_crossproduct":
-                        for _ in range(len(aslist(step.scatter))):
-                            output_type = cwl.ArraySchema(
-                                items=output_type, type_="array"
-                            )
-                    else:
-                        output_type = cwl.ArraySchema(items=output_type, type_="array")
-                return output_type
+    for output in step_run.outputs:
+        if (
+            output.id.split("#")[-1].split("/")[-1]
+            == sourcename.split("#")[-1].split("/")[-1]
+        ):
+            output_type = output.type_
+            if output_type is not None and step.scatter is not None:
+                if step.scatterMethod == "nested_crossproduct":
+                    for _ in range(len(aslist(step.scatter))):
+                        output_type = cwl_utils.parser.utils.to_output_array(
+                            output_type, step_run.cwlVersion or "v1.2"
+                        )
+                else:
+                    output_type = cwl_utils.parser.utils.to_output_array(
+                        output_type, step_run.cwlVersion or "v1.2"
+                    )
+            return output_type
     raise ValidationException(
         "param {} not found in {}.".format(
             sourcename,
@@ -512,38 +662,57 @@ def type_for_step_output(
 
 
 def type_for_source(
-    process: cwl.CommandLineTool | cwl.Workflow | cwl.ExpressionTool,
-    sourcenames: str | list[str],
+    process: cwl.Process,
+    sourcenames: str | Sequence[str],
     parent: cwl.Workflow | None = None,
     linkMerge: str | None = None,
     pickValue: str | None = None,
-) -> Any:
+) -> (
+    MutableSequence[InputTypeSchemas | OutputTypeSchemas]
+    | InputTypeSchemas
+    | OutputTypeSchemas
+):
     """Determine the type for the given sourcenames."""
     scatter_context: list[tuple[int, str] | None] = []
     params = param_for_source_id(process, sourcenames, parent, scatter_context)
     if not isinstance(params, MutableSequence):
-        new_type = params.type_
+        new_type: InputTypeSchemas | OutputTypeSchemas = params.type_
         if scatter_context[0] is not None:
             if scatter_context[0][1] == "nested_crossproduct":
                 for _ in range(scatter_context[0][0]):
-                    new_type = cwl.ArraySchema(items=new_type, type_="array")
+                    new_type = cwl.OutputArraySchema(
+                        items=in_output_type_schema_to_output_type_schema(
+                            new_type, process.loadingOptions  # type: ignore[attr-defined]
+                        ),
+                        type_="array",
+                    )
             else:
-                new_type = cwl.ArraySchema(items=new_type, type_="array")
+                new_type = cwl.OutputArraySchema(
+                    items=in_output_type_schema_to_output_type_schema(
+                        new_type, process.loadingOptions  # type: ignore[attr-defined]
+                    ),
+                    type_="array",
+                )
         if linkMerge == "merge_nested":
-            new_type = cwl.ArraySchema(items=new_type, type_="array")
+            new_type = cwl.OutputArraySchema(
+                items=in_output_type_schema_to_output_type_schema(
+                    new_type, process.loadingOptions  # type: ignore[attr-defined]
+                ),
+                type_="array",
+            )
         elif linkMerge == "merge_flattened":
             new_type = merge_flatten_type(new_type)
         if pickValue is not None:
             if isinstance(new_type, cwl.ArraySchema):
                 if pickValue in ("first_non_null", "the_only_non_null"):
-                    new_type = new_type.items
+                    return new_type.items
         return new_type
-    new_type = []
+    new_types: MutableSequence[InputTypeSchemas | OutputTypeSchemas] = []
     for p, sc in zip(params, scatter_context):
-        if isinstance(p, str) and not any(_compare_type(t, p) for t in new_type):
+        if isinstance(p, str) and not any(_compare_type(t, p) for t in new_types):
             cur_type = p
         elif hasattr(p, "type_") and not any(
-            _compare_type(t, p.type_) for t in new_type
+            _compare_type(t, p.type_) for t in new_types
         ):
             cur_type = p.type_
         else:
@@ -552,47 +721,81 @@ def type_for_source(
             if sc is not None:
                 if sc[1] == "nested_crossproduct":
                     for _ in range(sc[0]):
-                        cur_type = cwl.ArraySchema(items=cur_type, type_="array")
+                        cur_type = cwl.OutputArraySchema(
+                            items=in_output_type_schema_to_output_type_schema(
+                                cur_type, process.loadingOptions  # type: ignore[attr-defined]
+                            ),
+                            type_="array",
+                        )
                 else:
-                    cur_type = cwl.ArraySchema(items=cur_type, type_="array")
-            new_type.append(cur_type)
-    if len(new_type) == 1:
-        new_type = new_type[0]
+                    cur_type = cwl.OutputArraySchema(
+                        items=in_output_type_schema_to_output_type_schema(
+                            cur_type, process.loadingOptions  # type: ignore[attr-defined]
+                        ),
+                        type_="array",
+                    )
+            new_types.append(cur_type)
+    if len(new_types) == 1:
+        final_type: (
+            MutableSequence[InputTypeSchemas | OutputTypeSchemas]
+            | InputTypeSchemas
+            | OutputTypeSchemas
+        ) = new_types[0]
+    else:
+        final_type = new_types
     if linkMerge == "merge_nested":
-        new_type = cwl.ArraySchema(items=new_type, type_="array")
+        final_type = cwl.OutputArraySchema(
+            items=final_type,
+            type_="array",
+        )
     elif linkMerge == "merge_flattened":
-        new_type = merge_flatten_type(new_type)
+        final_type = merge_flatten_type(final_type)
     elif isinstance(sourcenames, list) and len(sourcenames) > 1:
-        new_type = cwl.ArraySchema(items=new_type, type_="array")
+        final_type = cwl.OutputArraySchema(
+            items=final_type,
+            type_="array",
+        )
     if pickValue is not None:
-        if isinstance(new_type, cwl.ArraySchema):
+        if isinstance(final_type, cwl.ArraySchema):
             if pickValue in ("first_non_null", "the_only_non_null"):
-                new_type = new_type.items
-    return new_type
+                return final_type.items
+    return final_type
 
 
 def param_for_source_id(
-    process: cwl.CommandLineTool | cwl.Workflow | cwl.ExpressionTool,
-    sourcenames: str | list[str],
+    process: cwl.Process,
+    sourcenames: str | Sequence[str],
     parent: cwl.Workflow | None = None,
     scatter_context: list[tuple[int, str] | None] | None = None,
 ) -> (
-    cwl.CommandInputParameter
-    | cwl.CommandOutputParameter
-    | cwl.WorkflowInputParameter
+    cwl_utils.parser.CommandInputParameter
+    | cwl_utils.parser.CommandOutputParameter
+    | cwl_utils.parser.ExpressionToolOutputParameter
+    | cwl_utils.parser.OperationInputParameter
+    | cwl_utils.parser.OperationOutputParameter
+    | cwl_utils.parser.WorkflowInputParameter
+    | cwl_utils.parser.WorkflowOutputParameter
     | MutableSequence[
-        cwl.CommandInputParameter
-        | cwl.CommandOutputParameter
-        | cwl.WorkflowInputParameter
+        cwl_utils.parser.CommandInputParameter
+        | cwl_utils.parser.CommandOutputParameter
+        | cwl_utils.parser.ExpressionToolOutputParameter
+        | cwl_utils.parser.OperationInputParameter
+        | cwl_utils.parser.OperationOutputParameter
+        | cwl_utils.parser.WorkflowInputParameter
+        | cwl_utils.parser.WorkflowOutputParameter
     ]
 ):
     """Find the process input parameter that matches one of the given sourcenames."""
     if isinstance(sourcenames, str):
         sourcenames = [sourcenames]
     params: MutableSequence[
-        cwl.CommandInputParameter
-        | cwl.CommandOutputParameter
-        | cwl.WorkflowInputParameter
+        cwl_utils.parser.CommandInputParameter
+        | cwl_utils.parser.CommandOutputParameter
+        | cwl_utils.parser.ExpressionToolOutputParameter
+        | cwl_utils.parser.OperationInputParameter
+        | cwl_utils.parser.OperationOutputParameter
+        | cwl_utils.parser.WorkflowInputParameter
+        | cwl_utils.parser.WorkflowOutputParameter
     ] = []
     for sourcename in sourcenames:
         if not isinstance(process, cwl.Workflow):
@@ -633,8 +836,8 @@ def param_for_source_id(
                                         ):
                                             params.append(output)
                                             if scatter_context is not None:
-                                                if scatter_context is not None:
-                                                    if isinstance(step.scatter, str):
+                                                match step.scatter:
+                                                    case str():
                                                         scatter_context.append(
                                                             (
                                                                 1,
@@ -642,9 +845,7 @@ def param_for_source_id(
                                                                 or "dotproduct",
                                                             )
                                                         )
-                                                    elif isinstance(
-                                                        step.scatter, MutableSequence
-                                                    ):
+                                                    case Sequence():
                                                         scatter_context.append(
                                                             (
                                                                 len(step.scatter),
@@ -652,7 +853,7 @@ def param_for_source_id(
                                                                 or "dotproduct",
                                                             )
                                                         )
-                                                    else:
+                                                    case _:
                                                         scatter_context.append(None)
     if len(params) == 1:
         return params[0]

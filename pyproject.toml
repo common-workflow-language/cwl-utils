@@ -142,3 +142,4 @@ ignore = [
 
 [tool.bandit]
 exclude_dirs = ["cwl_utils/tests"]
+skips = ["B101"]
