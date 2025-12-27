@@ -210,6 +210,7 @@ def check_all_types(
         extra_message = (
             "pickValue is %s" % sink.pickValue if sink.pickValue is not None else None
         )
+        sink_type = type_dict[sink.id]
         match sink:
             case cwl.WorkflowOutputParameter():
                 sourceName = "outputSource"
@@ -220,7 +221,7 @@ def check_all_types(
             case _:
                 continue
         if sourceField is not None:
-            if isinstance(sourceField, MutableSequence):
+            if isinstance(sourceField, MutableSequence) and len(sourceField) > 1:
                 linkMerge: str | None = sink.linkMerge or (
                     "merge_nested" if len(sourceField) > 1 else None
                 )
@@ -231,23 +232,34 @@ def check_all_types(
                     srcs_of_sink += [src_dict[parm_id]]
                     if (
                         _is_conditional_step(param_to_step, parm_id)
-                        and sink.pickValue is not None
+                        and sink.pickValue is None
                     ):
-                        validation["warning"].append(
-                            SrcSink(
-                                src_dict[parm_id],
-                                sink,
-                                linkMerge,
-                                message="Source is from conditional step, but pickValue is not used",
+                        src_typ = aslist(type_dict[src_dict[parm_id].id])
+                        if "null" not in src_typ:
+                            src_typ = ["null"] + cast(list[Any], src_typ)
+                        if (
+                            not isinstance(sink_type, MutableSequence)
+                            or "null" not in sink_type
+                        ):
+                            validation["warning"].append(
+                                SrcSink(
+                                    src_dict[parm_id],
+                                    sink,
+                                    linkMerge,
+                                    message="Source is from conditional step, but pickValue is not used",
+                                )
                             )
-                        )
+                        type_dict[src_dict[parm_id].id] = src_typ
                     if _is_all_output_method_loop_step(param_to_step, parm_id):
                         src_typ = type_dict[src_dict[parm_id].id]
                         type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
                             items=src_typ, type_="array"
                         )
             else:
-                parm_id = cast(str, sourceField)
+                if isinstance(sourceField, MutableSequence):
+                    parm_id = cast(str, sourceField[0])
+                else:
+                    parm_id = cast(str, sourceField)
                 if parm_id not in src_dict:
                     raise SourceLine(sink, sourceName, ValidationException).makeError(
                         f"{sourceName} not found: {parm_id}"
@@ -289,7 +301,7 @@ def check_all_types(
             for src in srcs_of_sink:
                 check_result = check_types(
                     type_dict[cast(str, src.id)],
-                    type_dict[sink.id],
+                    sink_type,
                     linkMerge,
                     getattr(sink, "valueFrom", None),
                 )
@@ -313,19 +325,24 @@ def check_types(
     """
     if valueFrom is not None:
         return "pass"
-    if linkMerge is None:
-        if can_assign_src_to_sink(srctype, sinktype, strict=True):
-            return "pass"
-        if can_assign_src_to_sink(srctype, sinktype, strict=False):
-            return "warning"
-        return "exception"
-    if linkMerge == "merge_nested":
-        return check_types(
-            cwl.ArraySchema(items=srctype, type_="array"), sinktype, None, None
-        )
-    if linkMerge == "merge_flattened":
-        return check_types(merge_flatten_type(srctype), sinktype, None, None)
-    raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
+    match linkMerge:
+        case None:
+            if can_assign_src_to_sink(srctype, sinktype, strict=True):
+                return "pass"
+            if can_assign_src_to_sink(srctype, sinktype, strict=False):
+                return "warning"
+            return "exception"
+        case "merge_nested":
+            return check_types(
+                cwl.ArraySchema(items=srctype, type_="array"),
+                sinktype,
+                None,
+                None,
+            )
+        case "merge_flattened":
+            return check_types(merge_flatten_type(srctype), sinktype, None, None)
+        case _:
+            raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
 
 
 def content_limit_respected_read_bytes(f: IO[bytes]) -> bytes:
