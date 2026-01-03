@@ -717,7 +717,7 @@ def add_cwl_metadata_to_schema(schema_dict: Dict) -> Dict:
     # Always do a deepcopy on the input
     schema_dict = deepcopy(schema_dict)
 
-    # Assert defintions
+    # Assert definitions
     assert_definitions_key(schema_dict)
 
     # Add in the CWL metadata to the definitions
@@ -1059,7 +1059,7 @@ def fix_hints(schema_dict, definition_key):
 
 def add_file_and_directory_to_schema(schema_dict: Dict) -> Dict:
     """
-    Add file and directory defintions to schema
+    Add file and directory definitions to schema
     :param schema_dict:
     :return:
     """
