@@ -18007,6 +18007,14 @@ class ResourceRequirement(ProcessRequirement):
                                 "is not valid because:",
                             )
                         )
+        if coresMin is not None and coresMax is not None and coresMin > coresMax:
+            _errors__.append(
+                ValidationException(
+                    "the `coresMin` field is greater than the `coresMax` field",
+                    None
+                )
+            )
+
         ramMin = None
         if "ramMin" in _doc:
             try:
@@ -18101,6 +18109,14 @@ class ResourceRequirement(ProcessRequirement):
                                 "is not valid because:",
                             )
                         )
+        if ramMin is not None and ramMax is not None and ramMin > ramMax:
+            _errors__.append(
+                ValidationException(
+                    "the `ramMin` field is greater than the `ramMax` field",
+                    None
+                )
+            )
+
         tmpdirMin = None
         if "tmpdirMin" in _doc:
             try:
@@ -18195,6 +18211,14 @@ class ResourceRequirement(ProcessRequirement):
                                 "is not valid because:",
                             )
                         )
+        if tmpdirMin is not None and tmpdirMax is not None and tmpdirMin > tmpdirMax:
+            _errors__.append(
+                ValidationException(
+                    "the `tmpdirMin` field is greater than the `tmpdirMax` field",
+                    None
+                )
+            )
+
         outdirMin = None
         if "outdirMin" in _doc:
             try:
@@ -18289,6 +18313,14 @@ class ResourceRequirement(ProcessRequirement):
                                 "is not valid because:",
                             )
                         )
+        if outdirMin is not None and outdirMax is not None and outdirMin > outdirMax:
+            _errors__.append(
+                ValidationException(
+                    "the `outdirMin` field is greater than the `outdirMax` field",
+                    None
+                )
+            )
+
         extension_fields: dict[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -18354,6 +18386,11 @@ class ResourceRequirement(ProcessRequirement):
             r["coresMax"] = save(
                 self.coresMax, top=False, base_url=base_url, relative_uris=relative_uris
             )
+        if r.get("coresMax") and r.get("coresMin") and r["coresMax"] < r["coresMin"]:
+            raise ValidationException(
+                "the `coresMax` field is less than the `coresMin` field"
+            )
+
         if self.ramMin is not None:
             r["ramMin"] = save(
                 self.ramMin, top=False, base_url=base_url, relative_uris=relative_uris
@@ -18362,6 +18399,11 @@ class ResourceRequirement(ProcessRequirement):
             r["ramMax"] = save(
                 self.ramMax, top=False, base_url=base_url, relative_uris=relative_uris
             )
+        if r.get("ramMax") and r.get("ramMin") and r["ramMax"] < r["ramMin"]:
+            raise ValidationException(
+                "the `ramMax` field is less than the `ramMin` field"
+            )
+
         if self.tmpdirMin is not None:
             r["tmpdirMin"] = save(
                 self.tmpdirMin,
@@ -18376,6 +18418,11 @@ class ResourceRequirement(ProcessRequirement):
                 base_url=base_url,
                 relative_uris=relative_uris,
             )
+        if r.get("tmpdirMax") and r.get("tmpdirMin") and r["tmpdirMax"] < r["tmpdirMin"]:
+            raise ValidationException(
+                "the `tmpdirMax` field is less than the `tmpdirMin` field"
+            )
+
         if self.outdirMin is not None:
             r["outdirMin"] = save(
                 self.outdirMin,
@@ -18389,6 +18436,10 @@ class ResourceRequirement(ProcessRequirement):
                 top=False,
                 base_url=base_url,
                 relative_uris=relative_uris,
+            )
+        if r.get("outdirMax") and r.get("outdirMin") and r["outdirMax"] < r["outdirMin"]:
+            raise ValidationException(
+                "the `outdirMax` field is less than the `outdirMin` field"
             )
 
         # top refers to the directory level
