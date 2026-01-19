@@ -1,4 +1,4 @@
 flake8-bugbear < 25.12
-black == 25.*
+black == 26.*
 codespell
 isort >= 5
