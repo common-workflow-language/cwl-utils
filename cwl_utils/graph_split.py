@@ -20,10 +20,15 @@ from pathlib import Path
 from typing import (
     IO,
     Any,
+    Callable,
     cast,
 )
 
-from cwlformat.formatter import stringify_dict
+try:
+    stringify_dict: Callable[[dict[str, Any]], str] | None
+    from cwlformat.formatter import stringify_dict
+except ImportError:
+    stringify_dict = None
 from ruamel.yaml.main import YAML
 from ruamel.yaml.representer import RoundTripRepresenter
 from schema_salad.sourceline import SourceLine, add_lc_filename
@@ -288,6 +293,10 @@ def yaml_dump(
 ) -> None:
     """Output object as YAML."""
     if pretty:
+        if not stringify_dict:
+            raise RuntimeError(
+                "yaml_dump(pretty=True) requires cwlformat to be installed."
+            )
         output_handle.write(stringify_dict(entry))
         return
     yaml = YAML(typ="rt", pure=True)
