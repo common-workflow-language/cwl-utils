@@ -4,6 +4,7 @@
 # Copyright 2024 Alexis Lucattini
 
 """Generate JSON Schema from CWL inputs object."""
+
 import argparse
 import json
 import logging

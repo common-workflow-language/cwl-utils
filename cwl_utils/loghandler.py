@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Shared logging object."""
+
 import logging
 
 _logger = logging.getLogger("cwl_utils")  # pylint: disable=invalid-name

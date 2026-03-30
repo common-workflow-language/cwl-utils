@@ -14,6 +14,7 @@ from schema_salad.utils import json_dumps, yaml_no_ts
 
 import cwl_utils
 import cwl_utils.parser
+
 from . import (
     LoadingOptions,
     Process,

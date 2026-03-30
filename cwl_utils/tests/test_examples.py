@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests of example Python scripts."""
+
 import os
 import runpy
 from importlib.resources import as_file, files

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for cwl-cite-extract."""
+
 import pytest
 
 from cwl_utils.cite_extract import arg_parser, run

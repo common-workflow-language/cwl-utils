@@ -15,7 +15,6 @@ Only records and arrays can be defined (https://github.com/common-workflow-langu
 From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
 """
 
-
 import sys
 import urllib.parse
 from copy import deepcopy

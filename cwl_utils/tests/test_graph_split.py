@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test the CWL $graph document splitter tool."""
+
 import json
 from io import StringIO
 from pathlib import Path

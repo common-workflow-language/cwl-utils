@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Classes for docker-extract."""
+
 import logging
 import subprocess  # nosec
 from abc import ABC, abstractmethod
