@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2021 Michael R. Crusoe
 """Normalize CWL documents to CWL v1.2, JSON style."""
+
 import argparse
 import logging
 import sys

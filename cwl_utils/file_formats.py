@@ -5,7 +5,6 @@ CWL file formats utilities.
 For more information, please visit https://www.commonwl.org/user_guide/16-file-formats/
 """
 
-
 from rdflib import OWL, RDFS, Graph, URIRef
 from schema_salad.exceptions import ValidationException
 from schema_salad.utils import aslist, json_dumps

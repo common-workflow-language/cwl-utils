@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test that scoping of identifiers in Workflow.steps[].run is correct."""
 
-
 from cwl_utils.parser import Workflow, load_document_by_uri
 
 from .util import get_path

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for cwl-inputs-schema-gen."""
+
 from pathlib import Path
 
 import pytest

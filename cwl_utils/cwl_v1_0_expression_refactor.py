@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2018-2021 Michael R. Crusoe
 """CWL Expression refactoring tool for CWL v1.0 ."""
+
 import copy
 import hashlib
 import uuid

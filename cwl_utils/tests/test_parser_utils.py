@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test the CWL parsers utility functions."""
+
 import logging
 import re
 import tempfile
@@ -7,7 +8,7 @@ from collections.abc import MutableSequence
 from typing import cast
 
 import pytest
-from pytest import raises, LogCaptureFixture
+from pytest import LogCaptureFixture, raises
 from schema_salad.exceptions import ValidationException
 
 import cwl_utils.parser.cwl_v1_0

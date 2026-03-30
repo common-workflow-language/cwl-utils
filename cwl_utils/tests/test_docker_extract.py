@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for cwl-docker-extract."""
+
 from pathlib import Path
 
 import pytest
@@ -92,13 +93,10 @@ def test_container_extraction_no_dockerPull(
     assert len(reqs) == 1
     assert len(list(tmp_path.iterdir())) == 0
     captured = capsys.readouterr()
-    assert (
-        captured.err
-        == """Unable to save image from due to lack of 'dockerPull':
+    assert captured.err == """Unable to save image from due to lack of 'dockerPull':
 class: DockerRequirement
 dockerImageId: 'debian:stable-slim.img'
 """
-    )
 
 
 @pytest.mark.parametrize(
