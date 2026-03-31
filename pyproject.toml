@@ -99,8 +99,6 @@ only-include = [
 [tool.hatch.build.targets.wheel]
 only-include = [
     "cwl_utils",
-    "LICENSE",
-    "README.rst"
 ]
 
 [tool.hatch.build.targets.wheel.hooks.mypyc]
