@@ -14,13 +14,13 @@ import tempfile
 import uuid as _uuid__  # pylint: disable=unused-import # noqa: F401
 import xml.sax  # nosec
 from abc import ABCMeta, abstractmethod
-from collections.abc import MutableMapping, MutableSequence, Sequence
 from collections.abc import Collection  # pylint: disable=unused-import # noqa: F401
+from collections.abc import MutableMapping, MutableSequence, Sequence
 from io import StringIO
 from itertools import chain
-from mypy_extensions import i32, i64, trait
-from typing import Any, Final, Generic, TypeAlias, TypeVar, cast
+from mypy_extensions import i32, i64
 from typing import ClassVar, Literal, Mapping  # pylint: disable=unused-import # noqa: F401
+from typing import Any, Final, Generic, TypeAlias, TypeVar, cast
 from urllib.parse import quote, urldefrag, urlparse, urlsplit, urlunsplit
 from urllib.request import pathname2url
 
@@ -213,7 +213,6 @@ class LoadingOptions:
         return graph
 
 
-@trait
 class Saveable(metaclass=ABCMeta):
     """Mark classes than have a save() and fromDoc() function."""
 
@@ -1186,12 +1185,7 @@ def parser_info() -> str:
     return "org.w3id.cwl.v1_1"
 
 
-@trait
-class Documented(Saveable, metaclass=ABCMeta):
-    doc: None | Sequence[str] | str
-
-
-class RecordField(Documented):
+class RecordField(Saveable):
     """
     A field of a record.
     """
@@ -1456,9 +1450,9 @@ class RecordField(Documented):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name
-        self.type_: ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | Sequence[ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | UnionSchema | str] | UnionSchema | str = type_
+        self.doc = doc
+        self.name = name
+        self.type_ = type_
 
     attrs: ClassVar[Collection[str]] = frozenset(["doc", "name", "type"])
 
@@ -1656,8 +1650,8 @@ class RecordSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.fields: None | Sequence[RecordField] = fields
-        self.type_: Literal["record"] = type_
+        self.fields = fields
+        self.type_ = type_
 
     attrs: ClassVar[Collection[str]] = frozenset(["fields", "type"])
 
@@ -1928,9 +1922,9 @@ class EnumSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.symbols: Sequence[str] = symbols
-        self.type_: Literal["enum"] = type_
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.symbols = symbols
+        self.type_ = type_
 
     attrs: ClassVar[Collection[str]] = frozenset(["name", "symbols", "type"])
 
@@ -2128,8 +2122,8 @@ class ArraySchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items: ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | Sequence[ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | UnionSchema | str] | UnionSchema | str = items
-        self.type_: Literal["array"] = type_
+        self.items = items
+        self.type_ = type_
 
     attrs: ClassVar[Collection[str]] = frozenset(["items", "type"])
 
@@ -2327,8 +2321,8 @@ class MapSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.type_: Literal["map"] = type_
-        self.values: ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | Sequence[ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | UnionSchema | str] | UnionSchema | str = values
+        self.type_ = type_
+        self.values = values
 
     attrs: ClassVar[Collection[str]] = frozenset(["type", "values"])
 
@@ -2526,8 +2520,8 @@ class UnionSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.names: ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | Sequence[ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | UnionSchema | str] | UnionSchema | str = names
-        self.type_: Literal["union"] = type_
+        self.names = names
+        self.type_ = type_
 
     attrs: ClassVar[Collection[str]] = frozenset(["names", "type"])
 
@@ -2725,8 +2719,8 @@ class CWLArraySchema(ArraySchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items: CWLArraySchema | CWLRecordSchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | str] | str = items
-        self.type_: Literal["array"] = type_
+        self.items = items
+        self.type_ = type_
 
     attrs: ClassVar[Collection[str]] = frozenset(["items", "type"])
 
@@ -2992,9 +2986,9 @@ class CWLRecordField(RecordField):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name
-        self.type_: CWLArraySchema | CWLRecordSchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | str] | str = type_
+        self.doc = doc
+        self.name = name
+        self.type_ = type_
 
     attrs: ClassVar[Collection[str]] = frozenset(["doc", "name", "type"])
 
@@ -3192,8 +3186,8 @@ class CWLRecordSchema(RecordSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.fields: None | Sequence[CWLRecordField] = fields
-        self.type_: Literal["record"] = type_
+        self.fields = fields
+        self.type_ = type_
 
     attrs: ClassVar[Collection[str]] = frozenset(["fields", "type"])
 
@@ -3990,17 +3984,17 @@ class File(Saveable):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "File"
-        self.location: None | str = location
-        self.path: None | str = path
-        self.basename: None | str = basename
-        self.dirname: None | str = dirname
-        self.nameroot: None | str = nameroot
-        self.nameext: None | str = nameext
-        self.checksum: None | str = checksum
-        self.size: None | i32 = size
-        self.secondaryFiles: None | Sequence[Directory | File] = secondaryFiles
-        self.format: None | str = format
-        self.contents: None | str = contents
+        self.location = location
+        self.path = path
+        self.basename = basename
+        self.dirname = dirname
+        self.nameroot = nameroot
+        self.nameext = nameext
+        self.checksum = checksum
+        self.size = size
+        self.secondaryFiles = secondaryFiles
+        self.format = format
+        self.contents = contents
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -4054,7 +4048,7 @@ class Directory(Saveable):
     the same Directory.
 
     When executing a CommandLineTool, Directories must be recursively staged
-    first and have local values of `path` assigend.
+    first and have local values of `path` assigned.
 
     Directory objects in CommandLineTool output must provide either a
     `location` URI or a `path` property in the context of the tool execution
@@ -4396,66 +4390,14 @@ class Directory(Saveable):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "Directory"
-        self.location: None | str = location
-        self.path: None | str = path
-        self.basename: None | str = basename
-        self.listing: None | Sequence[Directory | File] = listing
+        self.location = location
+        self.path = path
+        self.basename = basename
+        self.listing = listing
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["class", "location", "path", "basename", "listing"]
     )
-
-
-@trait
-class Labeled(Saveable, metaclass=ABCMeta):
-    label: None | str
-
-
-@trait
-class Identified(Saveable, metaclass=ABCMeta):
-    id: None | str
-
-
-@trait
-class IdentifierRequired(Identified, metaclass=ABCMeta):
-    id: str
-
-
-@trait
-class LoadContents(Saveable, metaclass=ABCMeta):
-    loadContents: None | bool
-    loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None
-
-
-@trait
-class FieldBase(Labeled, metaclass=ABCMeta):
-    label: None | str
-    secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema]
-    streamable: None | bool
-
-
-@trait
-class InputFormat(Saveable, metaclass=ABCMeta):
-    format: None | Sequence[str] | str
-
-
-@trait
-class OutputFormat(Saveable, metaclass=ABCMeta):
-    format: None | str
-
-
-@trait
-class Parameter(FieldBase, Documented, IdentifierRequired, metaclass=ABCMeta):
-    """
-    Define an input or output parameter to a process.
-
-    """
-
-    label: None | str
-    secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema]
-    streamable: None | bool
-    doc: None | Sequence[str] | str
-    id: str
 
 
 class InputBinding(Saveable):
@@ -4600,33 +4542,12 @@ class InputBinding(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.loadContents: None | bool = loadContents
+        self.loadContents = loadContents
 
     attrs: ClassVar[Collection[str]] = frozenset(["loadContents"])
 
 
-@trait
-class IOSchema(Labeled, Documented, metaclass=ABCMeta):
-    label: None | str
-    doc: None | Sequence[str] | str
-    name: None | str
-
-
-@trait
-class InputSchema(IOSchema, metaclass=ABCMeta):
-    label: None | str
-    doc: None | Sequence[str] | str
-    name: None | str
-
-
-@trait
-class OutputSchema(IOSchema, metaclass=ABCMeta):
-    label: None | str
-    doc: None | Sequence[str] | str
-    name: None | str
-
-
-class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
+class InputRecordField(CWLRecordField):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -5234,15 +5155,15 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name
-        self.type_: InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str = type_
-        self.label: None | str = label
-        self.secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = secondaryFiles
-        self.streamable: None | bool = streamable
-        self.format: None | Sequence[str] | str = format
-        self.loadContents: None | bool = loadContents
-        self.loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = loadListing
+        self.doc = doc
+        self.name = name
+        self.type_ = type_
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.format = format
+        self.loadContents = loadContents
+        self.loadListing = loadListing
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -5259,7 +5180,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
     )
 
 
-class InputRecordSchema(CWLRecordSchema, InputSchema):
+class InputRecordSchema(CWLRecordSchema):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -5628,18 +5549,18 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.fields: None | Sequence[InputRecordField] = fields
-        self.type_: Literal["record"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.fields = fields
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["fields", "type", "label", "doc", "name"]
     )
 
 
-class InputEnumSchema(EnumSchema, InputSchema):
+class InputEnumSchema(EnumSchema):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -6008,18 +5929,18 @@ class InputEnumSchema(EnumSchema, InputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.symbols: Sequence[str] = symbols
-        self.type_: Literal["enum"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.symbols = symbols
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["name", "symbols", "type", "label", "doc"]
     )
 
 
-class InputArraySchema(CWLArraySchema, InputSchema):
+class InputArraySchema(CWLArraySchema):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -6388,18 +6309,18 @@ class InputArraySchema(CWLArraySchema, InputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items: InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str = items
-        self.type_: Literal["array"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.items = items
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["items", "type", "label", "doc", "name"]
     )
 
 
-class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
+class OutputRecordField(CWLRecordField):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -6891,20 +6812,20 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name
-        self.type_: Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str = type_
-        self.label: None | str = label
-        self.secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = secondaryFiles
-        self.streamable: None | bool = streamable
-        self.format: None | str = format
+        self.doc = doc
+        self.name = name
+        self.type_ = type_
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.format = format
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["doc", "name", "type", "label", "secondaryFiles", "streamable", "format"]
     )
 
 
-class OutputRecordSchema(CWLRecordSchema, OutputSchema):
+class OutputRecordSchema(CWLRecordSchema):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -7273,18 +7194,18 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.fields: None | Sequence[OutputRecordField] = fields
-        self.type_: Literal["record"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.fields = fields
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["fields", "type", "label", "doc", "name"]
     )
 
 
-class OutputEnumSchema(EnumSchema, OutputSchema):
+class OutputEnumSchema(EnumSchema):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -7653,18 +7574,18 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.symbols: Sequence[str] = symbols
-        self.type_: Literal["enum"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.symbols = symbols
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["name", "symbols", "type", "label", "doc"]
     )
 
 
-class OutputArraySchema(CWLArraySchema, OutputSchema):
+class OutputArraySchema(CWLArraySchema):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -8033,76 +7954,18 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items: Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str = items
-        self.type_: Literal["array"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.items = items
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["items", "type", "label", "doc", "name"]
     )
 
 
-@trait
-class InputParameter(Parameter, InputFormat, LoadContents, metaclass=ABCMeta):
-    label: None | str
-    secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema]
-    streamable: None | bool
-    doc: None | Sequence[str] | str
-    id: str
-    format: None | Sequence[str] | str
-    loadContents: None | bool
-    loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None
-    default: CWLObjectType | None
-
-
-@trait
-class OutputParameter(Parameter, OutputFormat, metaclass=ABCMeta):
-    label: None | str
-    secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema]
-    streamable: None | bool
-    doc: None | Sequence[str] | str
-    id: str
-    format: None | str
-
-
-@trait
-class ProcessRequirement(Saveable, metaclass=ABCMeta):
-    """
-    A process requirement declares a prerequisite that may or must be fulfilled
-    before executing a process.  See [`Process.hints`](#process) and
-    [`Process.requirements`](#process).
-
-    Process requirements are the primary mechanism for specifying extensions to
-    the CWL core specification.
-
-    """
-
-    pass
-
-
-@trait
-class Process(Identified, Labeled, Documented, metaclass=ABCMeta):
-    """
-
-    The base executable type in CWL is the `Process` object defined by the
-    document.  Note that the `Process` object is abstract and cannot be
-    directly executed.
-
-    """
-
-    id: None | str
-    label: None | str
-    doc: None | Sequence[str] | str
-    inputs: Sequence[CommandInputParameter | WorkflowInputParameter]
-    outputs: Sequence[CommandOutputParameter | ExpressionToolOutputParameter | WorkflowOutputParameter]
-    requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse]
-    hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse]
-    cwlVersion: Literal["v1.1"] | None
-
-
-class InlineJavascriptRequirement(ProcessRequirement):
+class InlineJavascriptRequirement(Saveable):
     """
     Indicates that the workflow platform must support inline Javascript expressions.
     If this requirement is not present, the workflow platform must not perform expression
@@ -8279,17 +8142,12 @@ class InlineJavascriptRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "InlineJavascriptRequirement"
-        self.expressionLib: None | Sequence[str] = expressionLib
+        self.expressionLib = expressionLib
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "expressionLib"])
 
 
-@trait
-class CommandInputSchema(Saveable, metaclass=ABCMeta):
-    pass
-
-
-class SchemaDefRequirement(ProcessRequirement):
+class SchemaDefRequirement(Saveable):
     """
     This field consists of an array of type definitions which must be used when
     interpreting the `inputs` and `outputs` fields.  When a `type` field
@@ -8465,7 +8323,7 @@ class SchemaDefRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "SchemaDefRequirement"
-        self.types: Sequence[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema] = types
+        self.types = types
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "types"])
 
@@ -8665,13 +8523,13 @@ class SecondaryFileSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.pattern: str = pattern
-        self.required: None | bool | str = required
+        self.pattern = pattern
+        self.required = required
 
     attrs: ClassVar[Collection[str]] = frozenset(["pattern", "required"])
 
 
-class LoadListingRequirement(ProcessRequirement):
+class LoadListingRequirement(Saveable):
     """
     Specify the desired behavior for loading the `listing` field of
     a Directory object for use by expressions.
@@ -8846,7 +8704,7 @@ class LoadListingRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "LoadListingRequirement"
-        self.loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = loadListing
+        self.loadListing = loadListing
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "loadListing"])
 
@@ -9054,8 +8912,8 @@ class EnvironmentDef(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.envName: str = envName
-        self.envValue: str = envValue
+        self.envName = envName
+        self.envValue = envValue
 
     attrs: ClassVar[Collection[str]] = frozenset(["envName", "envValue"])
 
@@ -9586,13 +9444,13 @@ class CommandLineBinding(InputBinding):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.loadContents: None | bool = loadContents
-        self.position: None | i32 | str = position
-        self.prefix: None | str = prefix
-        self.separate: None | bool = separate
-        self.itemSeparator: None | str = itemSeparator
-        self.valueFrom: None | str = valueFrom
-        self.shellQuote: None | bool = shellQuote
+        self.loadContents = loadContents
+        self.position = position
+        self.prefix = prefix
+        self.separate = separate
+        self.itemSeparator = itemSeparator
+        self.valueFrom = valueFrom
+        self.shellQuote = shellQuote
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -9607,7 +9465,7 @@ class CommandLineBinding(InputBinding):
     )
 
 
-class CommandOutputBinding(LoadContents):
+class CommandOutputBinding(Saveable):
     """
     Describes how to generate an output parameter based on the files produced
     by a CommandLineTool.
@@ -9933,22 +9791,17 @@ class CommandOutputBinding(LoadContents):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.loadContents: None | bool = loadContents
-        self.loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = loadListing
-        self.glob: None | Sequence[str] | str = glob
-        self.outputEval: None | str = outputEval
+        self.loadContents = loadContents
+        self.loadListing = loadListing
+        self.glob = glob
+        self.outputEval = outputEval
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["loadContents", "loadListing", "glob", "outputEval"]
     )
 
 
-@trait
-class CommandLineBindable(Saveable, metaclass=ABCMeta):
-    inputBinding: CommandLineBinding | None
-
-
-class CommandInputRecordField(InputRecordField, CommandLineBindable):
+class CommandInputRecordField(InputRecordField):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -10614,16 +10467,16 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name
-        self.type_: CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str = type_
-        self.label: None | str = label
-        self.secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = secondaryFiles
-        self.streamable: None | bool = streamable
-        self.format: None | Sequence[str] | str = format
-        self.loadContents: None | bool = loadContents
-        self.loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = loadListing
-        self.inputBinding: CommandLineBinding | None = inputBinding
+        self.doc = doc
+        self.name = name
+        self.type_ = type_
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.format = format
+        self.loadContents = loadContents
+        self.loadListing = loadListing
+        self.inputBinding = inputBinding
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -10641,9 +10494,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
     )
 
 
-class CommandInputRecordSchema(
-    InputRecordSchema, CommandInputSchema, CommandLineBindable
-):
+class CommandInputRecordSchema(InputRecordSchema):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -11078,19 +10929,19 @@ class CommandInputRecordSchema(
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.fields: None | Sequence[CommandInputRecordField] = fields
-        self.type_: Literal["record"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.inputBinding: CommandLineBinding | None = inputBinding
+        self.fields = fields
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.inputBinding = inputBinding
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["fields", "type", "label", "doc", "name", "inputBinding"]
     )
 
 
-class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBindable):
+class CommandInputEnumSchema(InputEnumSchema):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -11525,21 +11376,19 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.symbols: Sequence[str] = symbols
-        self.type_: Literal["enum"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.inputBinding: CommandLineBinding | None = inputBinding
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.symbols = symbols
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
+        self.inputBinding = inputBinding
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["name", "symbols", "type", "label", "doc", "inputBinding"]
     )
 
 
-class CommandInputArraySchema(
-    InputArraySchema, CommandInputSchema, CommandLineBindable
-):
+class CommandInputArraySchema(InputArraySchema):
     name: str
 
     def __eq__(self, other: Any) -> bool:
@@ -11967,12 +11816,12 @@ class CommandInputArraySchema(
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items: CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str = items
-        self.type_: Literal["array"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.inputBinding: CommandLineBinding | None = inputBinding
+        self.items = items
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.inputBinding = inputBinding
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["items", "type", "label", "doc", "name", "inputBinding"]
@@ -12529,14 +12378,14 @@ class CommandOutputRecordField(OutputRecordField):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name
-        self.type_: CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str = type_
-        self.label: None | str = label
-        self.secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = secondaryFiles
-        self.streamable: None | bool = streamable
-        self.format: None | str = format
-        self.outputBinding: CommandOutputBinding | None = outputBinding
+        self.doc = doc
+        self.name = name
+        self.type_ = type_
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.format = format
+        self.outputBinding = outputBinding
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -12921,11 +12770,11 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.fields: None | Sequence[CommandOutputRecordField] = fields
-        self.type_: Literal["record"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.fields = fields
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["fields", "type", "label", "doc", "name"]
@@ -13301,11 +13150,11 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.symbols: Sequence[str] = symbols
-        self.type_: Literal["enum"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.symbols = symbols
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["name", "symbols", "type", "label", "doc"]
@@ -13681,18 +13530,18 @@ class CommandOutputArraySchema(OutputArraySchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items: CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str = items
-        self.type_: Literal["array"] = type_
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.name: str = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.items = items
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["items", "type", "label", "doc", "name"]
     )
 
 
-class CommandInputParameter(InputParameter):
+class CommandInputParameter(Saveable):
     """
     An input parameter for a CommandLineTool.
     """
@@ -14417,17 +14266,17 @@ class CommandInputParameter(InputParameter):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.label: None | str = label
-        self.secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = secondaryFiles
-        self.streamable: None | bool = streamable
-        self.doc: None | Sequence[str] | str = doc
-        self.id: str = id
-        self.format: None | Sequence[str] | str = format
-        self.loadContents: None | bool = loadContents
-        self.loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = loadListing
-        self.default: CWLObjectType | None = default
-        self.type_: CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Literal["stdin"] | Sequence[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str = type_
-        self.inputBinding: CommandLineBinding | None = inputBinding
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.format = format
+        self.loadContents = loadContents
+        self.loadListing = loadListing
+        self.default = default
+        self.type_ = type_
+        self.inputBinding = inputBinding
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -14446,7 +14295,7 @@ class CommandInputParameter(InputParameter):
     )
 
 
-class CommandOutputParameter(OutputParameter):
+class CommandOutputParameter(Saveable):
     """
     An output parameter for a CommandLineTool.
     """
@@ -15000,14 +14849,14 @@ class CommandOutputParameter(OutputParameter):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.label: None | str = label
-        self.secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = secondaryFiles
-        self.streamable: None | bool = streamable
-        self.doc: None | Sequence[str] | str = doc
-        self.id: str = id
-        self.format: None | str = format
-        self.type_: CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Literal["stderr"] | Literal["stdout"] | Sequence[CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str = type_
-        self.outputBinding: CommandOutputBinding | None = outputBinding
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.format = format
+        self.type_ = type_
+        self.outputBinding = outputBinding
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -15023,7 +14872,7 @@ class CommandOutputParameter(OutputParameter):
     )
 
 
-class CommandLineTool(Process):
+class CommandLineTool(Saveable):
     """
     This defines the schema of the CWL Command Line Tool Description document.
 
@@ -16051,23 +15900,23 @@ class CommandLineTool(Process):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id: str = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.inputs: Sequence[CommandInputParameter] = inputs
-        self.outputs: Sequence[CommandOutputParameter] = outputs
-        self.requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = requirements
-        self.hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = hints
-        self.cwlVersion: Literal["v1.1"] | None = cwlVersion
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
+        self.label = label
+        self.doc = doc
+        self.inputs = inputs
+        self.outputs = outputs
+        self.requirements = requirements
+        self.hints = hints
+        self.cwlVersion = cwlVersion
         self.class_: Final[str] = "CommandLineTool"
-        self.baseCommand: None | Sequence[str] | str = baseCommand
-        self.arguments: None | Sequence[CommandLineBinding | str] = arguments
-        self.stdin: None | str = stdin
-        self.stderr: None | str = stderr
-        self.stdout: None | str = stdout
-        self.successCodes: None | Sequence[i32] = successCodes
-        self.temporaryFailCodes: None | Sequence[i32] = temporaryFailCodes
-        self.permanentFailCodes: None | Sequence[i32] = permanentFailCodes
+        self.baseCommand = baseCommand
+        self.arguments = arguments
+        self.stdin = stdin
+        self.stderr = stderr
+        self.stdout = stdout
+        self.successCodes = successCodes
+        self.temporaryFailCodes = temporaryFailCodes
+        self.permanentFailCodes = permanentFailCodes
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -16092,7 +15941,7 @@ class CommandLineTool(Process):
     )
 
 
-class DockerRequirement(ProcessRequirement):
+class DockerRequirement(Saveable):
     """
     Indicates that a workflow component should be run in a
     [Docker](http://docker.com) or Docker-compatible (such as
@@ -16612,12 +16461,12 @@ class DockerRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "DockerRequirement"
-        self.dockerPull: None | str = dockerPull
-        self.dockerLoad: None | str = dockerLoad
-        self.dockerFile: None | str = dockerFile
-        self.dockerImport: None | str = dockerImport
-        self.dockerImageId: None | str = dockerImageId
-        self.dockerOutputDirectory: None | str = dockerOutputDirectory
+        self.dockerPull = dockerPull
+        self.dockerLoad = dockerLoad
+        self.dockerFile = dockerFile
+        self.dockerImport = dockerImport
+        self.dockerImageId = dockerImageId
+        self.dockerOutputDirectory = dockerOutputDirectory
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -16632,7 +16481,7 @@ class DockerRequirement(ProcessRequirement):
     )
 
 
-class SoftwareRequirement(ProcessRequirement):
+class SoftwareRequirement(Saveable):
     """
     A list of software packages that should be configured in the environment of
     the defined process.
@@ -16803,7 +16652,7 @@ class SoftwareRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "SoftwareRequirement"
-        self.packages: Sequence[SoftwarePackage] = packages
+        self.packages = packages
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "packages"])
 
@@ -17057,9 +16906,9 @@ class SoftwarePackage(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.package: str = package
-        self.version: None | Sequence[str] = version
-        self.specs: None | Sequence[str] = specs
+        self.package = package
+        self.version = version
+        self.specs = specs
 
     attrs: ClassVar[Collection[str]] = frozenset(["package", "version", "specs"])
 
@@ -17325,14 +17174,14 @@ class Dirent(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.entryname: None | str = entryname
-        self.entry: str = entry
-        self.writable: None | bool = writable
+        self.entryname = entryname
+        self.entry = entry
+        self.writable = writable
 
     attrs: ClassVar[Collection[str]] = frozenset(["entryname", "entry", "writable"])
 
 
-class InitialWorkDirRequirement(ProcessRequirement):
+class InitialWorkDirRequirement(Saveable):
     """
     Define a list of files and subdirectories that must be created by the workflow platform in the designated output directory prior to executing the command line tool.
     """
@@ -17501,12 +17350,12 @@ class InitialWorkDirRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "InitialWorkDirRequirement"
-        self.listing: Sequence[Directory | Dirent | File | None | Sequence[Directory | File] | str] | str = listing
+        self.listing = listing
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "listing"])
 
 
-class EnvVarRequirement(ProcessRequirement):
+class EnvVarRequirement(Saveable):
     """
     Define a list of environment variables which will be set in the
     execution environment of the tool.  See `EnvironmentDef` for details.
@@ -17677,17 +17526,17 @@ class EnvVarRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "EnvVarRequirement"
-        self.envDef: Sequence[EnvironmentDef] = envDef
+        self.envDef = envDef
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "envDef"])
 
 
-class ShellCommandRequirement(ProcessRequirement):
+class ShellCommandRequirement(Saveable):
     """
     Modify the behavior of CommandLineTool to generate a single string
     containing a shell command line.  Each item in the argument list must be
     joined into a string separated by single spaces and quoted to prevent
-    intepretation by the shell, unless `CommandLineBinding` for that argument
+    interpretation by the shell, unless `CommandLineBinding` for that argument
     contains `shellQuote: false`.  If `shellQuote: false` is specified, the
     argument is joined into the command string without quoting, which allows
     the use of shell metacharacters such as `|` for pipes.
@@ -17806,7 +17655,7 @@ class ShellCommandRequirement(ProcessRequirement):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
-class ResourceRequirement(ProcessRequirement):
+class ResourceRequirement(Saveable):
     """
     Specify basic hardware resource requirements.
 
@@ -18399,14 +18248,14 @@ class ResourceRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "ResourceRequirement"
-        self.coresMin: None | i32 | str = coresMin
-        self.coresMax: None | i32 | str = coresMax
-        self.ramMin: None | i32 | str = ramMin
-        self.ramMax: None | i32 | str = ramMax
-        self.tmpdirMin: None | i32 | str = tmpdirMin
-        self.tmpdirMax: None | i32 | str = tmpdirMax
-        self.outdirMin: None | i32 | str = outdirMin
-        self.outdirMax: None | i32 | str = outdirMax
+        self.coresMin = coresMin
+        self.coresMax = coresMax
+        self.ramMin = ramMin
+        self.ramMax = ramMax
+        self.tmpdirMin = tmpdirMin
+        self.tmpdirMax = tmpdirMax
+        self.outdirMin = outdirMin
+        self.outdirMax = outdirMax
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -18423,12 +18272,12 @@ class ResourceRequirement(ProcessRequirement):
     )
 
 
-class WorkReuse(ProcessRequirement):
+class WorkReuse(Saveable):
     """
     For implementations that support reusing output from past work (on
     the assumption that same code and same input produce same
     results), control whether to enable or disable the reuse behavior
-    for a particular tool or step (to accomodate situations where that
+    for a particular tool or step (to accommodate situations where that
     assumption is incorrect).  A reused step is not executed but
     instead returns the same output as the original execution.
 
@@ -18606,12 +18455,12 @@ class WorkReuse(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "WorkReuse"
-        self.enableReuse: bool | str = enableReuse
+        self.enableReuse = enableReuse
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "enableReuse"])
 
 
-class NetworkAccess(ProcessRequirement):
+class NetworkAccess(Saveable):
     """
     Indicate whether a process requires outgoing IPv4/IPv6 network
     access.  Choice of IPv4 or IPv6 is implementation and site
@@ -18626,7 +18475,7 @@ class NetworkAccess(ProcessRequirement):
     may apply their own security policies to restrict what is
     accessible by the tool.
 
-    Enabling network access does not imply a publically routable IP
+    Enabling network access does not imply a publicly routable IP
     address or the ability to accept inbound connections.
 
     """
@@ -18801,12 +18650,12 @@ class NetworkAccess(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "NetworkAccess"
-        self.networkAccess: bool | str = networkAccess
+        self.networkAccess = networkAccess
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "networkAccess"])
 
 
-class InplaceUpdateRequirement(ProcessRequirement):
+class InplaceUpdateRequirement(Saveable):
     """
 
     If `inplaceUpdate` is true, then an implementation supporting this
@@ -18824,7 +18673,7 @@ class InplaceUpdateRequirement(ProcessRequirement):
     read-only in every step.
 
     Workflow steps which modify a file must produce the modified file
-    as output.  Downstream steps which futher process the file must
+    as output.  Downstream steps which further process the file must
     use the output of previous steps, and not refer to a common input
     (this is necessary for both ordering and correctness).
 
@@ -19011,12 +18860,12 @@ class InplaceUpdateRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "InplaceUpdateRequirement"
-        self.inplaceUpdate: bool = inplaceUpdate
+        self.inplaceUpdate = inplaceUpdate
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "inplaceUpdate"])
 
 
-class ToolTimeLimit(ProcessRequirement):
+class ToolTimeLimit(Saveable):
     """
     Set an upper limit on the execution time of a CommandLineTool.
     A CommandLineTool whose execution duration exceeds the time
@@ -19197,12 +19046,12 @@ class ToolTimeLimit(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "ToolTimeLimit"
-        self.timelimit: i32 | str = timelimit
+        self.timelimit = timelimit
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "timelimit"])
 
 
-class ExpressionToolOutputParameter(OutputParameter):
+class ExpressionToolOutputParameter(Saveable):
     id: str
 
     def __eq__(self, other: Any) -> bool:
@@ -19694,20 +19543,20 @@ class ExpressionToolOutputParameter(OutputParameter):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.label: None | str = label
-        self.secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = secondaryFiles
-        self.streamable: None | bool = streamable
-        self.doc: None | Sequence[str] | str = doc
-        self.id: str = id
-        self.format: None | str = format
-        self.type_: Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str = type_
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.format = format
+        self.type_ = type_
 
     attrs: ClassVar[Collection[str]] = frozenset(
         ["label", "secondaryFiles", "streamable", "doc", "id", "format", "type"]
     )
 
 
-class WorkflowInputParameter(InputParameter):
+class WorkflowInputParameter(Saveable):
     id: str
 
     def __eq__(self, other: Any) -> bool:
@@ -20428,17 +20277,17 @@ class WorkflowInputParameter(InputParameter):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.label: None | str = label
-        self.secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = secondaryFiles
-        self.streamable: None | bool = streamable
-        self.doc: None | Sequence[str] | str = doc
-        self.id: str = id
-        self.format: None | Sequence[str] | str = format
-        self.loadContents: None | bool = loadContents
-        self.loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = loadListing
-        self.default: CWLObjectType | None = default
-        self.type_: InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str = type_
-        self.inputBinding: InputBinding | None = inputBinding
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.format = format
+        self.loadContents = loadContents
+        self.loadListing = loadListing
+        self.default = default
+        self.type_ = type_
+        self.inputBinding = inputBinding
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -20457,7 +20306,7 @@ class WorkflowInputParameter(InputParameter):
     )
 
 
-class ExpressionTool(Process):
+class ExpressionTool(Saveable):
     """
     An ExpressionTool is a type of Process object that can be run by itself
     or as a Workflow step. It executes a pure Javascript expression that has
@@ -21098,16 +20947,16 @@ class ExpressionTool(Process):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id: str = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.inputs: Sequence[WorkflowInputParameter] = inputs
-        self.outputs: Sequence[ExpressionToolOutputParameter] = outputs
-        self.requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = requirements
-        self.hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = hints
-        self.cwlVersion: Literal["v1.1"] | None = cwlVersion
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
+        self.label = label
+        self.doc = doc
+        self.inputs = inputs
+        self.outputs = outputs
+        self.requirements = requirements
+        self.hints = hints
+        self.cwlVersion = cwlVersion
         self.class_: Final[str] = "ExpressionTool"
-        self.expression: str = expression
+        self.expression = expression
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -21125,7 +20974,7 @@ class ExpressionTool(Process):
     )
 
 
-class WorkflowOutputParameter(OutputParameter):
+class WorkflowOutputParameter(Saveable):
     """
     Describe an output parameter of a workflow.  The parameter must be
     connected to one or more parameters defined in the workflow that
@@ -21734,15 +21583,15 @@ class WorkflowOutputParameter(OutputParameter):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.label: None | str = label
-        self.secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = secondaryFiles
-        self.streamable: None | bool = streamable
-        self.doc: None | Sequence[str] | str = doc
-        self.id: str = id
-        self.format: None | str = format
-        self.outputSource: None | Sequence[str] | str = outputSource
-        self.linkMerge: Literal["merge_nested", "merge_flattened"] | None = linkMerge
-        self.type_: Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str = type_
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.format = format
+        self.outputSource = outputSource
+        self.linkMerge = linkMerge
+        self.type_ = type_
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -21759,19 +21608,13 @@ class WorkflowOutputParameter(OutputParameter):
     )
 
 
-@trait
-class Sink(Saveable, metaclass=ABCMeta):
-    source: None | Sequence[str] | str
-    linkMerge: Literal["merge_nested", "merge_flattened"] | None
-
-
-class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
+class WorkflowStepInput(Saveable):
     """
     The input of a workflow step connects an upstream parameter (from the
     workflow inputs, or the outputs of other workflows steps) with the input
     parameters of the process specified by the `run` field. Only input parameters
     declared by the target process will be passed through at runtime to the process
-    though additonal parameters may be specified (for use within `valueFrom`
+    though additional parameters may be specified (for use within `valueFrom`
     expressions for instance) - unconnected or unused parameters do not represent an
     error condition.
 
@@ -22358,14 +22201,14 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id: str = id
-        self.source: None | Sequence[str] | str = source
-        self.linkMerge: Literal["merge_nested", "merge_flattened"] | None = linkMerge
-        self.loadContents: None | bool = loadContents
-        self.loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = loadListing
-        self.label: None | str = label
-        self.default: CWLObjectType | None = default
-        self.valueFrom: None | str = valueFrom
+        self.id = id
+        self.source = source
+        self.linkMerge = linkMerge
+        self.loadContents = loadContents
+        self.loadListing = loadListing
+        self.label = label
+        self.default = default
+        self.valueFrom = valueFrom
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -22381,7 +22224,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
     )
 
 
-class WorkflowStepOutput(IdentifierRequired):
+class WorkflowStepOutput(Saveable):
     """
     Associate an output parameter of the underlying process with a workflow
     parameter.  The workflow parameter (given in the `id` field) be may be used
@@ -22541,12 +22384,12 @@ class WorkflowStepOutput(IdentifierRequired):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id: str = id
+        self.id = id
 
     attrs: ClassVar[Collection[str]] = frozenset(["id"])
 
 
-class WorkflowStep(IdentifierRequired, Labeled, Documented):
+class WorkflowStep(Saveable):
     """
     A workflow step is an executable element of a workflow.  It specifies the
     underlying process implementation (such as `CommandLineTool` or another
@@ -23262,16 +23105,16 @@ class WorkflowStep(IdentifierRequired, Labeled, Documented):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id: str = id
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.in_: Sequence[WorkflowStepInput] = in_
-        self.out: Sequence[WorkflowStepOutput | str] = out
-        self.requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = requirements
-        self.hints: None | Sequence[Any] = hints
-        self.run: CommandLineTool | ExpressionTool | ProcessGenerator | Workflow | str = run
-        self.scatter: None | Sequence[str] | str = scatter
-        self.scatterMethod: Literal["dotproduct", "nested_crossproduct", "flat_crossproduct"] | None = scatterMethod
+        self.id = id
+        self.label = label
+        self.doc = doc
+        self.in_ = in_
+        self.out = out
+        self.requirements = requirements
+        self.hints = hints
+        self.run = run
+        self.scatter = scatter
+        self.scatterMethod = scatterMethod
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -23289,7 +23132,7 @@ class WorkflowStep(IdentifierRequired, Labeled, Documented):
     )
 
 
-class Workflow(Process):
+class Workflow(Saveable):
     """
     A workflow describes a set of **steps** and the **dependencies** between
     those steps.  When a step produces output that will be consumed by a
@@ -23309,7 +23152,7 @@ class Workflow(Process):
     The `source` field expresses the dependency of one parameter on another
     such that when a value is associated with the parameter specified by
     `source`, that value is propagated to the destination parameter.  When all
-    data links inbound to a given step are fufilled, the step is ready to
+    data links inbound to a given step are fulfilled, the step is ready to
     execute.
 
     ## Workflow success and failure
@@ -23965,16 +23808,16 @@ class Workflow(Process):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id: str = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.inputs: Sequence[WorkflowInputParameter] = inputs
-        self.outputs: Sequence[WorkflowOutputParameter] = outputs
-        self.requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = requirements
-        self.hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = hints
-        self.cwlVersion: Literal["v1.1"] | None = cwlVersion
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
+        self.label = label
+        self.doc = doc
+        self.inputs = inputs
+        self.outputs = outputs
+        self.requirements = requirements
+        self.hints = hints
+        self.cwlVersion = cwlVersion
         self.class_: Final[str] = "Workflow"
-        self.steps: Sequence[WorkflowStep] = steps
+        self.steps = steps
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -23992,7 +23835,7 @@ class Workflow(Process):
     )
 
 
-class SubworkflowFeatureRequirement(ProcessRequirement):
+class SubworkflowFeatureRequirement(Saveable):
     """
     Indicates that the workflow platform must support nested workflows in
     the `run` field of [WorkflowStep](#WorkflowStep).
@@ -24111,7 +23954,7 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
-class ScatterFeatureRequirement(ProcessRequirement):
+class ScatterFeatureRequirement(Saveable):
     """
     Indicates that the workflow platform must support the `scatter` and
     `scatterMethod` fields of [WorkflowStep](#WorkflowStep).
@@ -24230,7 +24073,7 @@ class ScatterFeatureRequirement(ProcessRequirement):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
-class MultipleInputFeatureRequirement(ProcessRequirement):
+class MultipleInputFeatureRequirement(Saveable):
     """
     Indicates that the workflow platform must support multiple inbound data links
     listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
@@ -24349,7 +24192,7 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
-class StepInputExpressionRequirement(ProcessRequirement):
+class StepInputExpressionRequirement(Saveable):
     """
     Indicate that the workflow platform must support the `valueFrom` field
     of [WorkflowStepInput](#WorkflowStepInput).
@@ -24468,7 +24311,7 @@ class StepInputExpressionRequirement(ProcessRequirement):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
-class Secrets(ProcessRequirement):
+class Secrets(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Secrets):
             return bool(self.class_ == other.class_ and self.secrets == other.secrets)
@@ -24632,12 +24475,12 @@ class Secrets(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "Secrets"
-        self.secrets: Sequence[str] = secrets
+        self.secrets = secrets
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "secrets"])
 
 
-class ProcessGenerator(Process):
+class ProcessGenerator(Saveable):
     id: str
 
     def __eq__(self, other: Any) -> bool:
@@ -25265,16 +25108,16 @@ class ProcessGenerator(Process):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id: str = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.label: None | str = label
-        self.doc: None | Sequence[str] | str = doc
-        self.inputs: Sequence[WorkflowInputParameter] = inputs
-        self.outputs: Sequence[ExpressionToolOutputParameter] = outputs
-        self.requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = requirements
-        self.hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = hints
-        self.cwlVersion: Literal["v1.1"] | None = cwlVersion
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
+        self.label = label
+        self.doc = doc
+        self.inputs = inputs
+        self.outputs = outputs
+        self.requirements = requirements
+        self.hints = hints
+        self.cwlVersion = cwlVersion
         self.class_: Final[str] = "ProcessGenerator"
-        self.run: CommandLineTool | ExpressionTool | ProcessGenerator | Workflow | str = run
+        self.run = run
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -25292,7 +25135,7 @@ class ProcessGenerator(Process):
     )
 
 
-class MPIRequirement(ProcessRequirement):
+class MPIRequirement(Saveable):
     """
     Indicates that a process requires an MPI runtime.
 
@@ -25467,12 +25310,12 @@ class MPIRequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "MPIRequirement"
-        self.processes: i32 | str = processes
+        self.processes = processes
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "processes"])
 
 
-class CUDARequirement(ProcessRequirement):
+class CUDARequirement(Saveable):
     """
     Require support for NVIDA CUDA (GPU hardware acceleration).
 
@@ -25828,10 +25671,10 @@ class CUDARequirement(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "CUDARequirement"
-        self.cudaComputeCapability: Sequence[str] | str = cudaComputeCapability
-        self.cudaDeviceCountMax: None | i32 | str = cudaDeviceCountMax
-        self.cudaDeviceCountMin: None | i32 | str = cudaDeviceCountMin
-        self.cudaVersionMin: str = cudaVersionMin
+        self.cudaComputeCapability = cudaComputeCapability
+        self.cudaDeviceCountMax = cudaDeviceCountMax
+        self.cudaDeviceCountMin = cudaDeviceCountMin
+        self.cudaVersionMin = cudaVersionMin
 
     attrs: ClassVar[Collection[str]] = frozenset(
         [
@@ -25844,7 +25687,7 @@ class CUDARequirement(ProcessRequirement):
     )
 
 
-class ShmSize(ProcessRequirement):
+class ShmSize(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ShmSize):
             return bool(self.class_ == other.class_ and self.shmSize == other.shmSize)
@@ -26009,7 +25852,7 @@ class ShmSize(ProcessRequirement):
         else:
             self.loadingOptions = LoadingOptions()
         self.class_: Final[str] = "ShmSize"
-        self.shmSize: str = shmSize
+        self.shmSize = shmSize
 
     attrs: ClassVar[Collection[str]] = frozenset(["class", "shmSize"])
 
@@ -27710,6 +27553,61 @@ CWLObjectTypeLoader.add_loaders(
 CWLObjectType: TypeAlias = (
     "Directory | File | Mapping[str, CWLObjectType | None] | Sequence[CWLObjectType | None] | bool | float | i32 | i64 | str"
 )
+
+Sink: TypeAlias = WorkflowStepInput
+InputSchema: TypeAlias = InputArraySchema | InputEnumSchema | InputRecordSchema
+OutputSchema: TypeAlias = OutputArraySchema | OutputEnumSchema | OutputRecordSchema
+InputParameter: TypeAlias = CommandInputParameter | WorkflowInputParameter
+OutputParameter: TypeAlias = (
+    CommandOutputParameter | ExpressionToolOutputParameter | WorkflowOutputParameter
+)
+ProcessRequirement: TypeAlias = (
+    CUDARequirement
+    | DockerRequirement
+    | EnvVarRequirement
+    | InitialWorkDirRequirement
+    | InlineJavascriptRequirement
+    | InplaceUpdateRequirement
+    | LoadListingRequirement
+    | MPIRequirement
+    | MultipleInputFeatureRequirement
+    | NetworkAccess
+    | ResourceRequirement
+    | ScatterFeatureRequirement
+    | SchemaDefRequirement
+    | Secrets
+    | ShellCommandRequirement
+    | ShmSize
+    | SoftwareRequirement
+    | StepInputExpressionRequirement
+    | SubworkflowFeatureRequirement
+    | ToolTimeLimit
+    | WorkReuse
+)
+Process: TypeAlias = CommandLineTool | ExpressionTool | ProcessGenerator | Workflow
+CommandInputSchema: TypeAlias = (
+    CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema
+)
+CommandLineBindable: TypeAlias = (
+    CommandInputArraySchema
+    | CommandInputEnumSchema
+    | CommandInputRecordField
+    | CommandInputRecordSchema
+)
+IOSchema: TypeAlias = InputSchema | OutputSchema
+LoadContents: TypeAlias = (
+    CommandOutputBinding | InputParameter | InputRecordField | WorkflowStepInput
+)
+InputFormat: TypeAlias = InputParameter | InputRecordField
+OutputFormat: TypeAlias = OutputParameter | OutputRecordField
+Parameter: TypeAlias = InputParameter | OutputParameter
+Documented: TypeAlias = IOSchema | Parameter | Process | RecordField | WorkflowStep
+IdentifierRequired: TypeAlias = (
+    Parameter | WorkflowStep | WorkflowStepInput | WorkflowStepOutput
+)
+FieldBase: TypeAlias = InputRecordField | OutputRecordField | Parameter
+Identified: TypeAlias = IdentifierRequired | Process
+Labeled: TypeAlias = FieldBase | IOSchema | Process | WorkflowStep | WorkflowStepInput
 
 
 def load_document(

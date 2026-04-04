@@ -9,7 +9,7 @@ from typing import IO, Any, Literal, TypeAlias, TypeVar, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
-from schema_salad.sourceline import SourceLine, add_lc_filename
+from schema_salad.sourceline import add_lc_filename, SourceLine
 from schema_salad.utils import aslist, json_dumps, yaml_no_ts
 
 import cwl_utils.parser
@@ -358,7 +358,7 @@ def check_all_types(
             case _:
                 raise WorkflowException(f"Invalid sink type {sink.__class__.__name__}")
         if sourceField is not None:
-            if isinstance(sourceField, Sequence) and len (sourceField) > 1:
+            if is_sequence(sourceField) and len(sourceField) > 1:
                 linkMerge: str | None = sink.linkMerge or (
                     "merge_nested" if len(sourceField) > 1 else None
                 )
@@ -383,7 +383,7 @@ def check_all_types(
                                     src_dict[parm_id],
                                     sink,
                                     linkMerge,
-                                    message="Source is from conditional step, but pickValue is not used",
+                                    message="Source is from conditional step and may produce `null`",
                                 )
                             )
                         type_dict[src_dict[parm_id].id] = src_typ
@@ -393,7 +393,7 @@ def check_all_types(
                             items=src_typ, type_="array"
                         )
             else:
-                if isinstance(sourceField, Sequence):
+                if is_sequence(sourceField):
                     parm_id = sourceField[0]
                 else:
                     parm_id = sourceField
@@ -413,54 +413,19 @@ def check_all_types(
                         )
                     )
                 if _is_conditional_step(param_to_step, parm_id):
-                    src_typ = aslist(type_dict[src_dict[parm_id].id])
-                    snk_typ = type_dict[sink.id]
-                    if "null" not in src_typ:
-                        src_typ = ["null"] + cast(list[Any], src_typ)
-                    if (
-                        not isinstance(snk_typ, MutableSequence)
-                        or "null" not in snk_typ
-                    ):
-                        validation["warning"].append(
-                            SrcSink(
-                                src_dict[parm_id],
-                                sink,
-                                linkMerge,
-                                message="Source is from conditional step and may produce `null`",
-                            )
+                    validation["warning"].append(
+                        SrcSink(
+                            src_dict[parm_id],
+                            sink,
+                            linkMerge,
+                            message="Source is from conditional step, but pickValue is not used",
                         )
-                    type_dict[src_dict[parm_id].id] = src_typ
+                    )
                 if _is_all_output_method_loop_step(param_to_step, parm_id):
                     src_typ = type_dict[src_dict[parm_id].id]
                     type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
                         items=src_typ, type_="array"
                     )
-            else:
-                linkMerge = sink.linkMerge or (
-                    "merge_nested" if len(sourceField) > 1 else None
-                )
-                if sink.pickValue in ("first_non_null", "the_only_non_null"):
-                    linkMerge = None
-                srcs_of_sink = []
-                for parm_id in sourceField:
-                    srcs_of_sink += [src_dict[parm_id]]
-                    if (
-                        _is_conditional_step(param_to_step, parm_id)
-                        and sink.pickValue is not None
-                    ):
-                        validation["warning"].append(
-                            SrcSink(
-                                src_dict[parm_id],
-                                sink,
-                                linkMerge,
-                                message="Source is from conditional step, but pickValue is not used",
-                            )
-                        )
-                    if _is_all_output_method_loop_step(param_to_step, parm_id):
-                        src_typ = type_dict[src_dict[parm_id].id]
-                        type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
-                            items=src_typ, type_="array"
-                        )
             for src in srcs_of_sink:
                 check_result = check_types(
                     type_dict[cast(str, src.id)],
@@ -725,21 +690,21 @@ def type_for_source(
                 for _ in range(scatter_context[0][0]):
                     new_type = cwl.OutputArraySchema(
                         items=in_output_type_schema_to_output_type_schema(
-                            new_type, process.loadingOptions  # type: ignore[attr-defined]
+                            new_type, process.loadingOptions
                         ),
                         type_="array",
                     )
             else:
                 new_type = cwl.OutputArraySchema(
                     items=in_output_type_schema_to_output_type_schema(
-                        new_type, process.loadingOptions  # type: ignore[attr-defined]
+                        new_type, process.loadingOptions
                     ),
                     type_="array",
                 )
         if linkMerge == "merge_nested":
             new_type = cwl.OutputArraySchema(
                 items=in_output_type_schema_to_output_type_schema(
-                    new_type, process.loadingOptions  # type: ignore[attr-defined]
+                    new_type, process.loadingOptions
                 ),
                 type_="array",
             )
@@ -766,14 +731,14 @@ def type_for_source(
                     for _ in range(sc[0]):
                         cur_type = cwl.OutputArraySchema(
                             items=in_output_type_schema_to_output_type_schema(
-                                cur_type, process.loadingOptions  # type: ignore[attr-defined]
+                                cur_type, process.loadingOptions
                             ),
                             type_="array",
                         )
                 else:
                     cur_type = cwl.OutputArraySchema(
                         items=in_output_type_schema_to_output_type_schema(
-                            cur_type, process.loadingOptions  # type: ignore[attr-defined]
+                            cur_type, process.loadingOptions
                         ),
                         type_="array",
                     )
