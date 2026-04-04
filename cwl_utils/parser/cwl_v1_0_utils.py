@@ -324,7 +324,14 @@ def check_all_types(
             case _:
                 raise WorkflowException(f"Invalid sink type {sink.__class__.__name__}")
         if sourceField is not None:
-            if isinstance(sourceField, str):
+            if is_sequence(sourceField):
+                linkMerge = sink.linkMerge or (
+                    "merge_nested" if len(sourceField) > 1 else None
+                )
+                srcs_of_sink = []
+                for parm_id in sourceField:
+                    srcs_of_sink += [src_dict[parm_id]]
+            else:
                 parm_id = sourceField
                 if parm_id not in src_dict:
                     raise SourceLine(sink, sourceName, ValidationException).makeError(
@@ -332,13 +339,6 @@ def check_all_types(
                     )
                 srcs_of_sink = [src_dict[parm_id]]
                 linkMerge = None
-            else:
-                linkMerge = sink.linkMerge or (
-                    "merge_nested" if len(sourceField) > 1 else None
-                )
-                srcs_of_sink = []
-                for parm_id in sourceField:
-                    srcs_of_sink += [src_dict[parm_id]]
             for src in srcs_of_sink:
                 check_result = check_types(
                     type_dict[cast(str, src.id)],
@@ -575,21 +575,21 @@ def type_for_source(
                 for _ in range(scatter_context[0][0]):
                     new_type = cwl.OutputArraySchema(
                         items=in_output_type_schema_to_output_type_schema(
-                            new_type, process.loadingOptions  # type: ignore[attr-defined]
+                            new_type, process.loadingOptions
                         ),
                         type_="array",
                     )
             else:
                 new_type = cwl.OutputArraySchema(
                     items=in_output_type_schema_to_output_type_schema(
-                        new_type, process.loadingOptions  # type: ignore[attr-defined]
+                        new_type, process.loadingOptions
                     ),
                     type_="array",
                 )
         if linkMerge == "merge_nested":
             new_type = cwl.OutputArraySchema(
                 items=in_output_type_schema_to_output_type_schema(
-                    new_type, process.loadingOptions  # type: ignore[attr-defined]
+                    new_type, process.loadingOptions
                 ),
                 type_="array",
             )
@@ -612,14 +612,14 @@ def type_for_source(
                     for _ in range(sc[0]):
                         cur_type = cwl.OutputArraySchema(
                             items=in_output_type_schema_to_output_type_schema(
-                                cur_type, process.loadingOptions  # type: ignore[attr-defined]
+                                cur_type, process.loadingOptions
                             ),
                             type_="array",
                         )
                 else:
                     cur_type = cwl.OutputArraySchema(
                         items=in_output_type_schema_to_output_type_schema(
-                            cur_type, process.loadingOptions  # type: ignore[attr-defined]
+                            cur_type, process.loadingOptions
                         ),
                         type_="array",
                     )

@@ -7,9 +7,9 @@ from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from typing import Any, Literal, TypeAlias, TypedDict, TypeGuard
 
 if sys.version_info >= (3, 13):
-    from typing import TypeIs as TypeIs
+    from typing import TypeIs
 else:
-    from typing_extensions import TypeIs as TypeIs
+    from typing_extensions import TypeIs
 
 if sys.version_info >= (3, 11):
     from typing import Required

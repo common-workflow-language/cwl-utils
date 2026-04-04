@@ -111,9 +111,6 @@ testenv*/
 # PyCharm
 .idea/
 
-# UV
-uv.lock
-
 # Backup files
 *.orig
 *~
