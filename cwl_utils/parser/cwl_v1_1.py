@@ -18,7 +18,7 @@ from collections.abc import Collection  # pylint: disable=unused-import # noqa: 
 from collections.abc import MutableMapping, MutableSequence, Sequence
 from io import StringIO
 from itertools import chain
-from mypy_extensions import i32, i64
+from mypy_extensions import i32, i64, mypyc_attr
 from typing import ClassVar, Literal, Mapping  # pylint: disable=unused-import # noqa: F401
 from typing import Any, Final, Generic, TypeAlias, TypeVar, cast
 from urllib.parse import quote, urldefrag, urlparse, urlsplit, urlunsplit
@@ -50,6 +50,7 @@ S = TypeVar("S", bound="Saveable")
 T = TypeVar("T", covariant=True)
 
 
+@mypyc_attr(native_class=True)
 class LoadingOptions:
     idx: Final[IdxType]
     fileuri: Final[str | None]
@@ -215,6 +216,7 @@ class LoadingOptions:
         return graph
 
 
+@mypyc_attr(native_class=True)
 class Saveable(metaclass=ABCMeta):
     """Mark classes than have a save() and fromDoc() function."""
 
@@ -444,6 +446,7 @@ def expand_url(
     return url
 
 
+@mypyc_attr(native_class=True)
 class _Loader(Generic[T], metaclass=ABCMeta):
     @abstractmethod
     def load(
@@ -456,6 +459,7 @@ class _Loader(Generic[T], metaclass=ABCMeta):
     ) -> T: ...
 
 
+@mypyc_attr(native_class=True)
 class _AnyLoader(_Loader[Any]):
     def load(
         self,
@@ -470,6 +474,7 @@ class _AnyLoader(_Loader[Any]):
         raise ValidationException("Expected non-null")
 
 
+@mypyc_attr(native_class=True)
 class _PrimitiveLoader(_Loader[T]):
     def __init__(self, tp: type[T]) -> None:
         self.tp: Final = tp
@@ -490,6 +495,7 @@ class _PrimitiveLoader(_Loader[T]):
         return str(self.tp)
 
 
+@mypyc_attr(native_class=True)
 class _ArrayLoader(_Loader[Sequence[T]]):
     def __init__(self, items: _Loader[T]) -> None:
         self.items: Final = items
@@ -547,6 +553,7 @@ class _ArrayLoader(_Loader[Sequence[T]]):
         return f"array<{self.items}>"
 
 
+@mypyc_attr(native_class=True)
 class _MapLoader(_Loader[Mapping[str, T]]):
     def __init__(
         self,
@@ -590,6 +597,7 @@ class _MapLoader(_Loader[Mapping[str, T]]):
         return self.name if self.name is not None else f"map<string, {self.values}>"
 
 
+@mypyc_attr(native_class=True)
 class _EnumLoader(_Loader[E]):
     def __init__(self, symbols: Sequence[str], name: str) -> None:
         self.symbols: Final = symbols
@@ -611,6 +619,7 @@ class _EnumLoader(_Loader[E]):
         return self.name
 
 
+@mypyc_attr(native_class=True)
 class _SecondaryDSLLoader(_Loader[T]):
     def __init__(self, inner: _Loader[T]) -> None:
         self.inner: Final = inner
@@ -684,6 +693,7 @@ class _SecondaryDSLLoader(_Loader[T]):
         return self.inner.load(r, baseuri, loadingOptions, docRoot, lc=lc)
 
 
+@mypyc_attr(native_class=True)
 class _RecordLoader(_Loader[S]):
     def __init__(
         self,
@@ -718,6 +728,7 @@ class _RecordLoader(_Loader[S]):
         return str(self.classtype.__name__)
 
 
+@mypyc_attr(native_class=True)
 class _ExpressionLoader(_Loader[str]):
     def __init__(self, items: type[str]) -> None:
         self.items: Final = items
@@ -739,6 +750,7 @@ class _ExpressionLoader(_Loader[str]):
             return doc
 
 
+@mypyc_attr(native_class=True)
 class _UnionLoader(_Loader[T]):
     def __init__(self, alternates: Sequence[_Loader[T]], name: str | None = None) -> None:
         self.alternates = alternates
@@ -829,6 +841,7 @@ class _UnionLoader(_Loader[T]):
         return self.name if self.name is not None else " | ".join(str(a) for a in self.alternates)
 
 
+@mypyc_attr(native_class=True)
 class _URILoader(_Loader[T]):
     def __init__(
         self,
@@ -898,6 +911,7 @@ class _URILoader(_Loader[T]):
         return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
+@mypyc_attr(native_class=True)
 class _TypeDSLLoader(_Loader[T]):
     def __init__(self, inner: _Loader[T], refScope: int | None, salad_version: str) -> None:
         self.inner: Final = inner
@@ -968,6 +982,7 @@ class _TypeDSLLoader(_Loader[T]):
         return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
+@mypyc_attr(native_class=True)
 class _IdMapLoader(_Loader[T]):
     def __init__(self, inner: _Loader[T], mapSubject: str, mapPredicate: str | None) -> None:
         self.inner: Final = inner
@@ -1187,6 +1202,7 @@ def parser_info() -> str:
     return "org.w3id.cwl.v1_1"
 
 
+@mypyc_attr(native_class=True)
 class RecordField(Saveable):
     """
     A field of a record.
@@ -1459,6 +1475,7 @@ class RecordField(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["doc", "name", "type"])
 
 
+@mypyc_attr(native_class=True)
 class RecordSchema(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, RecordSchema):
@@ -1658,6 +1675,7 @@ class RecordSchema(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["fields", "type"])
 
 
+@mypyc_attr(native_class=True)
 class EnumSchema(Saveable):
     """
     Define an enumerated type.
@@ -1930,6 +1948,7 @@ class EnumSchema(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["name", "symbols", "type"])
 
 
+@mypyc_attr(native_class=True)
 class ArraySchema(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ArraySchema):
@@ -2129,6 +2148,7 @@ class ArraySchema(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["items", "type"])
 
 
+@mypyc_attr(native_class=True)
 class MapSchema(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, MapSchema):
@@ -2328,6 +2348,7 @@ class MapSchema(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["type", "values"])
 
 
+@mypyc_attr(native_class=True)
 class UnionSchema(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, UnionSchema):
@@ -2527,6 +2548,7 @@ class UnionSchema(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["names", "type"])
 
 
+@mypyc_attr(native_class=True)
 class CWLArraySchema(ArraySchema):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CWLArraySchema):
@@ -2726,6 +2748,7 @@ class CWLArraySchema(ArraySchema):
     attrs: ClassVar[Collection[str]] = frozenset(["items", "type"])
 
 
+@mypyc_attr(native_class=True)
 class CWLRecordField(RecordField):
     name: str
 
@@ -2994,6 +3017,7 @@ class CWLRecordField(RecordField):
     attrs: ClassVar[Collection[str]] = frozenset(["doc", "name", "type"])
 
 
+@mypyc_attr(native_class=True)
 class CWLRecordSchema(RecordSchema):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CWLRecordSchema):
@@ -3193,6 +3217,7 @@ class CWLRecordSchema(RecordSchema):
     attrs: ClassVar[Collection[str]] = frozenset(["fields", "type"])
 
 
+@mypyc_attr(native_class=True)
 class File(Saveable):
     """
     Represents a file (or group of files when `secondaryFiles` is provided) that
@@ -4015,6 +4040,7 @@ class File(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class Directory(Saveable):
     """
     Represents a directory to present to a command line tool.
@@ -4401,6 +4427,7 @@ class Directory(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class InputBinding(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InputBinding):
@@ -4548,6 +4575,7 @@ class InputBinding(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["loadContents"])
 
 
+@mypyc_attr(native_class=True)
 class InputRecordField(CWLRecordField):
     name: str
 
@@ -5181,6 +5209,7 @@ class InputRecordField(CWLRecordField):
     )
 
 
+@mypyc_attr(native_class=True)
 class InputRecordSchema(CWLRecordSchema):
     name: str
 
@@ -5560,6 +5589,7 @@ class InputRecordSchema(CWLRecordSchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class InputEnumSchema(EnumSchema):
     name: str
 
@@ -5939,6 +5969,7 @@ class InputEnumSchema(EnumSchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class InputArraySchema(CWLArraySchema):
     name: str
 
@@ -6318,6 +6349,7 @@ class InputArraySchema(CWLArraySchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class OutputRecordField(CWLRecordField):
     name: str
 
@@ -6823,6 +6855,7 @@ class OutputRecordField(CWLRecordField):
     )
 
 
+@mypyc_attr(native_class=True)
 class OutputRecordSchema(CWLRecordSchema):
     name: str
 
@@ -7202,6 +7235,7 @@ class OutputRecordSchema(CWLRecordSchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class OutputEnumSchema(EnumSchema):
     name: str
 
@@ -7581,6 +7615,7 @@ class OutputEnumSchema(EnumSchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class OutputArraySchema(CWLArraySchema):
     name: str
 
@@ -7960,6 +7995,7 @@ class OutputArraySchema(CWLArraySchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class InlineJavascriptRequirement(Saveable):
     """
     Indicates that the workflow platform must support inline Javascript expressions.
@@ -8142,6 +8178,7 @@ class InlineJavascriptRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "expressionLib"])
 
 
+@mypyc_attr(native_class=True)
 class SchemaDefRequirement(Saveable):
     """
     This field consists of an array of type definitions which must be used when
@@ -8323,6 +8360,7 @@ class SchemaDefRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "types"])
 
 
+@mypyc_attr(native_class=True)
 class SecondaryFileSchema(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, SecondaryFileSchema):
@@ -8524,6 +8562,7 @@ class SecondaryFileSchema(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["pattern", "required"])
 
 
+@mypyc_attr(native_class=True)
 class LoadListingRequirement(Saveable):
     """
     Specify the desired behavior for loading the `listing` field of
@@ -8704,6 +8743,7 @@ class LoadListingRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "loadListing"])
 
 
+@mypyc_attr(native_class=True)
 class EnvironmentDef(Saveable):
     """
     Define an environment variable that will be set in the runtime environment
@@ -8913,6 +8953,7 @@ class EnvironmentDef(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["envName", "envValue"])
 
 
+@mypyc_attr(native_class=True)
 class CommandLineBinding(InputBinding):
     """
 
@@ -9460,6 +9501,7 @@ class CommandLineBinding(InputBinding):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandOutputBinding(Saveable):
     """
     Describes how to generate an output parameter based on the files produced
@@ -9796,6 +9838,7 @@ class CommandOutputBinding(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandInputRecordField(InputRecordField):
     name: str
 
@@ -10489,6 +10532,7 @@ class CommandInputRecordField(InputRecordField):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandInputRecordSchema(InputRecordSchema):
     name: str
 
@@ -10935,6 +10979,7 @@ class CommandInputRecordSchema(InputRecordSchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandInputEnumSchema(InputEnumSchema):
     name: str
 
@@ -11381,6 +11426,7 @@ class CommandInputEnumSchema(InputEnumSchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandInputArraySchema(InputArraySchema):
     name: str
 
@@ -11820,6 +11866,7 @@ class CommandInputArraySchema(InputArraySchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandOutputRecordField(OutputRecordField):
     name: str
 
@@ -12393,6 +12440,7 @@ class CommandOutputRecordField(OutputRecordField):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandOutputRecordSchema(OutputRecordSchema):
     name: str
 
@@ -12772,6 +12820,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandOutputEnumSchema(OutputEnumSchema):
     name: str
 
@@ -13151,6 +13200,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandOutputArraySchema(OutputArraySchema):
     name: str
 
@@ -13530,6 +13580,7 @@ class CommandOutputArraySchema(OutputArraySchema):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandInputParameter(Saveable):
     """
     An input parameter for a CommandLineTool.
@@ -14284,6 +14335,7 @@ class CommandInputParameter(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandOutputParameter(Saveable):
     """
     An output parameter for a CommandLineTool.
@@ -14861,6 +14913,7 @@ class CommandOutputParameter(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandLineTool(Saveable):
     """
     This defines the schema of the CWL Command Line Tool Description document.
@@ -15929,6 +15982,7 @@ class CommandLineTool(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class DockerRequirement(Saveable):
     """
     Indicates that a workflow component should be run in a
@@ -16469,6 +16523,7 @@ class DockerRequirement(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class SoftwareRequirement(Saveable):
     """
     A list of software packages that should be configured in the environment of
@@ -16645,6 +16700,7 @@ class SoftwareRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "packages"])
 
 
+@mypyc_attr(native_class=True)
 class SoftwarePackage(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, SoftwarePackage):
@@ -16901,6 +16957,7 @@ class SoftwarePackage(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["package", "version", "specs"])
 
 
+@mypyc_attr(native_class=True)
 class Dirent(Saveable):
     """
     Define a file or subdirectory that must be placed in the designated output
@@ -17169,6 +17226,7 @@ class Dirent(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["entryname", "entry", "writable"])
 
 
+@mypyc_attr(native_class=True)
 class InitialWorkDirRequirement(Saveable):
     """
     Define a list of files and subdirectories that must be created by the workflow platform in the designated output directory prior to executing the command line tool.
@@ -17343,6 +17401,7 @@ class InitialWorkDirRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "listing"])
 
 
+@mypyc_attr(native_class=True)
 class EnvVarRequirement(Saveable):
     """
     Define a list of environment variables which will be set in the
@@ -17519,6 +17578,7 @@ class EnvVarRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "envDef"])
 
 
+@mypyc_attr(native_class=True)
 class ShellCommandRequirement(Saveable):
     """
     Modify the behavior of CommandLineTool to generate a single string
@@ -17643,6 +17703,7 @@ class ShellCommandRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
+@mypyc_attr(native_class=True)
 class ResourceRequirement(Saveable):
     """
     Specify basic hardware resource requirements.
@@ -18260,6 +18321,7 @@ class ResourceRequirement(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class WorkReuse(Saveable):
     """
     For implementations that support reusing output from past work (on
@@ -18448,6 +18510,7 @@ class WorkReuse(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "enableReuse"])
 
 
+@mypyc_attr(native_class=True)
 class NetworkAccess(Saveable):
     """
     Indicate whether a process requires outgoing IPv4/IPv6 network
@@ -18643,6 +18706,7 @@ class NetworkAccess(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "networkAccess"])
 
 
+@mypyc_attr(native_class=True)
 class InplaceUpdateRequirement(Saveable):
     """
 
@@ -18853,6 +18917,7 @@ class InplaceUpdateRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "inplaceUpdate"])
 
 
+@mypyc_attr(native_class=True)
 class ToolTimeLimit(Saveable):
     """
     Set an upper limit on the execution time of a CommandLineTool.
@@ -19039,6 +19104,7 @@ class ToolTimeLimit(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "timelimit"])
 
 
+@mypyc_attr(native_class=True)
 class ExpressionToolOutputParameter(Saveable):
     id: str
 
@@ -19544,6 +19610,7 @@ class ExpressionToolOutputParameter(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class WorkflowInputParameter(Saveable):
     id: str
 
@@ -20294,6 +20361,7 @@ class WorkflowInputParameter(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class ExpressionTool(Saveable):
     """
     An ExpressionTool is a type of Process object that can be run by itself
@@ -20961,6 +21029,7 @@ class ExpressionTool(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class WorkflowOutputParameter(Saveable):
     """
     Describe an output parameter of a workflow.  The parameter must be
@@ -21595,6 +21664,7 @@ class WorkflowOutputParameter(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class WorkflowStepInput(Saveable):
     """
     The input of a workflow step connects an upstream parameter (from the
@@ -22211,6 +22281,7 @@ class WorkflowStepInput(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class WorkflowStepOutput(Saveable):
     """
     Associate an output parameter of the underlying process with a workflow
@@ -22376,6 +22447,7 @@ class WorkflowStepOutput(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["id"])
 
 
+@mypyc_attr(native_class=True)
 class WorkflowStep(Saveable):
     """
     A workflow step is an executable element of a workflow.  It specifies the
@@ -23119,6 +23191,7 @@ class WorkflowStep(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class Workflow(Saveable):
     """
     A workflow describes a set of **steps** and the **dependencies** between
@@ -23821,6 +23894,7 @@ class Workflow(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class SubworkflowFeatureRequirement(Saveable):
     """
     Indicates that the workflow platform must support nested workflows in
@@ -23940,6 +24014,7 @@ class SubworkflowFeatureRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
+@mypyc_attr(native_class=True)
 class ScatterFeatureRequirement(Saveable):
     """
     Indicates that the workflow platform must support the `scatter` and
@@ -24059,6 +24134,7 @@ class ScatterFeatureRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
+@mypyc_attr(native_class=True)
 class MultipleInputFeatureRequirement(Saveable):
     """
     Indicates that the workflow platform must support multiple inbound data links
@@ -24178,6 +24254,7 @@ class MultipleInputFeatureRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
+@mypyc_attr(native_class=True)
 class StepInputExpressionRequirement(Saveable):
     """
     Indicate that the workflow platform must support the `valueFrom` field
@@ -24297,6 +24374,7 @@ class StepInputExpressionRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
+@mypyc_attr(native_class=True)
 class Secrets(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Secrets):
@@ -24466,6 +24544,7 @@ class Secrets(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "secrets"])
 
 
+@mypyc_attr(native_class=True)
 class ProcessGenerator(Saveable):
     id: str
 
@@ -25120,6 +25199,7 @@ class ProcessGenerator(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class MPIRequirement(Saveable):
     """
     Indicates that a process requires an MPI runtime.
@@ -25300,6 +25380,7 @@ class MPIRequirement(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "processes"])
 
 
+@mypyc_attr(native_class=True)
 class CUDARequirement(Saveable):
     """
     Require support for NVIDA CUDA (GPU hardware acceleration).
@@ -25672,6 +25753,7 @@ class CUDARequirement(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class ShmSize(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ShmSize):
