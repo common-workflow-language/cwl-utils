@@ -27,15 +27,10 @@ from . import (
     cwl_v1_2,
     cwl_v1_2_utils,
     load_document_by_uri,
-    CommandInputParameter,
-    CommandOutputParameter,
-    ExpressionToolOutputParameter,
-    OperationInputParameter,
-    OperationOutputParameter,
-    WorkflowInputParameter,
-    WorkflowOutputParameter,
     OutputArraySchema,
     InputArraySchema,
+    OutputParameter,
+    InputParameter,
 )
 from ..types import is_sequence
 
@@ -530,22 +525,7 @@ def param_for_source_id(
     parent: Workflow | None = None,
     scatter_context: list[tuple[int, str] | None] | None = None,
 ) -> (
-    CommandInputParameter
-    | CommandOutputParameter
-    | ExpressionToolOutputParameter
-    | OperationInputParameter
-    | OperationOutputParameter
-    | WorkflowInputParameter
-    | WorkflowOutputParameter
-    | MutableSequence[
-        CommandInputParameter
-        | CommandOutputParameter
-        | ExpressionToolOutputParameter
-        | OperationInputParameter
-        | OperationOutputParameter
-        | WorkflowInputParameter
-        | WorkflowOutputParameter
-    ]
+    InputParameter | OutputParameter | MutableSequence[InputParameter | OutputParameter]
 ):
     match process.cwlVersion:
         case "v1.0":
