@@ -45,7 +45,9 @@ _logger: Final = logging.getLogger("salad")
 
 
 IdxType: TypeAlias = MutableMapping[str, tuple[Any, "LoadingOptions"]]
+E = TypeVar("E", bound=str)
 S = TypeVar("S", bound="Saveable")
+T = TypeVar("T", covariant=True)
 
 
 class LoadingOptions:
@@ -236,11 +238,11 @@ class Saveable(metaclass=ABCMeta):
 
 def load_field(
     val: Any | None,
-    fieldtype: "_Loader",
+    fieldtype: _Loader[T],
     baseuri: str,
     loadingOptions: LoadingOptions,
     lc: Any | None = None,
-) -> Any:
+) -> T:
     """Load field."""
     if isinstance(val, MutableMapping):
         if "$import" in val:
@@ -442,7 +444,8 @@ def expand_url(
     return url
 
 
-class _Loader:
+class _Loader(Generic[T], metaclass=ABCMeta):
+    @abstractmethod
     def load(
         self,
         doc: Any,
@@ -450,11 +453,10 @@ class _Loader:
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> Any | None:
-        pass
+    ) -> T: ...
 
 
-class _AnyLoader(_Loader):
+class _AnyLoader(_Loader[Any]):
     def load(
         self,
         doc: Any,
@@ -468,8 +470,8 @@ class _AnyLoader(_Loader):
         raise ValidationException("Expected non-null")
 
 
-class _PrimitiveLoader(_Loader):
-    def __init__(self, tp: type | tuple[type[str], type[str]]) -> None:
+class _PrimitiveLoader(_Loader[T]):
+    def __init__(self, tp: type[T]) -> None:
         self.tp: Final = tp
 
     def load(
@@ -479,7 +481,7 @@ class _PrimitiveLoader(_Loader):
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> Any:
+    ) -> T:
         if not isinstance(doc, self.tp):
             raise ValidationException(f"Expected a {self.tp} but got {doc.__class__.__name__}")
         return doc
@@ -488,8 +490,8 @@ class _PrimitiveLoader(_Loader):
         return str(self.tp)
 
 
-class _ArrayLoader(_Loader):
-    def __init__(self, items: _Loader) -> None:
+class _ArrayLoader(_Loader[Sequence[T]]):
+    def __init__(self, items: _Loader[T]) -> None:
         self.items: Final = items
 
     def load(
@@ -499,7 +501,7 @@ class _ArrayLoader(_Loader):
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> list[Any]:
+    ) -> list[T]:
         if not isinstance(doc, MutableSequence):
             raise ValidationException(
                 f"Value is a {convert_typing(extract_type(type(doc)))}, "
@@ -545,10 +547,10 @@ class _ArrayLoader(_Loader):
         return f"array<{self.items}>"
 
 
-class _MapLoader(_Loader):
+class _MapLoader(_Loader[Mapping[str, T]]):
     def __init__(
         self,
-        values: _Loader,
+        values: _Loader[T],
         name: str | None = None,
         container: str | None = None,
         no_link_check: bool | None = None,
@@ -565,7 +567,7 @@ class _MapLoader(_Loader):
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, T]:
         if not isinstance(doc, MutableMapping):
             raise ValidationException(f"Expected a map, was {type(doc)}")
         if self.container is not None or self.no_link_check is not None:
@@ -588,7 +590,7 @@ class _MapLoader(_Loader):
         return self.name if self.name is not None else f"map<string, {self.values}>"
 
 
-class _EnumLoader(_Loader):
+class _EnumLoader(_Loader[E]):
     def __init__(self, symbols: Sequence[str], name: str) -> None:
         self.symbols: Final = symbols
         self.name: Final = name
@@ -600,17 +602,17 @@ class _EnumLoader(_Loader):
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> str:
+    ) -> E:
         if doc in self.symbols:
-            return cast(str, doc)
+            return cast(E, doc)
         raise ValidationException(f"Expected one of {self.symbols}")
 
     def __repr__(self) -> str:
         return self.name
 
 
-class _SecondaryDSLLoader(_Loader):
-    def __init__(self, inner: _Loader) -> None:
+class _SecondaryDSLLoader(_Loader[T]):
+    def __init__(self, inner: _Loader[T]) -> None:
         self.inner: Final = inner
 
     def load(
@@ -620,7 +622,7 @@ class _SecondaryDSLLoader(_Loader):
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> Any:
+    ) -> T:
         r: Final[list[dict[str, Any]]] = []
         match doc:
             case MutableSequence() as dlist:
@@ -682,7 +684,7 @@ class _SecondaryDSLLoader(_Loader):
         return self.inner.load(r, baseuri, loadingOptions, docRoot, lc=lc)
 
 
-class _RecordLoader(_Loader, Generic[S]):
+class _RecordLoader(_Loader[S]):
     def __init__(
         self,
         classtype: type[S],
@@ -716,7 +718,7 @@ class _RecordLoader(_Loader, Generic[S]):
         return str(self.classtype.__name__)
 
 
-class _ExpressionLoader(_Loader):
+class _ExpressionLoader(_Loader[str]):
     def __init__(self, items: type[str]) -> None:
         self.items: Final = items
 
@@ -737,12 +739,12 @@ class _ExpressionLoader(_Loader):
             return doc
 
 
-class _UnionLoader(_Loader):
-    def __init__(self, alternates: Sequence[_Loader], name: str | None = None) -> None:
+class _UnionLoader(_Loader[T]):
+    def __init__(self, alternates: Sequence[_Loader[T]], name: str | None = None) -> None:
         self.alternates = alternates
         self.name: Final = name
 
-    def add_loaders(self, loaders: Sequence[_Loader]) -> None:
+    def add_loaders(self, loaders: Sequence[_Loader[T]]) -> None:
         self.alternates = tuple(loader for loader in chain(self.alternates, loaders))
 
     def load(
@@ -752,7 +754,7 @@ class _UnionLoader(_Loader):
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> Any:
+    ) -> T:
         errors: Final = []
 
         if lc is None:
@@ -827,10 +829,10 @@ class _UnionLoader(_Loader):
         return self.name if self.name is not None else " | ".join(str(a) for a in self.alternates)
 
 
-class _URILoader(_Loader):
+class _URILoader(_Loader[T]):
     def __init__(
         self,
-        inner: _Loader,
+        inner: _Loader[T],
         scoped_id: bool,
         vocab_term: bool,
         scoped_ref: int | None,
@@ -849,7 +851,7 @@ class _URILoader(_Loader):
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> Any:
+    ) -> T:
         if self.no_link_check is not None:
             loadingOptions = LoadingOptions(
                 copyfrom=loadingOptions, no_link_check=self.no_link_check
@@ -896,8 +898,8 @@ class _URILoader(_Loader):
         return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
-class _TypeDSLLoader(_Loader):
-    def __init__(self, inner: _Loader, refScope: int | None, salad_version: str) -> None:
+class _TypeDSLLoader(_Loader[T]):
+    def __init__(self, inner: _Loader[T], refScope: int | None, salad_version: str) -> None:
         self.inner: Final = inner
         self.refScope: Final = refScope
         self.salad_version: Final = salad_version
@@ -944,7 +946,7 @@ class _TypeDSLLoader(_Loader):
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> Any:
+    ) -> T:
         if isinstance(doc, MutableSequence):
             r: Final[list[Any]] = []
             for d in doc:
@@ -966,8 +968,8 @@ class _TypeDSLLoader(_Loader):
         return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
-class _IdMapLoader(_Loader):
-    def __init__(self, inner: _Loader, mapSubject: str, mapPredicate: str | None) -> None:
+class _IdMapLoader(_Loader[T]):
+    def __init__(self, inner: _Loader[T], mapSubject: str, mapPredicate: str | None) -> None:
         self.inner: Final = inner
         self.mapSubject: Final = mapSubject
         self.mapPredicate: Final = mapPredicate
@@ -979,7 +981,7 @@ class _IdMapLoader(_Loader):
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> Any:
+    ) -> T:
         if isinstance(doc, MutableMapping):
             r: Final[list[Any]] = []
             for k in doc.keys():
@@ -1006,12 +1008,12 @@ class _IdMapLoader(_Loader):
 
 
 def _document_load(
-    loader: _Loader,
+    loader: _Loader[T],
     doc: str | MutableMapping[str, Any] | MutableSequence[Any],
     baseuri: str,
     loadingOptions: LoadingOptions,
     addl_metadata_fields: MutableSequence[str] | None = None,
-) -> tuple[Any, LoadingOptions]:
+) -> tuple[T, LoadingOptions]:
     if isinstance(doc, str):
         return _document_load_by_url(
             loader,
@@ -1076,11 +1078,11 @@ def _document_load(
 
 
 def _document_load_by_url(
-    loader: _Loader,
+    loader: _Loader[T],
     url: str,
     loadingOptions: LoadingOptions,
     addl_metadata_fields: MutableSequence[str] | None = None,
-) -> tuple[Any, LoadingOptions]:
+) -> tuple[T, LoadingOptions]:
     if url in loadingOptions.idx:
         return loadingOptions.idx[url]
 
@@ -1266,14 +1268,14 @@ class RecordField(Saveable):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -1394,13 +1396,13 @@ class RecordField(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             doc=doc,
             type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -1415,7 +1417,7 @@ class RecordField(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -1738,14 +1740,13 @@ class EnumSchema(Saveable):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
@@ -1867,13 +1868,13 @@ class EnumSchema(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             symbols=symbols,
             type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -1888,7 +1889,7 @@ class EnumSchema(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
@@ -2802,14 +2803,14 @@ class CWLRecordField(RecordField):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -2930,13 +2931,13 @@ class CWLRecordField(RecordField):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             doc=doc,
             type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -2951,7 +2952,7 @@ class CWLRecordField(RecordField):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -4642,14 +4643,14 @@ class InputRecordField(CWLRecordField):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -5052,7 +5053,7 @@ class InputRecordField(CWLRecordField):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             doc=doc,
             type_=type_,
             label=label,
@@ -5064,7 +5065,7 @@ class InputRecordField(CWLRecordField):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -5079,7 +5080,7 @@ class InputRecordField(CWLRecordField):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -5259,14 +5260,13 @@ class InputRecordSchema(CWLRecordSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         fields = None
         if "fields" in _doc:
             try:
@@ -5481,7 +5481,7 @@ class InputRecordSchema(CWLRecordSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             fields=fields,
             type_=type_,
             label=label,
@@ -5489,7 +5489,7 @@ class InputRecordSchema(CWLRecordSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -5504,7 +5504,7 @@ class InputRecordSchema(CWLRecordSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
@@ -5639,14 +5639,13 @@ class InputEnumSchema(EnumSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
@@ -5862,7 +5861,7 @@ class InputEnumSchema(EnumSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             symbols=symbols,
             type_=type_,
             label=label,
@@ -5870,7 +5869,7 @@ class InputEnumSchema(EnumSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -5885,7 +5884,7 @@ class InputEnumSchema(EnumSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
@@ -6019,14 +6018,13 @@ class InputArraySchema(CWLArraySchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -6242,7 +6240,7 @@ class InputArraySchema(CWLArraySchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             items=items,
             type_=type_,
             label=label,
@@ -6250,7 +6248,7 @@ class InputArraySchema(CWLArraySchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -6265,7 +6263,7 @@ class InputArraySchema(CWLArraySchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
@@ -6411,14 +6409,14 @@ class OutputRecordField(CWLRecordField):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -6727,7 +6725,7 @@ class OutputRecordField(CWLRecordField):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             doc=doc,
             type_=type_,
             label=label,
@@ -6737,7 +6735,7 @@ class OutputRecordField(CWLRecordField):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -6752,7 +6750,7 @@ class OutputRecordField(CWLRecordField):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -6904,14 +6902,13 @@ class OutputRecordSchema(CWLRecordSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         fields = None
         if "fields" in _doc:
             try:
@@ -7126,7 +7123,7 @@ class OutputRecordSchema(CWLRecordSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             fields=fields,
             type_=type_,
             label=label,
@@ -7134,7 +7131,7 @@ class OutputRecordSchema(CWLRecordSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -7149,7 +7146,7 @@ class OutputRecordSchema(CWLRecordSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
@@ -7284,14 +7281,13 @@ class OutputEnumSchema(EnumSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
@@ -7507,7 +7503,7 @@ class OutputEnumSchema(EnumSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             symbols=symbols,
             type_=type_,
             label=label,
@@ -7515,7 +7511,7 @@ class OutputEnumSchema(EnumSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -7530,7 +7526,7 @@ class OutputEnumSchema(EnumSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
@@ -7664,14 +7660,13 @@ class OutputArraySchema(CWLArraySchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -7887,7 +7882,7 @@ class OutputArraySchema(CWLArraySchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             items=items,
             type_=type_,
             label=label,
@@ -7895,7 +7890,7 @@ class OutputArraySchema(CWLArraySchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -7910,7 +7905,7 @@ class OutputArraySchema(CWLArraySchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
@@ -9920,14 +9915,14 @@ class CommandInputRecordField(InputRecordField):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -10377,7 +10372,7 @@ class CommandInputRecordField(InputRecordField):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             doc=doc,
             type_=type_,
             label=label,
@@ -10390,7 +10385,7 @@ class CommandInputRecordField(InputRecordField):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -10405,7 +10400,7 @@ class CommandInputRecordField(InputRecordField):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -10605,14 +10600,13 @@ class CommandInputRecordSchema(InputRecordSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         fields = None
         if "fields" in _doc:
             try:
@@ -10874,7 +10868,7 @@ class CommandInputRecordSchema(InputRecordSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             fields=fields,
             type_=type_,
             label=label,
@@ -10883,7 +10877,7 @@ class CommandInputRecordSchema(InputRecordSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -10898,7 +10892,7 @@ class CommandInputRecordSchema(InputRecordSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
@@ -11052,14 +11046,13 @@ class CommandInputEnumSchema(InputEnumSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
@@ -11322,7 +11315,7 @@ class CommandInputEnumSchema(InputEnumSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             symbols=symbols,
             type_=type_,
             label=label,
@@ -11331,7 +11324,7 @@ class CommandInputEnumSchema(InputEnumSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -11346,7 +11339,7 @@ class CommandInputEnumSchema(InputEnumSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
@@ -11492,14 +11485,13 @@ class CommandInputArraySchema(InputArraySchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -11762,7 +11754,7 @@ class CommandInputArraySchema(InputArraySchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             items=items,
             type_=type_,
             label=label,
@@ -11771,7 +11763,7 @@ class CommandInputArraySchema(InputArraySchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -11786,7 +11778,7 @@ class CommandInputArraySchema(InputArraySchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
@@ -11943,14 +11935,14 @@ class CommandOutputRecordField(OutputRecordField):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -12306,7 +12298,7 @@ class CommandOutputRecordField(OutputRecordField):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             doc=doc,
             type_=type_,
             label=label,
@@ -12317,7 +12309,7 @@ class CommandOutputRecordField(OutputRecordField):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -12332,7 +12324,7 @@ class CommandOutputRecordField(OutputRecordField):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -12502,14 +12494,13 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         fields = None
         if "fields" in _doc:
             try:
@@ -12724,7 +12715,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             fields=fields,
             type_=type_,
             label=label,
@@ -12732,7 +12723,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -12747,7 +12738,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
@@ -12882,14 +12873,13 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
@@ -13105,7 +13095,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             symbols=symbols,
             type_=type_,
             label=label,
@@ -13113,7 +13103,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -13128,7 +13118,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
@@ -13262,14 +13252,13 @@ class CommandOutputArraySchema(OutputArraySchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -13485,7 +13474,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            name=cast(str, name),
+            name=name,
             items=items,
             type_=type_,
             label=label,
@@ -13493,7 +13482,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -13508,7 +13497,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
@@ -13666,14 +13655,14 @@ class CommandInputParameter(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -14170,7 +14159,7 @@ class CommandInputParameter(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -14184,7 +14173,7 @@ class CommandInputParameter(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -14199,7 +14188,7 @@ class CommandInputParameter(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -14414,14 +14403,14 @@ class CommandOutputParameter(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -14777,7 +14766,7 @@ class CommandOutputParameter(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -14788,7 +14777,7 @@ class CommandOutputParameter(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -14803,7 +14792,7 @@ class CommandOutputParameter(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -15012,14 +15001,13 @@ class CommandLineTool(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         try:
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
@@ -15815,7 +15803,7 @@ class CommandLineTool(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             doc=doc,
             inputs=inputs,
@@ -15835,7 +15823,7 @@ class CommandLineTool(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -15850,7 +15838,7 @@ class CommandLineTool(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
             uri = self.loadingOptions.vocab[self.class_]
@@ -19230,14 +19218,14 @@ class ExpressionToolOutputParameter(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -19546,7 +19534,7 @@ class ExpressionToolOutputParameter(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -19556,7 +19544,7 @@ class ExpressionToolOutputParameter(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -19571,7 +19559,7 @@ class ExpressionToolOutputParameter(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -19743,14 +19731,14 @@ class WorkflowInputParameter(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -20247,7 +20235,7 @@ class WorkflowInputParameter(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -20261,7 +20249,7 @@ class WorkflowInputParameter(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -20276,7 +20264,7 @@ class WorkflowInputParameter(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -20504,14 +20492,13 @@ class ExpressionTool(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         try:
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
@@ -20979,7 +20966,7 @@ class ExpressionTool(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             doc=doc,
             inputs=inputs,
@@ -20992,7 +20979,7 @@ class ExpressionTool(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -21007,7 +20994,7 @@ class ExpressionTool(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
             uri = self.loadingOptions.vocab[self.class_]
@@ -21226,14 +21213,14 @@ class WorkflowOutputParameter(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -21683,7 +21670,7 @@ class WorkflowOutputParameter(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -21696,7 +21683,7 @@ class WorkflowOutputParameter(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -21711,7 +21698,7 @@ class WorkflowOutputParameter(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -22019,14 +22006,14 @@ class WorkflowStepInput(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         source = None
         if "source" in _doc:
             try:
@@ -22428,7 +22415,7 @@ class WorkflowStepInput(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             source=source,
             linkMerge=linkMerge,
             pickValue=pickValue,
@@ -22440,7 +22427,7 @@ class WorkflowStepInput(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -22455,7 +22442,7 @@ class WorkflowStepInput(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.source is not None:
             u = save_relative_uri(self.source, self.id, False, 2, relative_uris)
@@ -22635,14 +22622,14 @@ class WorkflowStepOutput(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -22666,11 +22653,11 @@ class WorkflowStepOutput(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -22685,7 +22672,7 @@ class WorkflowStepOutput(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
 
         # top refers to the directory level
@@ -22897,14 +22884,14 @@ class WorkflowStep(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -23405,7 +23392,7 @@ class WorkflowStep(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             doc=doc,
             in_=in_,
@@ -23419,7 +23406,7 @@ class WorkflowStep(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -23434,7 +23421,7 @@ class WorkflowStep(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -23693,14 +23680,13 @@ class Workflow(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         try:
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
@@ -24168,7 +24154,7 @@ class Workflow(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             doc=doc,
             inputs=inputs,
@@ -24181,7 +24167,7 @@ class Workflow(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -24196,7 +24182,7 @@ class Workflow(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
             uri = self.loadingOptions.vocab[self.class_]
@@ -24882,14 +24868,14 @@ class OperationInputParameter(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -25339,7 +25325,7 @@ class OperationInputParameter(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -25352,7 +25338,7 @@ class OperationInputParameter(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -25367,7 +25353,7 @@ class OperationInputParameter(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -25571,14 +25557,14 @@ class OperationOutputParameter(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -25887,7 +25873,7 @@ class OperationOutputParameter(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
@@ -25897,7 +25883,7 @@ class OperationOutputParameter(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -25912,7 +25898,7 @@ class OperationOutputParameter(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -26093,14 +26079,13 @@ class Operation(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         try:
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
@@ -26520,7 +26505,7 @@ class Operation(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             doc=doc,
             inputs=inputs,
@@ -26532,7 +26517,7 @@ class Operation(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -26547,7 +26532,7 @@ class Operation(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
             uri = self.loadingOptions.vocab[self.class_]
@@ -26916,14 +26901,13 @@ class ProcessGenerator(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         try:
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
@@ -27393,7 +27377,7 @@ class ProcessGenerator(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             label=label,
             doc=doc,
             inputs=inputs,
@@ -27406,7 +27390,7 @@ class ProcessGenerator(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -27421,7 +27405,7 @@ class ProcessGenerator(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
             uri = self.loadingOptions.vocab[self.class_]
@@ -28169,14 +28153,13 @@ class LoopInput(Saveable):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         default = None
         if "default" in _doc:
             try:
@@ -28437,7 +28420,7 @@ class LoopInput(Saveable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            id=cast(str, id),
+            id=id,
             default=default,
             linkMerge=linkMerge,
             loopSource=loopSource,
@@ -28446,7 +28429,7 @@ class LoopInput(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -28461,7 +28444,7 @@ class LoopInput(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.default is not None:
             r["default"] = save(
@@ -29267,14 +29250,16 @@ _rvocab.update({
     "https://w3id.org/cwl/cwl#v1.2": "v1.2",
 })
 
-strtype: Final = _PrimitiveLoader(str)
-inttype: Final = _PrimitiveLoader(i32)
-floattype: Final = _PrimitiveLoader(float)
-booltype: Final = _PrimitiveLoader(bool)
-None_type: Final = _PrimitiveLoader(type(None))
-Any_type: Final = _AnyLoader()
-longtype: Final = _PrimitiveLoader(i64)
-PrimitiveTypeLoader: Final = _EnumLoader(
+strtype: Final[_Loader[str]] = _PrimitiveLoader(str)
+inttype: Final[_Loader[i32]] = _PrimitiveLoader(i32)
+floattype: Final[_Loader[float]] = _PrimitiveLoader(float)
+booltype: Final[_Loader[bool]] = _PrimitiveLoader(bool)
+None_type: Final[_Loader[None]] = _PrimitiveLoader(type(None))
+Any_type: Final[_Loader[Any]] = _AnyLoader()
+longtype: Final[_Loader[i64]] = _PrimitiveLoader(i64)
+PrimitiveTypeLoader: Final[
+    _Loader[Literal["null", "boolean", "int", "long", "float", "double", "string"]]
+] = _EnumLoader(
     (
         "null",
         "boolean",
@@ -29300,17 +29285,33 @@ float: single precision (32-bit) IEEE 754 floating-point number
 double: double precision (64-bit) IEEE 754 floating-point number
 string: Unicode character sequence
 """
-AnyLoader: Final = _EnumLoader(("Any",), "Any")
+AnyLoader: Final[_Loader[Literal["Any"]]] = _EnumLoader(("Any",), "Any")
 """
 The **Any** type validates for any non-null value.
 """
-RecordFieldLoader: Final = _RecordLoader(RecordField, None, None)
-RecordSchemaLoader: Final = _RecordLoader(RecordSchema, None, None)
-EnumSchemaLoader: Final = _RecordLoader(EnumSchema, None, None)
-ArraySchemaLoader: Final = _RecordLoader(ArraySchema, None, None)
-MapSchemaLoader: Final = _RecordLoader(MapSchema, None, None)
-UnionSchemaLoader: Final = _RecordLoader(UnionSchema, None, None)
-CWLTypeLoader: Final = _EnumLoader(
+RecordFieldLoader: Final[_Loader[RecordField]] = _RecordLoader(RecordField, None, None)
+RecordSchemaLoader: Final[_Loader[RecordSchema]] = _RecordLoader(
+    RecordSchema, None, None
+)
+EnumSchemaLoader: Final[_Loader[EnumSchema]] = _RecordLoader(EnumSchema, None, None)
+ArraySchemaLoader: Final[_Loader[ArraySchema]] = _RecordLoader(ArraySchema, None, None)
+MapSchemaLoader: Final[_Loader[MapSchema]] = _RecordLoader(MapSchema, None, None)
+UnionSchemaLoader: Final[_Loader[UnionSchema]] = _RecordLoader(UnionSchema, None, None)
+CWLTypeLoader: Final[
+    _Loader[
+        Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+    ]
+] = _EnumLoader(
     (
         "null",
         "boolean",
@@ -29329,65 +29330,116 @@ Extends primitive types with the concept of a file and directory as a builtin ty
 File: A File object
 Directory: A Directory object
 """
-CWLArraySchemaLoader: Final = _RecordLoader(CWLArraySchema, None, None)
-CWLRecordFieldLoader: Final = _RecordLoader(CWLRecordField, None, None)
-CWLRecordSchemaLoader: Final = _RecordLoader(CWLRecordSchema, None, None)
-FileLoader: Final = _RecordLoader(File, None, None)
-DirectoryLoader: Final = _RecordLoader(Directory, None, None)
-CWLObjectTypeLoader: Final = _UnionLoader((), "CWLObjectTypeLoader")
-union_of_None_type_or_CWLObjectTypeLoader: Final = _UnionLoader(
-    (
-        None_type,
-        CWLObjectTypeLoader,
+CWLArraySchemaLoader: Final[_Loader[CWLArraySchema]] = _RecordLoader(
+    CWLArraySchema, None, None
+)
+CWLRecordFieldLoader: Final[_Loader[CWLRecordField]] = _RecordLoader(
+    CWLRecordField, None, None
+)
+CWLRecordSchemaLoader: Final[_Loader[CWLRecordSchema]] = _RecordLoader(
+    CWLRecordSchema, None, None
+)
+FileLoader: Final[_Loader[File]] = _RecordLoader(File, None, None)
+DirectoryLoader: Final[_Loader[Directory]] = _RecordLoader(Directory, None, None)
+CWLObjectTypeLoader: Final[_UnionLoader[Any]] = _UnionLoader((), "CWLObjectTypeLoader")
+union_of_None_type_or_CWLObjectTypeLoader: Final[_Loader[CWLObjectType | None]] = (
+    _UnionLoader(
+        (
+            None_type,
+            CWLObjectTypeLoader,
+        )
     )
 )
-array_of_union_of_None_type_or_CWLObjectTypeLoader: Final = _ArrayLoader(
-    union_of_None_type_or_CWLObjectTypeLoader
+array_of_union_of_None_type_or_CWLObjectTypeLoader: Final[
+    _Loader[Sequence[CWLObjectType | None]]
+] = _ArrayLoader(union_of_None_type_or_CWLObjectTypeLoader)
+map_of_union_of_None_type_or_CWLObjectTypeLoader: Final[
+    _Loader[Mapping[str, CWLObjectType | None]]
+] = _MapLoader(union_of_None_type_or_CWLObjectTypeLoader, "None", None, None)
+InlineJavascriptRequirementLoader: Final[_Loader[InlineJavascriptRequirement]] = (
+    _RecordLoader(InlineJavascriptRequirement, None, None)
 )
-map_of_union_of_None_type_or_CWLObjectTypeLoader: Final = _MapLoader(
-    union_of_None_type_or_CWLObjectTypeLoader, "None", None, None
+SchemaDefRequirementLoader: Final[_Loader[SchemaDefRequirement]] = _RecordLoader(
+    SchemaDefRequirement, None, None
 )
-InlineJavascriptRequirementLoader: Final = _RecordLoader(
-    InlineJavascriptRequirement, None, None
+LoadListingRequirementLoader: Final[_Loader[LoadListingRequirement]] = _RecordLoader(
+    LoadListingRequirement, None, None
 )
-SchemaDefRequirementLoader: Final = _RecordLoader(SchemaDefRequirement, None, None)
-LoadListingRequirementLoader: Final = _RecordLoader(LoadListingRequirement, None, None)
-DockerRequirementLoader: Final = _RecordLoader(DockerRequirement, None, None)
-SoftwareRequirementLoader: Final = _RecordLoader(SoftwareRequirement, None, None)
-InitialWorkDirRequirementLoader: Final = _RecordLoader(
-    InitialWorkDirRequirement, None, None
+DockerRequirementLoader: Final[_Loader[DockerRequirement]] = _RecordLoader(
+    DockerRequirement, None, None
 )
-EnvVarRequirementLoader: Final = _RecordLoader(EnvVarRequirement, None, None)
-ShellCommandRequirementLoader: Final = _RecordLoader(
+SoftwareRequirementLoader: Final[_Loader[SoftwareRequirement]] = _RecordLoader(
+    SoftwareRequirement, None, None
+)
+InitialWorkDirRequirementLoader: Final[_Loader[InitialWorkDirRequirement]] = (
+    _RecordLoader(InitialWorkDirRequirement, None, None)
+)
+EnvVarRequirementLoader: Final[_Loader[EnvVarRequirement]] = _RecordLoader(
+    EnvVarRequirement, None, None
+)
+ShellCommandRequirementLoader: Final[_Loader[ShellCommandRequirement]] = _RecordLoader(
     ShellCommandRequirement, None, None
 )
-ResourceRequirementLoader: Final = _RecordLoader(ResourceRequirement, None, None)
-WorkReuseLoader: Final = _RecordLoader(WorkReuse, None, None)
-NetworkAccessLoader: Final = _RecordLoader(NetworkAccess, None, None)
-InplaceUpdateRequirementLoader: Final = _RecordLoader(
-    InplaceUpdateRequirement, None, None
+ResourceRequirementLoader: Final[_Loader[ResourceRequirement]] = _RecordLoader(
+    ResourceRequirement, None, None
 )
-ToolTimeLimitLoader: Final = _RecordLoader(ToolTimeLimit, None, None)
-SubworkflowFeatureRequirementLoader: Final = _RecordLoader(
-    SubworkflowFeatureRequirement, None, None
+WorkReuseLoader: Final[_Loader[WorkReuse]] = _RecordLoader(WorkReuse, None, None)
+NetworkAccessLoader: Final[_Loader[NetworkAccess]] = _RecordLoader(
+    NetworkAccess, None, None
 )
-ScatterFeatureRequirementLoader: Final = _RecordLoader(
-    ScatterFeatureRequirement, None, None
+InplaceUpdateRequirementLoader: Final[_Loader[InplaceUpdateRequirement]] = (
+    _RecordLoader(InplaceUpdateRequirement, None, None)
 )
-MultipleInputFeatureRequirementLoader: Final = _RecordLoader(
-    MultipleInputFeatureRequirement, None, None
+ToolTimeLimitLoader: Final[_Loader[ToolTimeLimit]] = _RecordLoader(
+    ToolTimeLimit, None, None
 )
-StepInputExpressionRequirementLoader: Final = _RecordLoader(
-    StepInputExpressionRequirement, None, None
+SubworkflowFeatureRequirementLoader: Final[_Loader[SubworkflowFeatureRequirement]] = (
+    _RecordLoader(SubworkflowFeatureRequirement, None, None)
 )
-SecretsLoader: Final = _RecordLoader(Secrets, None, None)
-MPIRequirementLoader: Final = _RecordLoader(MPIRequirement, None, None)
-CUDARequirementLoader: Final = _RecordLoader(CUDARequirement, None, None)
-LoopLoader: Final = _RecordLoader(Loop, None, None)
-ShmSizeLoader: Final = _RecordLoader(ShmSize, None, None)
-union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader: (
-    Final
-) = _UnionLoader(
+ScatterFeatureRequirementLoader: Final[_Loader[ScatterFeatureRequirement]] = (
+    _RecordLoader(ScatterFeatureRequirement, None, None)
+)
+MultipleInputFeatureRequirementLoader: Final[
+    _Loader[MultipleInputFeatureRequirement]
+] = _RecordLoader(MultipleInputFeatureRequirement, None, None)
+StepInputExpressionRequirementLoader: Final[_Loader[StepInputExpressionRequirement]] = (
+    _RecordLoader(StepInputExpressionRequirement, None, None)
+)
+SecretsLoader: Final[_Loader[Secrets]] = _RecordLoader(Secrets, None, None)
+MPIRequirementLoader: Final[_Loader[MPIRequirement]] = _RecordLoader(
+    MPIRequirement, None, None
+)
+CUDARequirementLoader: Final[_Loader[CUDARequirement]] = _RecordLoader(
+    CUDARequirement, None, None
+)
+LoopLoader: Final[_Loader[Loop]] = _RecordLoader(Loop, None, None)
+ShmSizeLoader: Final[_Loader[ShmSize]] = _RecordLoader(ShmSize, None, None)
+union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader: Final[
+    _Loader[
+        CUDARequirement
+        | DockerRequirement
+        | EnvVarRequirement
+        | InitialWorkDirRequirement
+        | InlineJavascriptRequirement
+        | InplaceUpdateRequirement
+        | LoadListingRequirement
+        | Loop
+        | MPIRequirement
+        | MultipleInputFeatureRequirement
+        | NetworkAccess
+        | ResourceRequirement
+        | ScatterFeatureRequirement
+        | SchemaDefRequirement
+        | Secrets
+        | ShellCommandRequirement
+        | ShmSize
+        | SoftwareRequirement
+        | StepInputExpressionRequirement
+        | SubworkflowFeatureRequirement
+        | ToolTimeLimit
+        | WorkReuse
+    ]
+] = _UnionLoader(
     (
         InlineJavascriptRequirementLoader,
         SchemaDefRequirementLoader,
@@ -29413,36 +29465,150 @@ union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_Load
         ShmSizeLoader,
     )
 )
-array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader: Final[
+    _Loader[
+        Sequence[
+            CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | Loop
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _ArrayLoader(
     union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader
 )
-union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader: (
-    Final
-) = _UnionLoader(
+union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader: Final[
+    _Loader[
+        CWLObjectType
+        | None
+        | Sequence[
+            CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | Loop
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _UnionLoader(
     (
         None_type,
         array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader,
         CWLObjectTypeLoader,
     )
 )
-map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader: (
-    Final
-) = _MapLoader(
+map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader: Final[
+    _Loader[
+        Mapping[
+            str,
+            CWLObjectType
+            | None
+            | Sequence[
+                CUDARequirement
+                | DockerRequirement
+                | EnvVarRequirement
+                | InitialWorkDirRequirement
+                | InlineJavascriptRequirement
+                | InplaceUpdateRequirement
+                | LoadListingRequirement
+                | Loop
+                | MPIRequirement
+                | MultipleInputFeatureRequirement
+                | NetworkAccess
+                | ResourceRequirement
+                | ScatterFeatureRequirement
+                | SchemaDefRequirement
+                | Secrets
+                | ShellCommandRequirement
+                | ShmSize
+                | SoftwareRequirement
+                | StepInputExpressionRequirement
+                | SubworkflowFeatureRequirement
+                | ToolTimeLimit
+                | WorkReuse
+            ],
+        ]
+    ]
+] = _MapLoader(
     union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader,
     "CWLInputFile",
     "@list",
     True,
 )
-CWLInputFileLoader: Final = (
-    map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader
-)
-CWLVersionLoader: Final = _EnumLoader(("v1.2",), "CWLVersion")
+CWLInputFileLoader: Final[
+    _Loader[
+        Mapping[
+            str,
+            CWLObjectType
+            | None
+            | Sequence[
+                CUDARequirement
+                | DockerRequirement
+                | EnvVarRequirement
+                | InitialWorkDirRequirement
+                | InlineJavascriptRequirement
+                | InplaceUpdateRequirement
+                | LoadListingRequirement
+                | Loop
+                | MPIRequirement
+                | MultipleInputFeatureRequirement
+                | NetworkAccess
+                | ResourceRequirement
+                | ScatterFeatureRequirement
+                | SchemaDefRequirement
+                | Secrets
+                | ShellCommandRequirement
+                | ShmSize
+                | SoftwareRequirement
+                | StepInputExpressionRequirement
+                | SubworkflowFeatureRequirement
+                | ToolTimeLimit
+                | WorkReuse
+            ],
+        ]
+    ]
+] = map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader
+CWLVersionLoader: Final[_Loader[Literal["v1.2"]]] = _EnumLoader(("v1.2",), "CWLVersion")
 """
 Current version symbol for CWL documents.
 """
-LoadListingEnumLoader: Final = _EnumLoader(
+LoadListingEnumLoader: Final[
+    _Loader[Literal["no_listing", "shallow_listing", "deep_listing"]]
+] = _EnumLoader(
     (
         "no_listing",
         "shallow_listing",
@@ -29458,45 +29624,77 @@ no_listing: Do not load the directory listing.
 shallow_listing: Only load the top level listing, do not recurse into subdirectories.
 deep_listing: Load the directory listing and recursively load all subdirectories as well.
 """
-ExpressionLoader: Final = _ExpressionLoader(str)
-InputBindingLoader: Final = _RecordLoader(InputBinding, None, None)
-InputRecordFieldLoader: Final = _RecordLoader(InputRecordField, None, None)
-InputRecordSchemaLoader: Final = _RecordLoader(InputRecordSchema, None, None)
-InputEnumSchemaLoader: Final = _RecordLoader(InputEnumSchema, None, None)
-InputArraySchemaLoader: Final = _RecordLoader(InputArraySchema, None, None)
-OutputRecordFieldLoader: Final = _RecordLoader(OutputRecordField, None, None)
-OutputRecordSchemaLoader: Final = _RecordLoader(OutputRecordSchema, None, None)
-OutputEnumSchemaLoader: Final = _RecordLoader(OutputEnumSchema, None, None)
-OutputArraySchemaLoader: Final = _RecordLoader(OutputArraySchema, None, None)
-SecondaryFileSchemaLoader: Final = _RecordLoader(SecondaryFileSchema, None, None)
-EnvironmentDefLoader: Final = _RecordLoader(EnvironmentDef, None, None)
-CommandLineBindingLoader: Final = _RecordLoader(CommandLineBinding, None, None)
-CommandOutputBindingLoader: Final = _RecordLoader(CommandOutputBinding, None, None)
-CommandInputRecordFieldLoader: Final = _RecordLoader(
+ExpressionLoader = _ExpressionLoader(str)
+InputBindingLoader: Final[_Loader[InputBinding]] = _RecordLoader(
+    InputBinding, None, None
+)
+InputRecordFieldLoader: Final[_Loader[InputRecordField]] = _RecordLoader(
+    InputRecordField, None, None
+)
+InputRecordSchemaLoader: Final[_Loader[InputRecordSchema]] = _RecordLoader(
+    InputRecordSchema, None, None
+)
+InputEnumSchemaLoader: Final[_Loader[InputEnumSchema]] = _RecordLoader(
+    InputEnumSchema, None, None
+)
+InputArraySchemaLoader: Final[_Loader[InputArraySchema]] = _RecordLoader(
+    InputArraySchema, None, None
+)
+OutputRecordFieldLoader: Final[_Loader[OutputRecordField]] = _RecordLoader(
+    OutputRecordField, None, None
+)
+OutputRecordSchemaLoader: Final[_Loader[OutputRecordSchema]] = _RecordLoader(
+    OutputRecordSchema, None, None
+)
+OutputEnumSchemaLoader: Final[_Loader[OutputEnumSchema]] = _RecordLoader(
+    OutputEnumSchema, None, None
+)
+OutputArraySchemaLoader: Final[_Loader[OutputArraySchema]] = _RecordLoader(
+    OutputArraySchema, None, None
+)
+SecondaryFileSchemaLoader: Final[_Loader[SecondaryFileSchema]] = _RecordLoader(
+    SecondaryFileSchema, None, None
+)
+EnvironmentDefLoader: Final[_Loader[EnvironmentDef]] = _RecordLoader(
+    EnvironmentDef, None, None
+)
+CommandLineBindingLoader: Final[_Loader[CommandLineBinding]] = _RecordLoader(
+    CommandLineBinding, None, None
+)
+CommandOutputBindingLoader: Final[_Loader[CommandOutputBinding]] = _RecordLoader(
+    CommandOutputBinding, None, None
+)
+CommandInputRecordFieldLoader: Final[_Loader[CommandInputRecordField]] = _RecordLoader(
     CommandInputRecordField, None, None
 )
-CommandInputRecordSchemaLoader: Final = _RecordLoader(
-    CommandInputRecordSchema, None, None
+CommandInputRecordSchemaLoader: Final[_Loader[CommandInputRecordSchema]] = (
+    _RecordLoader(CommandInputRecordSchema, None, None)
 )
-CommandInputEnumSchemaLoader: Final = _RecordLoader(CommandInputEnumSchema, None, None)
-CommandInputArraySchemaLoader: Final = _RecordLoader(
+CommandInputEnumSchemaLoader: Final[_Loader[CommandInputEnumSchema]] = _RecordLoader(
+    CommandInputEnumSchema, None, None
+)
+CommandInputArraySchemaLoader: Final[_Loader[CommandInputArraySchema]] = _RecordLoader(
     CommandInputArraySchema, None, None
 )
-CommandOutputRecordFieldLoader: Final = _RecordLoader(
-    CommandOutputRecordField, None, None
+CommandOutputRecordFieldLoader: Final[_Loader[CommandOutputRecordField]] = (
+    _RecordLoader(CommandOutputRecordField, None, None)
 )
-CommandOutputRecordSchemaLoader: Final = _RecordLoader(
-    CommandOutputRecordSchema, None, None
+CommandOutputRecordSchemaLoader: Final[_Loader[CommandOutputRecordSchema]] = (
+    _RecordLoader(CommandOutputRecordSchema, None, None)
 )
-CommandOutputEnumSchemaLoader: Final = _RecordLoader(
+CommandOutputEnumSchemaLoader: Final[_Loader[CommandOutputEnumSchema]] = _RecordLoader(
     CommandOutputEnumSchema, None, None
 )
-CommandOutputArraySchemaLoader: Final = _RecordLoader(
-    CommandOutputArraySchema, None, None
+CommandOutputArraySchemaLoader: Final[_Loader[CommandOutputArraySchema]] = (
+    _RecordLoader(CommandOutputArraySchema, None, None)
 )
-CommandInputParameterLoader: Final = _RecordLoader(CommandInputParameter, None, None)
-CommandOutputParameterLoader: Final = _RecordLoader(CommandOutputParameter, None, None)
-stdinLoader: Final = _EnumLoader(("stdin",), "stdin")
+CommandInputParameterLoader: Final[_Loader[CommandInputParameter]] = _RecordLoader(
+    CommandInputParameter, None, None
+)
+CommandOutputParameterLoader: Final[_Loader[CommandOutputParameter]] = _RecordLoader(
+    CommandOutputParameter, None, None
+)
+stdinLoader: Final[_Loader[Literal["stdin"]]] = _EnumLoader(("stdin",), "stdin")
 """
 Only valid as a `type` for a `CommandLineTool` input with no
 `inputBinding` set. `stdin` must not be specified at the `CommandLineTool`
@@ -29518,7 +29716,7 @@ inputs:
 stdin: $(inputs.an_input_name.path)
 ```
 """
-stdoutLoader: Final = _EnumLoader(("stdout",), "stdout")
+stdoutLoader: Final[_Loader[Literal["stdout"]]] = _EnumLoader(("stdout",), "stdout")
 """
 Only valid as a `type` for a `CommandLineTool` output with no
 `outputBinding` set.
@@ -29566,7 +29764,7 @@ If the `CommandLineTool` contains logically chained commands
 (e.g. `echo a && echo b`) `stdout` must include the output of
 every command.
 """
-stderrLoader: Final = _EnumLoader(("stderr",), "stderr")
+stderrLoader: Final[_Loader[Literal["stderr"]]] = _EnumLoader(("stderr",), "stderr")
 """
 Only valid as a `type` for a `CommandLineTool` output with no
 `outputBinding` set.
@@ -29610,25 +29808,37 @@ outputs:
 stderr: random_stderr_filenameABCDEFG
 ```
 """
-CommandLineToolLoader: Final = _RecordLoader(CommandLineTool, None, None)
-SoftwarePackageLoader: Final = _RecordLoader(SoftwarePackage, None, None)
-DirentLoader: Final = _RecordLoader(Dirent, None, None)
-ExpressionToolOutputParameterLoader: Final = _RecordLoader(
-    ExpressionToolOutputParameter, None, None
+CommandLineToolLoader: Final[_Loader[CommandLineTool]] = _RecordLoader(
+    CommandLineTool, None, None
 )
-WorkflowInputParameterLoader: Final = _RecordLoader(WorkflowInputParameter, None, None)
-ExpressionToolLoader: Final = _RecordLoader(ExpressionTool, None, None)
-LinkMergeMethodLoader: Final = _EnumLoader(
-    (
-        "merge_nested",
-        "merge_flattened",
-    ),
-    "LinkMergeMethod",
+SoftwarePackageLoader: Final[_Loader[SoftwarePackage]] = _RecordLoader(
+    SoftwarePackage, None, None
+)
+DirentLoader: Final[_Loader[Dirent]] = _RecordLoader(Dirent, None, None)
+ExpressionToolOutputParameterLoader: Final[_Loader[ExpressionToolOutputParameter]] = (
+    _RecordLoader(ExpressionToolOutputParameter, None, None)
+)
+WorkflowInputParameterLoader: Final[_Loader[WorkflowInputParameter]] = _RecordLoader(
+    WorkflowInputParameter, None, None
+)
+ExpressionToolLoader: Final[_Loader[ExpressionTool]] = _RecordLoader(
+    ExpressionTool, None, None
+)
+LinkMergeMethodLoader: Final[_Loader[Literal["merge_nested", "merge_flattened"]]] = (
+    _EnumLoader(
+        (
+            "merge_nested",
+            "merge_flattened",
+        ),
+        "LinkMergeMethod",
+    )
 )
 """
 The input link merge method, described in [WorkflowStepInput](#WorkflowStepInput).
 """
-PickValueMethodLoader: Final = _EnumLoader(
+PickValueMethodLoader: Final[
+    _Loader[Literal["first_non_null", "the_only_non_null", "all_non_null"]]
+] = _EnumLoader(
     (
         "first_non_null",
         "the_only_non_null",
@@ -29639,12 +29849,18 @@ PickValueMethodLoader: Final = _EnumLoader(
 """
 Picking non-null values among inbound data links, described in [WorkflowStepInput](#WorkflowStepInput).
 """
-WorkflowOutputParameterLoader: Final = _RecordLoader(
+WorkflowOutputParameterLoader: Final[_Loader[WorkflowOutputParameter]] = _RecordLoader(
     WorkflowOutputParameter, None, None
 )
-WorkflowStepInputLoader: Final = _RecordLoader(WorkflowStepInput, None, None)
-WorkflowStepOutputLoader: Final = _RecordLoader(WorkflowStepOutput, None, None)
-ScatterMethodLoader: Final = _EnumLoader(
+WorkflowStepInputLoader: Final[_Loader[WorkflowStepInput]] = _RecordLoader(
+    WorkflowStepInput, None, None
+)
+WorkflowStepOutputLoader: Final[_Loader[WorkflowStepOutput]] = _RecordLoader(
+    WorkflowStepOutput, None, None
+)
+ScatterMethodLoader: Final[
+    _Loader[Literal["dotproduct", "nested_crossproduct", "flat_crossproduct"]]
+] = _EnumLoader(
     (
         "dotproduct",
         "nested_crossproduct",
@@ -29655,29 +29871,45 @@ ScatterMethodLoader: Final = _EnumLoader(
 """
 The scatter method, as described in [workflow step scatter](#WorkflowStep).
 """
-WorkflowStepLoader: Final = _RecordLoader(WorkflowStep, None, None)
-WorkflowLoader: Final = _RecordLoader(Workflow, None, None)
-OperationInputParameterLoader: Final = _RecordLoader(
+WorkflowStepLoader: Final[_Loader[WorkflowStep]] = _RecordLoader(
+    WorkflowStep, None, None
+)
+WorkflowLoader: Final[_Loader[Workflow]] = _RecordLoader(Workflow, None, None)
+OperationInputParameterLoader: Final[_Loader[OperationInputParameter]] = _RecordLoader(
     OperationInputParameter, None, None
 )
-OperationOutputParameterLoader: Final = _RecordLoader(
-    OperationOutputParameter, None, None
+OperationOutputParameterLoader: Final[_Loader[OperationOutputParameter]] = (
+    _RecordLoader(OperationOutputParameter, None, None)
 )
-OperationLoader: Final = _RecordLoader(Operation, None, None)
-ProcessGeneratorLoader: Final = _RecordLoader(ProcessGenerator, None, None)
-LoopInputLoader: Final = _RecordLoader(LoopInput, None, None)
-array_of_strtype: Final = _ArrayLoader(strtype)
-union_of_None_type_or_strtype_or_array_of_strtype: Final = _UnionLoader(
+OperationLoader: Final[_Loader[Operation]] = _RecordLoader(Operation, None, None)
+ProcessGeneratorLoader: Final[_Loader[ProcessGenerator]] = _RecordLoader(
+    ProcessGenerator, None, None
+)
+LoopInputLoader: Final[_Loader[LoopInput]] = _RecordLoader(LoopInput, None, None)
+array_of_strtype: Final[_Loader[Sequence[str]]] = _ArrayLoader(strtype)
+union_of_None_type_or_strtype_or_array_of_strtype: Final[
+    _Loader[None | Sequence[str] | str]
+] = _UnionLoader(
     (
         None_type,
         strtype,
         array_of_strtype,
     )
 )
-uri_strtype_True_False_None_None: Final = _URILoader(strtype, True, False, None, None)
-union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+uri_strtype_True_False_None_None: Final[_Loader[str]] = _URILoader(
+    strtype, True, False, None, None
+)
+union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: Final[
+    _Loader[
+        ArraySchema
+        | EnumSchema
+        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+        | MapSchema
+        | RecordSchema
+        | UnionSchema
+        | str
+    ]
+] = _UnionLoader(
     (
         PrimitiveTypeLoader,
         RecordSchemaLoader,
@@ -29688,14 +29920,41 @@ union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArrayS
         strtype,
     )
 )
-array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[
+            ArraySchema
+            | EnumSchema
+            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+            | MapSchema
+            | RecordSchema
+            | UnionSchema
+            | str
+        ]
+    ]
+] = _ArrayLoader(
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype
 )
-union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: Final[
+    _Loader[
+        ArraySchema
+        | EnumSchema
+        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+        | MapSchema
+        | RecordSchema
+        | Sequence[
+            ArraySchema
+            | EnumSchema
+            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+            | MapSchema
+            | RecordSchema
+            | UnionSchema
+            | str
+        ]
+        | UnionSchema
+        | str
+    ]
+] = _UnionLoader(
     (
         PrimitiveTypeLoader,
         RecordSchemaLoader,
@@ -29707,57 +29966,117 @@ union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArrayS
         array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_2: (
-    Final
-) = _TypeDSLLoader(
+typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_2: Final[
+    _Loader[
+        ArraySchema
+        | EnumSchema
+        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+        | MapSchema
+        | RecordSchema
+        | Sequence[
+            ArraySchema
+            | EnumSchema
+            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+            | MapSchema
+            | RecordSchema
+            | UnionSchema
+            | str
+        ]
+        | UnionSchema
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-array_of_RecordFieldLoader: Final = _ArrayLoader(RecordFieldLoader)
-union_of_None_type_or_array_of_RecordFieldLoader: Final = _UnionLoader(
+array_of_RecordFieldLoader: Final[_Loader[Sequence[RecordField]]] = _ArrayLoader(
+    RecordFieldLoader
+)
+union_of_None_type_or_array_of_RecordFieldLoader: Final[
+    _Loader[None | Sequence[RecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_RecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_RecordFieldLoader: Final = _IdMapLoader(
-    union_of_None_type_or_array_of_RecordFieldLoader, "name", "type"
+idmap_fields_union_of_None_type_or_array_of_RecordFieldLoader: Final[
+    _Loader[None | Sequence[RecordField]]
+] = _IdMapLoader(union_of_None_type_or_array_of_RecordFieldLoader, "name", "type")
+Record_nameLoader: Final[_Loader[Literal["record"]]] = _EnumLoader(
+    ("record",), "Record_name"
 )
-Record_nameLoader: Final = _EnumLoader(("record",), "Record_name")
-typedsl_Record_nameLoader_2: Final = _TypeDSLLoader(Record_nameLoader, 2, "v1.1")
-union_of_None_type_or_strtype: Final = _UnionLoader(
+typedsl_Record_nameLoader_2: Final[_Loader[Literal["record"]]] = _TypeDSLLoader(
+    Record_nameLoader, 2, "v1.1"
+)
+union_of_None_type_or_strtype: Final[_Loader[None | str]] = _UnionLoader(
     (
         None_type,
         strtype,
     )
 )
-uri_union_of_None_type_or_strtype_True_False_None_None: Final = _URILoader(
-    union_of_None_type_or_strtype, True, False, None, None
+uri_union_of_None_type_or_strtype_True_False_None_None: Final[_Loader[None | str]] = (
+    _URILoader(union_of_None_type_or_strtype, True, False, None, None)
 )
-uri_array_of_strtype_True_False_None_None: Final = _URILoader(
+uri_array_of_strtype_True_False_None_None: Final[_Loader[Sequence[str]]] = _URILoader(
     array_of_strtype, True, False, None, None
 )
-Enum_nameLoader: Final = _EnumLoader(("enum",), "Enum_name")
-typedsl_Enum_nameLoader_2: Final = _TypeDSLLoader(Enum_nameLoader, 2, "v1.1")
-uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_False_True_2_None: (
-    Final
-) = _URILoader(
+Enum_nameLoader: Final[_Loader[Literal["enum"]]] = _EnumLoader(("enum",), "Enum_name")
+typedsl_Enum_nameLoader_2: Final[_Loader[Literal["enum"]]] = _TypeDSLLoader(
+    Enum_nameLoader, 2, "v1.1"
+)
+uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        ArraySchema
+        | EnumSchema
+        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+        | MapSchema
+        | RecordSchema
+        | Sequence[
+            ArraySchema
+            | EnumSchema
+            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+            | MapSchema
+            | RecordSchema
+            | UnionSchema
+            | str
+        ]
+        | UnionSchema
+        | str
+    ]
+] = _URILoader(
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-Array_nameLoader: Final = _EnumLoader(("array",), "Array_name")
-typedsl_Array_nameLoader_2: Final = _TypeDSLLoader(Array_nameLoader, 2, "v1.1")
-Map_nameLoader: Final = _EnumLoader(("map",), "Map_name")
-typedsl_Map_nameLoader_2: Final = _TypeDSLLoader(Map_nameLoader, 2, "v1.1")
-Union_nameLoader: Final = _EnumLoader(("union",), "Union_name")
-typedsl_Union_nameLoader_2: Final = _TypeDSLLoader(Union_nameLoader, 2, "v1.1")
-union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+Array_nameLoader: Final[_Loader[Literal["array"]]] = _EnumLoader(
+    ("array",), "Array_name"
+)
+typedsl_Array_nameLoader_2: Final[_Loader[Literal["array"]]] = _TypeDSLLoader(
+    Array_nameLoader, 2, "v1.1"
+)
+Map_nameLoader: Final[_Loader[Literal["map"]]] = _EnumLoader(("map",), "Map_name")
+typedsl_Map_nameLoader_2: Final[_Loader[Literal["map"]]] = _TypeDSLLoader(
+    Map_nameLoader, 2, "v1.1"
+)
+Union_nameLoader: Final[_Loader[Literal["union"]]] = _EnumLoader(
+    ("union",), "Union_name"
+)
+typedsl_Union_nameLoader_2: Final[_Loader[Literal["union"]]] = _TypeDSLLoader(
+    Union_nameLoader, 2, "v1.1"
+)
+union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLArraySchema
+        | CWLRecordSchema
+        | EnumSchema
+        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+        | str
+    ]
+] = _UnionLoader(
     (
         PrimitiveTypeLoader,
         CWLRecordSchemaLoader,
@@ -29766,14 +30085,35 @@ union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWL
         strtype,
     )
 )
-array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[
+            CWLArraySchema
+            | CWLRecordSchema
+            | EnumSchema
+            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+            | str
+        ]
+    ]
+] = _ArrayLoader(
     union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype
 )
-union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLArraySchema
+        | CWLRecordSchema
+        | EnumSchema
+        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+        | Sequence[
+            CWLArraySchema
+            | CWLRecordSchema
+            | EnumSchema
+            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+            | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         PrimitiveTypeLoader,
         CWLRecordSchemaLoader,
@@ -29783,66 +30123,96 @@ union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWL
         array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype,
     )
 )
-uri_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_False_True_2_None: (
-    Final
-) = _URILoader(
+uri_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        CWLArraySchema
+        | CWLRecordSchema
+        | EnumSchema
+        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+        | Sequence[
+            CWLArraySchema
+            | CWLRecordSchema
+            | EnumSchema
+            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+            | str
+        ]
+        | str
+    ]
+] = _URILoader(
     union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_2: (
-    Final
-) = _TypeDSLLoader(
+typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CWLArraySchema
+        | CWLRecordSchema
+        | EnumSchema
+        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+        | Sequence[
+            CWLArraySchema
+            | CWLRecordSchema
+            | EnumSchema
+            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
+            | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-array_of_CWLRecordFieldLoader: Final = _ArrayLoader(CWLRecordFieldLoader)
-union_of_None_type_or_array_of_CWLRecordFieldLoader: Final = _UnionLoader(
+array_of_CWLRecordFieldLoader: Final[_Loader[Sequence[CWLRecordField]]] = _ArrayLoader(
+    CWLRecordFieldLoader
+)
+union_of_None_type_or_array_of_CWLRecordFieldLoader: Final[
+    _Loader[None | Sequence[CWLRecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_CWLRecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_CWLRecordFieldLoader: Final = _IdMapLoader(
-    union_of_None_type_or_array_of_CWLRecordFieldLoader, "name", "type"
-)
-File_classLoader: Final = _EnumLoader(("File",), "File_class")
-uri_File_classLoader_False_True_None_None: Final = _URILoader(
+idmap_fields_union_of_None_type_or_array_of_CWLRecordFieldLoader: Final[
+    _Loader[None | Sequence[CWLRecordField]]
+] = _IdMapLoader(union_of_None_type_or_array_of_CWLRecordFieldLoader, "name", "type")
+File_classLoader: Final[_Loader[Literal["File"]]] = _EnumLoader(("File",), "File_class")
+uri_File_classLoader_False_True_None_None: Final[_Loader[Literal["File"]]] = _URILoader(
     File_classLoader, False, True, None, None
 )
-uri_union_of_None_type_or_strtype_False_False_None_None: Final = _URILoader(
-    union_of_None_type_or_strtype, False, False, None, None
+uri_union_of_None_type_or_strtype_False_False_None_None: Final[_Loader[None | str]] = (
+    _URILoader(union_of_None_type_or_strtype, False, False, None, None)
 )
-union_of_None_type_or_inttype_or_inttype: Final = _UnionLoader(
+union_of_None_type_or_inttype_or_inttype: Final[_Loader[None | i32]] = _UnionLoader(
     (
         None_type,
         inttype,
         inttype,
     )
 )
-union_of_FileLoader_or_DirectoryLoader: Final = _UnionLoader(
+union_of_FileLoader_or_DirectoryLoader: Final[_Loader[Directory | File]] = _UnionLoader(
     (
         FileLoader,
         DirectoryLoader,
     )
 )
-array_of_union_of_FileLoader_or_DirectoryLoader: Final = _ArrayLoader(
-    union_of_FileLoader_or_DirectoryLoader
-)
-union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader: Final = (
-    _UnionLoader(
-        (
-            None_type,
-            array_of_union_of_FileLoader_or_DirectoryLoader,
-        )
+array_of_union_of_FileLoader_or_DirectoryLoader: Final[
+    _Loader[Sequence[Directory | File]]
+] = _ArrayLoader(union_of_FileLoader_or_DirectoryLoader)
+union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader: Final[
+    _Loader[None | Sequence[Directory | File]]
+] = _UnionLoader(
+    (
+        None_type,
+        array_of_union_of_FileLoader_or_DirectoryLoader,
     )
 )
-secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader: (
-    Final
-) = _UnionLoader(
+secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader: Final[
+    _Loader[None | Sequence[Directory | File]]
+] = _UnionLoader(
     (
         _SecondaryDSLLoader(
             union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader
@@ -29850,28 +30220,34 @@ secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_Director
         union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader,
     )
 )
-uri_union_of_None_type_or_strtype_True_False_None_True: Final = _URILoader(
-    union_of_None_type_or_strtype, True, False, None, True
+uri_union_of_None_type_or_strtype_True_False_None_True: Final[_Loader[None | str]] = (
+    _URILoader(union_of_None_type_or_strtype, True, False, None, True)
 )
-Directory_classLoader: Final = _EnumLoader(("Directory",), "Directory_class")
-uri_Directory_classLoader_False_True_None_None: Final = _URILoader(
-    Directory_classLoader, False, True, None, None
+Directory_classLoader: Final[_Loader[Literal["Directory"]]] = _EnumLoader(
+    ("Directory",), "Directory_class"
 )
-union_of_None_type_or_booltype: Final = _UnionLoader(
+uri_Directory_classLoader_False_True_None_None: Final[_Loader[Literal["Directory"]]] = (
+    _URILoader(Directory_classLoader, False, True, None, None)
+)
+union_of_None_type_or_booltype: Final[_Loader[None | bool]] = _UnionLoader(
     (
         None_type,
         booltype,
     )
 )
-union_of_None_type_or_LoadListingEnumLoader: Final = _UnionLoader(
+union_of_None_type_or_LoadListingEnumLoader: Final[
+    _Loader[Literal["no_listing", "shallow_listing", "deep_listing"] | None]
+] = _UnionLoader(
     (
         None_type,
         LoadListingEnumLoader,
     )
 )
-array_of_SecondaryFileSchemaLoader: Final = _ArrayLoader(SecondaryFileSchemaLoader)
+array_of_SecondaryFileSchemaLoader: Final[_Loader[Sequence[SecondaryFileSchema]]] = (
+    _ArrayLoader(SecondaryFileSchemaLoader)
+)
 union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader: (
-    Final
+    Final[_Loader[None | SecondaryFileSchema | Sequence[SecondaryFileSchema]]]
 ) = _UnionLoader(
     (
         None_type,
@@ -29879,9 +30255,9 @@ union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaL
         array_of_SecondaryFileSchemaLoader,
     )
 )
-secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader: (
-    Final
-) = _UnionLoader(
+secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader: Final[
+    _Loader[None | SecondaryFileSchema | Sequence[SecondaryFileSchema]]
+] = _UnionLoader(
     (
         _SecondaryDSLLoader(
             union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader
@@ -29889,40 +30265,58 @@ secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_Se
         union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
     )
 )
-union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader: Final = (
-    _UnionLoader(
-        (
-            None_type,
-            strtype,
-            array_of_strtype,
-            ExpressionLoader,
-        )
+union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader: Final[
+    _Loader[None | Sequence[str] | str]
+] = _UnionLoader(
+    (
+        None_type,
+        strtype,
+        array_of_strtype,
+        ExpressionLoader,
     )
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_True: (
-    Final
-) = _URILoader(
+uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_True: Final[
+    _Loader[None | Sequence[str] | str]
+] = _URILoader(
     union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader,
     True,
     False,
     None,
     True,
 )
-union_of_None_type_or_strtype_or_ExpressionLoader: Final = _UnionLoader(
-    (
-        None_type,
-        strtype,
-        ExpressionLoader,
+union_of_None_type_or_strtype_or_ExpressionLoader: Final[_Loader[None | str]] = (
+    _UnionLoader(
+        (
+            None_type,
+            strtype,
+            ExpressionLoader,
+        )
     )
 )
-uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True: Final = (
-    _URILoader(
-        union_of_None_type_or_strtype_or_ExpressionLoader, True, False, None, True
-    )
+uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True: Final[
+    _Loader[None | str]
+] = _URILoader(
+    union_of_None_type_or_strtype_or_ExpressionLoader, True, False, None, True
 )
-union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        InputArraySchema
+        | InputEnumSchema
+        | InputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         InputRecordSchemaLoader,
@@ -29931,14 +30325,65 @@ union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_In
         strtype,
     )
 )
-array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[
+            InputArraySchema
+            | InputEnumSchema
+            | InputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype
 )
-union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        InputArraySchema
+        | InputEnumSchema
+        | InputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Sequence[
+            InputArraySchema
+            | InputEnumSchema
+            | InputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         InputRecordSchemaLoader,
@@ -29948,35 +30393,121 @@ union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_In
         array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2: (
-    Final
-) = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        InputArraySchema
+        | InputEnumSchema
+        | InputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Sequence[
+            InputArraySchema
+            | InputEnumSchema
+            | InputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-array_of_InputRecordFieldLoader: Final = _ArrayLoader(InputRecordFieldLoader)
-union_of_None_type_or_array_of_InputRecordFieldLoader: Final = _UnionLoader(
+array_of_InputRecordFieldLoader: Final[_Loader[Sequence[InputRecordField]]] = (
+    _ArrayLoader(InputRecordFieldLoader)
+)
+union_of_None_type_or_array_of_InputRecordFieldLoader: Final[
+    _Loader[None | Sequence[InputRecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_InputRecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_InputRecordFieldLoader: Final = (
-    _IdMapLoader(union_of_None_type_or_array_of_InputRecordFieldLoader, "name", "type")
-)
-uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2_None: (
-    Final
-) = _URILoader(
+idmap_fields_union_of_None_type_or_array_of_InputRecordFieldLoader: Final[
+    _Loader[None | Sequence[InputRecordField]]
+] = _IdMapLoader(union_of_None_type_or_array_of_InputRecordFieldLoader, "name", "type")
+uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        InputArraySchema
+        | InputEnumSchema
+        | InputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Sequence[
+            InputArraySchema
+            | InputEnumSchema
+            | InputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _URILoader(
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | OutputArraySchema
+        | OutputEnumSchema
+        | OutputRecordSchema
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         OutputRecordSchemaLoader,
@@ -29985,14 +30516,65 @@ union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_
         strtype,
     )
 )
-array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[
+            Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | OutputArraySchema
+            | OutputEnumSchema
+            | OutputRecordSchema
+            | str
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype
 )
-union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | OutputArraySchema
+        | OutputEnumSchema
+        | OutputRecordSchema
+        | Sequence[
+            Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | OutputArraySchema
+            | OutputEnumSchema
+            | OutputRecordSchema
+            | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         OutputRecordSchemaLoader,
@@ -30002,56 +30584,139 @@ union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_
         array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2: (
-    Final
-) = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | OutputArraySchema
+        | OutputEnumSchema
+        | OutputRecordSchema
+        | Sequence[
+            Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | OutputArraySchema
+            | OutputEnumSchema
+            | OutputRecordSchema
+            | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-array_of_OutputRecordFieldLoader: Final = _ArrayLoader(OutputRecordFieldLoader)
-union_of_None_type_or_array_of_OutputRecordFieldLoader: Final = _UnionLoader(
+array_of_OutputRecordFieldLoader: Final[_Loader[Sequence[OutputRecordField]]] = (
+    _ArrayLoader(OutputRecordFieldLoader)
+)
+union_of_None_type_or_array_of_OutputRecordFieldLoader: Final[
+    _Loader[None | Sequence[OutputRecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_OutputRecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader: Final = (
-    _IdMapLoader(union_of_None_type_or_array_of_OutputRecordFieldLoader, "name", "type")
-)
-uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2_None: (
-    Final
-) = _URILoader(
+idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader: Final[
+    _Loader[None | Sequence[OutputRecordField]]
+] = _IdMapLoader(union_of_None_type_or_array_of_OutputRecordFieldLoader, "name", "type")
+uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | OutputArraySchema
+        | OutputEnumSchema
+        | OutputRecordSchema
+        | Sequence[
+            Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | OutputArraySchema
+            | OutputEnumSchema
+            | OutputRecordSchema
+            | str
+        ]
+        | str
+    ]
+] = _URILoader(
     union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader: (
-    Final
-) = _UnionLoader(
+union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader: Final[
+    _Loader[CommandInputParameter | OperationInputParameter | WorkflowInputParameter]
+] = _UnionLoader(
     (
         CommandInputParameterLoader,
         WorkflowInputParameterLoader,
         OperationInputParameterLoader,
     )
 )
-array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader: Final[
+    _Loader[
+        Sequence[
+            CommandInputParameter | OperationInputParameter | WorkflowInputParameter
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader
 )
-idmap_inputs_array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader: (
-    Final
-) = _IdMapLoader(
+idmap_inputs_array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader: Final[
+    _Loader[
+        Sequence[
+            CommandInputParameter | OperationInputParameter | WorkflowInputParameter
+        ]
+    ]
+] = _IdMapLoader(
     array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader,
     "id",
     "type",
 )
-union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader_or_OperationOutputParameterLoader: (
-    Final
-) = _UnionLoader(
+union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader_or_OperationOutputParameterLoader: Final[
+    _Loader[
+        CommandOutputParameter
+        | ExpressionToolOutputParameter
+        | OperationOutputParameter
+        | WorkflowOutputParameter
+    ]
+] = _UnionLoader(
     (
         CommandOutputParameterLoader,
         ExpressionToolOutputParameterLoader,
@@ -30059,36 +30724,126 @@ union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_
         OperationOutputParameterLoader,
     )
 )
-array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader_or_OperationOutputParameterLoader: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader_or_OperationOutputParameterLoader: Final[
+    _Loader[
+        Sequence[
+            CommandOutputParameter
+            | ExpressionToolOutputParameter
+            | OperationOutputParameter
+            | WorkflowOutputParameter
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader_or_OperationOutputParameterLoader
 )
-idmap_outputs_array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader_or_OperationOutputParameterLoader: (
-    Final
-) = _IdMapLoader(
+idmap_outputs_array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader_or_OperationOutputParameterLoader: Final[
+    _Loader[
+        Sequence[
+            CommandOutputParameter
+            | ExpressionToolOutputParameter
+            | OperationOutputParameter
+            | WorkflowOutputParameter
+        ]
+    ]
+] = _IdMapLoader(
     array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader_or_OperationOutputParameterLoader,
     "id",
     "type",
 )
-union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader: (
-    Final
-) = _UnionLoader(
+union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader: Final[
+    _Loader[
+        None
+        | Sequence[
+            CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | Loop
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _UnionLoader(
     (
         None_type,
         array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader,
     )
 )
-idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader: (
-    Final
-) = _IdMapLoader(
+idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader: Final[
+    _Loader[
+        None
+        | Sequence[
+            CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | Loop
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _IdMapLoader(
     union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader,
     "class",
     "None",
 )
-union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type: (
-    Final
-) = _UnionLoader(
+union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type: Final[
+    _Loader[
+        Any
+        | CUDARequirement
+        | DockerRequirement
+        | EnvVarRequirement
+        | InitialWorkDirRequirement
+        | InlineJavascriptRequirement
+        | InplaceUpdateRequirement
+        | LoadListingRequirement
+        | Loop
+        | MPIRequirement
+        | MultipleInputFeatureRequirement
+        | NetworkAccess
+        | ResourceRequirement
+        | ScatterFeatureRequirement
+        | SchemaDefRequirement
+        | Secrets
+        | ShellCommandRequirement
+        | ShmSize
+        | SoftwareRequirement
+        | StepInputExpressionRequirement
+        | SubworkflowFeatureRequirement
+        | ToolTimeLimit
+        | WorkReuse
+    ]
+] = _UnionLoader(
     (
         InlineJavascriptRequirementLoader,
         SchemaDefRequirementLoader,
@@ -30115,121 +30870,231 @@ union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_Load
         Any_type,
     )
 )
-array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type: Final[
+    _Loader[
+        Sequence[
+            Any
+            | CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | Loop
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _ArrayLoader(
     union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type
 )
-union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type: (
-    Final
-) = _UnionLoader(
+union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type: Final[
+    _Loader[
+        None
+        | Sequence[
+            Any
+            | CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | Loop
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _UnionLoader(
     (
         None_type,
         array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type,
     )
 )
-idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type: (
-    Final
-) = _IdMapLoader(
+idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type: Final[
+    _Loader[
+        None
+        | Sequence[
+            Any
+            | CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | Loop
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _IdMapLoader(
     union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_LoopLoader_or_ShmSizeLoader_or_Any_type,
     "class",
     "None",
 )
-union_of_None_type_or_CWLVersionLoader: Final = _UnionLoader(
-    (
-        None_type,
-        CWLVersionLoader,
+union_of_None_type_or_CWLVersionLoader: Final[_Loader[Literal["v1.2"] | None]] = (
+    _UnionLoader(
+        (
+            None_type,
+            CWLVersionLoader,
+        )
     )
 )
-uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None: Final = _URILoader(
-    union_of_None_type_or_CWLVersionLoader, False, True, None, None
-)
-union_of_None_type_or_array_of_strtype: Final = _UnionLoader(
-    (
-        None_type,
-        array_of_strtype,
+uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None: Final[
+    _Loader[Literal["v1.2"] | None]
+] = _URILoader(union_of_None_type_or_CWLVersionLoader, False, True, None, None)
+union_of_None_type_or_array_of_strtype: Final[_Loader[None | Sequence[str]]] = (
+    _UnionLoader(
+        (
+            None_type,
+            array_of_strtype,
+        )
     )
 )
-uri_union_of_None_type_or_array_of_strtype_True_False_None_None: Final = _URILoader(
-    union_of_None_type_or_array_of_strtype, True, False, None, None
+uri_union_of_None_type_or_array_of_strtype_True_False_None_None: Final[
+    _Loader[None | Sequence[str]]
+] = _URILoader(union_of_None_type_or_array_of_strtype, True, False, None, None)
+InlineJavascriptRequirement_classLoader: Final[
+    _Loader[Literal["InlineJavascriptRequirement"]]
+] = _EnumLoader(("InlineJavascriptRequirement",), "InlineJavascriptRequirement_class")
+uri_InlineJavascriptRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["InlineJavascriptRequirement"]]
+] = _URILoader(InlineJavascriptRequirement_classLoader, False, True, None, None)
+SchemaDefRequirement_classLoader: Final[_Loader[Literal["SchemaDefRequirement"]]] = (
+    _EnumLoader(("SchemaDefRequirement",), "SchemaDefRequirement_class")
 )
-InlineJavascriptRequirement_classLoader: Final = _EnumLoader(
-    ("InlineJavascriptRequirement",), "InlineJavascriptRequirement_class"
-)
-uri_InlineJavascriptRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    InlineJavascriptRequirement_classLoader, False, True, None, None
-)
-SchemaDefRequirement_classLoader: Final = _EnumLoader(
-    ("SchemaDefRequirement",), "SchemaDefRequirement_class"
-)
-uri_SchemaDefRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    SchemaDefRequirement_classLoader, False, True, None, None
-)
-union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader: (
-    Final
-) = _UnionLoader(
+uri_SchemaDefRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["SchemaDefRequirement"]]
+] = _URILoader(SchemaDefRequirement_classLoader, False, True, None, None)
+union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader: Final[
+    _Loader[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema]
+] = _UnionLoader(
     (
         CommandInputRecordSchemaLoader,
         CommandInputEnumSchemaLoader,
         CommandInputArraySchemaLoader,
     )
 )
-array_of_union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader: Final[
+    _Loader[
+        Sequence[
+            CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader
 )
-union_of_strtype_or_ExpressionLoader: Final = _UnionLoader(
+union_of_strtype_or_ExpressionLoader: Final[_Loader[str]] = _UnionLoader(
     (
         strtype,
         ExpressionLoader,
     )
 )
-union_of_None_type_or_booltype_or_ExpressionLoader: Final = _UnionLoader(
+union_of_None_type_or_booltype_or_ExpressionLoader: Final[
+    _Loader[None | bool | str]
+] = _UnionLoader(
     (
         None_type,
         booltype,
         ExpressionLoader,
     )
 )
-LoadListingRequirement_classLoader: Final = _EnumLoader(
-    ("LoadListingRequirement",), "LoadListingRequirement_class"
-)
-uri_LoadListingRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    LoadListingRequirement_classLoader, False, True, None, None
-)
-union_of_None_type_or_inttype_or_ExpressionLoader: Final = _UnionLoader(
-    (
-        None_type,
-        inttype,
-        ExpressionLoader,
-    )
-)
-union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_strtype: Final = (
+LoadListingRequirement_classLoader: Final[
+    _Loader[Literal["LoadListingRequirement"]]
+] = _EnumLoader(("LoadListingRequirement",), "LoadListingRequirement_class")
+uri_LoadListingRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["LoadListingRequirement"]]
+] = _URILoader(LoadListingRequirement_classLoader, False, True, None, None)
+union_of_None_type_or_inttype_or_ExpressionLoader: Final[_Loader[None | i32 | str]] = (
     _UnionLoader(
         (
             None_type,
-            strtype,
+            inttype,
             ExpressionLoader,
-            array_of_strtype,
         )
     )
 )
-union_of_None_type_or_ExpressionLoader: Final = _UnionLoader(
+union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_strtype: Final[
+    _Loader[None | Sequence[str] | str]
+] = _UnionLoader(
+    (
+        None_type,
+        strtype,
+        ExpressionLoader,
+        array_of_strtype,
+    )
+)
+union_of_None_type_or_ExpressionLoader: Final[_Loader[None | str]] = _UnionLoader(
     (
         None_type,
         ExpressionLoader,
     )
 )
-union_of_None_type_or_CommandLineBindingLoader: Final = _UnionLoader(
+union_of_None_type_or_CommandLineBindingLoader: Final[
+    _Loader[CommandLineBinding | None]
+] = _UnionLoader(
     (
         None_type,
         CommandLineBindingLoader,
     )
 )
-union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         CommandInputRecordSchemaLoader,
@@ -30238,14 +31103,65 @@ union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSche
         strtype,
     )
 )
-array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[
+            CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype
 )
-union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Sequence[
+            CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         CommandInputRecordSchemaLoader,
@@ -30255,39 +31171,123 @@ union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSche
         array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2: (
-    Final
-) = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Sequence[
+            CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-array_of_CommandInputRecordFieldLoader: Final = _ArrayLoader(
-    CommandInputRecordFieldLoader
-)
-union_of_None_type_or_array_of_CommandInputRecordFieldLoader: Final = _UnionLoader(
+array_of_CommandInputRecordFieldLoader: Final[
+    _Loader[Sequence[CommandInputRecordField]]
+] = _ArrayLoader(CommandInputRecordFieldLoader)
+union_of_None_type_or_array_of_CommandInputRecordFieldLoader: Final[
+    _Loader[None | Sequence[CommandInputRecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_CommandInputRecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_CommandInputRecordFieldLoader: Final = (
-    _IdMapLoader(
-        union_of_None_type_or_array_of_CommandInputRecordFieldLoader, "name", "type"
-    )
+idmap_fields_union_of_None_type_or_array_of_CommandInputRecordFieldLoader: Final[
+    _Loader[None | Sequence[CommandInputRecordField]]
+] = _IdMapLoader(
+    union_of_None_type_or_array_of_CommandInputRecordFieldLoader, "name", "type"
 )
-uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2_None: (
-    Final
-) = _URILoader(
+uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Sequence[
+            CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _URILoader(
     union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         CommandOutputRecordSchemaLoader,
@@ -30296,14 +31296,65 @@ union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSc
         strtype,
     )
 )
-array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[
+            CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype
 )
-union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Sequence[
+            CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         CommandOutputRecordSchemaLoader,
@@ -30313,45 +31364,149 @@ union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSc
         array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2: (
-    Final
-) = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Sequence[
+            CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-union_of_None_type_or_CommandOutputBindingLoader: Final = _UnionLoader(
+union_of_None_type_or_CommandOutputBindingLoader: Final[
+    _Loader[CommandOutputBinding | None]
+] = _UnionLoader(
     (
         None_type,
         CommandOutputBindingLoader,
     )
 )
-array_of_CommandOutputRecordFieldLoader: Final = _ArrayLoader(
-    CommandOutputRecordFieldLoader
-)
-union_of_None_type_or_array_of_CommandOutputRecordFieldLoader: Final = _UnionLoader(
+array_of_CommandOutputRecordFieldLoader: Final[
+    _Loader[Sequence[CommandOutputRecordField]]
+] = _ArrayLoader(CommandOutputRecordFieldLoader)
+union_of_None_type_or_array_of_CommandOutputRecordFieldLoader: Final[
+    _Loader[None | Sequence[CommandOutputRecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_CommandOutputRecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_CommandOutputRecordFieldLoader: Final = (
-    _IdMapLoader(
-        union_of_None_type_or_array_of_CommandOutputRecordFieldLoader, "name", "type"
-    )
+idmap_fields_union_of_None_type_or_array_of_CommandOutputRecordFieldLoader: Final[
+    _Loader[None | Sequence[CommandOutputRecordField]]
+] = _IdMapLoader(
+    union_of_None_type_or_array_of_CommandOutputRecordFieldLoader, "name", "type"
 )
-uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2_None: (
-    Final
-) = _URILoader(
+uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Sequence[
+            CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _URILoader(
     union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Literal["stdin"]
+        | Sequence[
+            CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         stdinLoader,
@@ -30362,16 +31517,85 @@ union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_Comma
         array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2: (
-    Final
-) = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Literal["stdin"]
+        | Sequence[
+            CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: (
-    Final
-) = _UnionLoader(
+union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Literal["stderr"]
+        | Literal["stdout"]
+        | Sequence[
+            CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         stdoutLoader,
@@ -30383,82 +31607,125 @@ union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSch
         array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2: (
-    Final
-) = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Literal[
+            "null",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "string",
+            "File",
+            "Directory",
+        ]
+        | Literal["stderr"]
+        | Literal["stdout"]
+        | Sequence[
+            CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | Literal[
+                "null",
+                "boolean",
+                "int",
+                "long",
+                "float",
+                "double",
+                "string",
+                "File",
+                "Directory",
+            ]
+            | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-CommandLineTool_classLoader: Final = _EnumLoader(
+CommandLineTool_classLoader: Final[_Loader[Literal["CommandLineTool"]]] = _EnumLoader(
     ("CommandLineTool",), "CommandLineTool_class"
 )
-uri_CommandLineTool_classLoader_False_True_None_None: Final = _URILoader(
-    CommandLineTool_classLoader, False, True, None, None
-)
-array_of_CommandInputParameterLoader: Final = _ArrayLoader(CommandInputParameterLoader)
-idmap_inputs_array_of_CommandInputParameterLoader: Final = _IdMapLoader(
-    array_of_CommandInputParameterLoader, "id", "type"
-)
-array_of_CommandOutputParameterLoader: Final = _ArrayLoader(
-    CommandOutputParameterLoader
-)
-idmap_outputs_array_of_CommandOutputParameterLoader: Final = _IdMapLoader(
-    array_of_CommandOutputParameterLoader, "id", "type"
-)
-union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader: Final = _UnionLoader(
+uri_CommandLineTool_classLoader_False_True_None_None: Final[
+    _Loader[Literal["CommandLineTool"]]
+] = _URILoader(CommandLineTool_classLoader, False, True, None, None)
+array_of_CommandInputParameterLoader: Final[
+    _Loader[Sequence[CommandInputParameter]]
+] = _ArrayLoader(CommandInputParameterLoader)
+idmap_inputs_array_of_CommandInputParameterLoader: Final[
+    _Loader[Sequence[CommandInputParameter]]
+] = _IdMapLoader(array_of_CommandInputParameterLoader, "id", "type")
+array_of_CommandOutputParameterLoader: Final[
+    _Loader[Sequence[CommandOutputParameter]]
+] = _ArrayLoader(CommandOutputParameterLoader)
+idmap_outputs_array_of_CommandOutputParameterLoader: Final[
+    _Loader[Sequence[CommandOutputParameter]]
+] = _IdMapLoader(array_of_CommandOutputParameterLoader, "id", "type")
+union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader: Final[
+    _Loader[CommandLineBinding | str]
+] = _UnionLoader(
     (
         strtype,
         ExpressionLoader,
         CommandLineBindingLoader,
     )
 )
-array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader: Final = (
-    _ArrayLoader(union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader)
-)
-union_of_None_type_or_array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader: (
-    Final
-) = _UnionLoader(
+array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader: Final[
+    _Loader[Sequence[CommandLineBinding | str]]
+] = _ArrayLoader(union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader)
+union_of_None_type_or_array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader: Final[
+    _Loader[None | Sequence[CommandLineBinding | str]]
+] = _UnionLoader(
     (
         None_type,
         array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader,
     )
 )
-array_of_inttype: Final = _ArrayLoader(inttype)
-union_of_None_type_or_array_of_inttype: Final = _UnionLoader(
-    (
-        None_type,
-        array_of_inttype,
+array_of_inttype: Final[_Loader[Sequence[i32]]] = _ArrayLoader(inttype)
+union_of_None_type_or_array_of_inttype: Final[_Loader[None | Sequence[i32]]] = (
+    _UnionLoader(
+        (
+            None_type,
+            array_of_inttype,
+        )
     )
 )
-DockerRequirement_classLoader: Final = _EnumLoader(
-    ("DockerRequirement",), "DockerRequirement_class"
+DockerRequirement_classLoader: Final[_Loader[Literal["DockerRequirement"]]] = (
+    _EnumLoader(("DockerRequirement",), "DockerRequirement_class")
 )
-uri_DockerRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    DockerRequirement_classLoader, False, True, None, None
+uri_DockerRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["DockerRequirement"]]
+] = _URILoader(DockerRequirement_classLoader, False, True, None, None)
+SoftwareRequirement_classLoader: Final[_Loader[Literal["SoftwareRequirement"]]] = (
+    _EnumLoader(("SoftwareRequirement",), "SoftwareRequirement_class")
 )
-SoftwareRequirement_classLoader: Final = _EnumLoader(
-    ("SoftwareRequirement",), "SoftwareRequirement_class"
+uri_SoftwareRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["SoftwareRequirement"]]
+] = _URILoader(SoftwareRequirement_classLoader, False, True, None, None)
+array_of_SoftwarePackageLoader: Final[_Loader[Sequence[SoftwarePackage]]] = (
+    _ArrayLoader(SoftwarePackageLoader)
 )
-uri_SoftwareRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    SoftwareRequirement_classLoader, False, True, None, None
-)
-array_of_SoftwarePackageLoader: Final = _ArrayLoader(SoftwarePackageLoader)
-idmap_packages_array_of_SoftwarePackageLoader: Final = _IdMapLoader(
-    array_of_SoftwarePackageLoader, "package", "specs"
-)
-uri_union_of_None_type_or_array_of_strtype_False_False_None_True: Final = _URILoader(
-    union_of_None_type_or_array_of_strtype, False, False, None, True
-)
-InitialWorkDirRequirement_classLoader: Final = _EnumLoader(
-    ("InitialWorkDirRequirement",), "InitialWorkDirRequirement_class"
-)
-uri_InitialWorkDirRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    InitialWorkDirRequirement_classLoader, False, True, None, None
-)
-union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_DirectoryLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader: (
-    Final
-) = _UnionLoader(
+idmap_packages_array_of_SoftwarePackageLoader: Final[
+    _Loader[Sequence[SoftwarePackage]]
+] = _IdMapLoader(array_of_SoftwarePackageLoader, "package", "specs")
+uri_union_of_None_type_or_array_of_strtype_False_False_None_True: Final[
+    _Loader[None | Sequence[str]]
+] = _URILoader(union_of_None_type_or_array_of_strtype, False, False, None, True)
+InitialWorkDirRequirement_classLoader: Final[
+    _Loader[Literal["InitialWorkDirRequirement"]]
+] = _EnumLoader(("InitialWorkDirRequirement",), "InitialWorkDirRequirement_class")
+uri_InitialWorkDirRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["InitialWorkDirRequirement"]]
+] = _URILoader(InitialWorkDirRequirement_classLoader, False, True, None, None)
+union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_DirectoryLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader: Final[
+    _Loader[Directory | Dirent | File | None | Sequence[Directory | File] | str]
+] = _UnionLoader(
     (
         None_type,
         DirentLoader,
@@ -30468,167 +31735,192 @@ union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_Director
         array_of_union_of_FileLoader_or_DirectoryLoader,
     )
 )
-array_of_union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_DirectoryLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_DirectoryLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader: Final[
+    _Loader[
+        Sequence[Directory | Dirent | File | None | Sequence[Directory | File] | str]
+    ]
+] = _ArrayLoader(
     union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_DirectoryLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader
 )
-union_of_ExpressionLoader_or_array_of_union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_DirectoryLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader: (
-    Final
-) = _UnionLoader(
+union_of_ExpressionLoader_or_array_of_union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_DirectoryLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader: Final[
+    _Loader[
+        Sequence[Directory | Dirent | File | None | Sequence[Directory | File] | str]
+        | str
+    ]
+] = _UnionLoader(
     (
         ExpressionLoader,
         array_of_union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_DirectoryLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader,
     )
 )
-EnvVarRequirement_classLoader: Final = _EnumLoader(
-    ("EnvVarRequirement",), "EnvVarRequirement_class"
+EnvVarRequirement_classLoader: Final[_Loader[Literal["EnvVarRequirement"]]] = (
+    _EnumLoader(("EnvVarRequirement",), "EnvVarRequirement_class")
 )
-uri_EnvVarRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    EnvVarRequirement_classLoader, False, True, None, None
+uri_EnvVarRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["EnvVarRequirement"]]
+] = _URILoader(EnvVarRequirement_classLoader, False, True, None, None)
+array_of_EnvironmentDefLoader: Final[_Loader[Sequence[EnvironmentDef]]] = _ArrayLoader(
+    EnvironmentDefLoader
 )
-array_of_EnvironmentDefLoader: Final = _ArrayLoader(EnvironmentDefLoader)
-idmap_envDef_array_of_EnvironmentDefLoader: Final = _IdMapLoader(
-    array_of_EnvironmentDefLoader, "envName", "envValue"
+idmap_envDef_array_of_EnvironmentDefLoader: Final[_Loader[Sequence[EnvironmentDef]]] = (
+    _IdMapLoader(array_of_EnvironmentDefLoader, "envName", "envValue")
 )
-ShellCommandRequirement_classLoader: Final = _EnumLoader(
-    ("ShellCommandRequirement",), "ShellCommandRequirement_class"
+ShellCommandRequirement_classLoader: Final[
+    _Loader[Literal["ShellCommandRequirement"]]
+] = _EnumLoader(("ShellCommandRequirement",), "ShellCommandRequirement_class")
+uri_ShellCommandRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["ShellCommandRequirement"]]
+] = _URILoader(ShellCommandRequirement_classLoader, False, True, None, None)
+ResourceRequirement_classLoader: Final[_Loader[Literal["ResourceRequirement"]]] = (
+    _EnumLoader(("ResourceRequirement",), "ResourceRequirement_class")
 )
-uri_ShellCommandRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    ShellCommandRequirement_classLoader, False, True, None, None
-)
-ResourceRequirement_classLoader: Final = _EnumLoader(
-    ("ResourceRequirement",), "ResourceRequirement_class"
-)
-uri_ResourceRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    ResourceRequirement_classLoader, False, True, None, None
-)
-union_of_None_type_or_inttype_or_inttype_or_floattype_or_ExpressionLoader: Final = (
-    _UnionLoader(
-        (
-            None_type,
-            inttype,
-            inttype,
-            floattype,
-            ExpressionLoader,
-        )
+uri_ResourceRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["ResourceRequirement"]]
+] = _URILoader(ResourceRequirement_classLoader, False, True, None, None)
+union_of_None_type_or_inttype_or_inttype_or_floattype_or_ExpressionLoader: Final[
+    _Loader[None | float | i32 | str]
+] = _UnionLoader(
+    (
+        None_type,
+        inttype,
+        inttype,
+        floattype,
+        ExpressionLoader,
     )
 )
-WorkReuse_classLoader: Final = _EnumLoader(("WorkReuse",), "WorkReuse_class")
-uri_WorkReuse_classLoader_False_True_None_None: Final = _URILoader(
-    WorkReuse_classLoader, False, True, None, None
+WorkReuse_classLoader: Final[_Loader[Literal["WorkReuse"]]] = _EnumLoader(
+    ("WorkReuse",), "WorkReuse_class"
 )
-union_of_booltype_or_ExpressionLoader: Final = _UnionLoader(
+uri_WorkReuse_classLoader_False_True_None_None: Final[_Loader[Literal["WorkReuse"]]] = (
+    _URILoader(WorkReuse_classLoader, False, True, None, None)
+)
+union_of_booltype_or_ExpressionLoader: Final[_Loader[bool | str]] = _UnionLoader(
     (
         booltype,
         ExpressionLoader,
     )
 )
-NetworkAccess_classLoader: Final = _EnumLoader(
+NetworkAccess_classLoader: Final[_Loader[Literal["NetworkAccess"]]] = _EnumLoader(
     ("NetworkAccess",), "NetworkAccess_class"
 )
-uri_NetworkAccess_classLoader_False_True_None_None: Final = _URILoader(
-    NetworkAccess_classLoader, False, True, None, None
-)
-InplaceUpdateRequirement_classLoader: Final = _EnumLoader(
-    ("InplaceUpdateRequirement",), "InplaceUpdateRequirement_class"
-)
-uri_InplaceUpdateRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    InplaceUpdateRequirement_classLoader, False, True, None, None
-)
-ToolTimeLimit_classLoader: Final = _EnumLoader(
+uri_NetworkAccess_classLoader_False_True_None_None: Final[
+    _Loader[Literal["NetworkAccess"]]
+] = _URILoader(NetworkAccess_classLoader, False, True, None, None)
+InplaceUpdateRequirement_classLoader: Final[
+    _Loader[Literal["InplaceUpdateRequirement"]]
+] = _EnumLoader(("InplaceUpdateRequirement",), "InplaceUpdateRequirement_class")
+uri_InplaceUpdateRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["InplaceUpdateRequirement"]]
+] = _URILoader(InplaceUpdateRequirement_classLoader, False, True, None, None)
+ToolTimeLimit_classLoader: Final[_Loader[Literal["ToolTimeLimit"]]] = _EnumLoader(
     ("ToolTimeLimit",), "ToolTimeLimit_class"
 )
-uri_ToolTimeLimit_classLoader_False_True_None_None: Final = _URILoader(
-    ToolTimeLimit_classLoader, False, True, None, None
-)
-union_of_inttype_or_inttype_or_ExpressionLoader: Final = _UnionLoader(
-    (
-        inttype,
-        inttype,
-        ExpressionLoader,
+uri_ToolTimeLimit_classLoader_False_True_None_None: Final[
+    _Loader[Literal["ToolTimeLimit"]]
+] = _URILoader(ToolTimeLimit_classLoader, False, True, None, None)
+union_of_inttype_or_inttype_or_ExpressionLoader: Final[_Loader[i32 | str]] = (
+    _UnionLoader(
+        (
+            inttype,
+            inttype,
+            ExpressionLoader,
+        )
     )
 )
-union_of_None_type_or_InputBindingLoader: Final = _UnionLoader(
-    (
-        None_type,
-        InputBindingLoader,
+union_of_None_type_or_InputBindingLoader: Final[_Loader[InputBinding | None]] = (
+    _UnionLoader(
+        (
+            None_type,
+            InputBindingLoader,
+        )
     )
 )
-ExpressionTool_classLoader: Final = _EnumLoader(
+ExpressionTool_classLoader: Final[_Loader[Literal["ExpressionTool"]]] = _EnumLoader(
     ("ExpressionTool",), "ExpressionTool_class"
 )
-uri_ExpressionTool_classLoader_False_True_None_None: Final = _URILoader(
-    ExpressionTool_classLoader, False, True, None, None
-)
-array_of_WorkflowInputParameterLoader: Final = _ArrayLoader(
-    WorkflowInputParameterLoader
-)
-idmap_inputs_array_of_WorkflowInputParameterLoader: Final = _IdMapLoader(
-    array_of_WorkflowInputParameterLoader, "id", "type"
-)
-array_of_ExpressionToolOutputParameterLoader: Final = _ArrayLoader(
-    ExpressionToolOutputParameterLoader
-)
-idmap_outputs_array_of_ExpressionToolOutputParameterLoader: Final = _IdMapLoader(
-    array_of_ExpressionToolOutputParameterLoader, "id", "type"
-)
-uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1_None: Final = (
-    _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 1, None)
-)
-union_of_None_type_or_LinkMergeMethodLoader: Final = _UnionLoader(
+uri_ExpressionTool_classLoader_False_True_None_None: Final[
+    _Loader[Literal["ExpressionTool"]]
+] = _URILoader(ExpressionTool_classLoader, False, True, None, None)
+array_of_WorkflowInputParameterLoader: Final[
+    _Loader[Sequence[WorkflowInputParameter]]
+] = _ArrayLoader(WorkflowInputParameterLoader)
+idmap_inputs_array_of_WorkflowInputParameterLoader: Final[
+    _Loader[Sequence[WorkflowInputParameter]]
+] = _IdMapLoader(array_of_WorkflowInputParameterLoader, "id", "type")
+array_of_ExpressionToolOutputParameterLoader: Final[
+    _Loader[Sequence[ExpressionToolOutputParameter]]
+] = _ArrayLoader(ExpressionToolOutputParameterLoader)
+idmap_outputs_array_of_ExpressionToolOutputParameterLoader: Final[
+    _Loader[Sequence[ExpressionToolOutputParameter]]
+] = _IdMapLoader(array_of_ExpressionToolOutputParameterLoader, "id", "type")
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1_None: Final[
+    _Loader[None | Sequence[str] | str]
+] = _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 1, None)
+union_of_None_type_or_LinkMergeMethodLoader: Final[
+    _Loader[Literal["merge_nested", "merge_flattened"] | None]
+] = _UnionLoader(
     (
         None_type,
         LinkMergeMethodLoader,
     )
 )
-union_of_None_type_or_PickValueMethodLoader: Final = _UnionLoader(
+union_of_None_type_or_PickValueMethodLoader: Final[
+    _Loader[Literal["first_non_null", "the_only_non_null", "all_non_null"] | None]
+] = _UnionLoader(
     (
         None_type,
         PickValueMethodLoader,
     )
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None: Final = (
-    _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2, None)
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None: Final[
+    _Loader[None | Sequence[str] | str]
+] = _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2, None)
+array_of_WorkflowStepInputLoader: Final[_Loader[Sequence[WorkflowStepInput]]] = (
+    _ArrayLoader(WorkflowStepInputLoader)
 )
-array_of_WorkflowStepInputLoader: Final = _ArrayLoader(WorkflowStepInputLoader)
-idmap_in__array_of_WorkflowStepInputLoader: Final = _IdMapLoader(
-    array_of_WorkflowStepInputLoader, "id", "source"
-)
-union_of_strtype_or_WorkflowStepOutputLoader: Final = _UnionLoader(
+idmap_in__array_of_WorkflowStepInputLoader: Final[
+    _Loader[Sequence[WorkflowStepInput]]
+] = _IdMapLoader(array_of_WorkflowStepInputLoader, "id", "source")
+union_of_strtype_or_WorkflowStepOutputLoader: Final[
+    _Loader[WorkflowStepOutput | str]
+] = _UnionLoader(
     (
         strtype,
         WorkflowStepOutputLoader,
     )
 )
-array_of_union_of_strtype_or_WorkflowStepOutputLoader: Final = _ArrayLoader(
-    union_of_strtype_or_WorkflowStepOutputLoader
-)
-union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader: Final = _UnionLoader(
-    (array_of_union_of_strtype_or_WorkflowStepOutputLoader,)
-)
-uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None_None: (
-    Final
-) = _URILoader(
+array_of_union_of_strtype_or_WorkflowStepOutputLoader: Final[
+    _Loader[Sequence[WorkflowStepOutput | str]]
+] = _ArrayLoader(union_of_strtype_or_WorkflowStepOutputLoader)
+union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader: Final[
+    _Loader[Sequence[WorkflowStepOutput | str]]
+] = _UnionLoader((array_of_union_of_strtype_or_WorkflowStepOutputLoader,))
+uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None_None: Final[
+    _Loader[Sequence[WorkflowStepOutput | str]]
+] = _URILoader(
     union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader,
     True,
     False,
     None,
     None,
 )
-array_of_Any_type: Final = _ArrayLoader(Any_type)
-union_of_None_type_or_array_of_Any_type: Final = _UnionLoader(
-    (
-        None_type,
-        array_of_Any_type,
+array_of_Any_type: Final[_Loader[Sequence[Any]]] = _ArrayLoader(Any_type)
+union_of_None_type_or_array_of_Any_type: Final[_Loader[None | Sequence[Any]]] = (
+    _UnionLoader(
+        (
+            None_type,
+            array_of_Any_type,
+        )
     )
 )
-idmap_hints_union_of_None_type_or_array_of_Any_type: Final = _IdMapLoader(
-    union_of_None_type_or_array_of_Any_type, "class", "None"
-)
-union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader: (
-    Final
-) = _UnionLoader(
+idmap_hints_union_of_None_type_or_array_of_Any_type: Final[
+    _Loader[None | Sequence[Any]]
+] = _IdMapLoader(union_of_None_type_or_array_of_Any_type, "class", "None")
+union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader: Final[
+    _Loader[
+        CommandLineTool | ExpressionTool | Operation | ProcessGenerator | Workflow | str
+    ]
+] = _UnionLoader(
     (
         strtype,
         CommandLineToolLoader,
@@ -30638,120 +31930,142 @@ union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoa
         ProcessGeneratorLoader,
     )
 )
-uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader_False_False_None_None: (
-    Final
-) = _URILoader(
+uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader_False_False_None_None: Final[
+    _Loader[
+        CommandLineTool | ExpressionTool | Operation | ProcessGenerator | Workflow | str
+    ]
+] = _URILoader(
     union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader,
     False,
     False,
     None,
     None,
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0_None: Final = (
-    _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0, None)
-)
-union_of_None_type_or_ScatterMethodLoader: Final = _UnionLoader(
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0_None: Final[
+    _Loader[None | Sequence[str] | str]
+] = _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0, None)
+union_of_None_type_or_ScatterMethodLoader: Final[
+    _Loader[Literal["dotproduct", "nested_crossproduct", "flat_crossproduct"] | None]
+] = _UnionLoader(
     (
         None_type,
         ScatterMethodLoader,
     )
 )
-uri_union_of_None_type_or_ScatterMethodLoader_False_True_None_None: Final = _URILoader(
-    union_of_None_type_or_ScatterMethodLoader, False, True, None, None
+uri_union_of_None_type_or_ScatterMethodLoader_False_True_None_None: Final[
+    _Loader[Literal["dotproduct", "nested_crossproduct", "flat_crossproduct"] | None]
+] = _URILoader(union_of_None_type_or_ScatterMethodLoader, False, True, None, None)
+Workflow_classLoader: Final[_Loader[Literal["Workflow"]]] = _EnumLoader(
+    ("Workflow",), "Workflow_class"
 )
-Workflow_classLoader: Final = _EnumLoader(("Workflow",), "Workflow_class")
-uri_Workflow_classLoader_False_True_None_None: Final = _URILoader(
-    Workflow_classLoader, False, True, None, None
+uri_Workflow_classLoader_False_True_None_None: Final[_Loader[Literal["Workflow"]]] = (
+    _URILoader(Workflow_classLoader, False, True, None, None)
 )
-array_of_WorkflowOutputParameterLoader: Final = _ArrayLoader(
-    WorkflowOutputParameterLoader
+array_of_WorkflowOutputParameterLoader: Final[
+    _Loader[Sequence[WorkflowOutputParameter]]
+] = _ArrayLoader(WorkflowOutputParameterLoader)
+idmap_outputs_array_of_WorkflowOutputParameterLoader: Final[
+    _Loader[Sequence[WorkflowOutputParameter]]
+] = _IdMapLoader(array_of_WorkflowOutputParameterLoader, "id", "type")
+array_of_WorkflowStepLoader: Final[_Loader[Sequence[WorkflowStep]]] = _ArrayLoader(
+    WorkflowStepLoader
 )
-idmap_outputs_array_of_WorkflowOutputParameterLoader: Final = _IdMapLoader(
-    array_of_WorkflowOutputParameterLoader, "id", "type"
+union_of_array_of_WorkflowStepLoader: Final[_Loader[Sequence[WorkflowStep]]] = (
+    _UnionLoader((array_of_WorkflowStepLoader,))
 )
-array_of_WorkflowStepLoader: Final = _ArrayLoader(WorkflowStepLoader)
-union_of_array_of_WorkflowStepLoader: Final = _UnionLoader(
-    (array_of_WorkflowStepLoader,)
-)
-idmap_steps_union_of_array_of_WorkflowStepLoader: Final = _IdMapLoader(
-    union_of_array_of_WorkflowStepLoader, "id", "None"
-)
-SubworkflowFeatureRequirement_classLoader: Final = _EnumLoader(
+idmap_steps_union_of_array_of_WorkflowStepLoader: Final[
+    _Loader[Sequence[WorkflowStep]]
+] = _IdMapLoader(union_of_array_of_WorkflowStepLoader, "id", "None")
+SubworkflowFeatureRequirement_classLoader: Final[
+    _Loader[Literal["SubworkflowFeatureRequirement"]]
+] = _EnumLoader(
     ("SubworkflowFeatureRequirement",), "SubworkflowFeatureRequirement_class"
 )
-uri_SubworkflowFeatureRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    SubworkflowFeatureRequirement_classLoader, False, True, None, None
-)
-ScatterFeatureRequirement_classLoader: Final = _EnumLoader(
-    ("ScatterFeatureRequirement",), "ScatterFeatureRequirement_class"
-)
-uri_ScatterFeatureRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    ScatterFeatureRequirement_classLoader, False, True, None, None
-)
-MultipleInputFeatureRequirement_classLoader: Final = _EnumLoader(
+uri_SubworkflowFeatureRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["SubworkflowFeatureRequirement"]]
+] = _URILoader(SubworkflowFeatureRequirement_classLoader, False, True, None, None)
+ScatterFeatureRequirement_classLoader: Final[
+    _Loader[Literal["ScatterFeatureRequirement"]]
+] = _EnumLoader(("ScatterFeatureRequirement",), "ScatterFeatureRequirement_class")
+uri_ScatterFeatureRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["ScatterFeatureRequirement"]]
+] = _URILoader(ScatterFeatureRequirement_classLoader, False, True, None, None)
+MultipleInputFeatureRequirement_classLoader: Final[
+    _Loader[Literal["MultipleInputFeatureRequirement"]]
+] = _EnumLoader(
     ("MultipleInputFeatureRequirement",), "MultipleInputFeatureRequirement_class"
 )
-uri_MultipleInputFeatureRequirement_classLoader_False_True_None_None: Final = (
-    _URILoader(MultipleInputFeatureRequirement_classLoader, False, True, None, None)
-)
-StepInputExpressionRequirement_classLoader: Final = _EnumLoader(
+uri_MultipleInputFeatureRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["MultipleInputFeatureRequirement"]]
+] = _URILoader(MultipleInputFeatureRequirement_classLoader, False, True, None, None)
+StepInputExpressionRequirement_classLoader: Final[
+    _Loader[Literal["StepInputExpressionRequirement"]]
+] = _EnumLoader(
     ("StepInputExpressionRequirement",), "StepInputExpressionRequirement_class"
 )
-uri_StepInputExpressionRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    StepInputExpressionRequirement_classLoader, False, True, None, None
+uri_StepInputExpressionRequirement_classLoader_False_True_None_None: Final[
+    _Loader[Literal["StepInputExpressionRequirement"]]
+] = _URILoader(StepInputExpressionRequirement_classLoader, False, True, None, None)
+Operation_classLoader: Final[_Loader[Literal["Operation"]]] = _EnumLoader(
+    ("Operation",), "Operation_class"
 )
-Operation_classLoader: Final = _EnumLoader(("Operation",), "Operation_class")
-uri_Operation_classLoader_False_True_None_None: Final = _URILoader(
-    Operation_classLoader, False, True, None, None
+uri_Operation_classLoader_False_True_None_None: Final[_Loader[Literal["Operation"]]] = (
+    _URILoader(Operation_classLoader, False, True, None, None)
 )
-array_of_OperationInputParameterLoader: Final = _ArrayLoader(
-    OperationInputParameterLoader
+array_of_OperationInputParameterLoader: Final[
+    _Loader[Sequence[OperationInputParameter]]
+] = _ArrayLoader(OperationInputParameterLoader)
+idmap_inputs_array_of_OperationInputParameterLoader: Final[
+    _Loader[Sequence[OperationInputParameter]]
+] = _IdMapLoader(array_of_OperationInputParameterLoader, "id", "type")
+array_of_OperationOutputParameterLoader: Final[
+    _Loader[Sequence[OperationOutputParameter]]
+] = _ArrayLoader(OperationOutputParameterLoader)
+idmap_outputs_array_of_OperationOutputParameterLoader: Final[
+    _Loader[Sequence[OperationOutputParameter]]
+] = _IdMapLoader(array_of_OperationOutputParameterLoader, "id", "type")
+uri_strtype_False_True_None_None: Final[_Loader[str]] = _URILoader(
+    strtype, False, True, None, None
 )
-idmap_inputs_array_of_OperationInputParameterLoader: Final = _IdMapLoader(
-    array_of_OperationInputParameterLoader, "id", "type"
-)
-array_of_OperationOutputParameterLoader: Final = _ArrayLoader(
-    OperationOutputParameterLoader
-)
-idmap_outputs_array_of_OperationOutputParameterLoader: Final = _IdMapLoader(
-    array_of_OperationOutputParameterLoader, "id", "type"
-)
-uri_strtype_False_True_None_None: Final = _URILoader(strtype, False, True, None, None)
-uri_array_of_strtype_False_False_0_None: Final = _URILoader(
+uri_array_of_strtype_False_False_0_None: Final[_Loader[Sequence[str]]] = _URILoader(
     array_of_strtype, False, False, 0, None
 )
-union_of_inttype_or_ExpressionLoader: Final = _UnionLoader(
+union_of_inttype_or_ExpressionLoader: Final[_Loader[i32 | str]] = _UnionLoader(
     (
         inttype,
         ExpressionLoader,
     )
 )
-union_of_strtype_or_array_of_strtype: Final = _UnionLoader(
-    (
-        strtype,
-        array_of_strtype,
+union_of_strtype_or_array_of_strtype: Final[_Loader[Sequence[str] | str]] = (
+    _UnionLoader(
+        (
+            strtype,
+            array_of_strtype,
+        )
     )
 )
-union_of_None_type_or_Any_type: Final = _UnionLoader(
+union_of_None_type_or_Any_type: Final[_Loader[Any | None]] = _UnionLoader(
     (
         None_type,
         Any_type,
     )
 )
-array_of_LoopInputLoader: Final = _ArrayLoader(LoopInputLoader)
-idmap_loop_array_of_LoopInputLoader: Final = _IdMapLoader(
+array_of_LoopInputLoader: Final[_Loader[Sequence[LoopInput]]] = _ArrayLoader(
+    LoopInputLoader
+)
+idmap_loop_array_of_LoopInputLoader: Final[_Loader[Sequence[LoopInput]]] = _IdMapLoader(
     array_of_LoopInputLoader, "id", "loopSource"
 )
-LoopOutputModesLoader: Final = _EnumLoader(
+LoopOutputModesLoader: Final[_Loader[Literal["last", "all"]]] = _EnumLoader(
     (
         "last",
         "all",
     ),
     "LoopOutputModes",
 )
-union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader: (
-    Final
-) = _UnionLoader(
+union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader: Final[
+    _Loader[CommandLineTool | ExpressionTool | Operation | ProcessGenerator | Workflow]
+] = _UnionLoader(
     (
         CommandLineToolLoader,
         ExpressionToolLoader,
@@ -30760,14 +32074,27 @@ union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_Oper
         ProcessGeneratorLoader,
     )
 )
-array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader: (
-    Final
-) = _ArrayLoader(
+array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader: Final[
+    _Loader[
+        Sequence[
+            CommandLineTool | ExpressionTool | Operation | ProcessGenerator | Workflow
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader
 )
-union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader: (
-    Final
-) = _UnionLoader(
+union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_or_ProcessGeneratorLoader: Final[
+    _Loader[
+        CommandLineTool
+        | ExpressionTool
+        | Operation
+        | ProcessGenerator
+        | Sequence[
+            CommandLineTool | ExpressionTool | Operation | ProcessGenerator | Workflow
+        ]
+        | Workflow
+    ]
+] = _UnionLoader(
     (
         CommandLineToolLoader,
         ExpressionToolLoader,
