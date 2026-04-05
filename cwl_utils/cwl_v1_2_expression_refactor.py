@@ -335,15 +335,7 @@ def plain_output_type_to_clt_output_type(
 
 
 def parameter_to_workflow_input_paramater(
-    parameter: (
-        cwl.WorkflowInputParameter
-        | cwl.CommandInputParameter
-        | cwl.CommandOutputParameter
-        | cwl.ExpressionToolOutputParameter
-        | cwl.WorkflowOutputParameter
-        | cwl.OperationOutputParameter
-        | cwl.OperationInputParameter
-    ),
+    parameter: cwl.InputParameter | cwl.OutputParameter,
 ) -> cwl.WorkflowInputParameter:
     return cwl.WorkflowInputParameter.fromDoc(
         parameter.save(), parameter.loadingOptions.baseuri, parameter.loadingOptions

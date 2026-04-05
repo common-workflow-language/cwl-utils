@@ -25,7 +25,10 @@ LoadingOptions: TypeAlias = (
 Saveable: TypeAlias = cwl_v1_0.Saveable | cwl_v1_1.Saveable | cwl_v1_2.Saveable
 """Type union for a CWL v1.x Saveable object."""
 InputParameter: TypeAlias = (
-    cwl_v1_0.InputParameter | cwl_v1_1.InputParameter | cwl_v1_2.InputParameter
+    cwl_v1_0.InputParameter
+    | cwl_v1_0.CommandInputParameter
+    | cwl_v1_1.InputParameter
+    | cwl_v1_2.InputParameter
 )
 """Type union for a CWL v1.x InputEnumSchema object."""
 InputRecordField: TypeAlias = (
@@ -37,7 +40,11 @@ InputSchema: TypeAlias = (
 )
 """Type union for a CWL v1.x InputSchema object."""
 OutputParameter: TypeAlias = (
-    cwl_v1_0.OutputParameter | cwl_v1_1.OutputParameter | cwl_v1_2.OutputParameter
+    cwl_v1_0.CommandOutputParameter
+    | cwl_v1_0.ExpressionToolOutputParameter
+    | cwl_v1_0.WorkflowOutputParameter
+    | cwl_v1_1.OutputParameter
+    | cwl_v1_2.OutputParameter
 )
 """Type union for a CWL v1.x OutputParameter object."""
 OutputArraySchema: TypeAlias = (
