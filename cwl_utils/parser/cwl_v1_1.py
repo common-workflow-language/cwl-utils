@@ -1455,7 +1455,7 @@ class RecordField(Saveable):
     def __init__(
         self,
         name: str,
-        type_: ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | Sequence[ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | UnionSchema | str] | UnionSchema | str,
+        type_: ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | Sequence[ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | UnionSchema | str] | UnionSchema | str,
         doc: None | Sequence[str] | str = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
@@ -1656,7 +1656,7 @@ class RecordSchema(Saveable):
 
     def __init__(
         self,
-        type_: Literal["record"],
+        type_: Record_name,
         fields: None | Sequence[RecordField] = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
@@ -1928,7 +1928,7 @@ class EnumSchema(Saveable):
     def __init__(
         self,
         symbols: Sequence[str],
-        type_: Literal["enum"],
+        type_: Enum_name,
         name: None | str = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
@@ -2129,8 +2129,8 @@ class ArraySchema(Saveable):
 
     def __init__(
         self,
-        items: ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | Sequence[ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | UnionSchema | str] | UnionSchema | str,
-        type_: Literal["array"],
+        items: ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | Sequence[ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | UnionSchema | str] | UnionSchema | str,
+        type_: Array_name,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -2329,8 +2329,8 @@ class MapSchema(Saveable):
 
     def __init__(
         self,
-        type_: Literal["map"],
-        values: ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | Sequence[ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | UnionSchema | str] | UnionSchema | str,
+        type_: Map_name,
+        values: ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | Sequence[ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | UnionSchema | str] | UnionSchema | str,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -2529,8 +2529,8 @@ class UnionSchema(Saveable):
 
     def __init__(
         self,
-        names: ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | Sequence[ArraySchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | MapSchema | RecordSchema | UnionSchema | str] | UnionSchema | str,
-        type_: Literal["union"],
+        names: ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | Sequence[ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | UnionSchema | str] | UnionSchema | str,
+        type_: Union_name,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -2729,8 +2729,8 @@ class CWLArraySchema(ArraySchema):
 
     def __init__(
         self,
-        items: CWLArraySchema | CWLRecordSchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | str] | str,
-        type_: Literal["array"],
+        items: CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str] | str,
+        type_: Array_name,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -2997,7 +2997,7 @@ class CWLRecordField(RecordField):
     def __init__(
         self,
         name: str,
-        type_: CWLArraySchema | CWLRecordSchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | Literal["null", "boolean", "int", "long", "float", "double", "string"] | str] | str,
+        type_: CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str] | str,
         doc: None | Sequence[str] | str = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
@@ -3198,7 +3198,7 @@ class CWLRecordSchema(RecordSchema):
 
     def __init__(
         self,
-        type_: Literal["record"],
+        type_: Record_name,
         fields: None | Sequence[CWLRecordField] = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
@@ -5165,14 +5165,14 @@ class InputRecordField(CWLRecordField):
     def __init__(
         self,
         name: str,
-        type_: InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str,
+        type_: CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | Sequence[CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str] | str,
         doc: None | Sequence[str] | str = None,
         label: None | str = None,
         secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
         streamable: None | bool = None,
         format: None | Sequence[str] | str = None,
         loadContents: None | bool = None,
-        loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = None,
+        loadListing: LoadListingEnum | None = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -5562,7 +5562,7 @@ class InputRecordSchema(CWLRecordSchema):
 
     def __init__(
         self,
-        type_: Literal["record"],
+        type_: Record_name,
         fields: None | Sequence[InputRecordField] = None,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
@@ -5943,7 +5943,7 @@ class InputEnumSchema(EnumSchema):
     def __init__(
         self,
         symbols: Sequence[str],
-        type_: Literal["enum"],
+        type_: Enum_name,
         name: None | str = None,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
@@ -6322,8 +6322,8 @@ class InputArraySchema(CWLArraySchema):
 
     def __init__(
         self,
-        items: InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str,
-        type_: Literal["array"],
+        items: CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | Sequence[CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str] | str,
+        type_: Array_name,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
         name: None | str = None,
@@ -6825,7 +6825,7 @@ class OutputRecordField(CWLRecordField):
     def __init__(
         self,
         name: str,
-        type_: Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
+        type_: CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
         doc: None | Sequence[str] | str = None,
         label: None | str = None,
         secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
@@ -7208,7 +7208,7 @@ class OutputRecordSchema(CWLRecordSchema):
 
     def __init__(
         self,
-        type_: Literal["record"],
+        type_: Record_name,
         fields: None | Sequence[OutputRecordField] = None,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
@@ -7589,7 +7589,7 @@ class OutputEnumSchema(EnumSchema):
     def __init__(
         self,
         symbols: Sequence[str],
-        type_: Literal["enum"],
+        type_: Enum_name,
         name: None | str = None,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
@@ -7968,8 +7968,8 @@ class OutputArraySchema(CWLArraySchema):
 
     def __init__(
         self,
-        items: Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
-        type_: Literal["array"],
+        items: CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
+        type_: Array_name,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
         name: None | str = None,
@@ -8725,7 +8725,7 @@ class LoadListingRequirement(Saveable):
 
     def __init__(
         self,
-        loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = None,
+        loadListing: LoadListingEnum | None = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -9814,7 +9814,7 @@ class CommandOutputBinding(Saveable):
     def __init__(
         self,
         loadContents: None | bool = None,
-        loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = None,
+        loadListing: LoadListingEnum | None = None,
         glob: None | Sequence[str] | str = None,
         outputEval: None | str = None,
         extension_fields: MutableMapping[str, Any] | None = None,
@@ -10485,14 +10485,14 @@ class CommandInputRecordField(InputRecordField):
     def __init__(
         self,
         name: str,
-        type_: CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str,
+        type_: CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Sequence[CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | str] | str,
         doc: None | Sequence[str] | str = None,
         label: None | str = None,
         secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
         streamable: None | bool = None,
         format: None | Sequence[str] | str = None,
         loadContents: None | bool = None,
-        loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = None,
+        loadListing: LoadListingEnum | None = None,
         inputBinding: CommandLineBinding | None = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
@@ -10950,7 +10950,7 @@ class CommandInputRecordSchema(InputRecordSchema):
 
     def __init__(
         self,
-        type_: Literal["record"],
+        type_: Record_name,
         fields: None | Sequence[CommandInputRecordField] = None,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
@@ -11398,7 +11398,7 @@ class CommandInputEnumSchema(InputEnumSchema):
     def __init__(
         self,
         symbols: Sequence[str],
-        type_: Literal["enum"],
+        type_: Enum_name,
         name: None | str = None,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
@@ -11837,8 +11837,8 @@ class CommandInputArraySchema(InputArraySchema):
 
     def __init__(
         self,
-        items: CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str,
-        type_: Literal["array"],
+        items: CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Sequence[CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | str] | str,
+        type_: Array_name,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
         name: None | str = None,
@@ -12399,7 +12399,7 @@ class CommandOutputRecordField(OutputRecordField):
     def __init__(
         self,
         name: str,
-        type_: CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str,
+        type_: CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Sequence[CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | str] | str,
         doc: None | Sequence[str] | str = None,
         label: None | str = None,
         secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
@@ -12793,7 +12793,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
 
     def __init__(
         self,
-        type_: Literal["record"],
+        type_: Record_name,
         fields: None | Sequence[CommandOutputRecordField] = None,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
@@ -13174,7 +13174,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
     def __init__(
         self,
         symbols: Sequence[str],
-        type_: Literal["enum"],
+        type_: Enum_name,
         name: None | str = None,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
@@ -13553,8 +13553,8 @@ class CommandOutputArraySchema(OutputArraySchema):
 
     def __init__(
         self,
-        items: CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str,
-        type_: Literal["array"],
+        items: CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Sequence[CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | str] | str,
+        type_: Array_name,
         label: None | str = None,
         doc: None | Sequence[str] | str = None,
         name: None | str = None,
@@ -14285,14 +14285,14 @@ class CommandInputParameter(Saveable):
     def __init__(
         self,
         id: str,
-        type_: CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Literal["stdin"] | Sequence[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str,
+        type_: CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Sequence[CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | str] | stdin | str,
         label: None | str = None,
         secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
         streamable: None | bool = None,
         doc: None | Sequence[str] | str = None,
         format: None | Sequence[str] | str = None,
         loadContents: None | bool = None,
-        loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = None,
+        loadListing: LoadListingEnum | None = None,
         default: CWLObjectType | None = None,
         inputBinding: CommandLineBinding | None = None,
         extension_fields: MutableMapping[str, Any] | None = None,
@@ -14872,7 +14872,7 @@ class CommandOutputParameter(Saveable):
     def __init__(
         self,
         id: str,
-        type_: CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Literal["stderr"] | Literal["stdout"] | Sequence[CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str,
+        type_: CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Sequence[CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | str] | stderr | stdout | str,
         label: None | str = None,
         secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
         streamable: None | bool = None,
@@ -15921,7 +15921,7 @@ class CommandLineTool(Saveable):
         doc: None | Sequence[str] | str = None,
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
         hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
-        cwlVersion: Literal["v1.1"] | None = None,
+        cwlVersion: CWLVersion | None = None,
         baseCommand: None | Sequence[str] | str = None,
         arguments: None | Sequence[CommandLineBinding | str] = None,
         stdin: None | str = None,
@@ -19580,7 +19580,7 @@ class ExpressionToolOutputParameter(Saveable):
     def __init__(
         self,
         id: str,
-        type_: Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
+        type_: CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
         label: None | str = None,
         secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
         streamable: None | bool = None,
@@ -20311,14 +20311,14 @@ class WorkflowInputParameter(Saveable):
     def __init__(
         self,
         id: str,
-        type_: InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | Sequence[InputArraySchema | InputEnumSchema | InputRecordSchema | Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | str] | str,
+        type_: CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | Sequence[CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str] | str,
         label: None | str = None,
         secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
         streamable: None | bool = None,
         doc: None | Sequence[str] | str = None,
         format: None | Sequence[str] | str = None,
         loadContents: None | bool = None,
-        loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = None,
+        loadListing: LoadListingEnum | None = None,
         default: CWLObjectType | None = None,
         inputBinding: InputBinding | None = None,
         extension_fields: MutableMapping[str, Any] | None = None,
@@ -20990,7 +20990,7 @@ class ExpressionTool(Saveable):
         doc: None | Sequence[str] | str = None,
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
         hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
-        cwlVersion: Literal["v1.1"] | None = None,
+        cwlVersion: CWLVersion | None = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -21620,14 +21620,14 @@ class WorkflowOutputParameter(Saveable):
     def __init__(
         self,
         id: str,
-        type_: Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[Literal["null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"] | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
+        type_: CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
         label: None | str = None,
         secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
         streamable: None | bool = None,
         doc: None | Sequence[str] | str = None,
         format: None | str = None,
         outputSource: None | Sequence[str] | str = None,
-        linkMerge: Literal["merge_nested", "merge_flattened"] | None = None,
+        linkMerge: LinkMergeMethod | None = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -22241,9 +22241,9 @@ class WorkflowStepInput(Saveable):
         self,
         id: str,
         source: None | Sequence[str] | str = None,
-        linkMerge: Literal["merge_nested", "merge_flattened"] | None = None,
+        linkMerge: LinkMergeMethod | None = None,
         loadContents: None | bool = None,
-        loadListing: Literal["no_listing", "shallow_listing", "deep_listing"] | None = None,
+        loadListing: LoadListingEnum | None = None,
         label: None | str = None,
         default: CWLObjectType | None = None,
         valueFrom: None | str = None,
@@ -23152,7 +23152,7 @@ class WorkflowStep(Saveable):
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
         hints: None | Sequence[Any] = None,
         scatter: None | Sequence[str] | str = None,
-        scatterMethod: Literal["dotproduct", "nested_crossproduct", "flat_crossproduct"] | None = None,
+        scatterMethod: None | ScatterMethod = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -23855,7 +23855,7 @@ class Workflow(Saveable):
         doc: None | Sequence[str] | str = None,
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
         hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
-        cwlVersion: Literal["v1.1"] | None = None,
+        cwlVersion: CWLVersion | None = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -25160,7 +25160,7 @@ class ProcessGenerator(Saveable):
         doc: None | Sequence[str] | str = None,
         requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
         hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
-        cwlVersion: Literal["v1.1"] | None = None,
+        cwlVersion: CWLVersion | None = None,
         extension_fields: MutableMapping[str, Any] | None = None,
         loadingOptions: LoadingOptions | None = None,
     ) -> None:
@@ -26178,9 +26178,10 @@ booltype: Final[_Loader[bool]] = _PrimitiveLoader(bool)
 None_type: Final[_Loader[None]] = _PrimitiveLoader(type(None))
 Any_type: Final[_Loader[Any]] = _AnyLoader()
 longtype: Final[_Loader[i64]] = _PrimitiveLoader(i64)
-PrimitiveTypeLoader: Final[
-    _Loader[Literal["null", "boolean", "int", "long", "float", "double", "string"]]
-] = _EnumLoader(
+PrimitiveType: TypeAlias = Literal[
+    "null", "boolean", "int", "long", "float", "double", "string"
+]
+PrimitiveTypeLoader: Final[_Loader[PrimitiveType]] = _EnumLoader(
     (
         "null",
         "boolean",
@@ -26206,7 +26207,8 @@ float: single precision (32-bit) IEEE 754 floating-point number
 double: double precision (64-bit) IEEE 754 floating-point number
 string: Unicode character sequence
 """
-AnyLoader: Final[_Loader[Literal["Any"]]] = _EnumLoader(("Any",), "Any")
+Any_: TypeAlias = Literal["Any"]
+Any_Loader: Final[_Loader[Any_]] = _EnumLoader(("Any",), "Any_")
 """
 The **Any** type validates for any non-null value.
 """
@@ -26218,21 +26220,10 @@ EnumSchemaLoader: Final[_Loader[EnumSchema]] = _RecordLoader(EnumSchema, None, N
 ArraySchemaLoader: Final[_Loader[ArraySchema]] = _RecordLoader(ArraySchema, None, None)
 MapSchemaLoader: Final[_Loader[MapSchema]] = _RecordLoader(MapSchema, None, None)
 UnionSchemaLoader: Final[_Loader[UnionSchema]] = _RecordLoader(UnionSchema, None, None)
-CWLTypeLoader: Final[
-    _Loader[
-        Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
-    ]
-] = _EnumLoader(
+CWLType: TypeAlias = Literal[
+    "null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"
+]
+CWLTypeLoader: Final[_Loader[CWLType]] = _EnumLoader(
     (
         "null",
         "boolean",
@@ -26516,13 +26507,13 @@ CWLInputFileLoader: Final[
         ]
     ]
 ] = map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader
-CWLVersionLoader: Final[_Loader[Literal["v1.1"]]] = _EnumLoader(("v1.1",), "CWLVersion")
+CWLVersion: TypeAlias = Literal["v1.1"]
+CWLVersionLoader: Final[_Loader[CWLVersion]] = _EnumLoader(("v1.1",), "CWLVersion")
 """
 Current version symbol for CWL documents.
 """
-LoadListingEnumLoader: Final[
-    _Loader[Literal["no_listing", "shallow_listing", "deep_listing"]]
-] = _EnumLoader(
+LoadListingEnum: TypeAlias = Literal["no_listing", "shallow_listing", "deep_listing"]
+LoadListingEnumLoader: Final[_Loader[LoadListingEnum]] = _EnumLoader(
     (
         "no_listing",
         "shallow_listing",
@@ -26538,7 +26529,8 @@ no_listing: Do not load the directory listing.
 shallow_listing: Only load the top level listing, do not recurse into subdirectories.
 deep_listing: Load the directory listing and recursively load all subdirectories as well.
 """
-ExpressionLoader = _ExpressionLoader(str)
+Expression: TypeAlias = Literal["ExpressionPlaceholder"]
+ExpressionLoader: Final[_Loader[str]] = _ExpressionLoader(str)
 InputBindingLoader: Final[_Loader[InputBinding]] = _RecordLoader(
     InputBinding, None, None
 )
@@ -26608,7 +26600,8 @@ CommandInputParameterLoader: Final[_Loader[CommandInputParameter]] = _RecordLoad
 CommandOutputParameterLoader: Final[_Loader[CommandOutputParameter]] = _RecordLoader(
     CommandOutputParameter, None, None
 )
-stdinLoader: Final[_Loader[Literal["stdin"]]] = _EnumLoader(("stdin",), "stdin")
+stdin: TypeAlias = Literal["stdin"]
+stdinLoader: Final[_Loader[stdin]] = _EnumLoader(("stdin",), "stdin")
 """
 Only valid as a `type` for a `CommandLineTool` input with no
 `inputBinding` set. `stdin` must not be specified at the `CommandLineTool`
@@ -26630,7 +26623,8 @@ inputs:
 stdin: ${inputs.an_input_name.path}
 ```
 """
-stdoutLoader: Final[_Loader[Literal["stdout"]]] = _EnumLoader(("stdout",), "stdout")
+stdout: TypeAlias = Literal["stdout"]
+stdoutLoader: Final[_Loader[stdout]] = _EnumLoader(("stdout",), "stdout")
 """
 Only valid as a `type` for a `CommandLineTool` output with no
 `outputBinding` set.
@@ -26674,7 +26668,8 @@ outputs:
 stdout: random_stdout_filenameABCDEFG
 ```
 """
-stderrLoader: Final[_Loader[Literal["stderr"]]] = _EnumLoader(("stderr",), "stderr")
+stderr: TypeAlias = Literal["stderr"]
+stderrLoader: Final[_Loader[stderr]] = _EnumLoader(("stderr",), "stderr")
 """
 Only valid as a `type` for a `CommandLineTool` output with no
 `outputBinding` set.
@@ -26734,14 +26729,13 @@ WorkflowInputParameterLoader: Final[_Loader[WorkflowInputParameter]] = _RecordLo
 ExpressionToolLoader: Final[_Loader[ExpressionTool]] = _RecordLoader(
     ExpressionTool, None, None
 )
-LinkMergeMethodLoader: Final[_Loader[Literal["merge_nested", "merge_flattened"]]] = (
-    _EnumLoader(
-        (
-            "merge_nested",
-            "merge_flattened",
-        ),
-        "LinkMergeMethod",
-    )
+LinkMergeMethod: TypeAlias = Literal["merge_nested", "merge_flattened"]
+LinkMergeMethodLoader: Final[_Loader[LinkMergeMethod]] = _EnumLoader(
+    (
+        "merge_nested",
+        "merge_flattened",
+    ),
+    "LinkMergeMethod",
 )
 """
 The input link merge method, described in [WorkflowStepInput](#WorkflowStepInput).
@@ -26755,9 +26749,10 @@ WorkflowStepInputLoader: Final[_Loader[WorkflowStepInput]] = _RecordLoader(
 WorkflowStepOutputLoader: Final[_Loader[WorkflowStepOutput]] = _RecordLoader(
     WorkflowStepOutput, None, None
 )
-ScatterMethodLoader: Final[
-    _Loader[Literal["dotproduct", "nested_crossproduct", "flat_crossproduct"]]
-] = _EnumLoader(
+ScatterMethod: TypeAlias = Literal[
+    "dotproduct", "nested_crossproduct", "flat_crossproduct"
+]
+ScatterMethodLoader: Final[_Loader[ScatterMethod]] = _EnumLoader(
     (
         "dotproduct",
         "nested_crossproduct",
@@ -26792,8 +26787,8 @@ union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArrayS
     _Loader[
         ArraySchema
         | EnumSchema
-        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
         | MapSchema
+        | PrimitiveType
         | RecordSchema
         | UnionSchema
         | str
@@ -26814,8 +26809,8 @@ array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_
         Sequence[
             ArraySchema
             | EnumSchema
-            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
             | MapSchema
+            | PrimitiveType
             | RecordSchema
             | UnionSchema
             | str
@@ -26828,14 +26823,14 @@ union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArrayS
     _Loader[
         ArraySchema
         | EnumSchema
-        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
         | MapSchema
+        | PrimitiveType
         | RecordSchema
         | Sequence[
             ArraySchema
             | EnumSchema
-            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
             | MapSchema
+            | PrimitiveType
             | RecordSchema
             | UnionSchema
             | str
@@ -26859,14 +26854,14 @@ typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_o
     _Loader[
         ArraySchema
         | EnumSchema
-        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
         | MapSchema
+        | PrimitiveType
         | RecordSchema
         | Sequence[
             ArraySchema
             | EnumSchema
-            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
             | MapSchema
+            | PrimitiveType
             | RecordSchema
             | UnionSchema
             | str
@@ -26893,10 +26888,9 @@ union_of_None_type_or_array_of_RecordFieldLoader: Final[
 idmap_fields_union_of_None_type_or_array_of_RecordFieldLoader: Final[
     _Loader[None | Sequence[RecordField]]
 ] = _IdMapLoader(union_of_None_type_or_array_of_RecordFieldLoader, "name", "type")
-Record_nameLoader: Final[_Loader[Literal["record"]]] = _EnumLoader(
-    ("record",), "Record_name"
-)
-typedsl_Record_nameLoader_2: Final[_Loader[Literal["record"]]] = _TypeDSLLoader(
+Record_name: TypeAlias = Literal["record"]
+Record_nameLoader: Final[_Loader[Record_name]] = _EnumLoader(("record",), "Record_name")
+typedsl_Record_nameLoader_2: Final[_Loader[Record_name]] = _TypeDSLLoader(
     Record_nameLoader, 2, "v1.1"
 )
 union_of_None_type_or_strtype: Final[_Loader[None | str]] = _UnionLoader(
@@ -26911,22 +26905,23 @@ uri_union_of_None_type_or_strtype_True_False_None_None: Final[_Loader[None | str
 uri_array_of_strtype_True_False_None_None: Final[_Loader[Sequence[str]]] = _URILoader(
     array_of_strtype, True, False, None, None
 )
-Enum_nameLoader: Final[_Loader[Literal["enum"]]] = _EnumLoader(("enum",), "Enum_name")
-typedsl_Enum_nameLoader_2: Final[_Loader[Literal["enum"]]] = _TypeDSLLoader(
+Enum_name: TypeAlias = Literal["enum"]
+Enum_nameLoader: Final[_Loader[Enum_name]] = _EnumLoader(("enum",), "Enum_name")
+typedsl_Enum_nameLoader_2: Final[_Loader[Enum_name]] = _TypeDSLLoader(
     Enum_nameLoader, 2, "v1.1"
 )
 uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_False_True_2_None: Final[
     _Loader[
         ArraySchema
         | EnumSchema
-        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
         | MapSchema
+        | PrimitiveType
         | RecordSchema
         | Sequence[
             ArraySchema
             | EnumSchema
-            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
             | MapSchema
+            | PrimitiveType
             | RecordSchema
             | UnionSchema
             | str
@@ -26941,30 +26936,23 @@ uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_Ar
     2,
     None,
 )
-Array_nameLoader: Final[_Loader[Literal["array"]]] = _EnumLoader(
-    ("array",), "Array_name"
-)
-typedsl_Array_nameLoader_2: Final[_Loader[Literal["array"]]] = _TypeDSLLoader(
+Array_name: TypeAlias = Literal["array"]
+Array_nameLoader: Final[_Loader[Array_name]] = _EnumLoader(("array",), "Array_name")
+typedsl_Array_nameLoader_2: Final[_Loader[Array_name]] = _TypeDSLLoader(
     Array_nameLoader, 2, "v1.1"
 )
-Map_nameLoader: Final[_Loader[Literal["map"]]] = _EnumLoader(("map",), "Map_name")
-typedsl_Map_nameLoader_2: Final[_Loader[Literal["map"]]] = _TypeDSLLoader(
+Map_name: TypeAlias = Literal["map"]
+Map_nameLoader: Final[_Loader[Map_name]] = _EnumLoader(("map",), "Map_name")
+typedsl_Map_nameLoader_2: Final[_Loader[Map_name]] = _TypeDSLLoader(
     Map_nameLoader, 2, "v1.1"
 )
-Union_nameLoader: Final[_Loader[Literal["union"]]] = _EnumLoader(
-    ("union",), "Union_name"
-)
-typedsl_Union_nameLoader_2: Final[_Loader[Literal["union"]]] = _TypeDSLLoader(
+Union_name: TypeAlias = Literal["union"]
+Union_nameLoader: Final[_Loader[Union_name]] = _EnumLoader(("union",), "Union_name")
+typedsl_Union_nameLoader_2: Final[_Loader[Union_name]] = _TypeDSLLoader(
     Union_nameLoader, 2, "v1.1"
 )
 union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: Final[
-    _Loader[
-        CWLArraySchema
-        | CWLRecordSchema
-        | EnumSchema
-        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
-        | str
-    ]
+    _Loader[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str]
 ] = _UnionLoader(
     (
         PrimitiveTypeLoader,
@@ -26976,13 +26964,7 @@ union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWL
 )
 array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: Final[
     _Loader[
-        Sequence[
-            CWLArraySchema
-            | CWLRecordSchema
-            | EnumSchema
-            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
-            | str
-        ]
+        Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str]
     ]
 ] = _ArrayLoader(
     union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype
@@ -26992,14 +26974,8 @@ union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWL
         CWLArraySchema
         | CWLRecordSchema
         | EnumSchema
-        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
-        | Sequence[
-            CWLArraySchema
-            | CWLRecordSchema
-            | EnumSchema
-            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
-            | str
-        ]
+        | PrimitiveType
+        | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str]
         | str
     ]
 ] = _UnionLoader(
@@ -27017,14 +26993,8 @@ uri_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or
         CWLArraySchema
         | CWLRecordSchema
         | EnumSchema
-        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
-        | Sequence[
-            CWLArraySchema
-            | CWLRecordSchema
-            | EnumSchema
-            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
-            | str
-        ]
+        | PrimitiveType
+        | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str]
         | str
     ]
 ] = _URILoader(
@@ -27039,14 +27009,8 @@ typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoade
         CWLArraySchema
         | CWLRecordSchema
         | EnumSchema
-        | Literal["null", "boolean", "int", "long", "float", "double", "string"]
-        | Sequence[
-            CWLArraySchema
-            | CWLRecordSchema
-            | EnumSchema
-            | Literal["null", "boolean", "int", "long", "float", "double", "string"]
-            | str
-        ]
+        | PrimitiveType
+        | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str]
         | str
     ]
 ] = _TypeDSLLoader(
@@ -27068,8 +27032,9 @@ union_of_None_type_or_array_of_CWLRecordFieldLoader: Final[
 idmap_fields_union_of_None_type_or_array_of_CWLRecordFieldLoader: Final[
     _Loader[None | Sequence[CWLRecordField]]
 ] = _IdMapLoader(union_of_None_type_or_array_of_CWLRecordFieldLoader, "name", "type")
-File_classLoader: Final[_Loader[Literal["File"]]] = _EnumLoader(("File",), "File_class")
-uri_File_classLoader_False_True_None_None: Final[_Loader[Literal["File"]]] = _URILoader(
+File_class: TypeAlias = Literal["File"]
+File_classLoader: Final[_Loader[File_class]] = _EnumLoader(("File",), "File_class")
+uri_File_classLoader_False_True_None_None: Final[_Loader[File_class]] = _URILoader(
     File_classLoader, False, True, None, None
 )
 uri_union_of_None_type_or_strtype_False_False_None_None: Final[_Loader[None | str]] = (
@@ -27112,10 +27077,11 @@ secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_Director
 uri_union_of_None_type_or_strtype_True_False_None_True: Final[_Loader[None | str]] = (
     _URILoader(union_of_None_type_or_strtype, True, False, None, True)
 )
-Directory_classLoader: Final[_Loader[Literal["Directory"]]] = _EnumLoader(
+Directory_class: TypeAlias = Literal["Directory"]
+Directory_classLoader: Final[_Loader[Directory_class]] = _EnumLoader(
     ("Directory",), "Directory_class"
 )
-uri_Directory_classLoader_False_True_None_None: Final[_Loader[Literal["Directory"]]] = (
+uri_Directory_classLoader_False_True_None_None: Final[_Loader[Directory_class]] = (
     _URILoader(Directory_classLoader, False, True, None, None)
 )
 union_of_None_type_or_booltype: Final[_Loader[None | bool]] = _UnionLoader(
@@ -27124,12 +27090,12 @@ union_of_None_type_or_booltype: Final[_Loader[None | bool]] = _UnionLoader(
         booltype,
     )
 )
-union_of_None_type_or_LoadListingEnumLoader: Final[
-    _Loader[Literal["no_listing", "shallow_listing", "deep_listing"] | None]
-] = _UnionLoader(
-    (
-        None_type,
-        LoadListingEnumLoader,
+union_of_None_type_or_LoadListingEnumLoader: Final[_Loader[LoadListingEnum | None]] = (
+    _UnionLoader(
+        (
+            None_type,
+            LoadListingEnumLoader,
+        )
     )
 )
 array_of_SecondaryFileSchemaLoader: Final[_Loader[Sequence[SecondaryFileSchema]]] = (
@@ -27188,23 +27154,7 @@ uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True: Fina
     union_of_None_type_or_strtype_or_ExpressionLoader, True, False, None, True
 )
 union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: Final[
-    _Loader[
-        InputArraySchema
-        | InputEnumSchema
-        | InputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
-        | str
-    ]
+    _Loader[CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str]
 ] = _UnionLoader(
     (
         CWLTypeLoader,
@@ -27216,59 +27166,19 @@ union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_In
 )
 array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: Final[
     _Loader[
-        Sequence[
-            InputArraySchema
-            | InputEnumSchema
-            | InputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
-            | str
-        ]
+        Sequence[CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str]
     ]
 ] = _ArrayLoader(
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype
 )
 union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: Final[
     _Loader[
-        InputArraySchema
+        CWLType
+        | InputArraySchema
         | InputEnumSchema
         | InputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | Sequence[
-            InputArraySchema
-            | InputEnumSchema
-            | InputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
-            | str
+            CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str
         ]
         | str
     ]
@@ -27284,36 +27194,12 @@ union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_In
 )
 typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2: Final[
     _Loader[
-        InputArraySchema
+        CWLType
+        | InputArraySchema
         | InputEnumSchema
         | InputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | Sequence[
-            InputArraySchema
-            | InputEnumSchema
-            | InputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
-            | str
+            CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str
         ]
         | str
     ]
@@ -27338,36 +27224,12 @@ idmap_fields_union_of_None_type_or_array_of_InputRecordFieldLoader: Final[
 ] = _IdMapLoader(union_of_None_type_or_array_of_InputRecordFieldLoader, "name", "type")
 uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2_None: Final[
     _Loader[
-        InputArraySchema
+        CWLType
+        | InputArraySchema
         | InputEnumSchema
         | InputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | Sequence[
-            InputArraySchema
-            | InputEnumSchema
-            | InputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
-            | str
+            CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str
         ]
         | str
     ]
@@ -27379,23 +27241,7 @@ uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_o
     None,
 )
 union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: Final[
-    _Loader[
-        Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
-        | OutputArraySchema
-        | OutputEnumSchema
-        | OutputRecordSchema
-        | str
-    ]
+    _Loader[CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str]
 ] = _UnionLoader(
     (
         CWLTypeLoader,
@@ -27408,21 +27254,7 @@ union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_
 array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: Final[
     _Loader[
         Sequence[
-            Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
-            | OutputArraySchema
-            | OutputEnumSchema
-            | OutputRecordSchema
-            | str
+            CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str
         ]
     ]
 ] = _ArrayLoader(
@@ -27430,36 +27262,12 @@ array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaL
 )
 union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: Final[
     _Loader[
-        Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
+        CWLType
         | OutputArraySchema
         | OutputEnumSchema
         | OutputRecordSchema
         | Sequence[
-            Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
-            | OutputArraySchema
-            | OutputEnumSchema
-            | OutputRecordSchema
-            | str
+            CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str
         ]
         | str
     ]
@@ -27475,36 +27283,12 @@ union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_
 )
 typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2: Final[
     _Loader[
-        Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
+        CWLType
         | OutputArraySchema
         | OutputEnumSchema
         | OutputRecordSchema
         | Sequence[
-            Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
-            | OutputArraySchema
-            | OutputEnumSchema
-            | OutputRecordSchema
-            | str
+            CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str
         ]
         | str
     ]
@@ -27529,36 +27313,12 @@ idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader: Final[
 ] = _IdMapLoader(union_of_None_type_or_array_of_OutputRecordFieldLoader, "name", "type")
 uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2_None: Final[
     _Loader[
-        Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
+        CWLType
         | OutputArraySchema
         | OutputEnumSchema
         | OutputRecordSchema
         | Sequence[
-            Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
-            | OutputArraySchema
-            | OutputEnumSchema
-            | OutputRecordSchema
-            | str
+            CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str
         ]
         | str
     ]
@@ -27835,7 +27595,7 @@ idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementL
     "class",
     "None",
 )
-union_of_None_type_or_CWLVersionLoader: Final[_Loader[Literal["v1.1"] | None]] = (
+union_of_None_type_or_CWLVersionLoader: Final[_Loader[CWLVersion | None]] = (
     _UnionLoader(
         (
             None_type,
@@ -27844,13 +27604,14 @@ union_of_None_type_or_CWLVersionLoader: Final[_Loader[Literal["v1.1"] | None]] =
     )
 )
 uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None: Final[
-    _Loader[Literal["v1.1"] | None]
+    _Loader[CWLVersion | None]
 ] = _URILoader(union_of_None_type_or_CWLVersionLoader, False, True, None, None)
+InlineJavascriptRequirement_class: TypeAlias = Literal["InlineJavascriptRequirement"]
 InlineJavascriptRequirement_classLoader: Final[
-    _Loader[Literal["InlineJavascriptRequirement"]]
+    _Loader[InlineJavascriptRequirement_class]
 ] = _EnumLoader(("InlineJavascriptRequirement",), "InlineJavascriptRequirement_class")
 uri_InlineJavascriptRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["InlineJavascriptRequirement"]]
+    _Loader[InlineJavascriptRequirement_class]
 ] = _URILoader(InlineJavascriptRequirement_classLoader, False, True, None, None)
 union_of_None_type_or_array_of_strtype: Final[_Loader[None | Sequence[str]]] = (
     _UnionLoader(
@@ -27860,11 +27621,12 @@ union_of_None_type_or_array_of_strtype: Final[_Loader[None | Sequence[str]]] = (
         )
     )
 )
-SchemaDefRequirement_classLoader: Final[_Loader[Literal["SchemaDefRequirement"]]] = (
+SchemaDefRequirement_class: TypeAlias = Literal["SchemaDefRequirement"]
+SchemaDefRequirement_classLoader: Final[_Loader[SchemaDefRequirement_class]] = (
     _EnumLoader(("SchemaDefRequirement",), "SchemaDefRequirement_class")
 )
 uri_SchemaDefRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["SchemaDefRequirement"]]
+    _Loader[SchemaDefRequirement_class]
 ] = _URILoader(SchemaDefRequirement_classLoader, False, True, None, None)
 union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader: Final[
     _Loader[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema]
@@ -27899,11 +27661,12 @@ union_of_None_type_or_booltype_or_ExpressionLoader: Final[
         ExpressionLoader,
     )
 )
-LoadListingRequirement_classLoader: Final[
-    _Loader[Literal["LoadListingRequirement"]]
-] = _EnumLoader(("LoadListingRequirement",), "LoadListingRequirement_class")
+LoadListingRequirement_class: TypeAlias = Literal["LoadListingRequirement"]
+LoadListingRequirement_classLoader: Final[_Loader[LoadListingRequirement_class]] = (
+    _EnumLoader(("LoadListingRequirement",), "LoadListingRequirement_class")
+)
 uri_LoadListingRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["LoadListingRequirement"]]
+    _Loader[LoadListingRequirement_class]
 ] = _URILoader(LoadListingRequirement_classLoader, False, True, None, None)
 union_of_None_type_or_inttype_or_ExpressionLoader: Final[_Loader[None | i32 | str]] = (
     _UnionLoader(
@@ -27940,20 +27703,10 @@ union_of_None_type_or_CommandLineBindingLoader: Final[
 )
 union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
     _Loader[
-        CommandInputArraySchema
+        CWLType
+        | CommandInputArraySchema
         | CommandInputEnumSchema
         | CommandInputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | str
     ]
 ] = _UnionLoader(
@@ -27968,20 +27721,10 @@ union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSche
 array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
     _Loader[
         Sequence[
-            CommandInputArraySchema
+            CWLType
+            | CommandInputArraySchema
             | CommandInputEnumSchema
             | CommandInputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
     ]
@@ -27990,35 +27733,15 @@ array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInpu
 )
 union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
     _Loader[
-        CommandInputArraySchema
+        CWLType
+        | CommandInputArraySchema
         | CommandInputEnumSchema
         | CommandInputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | Sequence[
-            CommandInputArraySchema
+            CWLType
+            | CommandInputArraySchema
             | CommandInputEnumSchema
             | CommandInputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
         | str
@@ -28035,35 +27758,15 @@ union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSche
 )
 typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2: Final[
     _Loader[
-        CommandInputArraySchema
+        CWLType
+        | CommandInputArraySchema
         | CommandInputEnumSchema
         | CommandInputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | Sequence[
-            CommandInputArraySchema
+            CWLType
+            | CommandInputArraySchema
             | CommandInputEnumSchema
             | CommandInputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
         | str
@@ -28091,35 +27794,15 @@ idmap_fields_union_of_None_type_or_array_of_CommandInputRecordFieldLoader: Final
 )
 uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2_None: Final[
     _Loader[
-        CommandInputArraySchema
+        CWLType
+        | CommandInputArraySchema
         | CommandInputEnumSchema
         | CommandInputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | Sequence[
-            CommandInputArraySchema
+            CWLType
+            | CommandInputArraySchema
             | CommandInputEnumSchema
             | CommandInputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
         | str
@@ -28133,20 +27816,10 @@ uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnum
 )
 union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
     _Loader[
-        CommandOutputArraySchema
+        CWLType
+        | CommandOutputArraySchema
         | CommandOutputEnumSchema
         | CommandOutputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | str
     ]
 ] = _UnionLoader(
@@ -28161,20 +27834,10 @@ union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSc
 array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
     _Loader[
         Sequence[
-            CommandOutputArraySchema
+            CWLType
+            | CommandOutputArraySchema
             | CommandOutputEnumSchema
             | CommandOutputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
     ]
@@ -28183,35 +27846,15 @@ array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOut
 )
 union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
     _Loader[
-        CommandOutputArraySchema
+        CWLType
+        | CommandOutputArraySchema
         | CommandOutputEnumSchema
         | CommandOutputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | Sequence[
-            CommandOutputArraySchema
+            CWLType
+            | CommandOutputArraySchema
             | CommandOutputEnumSchema
             | CommandOutputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
         | str
@@ -28228,35 +27871,15 @@ union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSc
 )
 typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2: Final[
     _Loader[
-        CommandOutputArraySchema
+        CWLType
+        | CommandOutputArraySchema
         | CommandOutputEnumSchema
         | CommandOutputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | Sequence[
-            CommandOutputArraySchema
+            CWLType
+            | CommandOutputArraySchema
             | CommandOutputEnumSchema
             | CommandOutputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
         | str
@@ -28292,35 +27915,15 @@ idmap_fields_union_of_None_type_or_array_of_CommandOutputRecordFieldLoader: Fina
 )
 uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2_None: Final[
     _Loader[
-        CommandOutputArraySchema
+        CWLType
+        | CommandOutputArraySchema
         | CommandOutputEnumSchema
         | CommandOutputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
         | Sequence[
-            CommandOutputArraySchema
+            CWLType
+            | CommandOutputArraySchema
             | CommandOutputEnumSchema
             | CommandOutputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
         | str
@@ -28334,38 +27937,18 @@ uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEn
 )
 union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
     _Loader[
-        CommandInputArraySchema
+        CWLType
+        | CommandInputArraySchema
         | CommandInputEnumSchema
         | CommandInputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
-        | Literal["stdin"]
         | Sequence[
-            CommandInputArraySchema
+            CWLType
+            | CommandInputArraySchema
             | CommandInputEnumSchema
             | CommandInputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
+        | stdin
         | str
     ]
 ] = _UnionLoader(
@@ -28381,38 +27964,18 @@ union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_Comma
 )
 typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2: Final[
     _Loader[
-        CommandInputArraySchema
+        CWLType
+        | CommandInputArraySchema
         | CommandInputEnumSchema
         | CommandInputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
-        | Literal["stdin"]
         | Sequence[
-            CommandInputArraySchema
+            CWLType
+            | CommandInputArraySchema
             | CommandInputEnumSchema
             | CommandInputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
+        | stdin
         | str
     ]
 ] = _TypeDSLLoader(
@@ -28422,39 +27985,19 @@ typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_
 )
 union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
     _Loader[
-        CommandOutputArraySchema
+        CWLType
+        | CommandOutputArraySchema
         | CommandOutputEnumSchema
         | CommandOutputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
-        | Literal["stderr"]
-        | Literal["stdout"]
         | Sequence[
-            CommandOutputArraySchema
+            CWLType
+            | CommandOutputArraySchema
             | CommandOutputEnumSchema
             | CommandOutputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
+        | stderr
+        | stdout
         | str
     ]
 ] = _UnionLoader(
@@ -28471,39 +28014,19 @@ union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSch
 )
 typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2: Final[
     _Loader[
-        CommandOutputArraySchema
+        CWLType
+        | CommandOutputArraySchema
         | CommandOutputEnumSchema
         | CommandOutputRecordSchema
-        | Literal[
-            "null",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "string",
-            "File",
-            "Directory",
-        ]
-        | Literal["stderr"]
-        | Literal["stdout"]
         | Sequence[
-            CommandOutputArraySchema
+            CWLType
+            | CommandOutputArraySchema
             | CommandOutputEnumSchema
             | CommandOutputRecordSchema
-            | Literal[
-                "null",
-                "boolean",
-                "int",
-                "long",
-                "float",
-                "double",
-                "string",
-                "File",
-                "Directory",
-            ]
             | str
         ]
+        | stderr
+        | stdout
         | str
     ]
 ] = _TypeDSLLoader(
@@ -28511,11 +28034,12 @@ typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputR
     2,
     "v1.1",
 )
-CommandLineTool_classLoader: Final[_Loader[Literal["CommandLineTool"]]] = _EnumLoader(
+CommandLineTool_class: TypeAlias = Literal["CommandLineTool"]
+CommandLineTool_classLoader: Final[_Loader[CommandLineTool_class]] = _EnumLoader(
     ("CommandLineTool",), "CommandLineTool_class"
 )
 uri_CommandLineTool_classLoader_False_True_None_None: Final[
-    _Loader[Literal["CommandLineTool"]]
+    _Loader[CommandLineTool_class]
 ] = _URILoader(CommandLineTool_classLoader, False, True, None, None)
 array_of_CommandInputParameterLoader: Final[
     _Loader[Sequence[CommandInputParameter]]
@@ -28558,17 +28082,19 @@ union_of_None_type_or_array_of_inttype: Final[_Loader[None | Sequence[i32]]] = (
         )
     )
 )
-DockerRequirement_classLoader: Final[_Loader[Literal["DockerRequirement"]]] = (
-    _EnumLoader(("DockerRequirement",), "DockerRequirement_class")
+DockerRequirement_class: TypeAlias = Literal["DockerRequirement"]
+DockerRequirement_classLoader: Final[_Loader[DockerRequirement_class]] = _EnumLoader(
+    ("DockerRequirement",), "DockerRequirement_class"
 )
 uri_DockerRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["DockerRequirement"]]
+    _Loader[DockerRequirement_class]
 ] = _URILoader(DockerRequirement_classLoader, False, True, None, None)
-SoftwareRequirement_classLoader: Final[_Loader[Literal["SoftwareRequirement"]]] = (
+SoftwareRequirement_class: TypeAlias = Literal["SoftwareRequirement"]
+SoftwareRequirement_classLoader: Final[_Loader[SoftwareRequirement_class]] = (
     _EnumLoader(("SoftwareRequirement",), "SoftwareRequirement_class")
 )
 uri_SoftwareRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["SoftwareRequirement"]]
+    _Loader[SoftwareRequirement_class]
 ] = _URILoader(SoftwareRequirement_classLoader, False, True, None, None)
 array_of_SoftwarePackageLoader: Final[_Loader[Sequence[SoftwarePackage]]] = (
     _ArrayLoader(SoftwarePackageLoader)
@@ -28579,11 +28105,12 @@ idmap_packages_array_of_SoftwarePackageLoader: Final[
 uri_union_of_None_type_or_array_of_strtype_False_False_None_True: Final[
     _Loader[None | Sequence[str]]
 ] = _URILoader(union_of_None_type_or_array_of_strtype, False, False, None, True)
+InitialWorkDirRequirement_class: TypeAlias = Literal["InitialWorkDirRequirement"]
 InitialWorkDirRequirement_classLoader: Final[
-    _Loader[Literal["InitialWorkDirRequirement"]]
+    _Loader[InitialWorkDirRequirement_class]
 ] = _EnumLoader(("InitialWorkDirRequirement",), "InitialWorkDirRequirement_class")
 uri_InitialWorkDirRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["InitialWorkDirRequirement"]]
+    _Loader[InitialWorkDirRequirement_class]
 ] = _URILoader(InitialWorkDirRequirement_classLoader, False, True, None, None)
 union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader: Final[
     _Loader[Directory | Dirent | File | None | Sequence[Directory | File] | str]
@@ -28615,11 +28142,12 @@ union_of_array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoad
         ExpressionLoader,
     )
 )
-EnvVarRequirement_classLoader: Final[_Loader[Literal["EnvVarRequirement"]]] = (
-    _EnumLoader(("EnvVarRequirement",), "EnvVarRequirement_class")
+EnvVarRequirement_class: TypeAlias = Literal["EnvVarRequirement"]
+EnvVarRequirement_classLoader: Final[_Loader[EnvVarRequirement_class]] = _EnumLoader(
+    ("EnvVarRequirement",), "EnvVarRequirement_class"
 )
 uri_EnvVarRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["EnvVarRequirement"]]
+    _Loader[EnvVarRequirement_class]
 ] = _URILoader(EnvVarRequirement_classLoader, False, True, None, None)
 array_of_EnvironmentDefLoader: Final[_Loader[Sequence[EnvironmentDef]]] = _ArrayLoader(
     EnvironmentDefLoader
@@ -28627,17 +28155,19 @@ array_of_EnvironmentDefLoader: Final[_Loader[Sequence[EnvironmentDef]]] = _Array
 idmap_envDef_array_of_EnvironmentDefLoader: Final[_Loader[Sequence[EnvironmentDef]]] = (
     _IdMapLoader(array_of_EnvironmentDefLoader, "envName", "envValue")
 )
-ShellCommandRequirement_classLoader: Final[
-    _Loader[Literal["ShellCommandRequirement"]]
-] = _EnumLoader(("ShellCommandRequirement",), "ShellCommandRequirement_class")
+ShellCommandRequirement_class: TypeAlias = Literal["ShellCommandRequirement"]
+ShellCommandRequirement_classLoader: Final[_Loader[ShellCommandRequirement_class]] = (
+    _EnumLoader(("ShellCommandRequirement",), "ShellCommandRequirement_class")
+)
 uri_ShellCommandRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["ShellCommandRequirement"]]
+    _Loader[ShellCommandRequirement_class]
 ] = _URILoader(ShellCommandRequirement_classLoader, False, True, None, None)
-ResourceRequirement_classLoader: Final[_Loader[Literal["ResourceRequirement"]]] = (
+ResourceRequirement_class: TypeAlias = Literal["ResourceRequirement"]
+ResourceRequirement_classLoader: Final[_Loader[ResourceRequirement_class]] = (
     _EnumLoader(("ResourceRequirement",), "ResourceRequirement_class")
 )
 uri_ResourceRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["ResourceRequirement"]]
+    _Loader[ResourceRequirement_class]
 ] = _URILoader(ResourceRequirement_classLoader, False, True, None, None)
 union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader: Final[
     _Loader[None | i32 | str]
@@ -28649,10 +28179,11 @@ union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader: Final[
         ExpressionLoader,
     )
 )
-WorkReuse_classLoader: Final[_Loader[Literal["WorkReuse"]]] = _EnumLoader(
+WorkReuse_class: TypeAlias = Literal["WorkReuse"]
+WorkReuse_classLoader: Final[_Loader[WorkReuse_class]] = _EnumLoader(
     ("WorkReuse",), "WorkReuse_class"
 )
-uri_WorkReuse_classLoader_False_True_None_None: Final[_Loader[Literal["WorkReuse"]]] = (
+uri_WorkReuse_classLoader_False_True_None_None: Final[_Loader[WorkReuse_class]] = (
     _URILoader(WorkReuse_classLoader, False, True, None, None)
 )
 union_of_booltype_or_ExpressionLoader: Final[_Loader[bool | str]] = _UnionLoader(
@@ -28661,23 +28192,26 @@ union_of_booltype_or_ExpressionLoader: Final[_Loader[bool | str]] = _UnionLoader
         ExpressionLoader,
     )
 )
-NetworkAccess_classLoader: Final[_Loader[Literal["NetworkAccess"]]] = _EnumLoader(
+NetworkAccess_class: TypeAlias = Literal["NetworkAccess"]
+NetworkAccess_classLoader: Final[_Loader[NetworkAccess_class]] = _EnumLoader(
     ("NetworkAccess",), "NetworkAccess_class"
 )
 uri_NetworkAccess_classLoader_False_True_None_None: Final[
-    _Loader[Literal["NetworkAccess"]]
+    _Loader[NetworkAccess_class]
 ] = _URILoader(NetworkAccess_classLoader, False, True, None, None)
-InplaceUpdateRequirement_classLoader: Final[
-    _Loader[Literal["InplaceUpdateRequirement"]]
-] = _EnumLoader(("InplaceUpdateRequirement",), "InplaceUpdateRequirement_class")
+InplaceUpdateRequirement_class: TypeAlias = Literal["InplaceUpdateRequirement"]
+InplaceUpdateRequirement_classLoader: Final[_Loader[InplaceUpdateRequirement_class]] = (
+    _EnumLoader(("InplaceUpdateRequirement",), "InplaceUpdateRequirement_class")
+)
 uri_InplaceUpdateRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["InplaceUpdateRequirement"]]
+    _Loader[InplaceUpdateRequirement_class]
 ] = _URILoader(InplaceUpdateRequirement_classLoader, False, True, None, None)
-ToolTimeLimit_classLoader: Final[_Loader[Literal["ToolTimeLimit"]]] = _EnumLoader(
+ToolTimeLimit_class: TypeAlias = Literal["ToolTimeLimit"]
+ToolTimeLimit_classLoader: Final[_Loader[ToolTimeLimit_class]] = _EnumLoader(
     ("ToolTimeLimit",), "ToolTimeLimit_class"
 )
 uri_ToolTimeLimit_classLoader_False_True_None_None: Final[
-    _Loader[Literal["ToolTimeLimit"]]
+    _Loader[ToolTimeLimit_class]
 ] = _URILoader(ToolTimeLimit_classLoader, False, True, None, None)
 union_of_inttype_or_inttype_or_ExpressionLoader: Final[_Loader[i32 | str]] = (
     _UnionLoader(
@@ -28696,11 +28230,12 @@ union_of_None_type_or_InputBindingLoader: Final[_Loader[InputBinding | None]] = 
         )
     )
 )
-ExpressionTool_classLoader: Final[_Loader[Literal["ExpressionTool"]]] = _EnumLoader(
+ExpressionTool_class: TypeAlias = Literal["ExpressionTool"]
+ExpressionTool_classLoader: Final[_Loader[ExpressionTool_class]] = _EnumLoader(
     ("ExpressionTool",), "ExpressionTool_class"
 )
 uri_ExpressionTool_classLoader_False_True_None_None: Final[
-    _Loader[Literal["ExpressionTool"]]
+    _Loader[ExpressionTool_class]
 ] = _URILoader(ExpressionTool_classLoader, False, True, None, None)
 array_of_WorkflowInputParameterLoader: Final[
     _Loader[Sequence[WorkflowInputParameter]]
@@ -28717,12 +28252,12 @@ idmap_outputs_array_of_ExpressionToolOutputParameterLoader: Final[
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1_None: Final[
     _Loader[None | Sequence[str] | str]
 ] = _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 1, None)
-union_of_None_type_or_LinkMergeMethodLoader: Final[
-    _Loader[Literal["merge_nested", "merge_flattened"] | None]
-] = _UnionLoader(
-    (
-        None_type,
-        LinkMergeMethodLoader,
+union_of_None_type_or_LinkMergeMethodLoader: Final[_Loader[LinkMergeMethod | None]] = (
+    _UnionLoader(
+        (
+            None_type,
+            LinkMergeMethodLoader,
+        )
     )
 )
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None: Final[
@@ -28792,21 +28327,22 @@ uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_Workflo
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0_None: Final[
     _Loader[None | Sequence[str] | str]
 ] = _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0, None)
-union_of_None_type_or_ScatterMethodLoader: Final[
-    _Loader[Literal["dotproduct", "nested_crossproduct", "flat_crossproduct"] | None]
-] = _UnionLoader(
-    (
-        None_type,
-        ScatterMethodLoader,
+union_of_None_type_or_ScatterMethodLoader: Final[_Loader[None | ScatterMethod]] = (
+    _UnionLoader(
+        (
+            None_type,
+            ScatterMethodLoader,
+        )
     )
 )
 uri_union_of_None_type_or_ScatterMethodLoader_False_True_None_None: Final[
-    _Loader[Literal["dotproduct", "nested_crossproduct", "flat_crossproduct"] | None]
+    _Loader[None | ScatterMethod]
 ] = _URILoader(union_of_None_type_or_ScatterMethodLoader, False, True, None, None)
-Workflow_classLoader: Final[_Loader[Literal["Workflow"]]] = _EnumLoader(
+Workflow_class: TypeAlias = Literal["Workflow"]
+Workflow_classLoader: Final[_Loader[Workflow_class]] = _EnumLoader(
     ("Workflow",), "Workflow_class"
 )
-uri_Workflow_classLoader_False_True_None_None: Final[_Loader[Literal["Workflow"]]] = (
+uri_Workflow_classLoader_False_True_None_None: Final[_Loader[Workflow_class]] = (
     _URILoader(Workflow_classLoader, False, True, None, None)
 )
 array_of_WorkflowOutputParameterLoader: Final[
@@ -28824,35 +28360,45 @@ union_of_array_of_WorkflowStepLoader: Final[_Loader[Sequence[WorkflowStep]]] = (
 idmap_steps_union_of_array_of_WorkflowStepLoader: Final[
     _Loader[Sequence[WorkflowStep]]
 ] = _IdMapLoader(union_of_array_of_WorkflowStepLoader, "id", "None")
+SubworkflowFeatureRequirement_class: TypeAlias = Literal[
+    "SubworkflowFeatureRequirement"
+]
 SubworkflowFeatureRequirement_classLoader: Final[
-    _Loader[Literal["SubworkflowFeatureRequirement"]]
+    _Loader[SubworkflowFeatureRequirement_class]
 ] = _EnumLoader(
     ("SubworkflowFeatureRequirement",), "SubworkflowFeatureRequirement_class"
 )
 uri_SubworkflowFeatureRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["SubworkflowFeatureRequirement"]]
+    _Loader[SubworkflowFeatureRequirement_class]
 ] = _URILoader(SubworkflowFeatureRequirement_classLoader, False, True, None, None)
+ScatterFeatureRequirement_class: TypeAlias = Literal["ScatterFeatureRequirement"]
 ScatterFeatureRequirement_classLoader: Final[
-    _Loader[Literal["ScatterFeatureRequirement"]]
+    _Loader[ScatterFeatureRequirement_class]
 ] = _EnumLoader(("ScatterFeatureRequirement",), "ScatterFeatureRequirement_class")
 uri_ScatterFeatureRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["ScatterFeatureRequirement"]]
+    _Loader[ScatterFeatureRequirement_class]
 ] = _URILoader(ScatterFeatureRequirement_classLoader, False, True, None, None)
+MultipleInputFeatureRequirement_class: TypeAlias = Literal[
+    "MultipleInputFeatureRequirement"
+]
 MultipleInputFeatureRequirement_classLoader: Final[
-    _Loader[Literal["MultipleInputFeatureRequirement"]]
+    _Loader[MultipleInputFeatureRequirement_class]
 ] = _EnumLoader(
     ("MultipleInputFeatureRequirement",), "MultipleInputFeatureRequirement_class"
 )
 uri_MultipleInputFeatureRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["MultipleInputFeatureRequirement"]]
+    _Loader[MultipleInputFeatureRequirement_class]
 ] = _URILoader(MultipleInputFeatureRequirement_classLoader, False, True, None, None)
+StepInputExpressionRequirement_class: TypeAlias = Literal[
+    "StepInputExpressionRequirement"
+]
 StepInputExpressionRequirement_classLoader: Final[
-    _Loader[Literal["StepInputExpressionRequirement"]]
+    _Loader[StepInputExpressionRequirement_class]
 ] = _EnumLoader(
     ("StepInputExpressionRequirement",), "StepInputExpressionRequirement_class"
 )
 uri_StepInputExpressionRequirement_classLoader_False_True_None_None: Final[
-    _Loader[Literal["StepInputExpressionRequirement"]]
+    _Loader[StepInputExpressionRequirement_class]
 ] = _URILoader(StepInputExpressionRequirement_classLoader, False, True, None, None)
 uri_strtype_False_True_None_None: Final[_Loader[str]] = _URILoader(
     strtype, False, True, None, None

@@ -37,6 +37,7 @@ from . import (
     OutputArraySchema,
     InputArraySchema,
 )
+from ..types import is_sequence
 
 _logger = logging.getLogger("cwl_utils")
 
@@ -189,7 +190,7 @@ def static_checker(workflow: Workflow) -> None:
     """Check if all source and sink types of a workflow are compatible before run time."""
     step_inputs: Final[MutableSequence[WorkflowStepInput]] = []
     step_outputs = []
-    type_dict = {}
+    type_dict: dict[str, InputTypeSchemas | OutputTypeSchemas | None] = {}
     param_to_step: Final[MutableMapping[str, WorkflowStep]] = {}
     for step in workflow.steps:
         if step.in_ is not None:
@@ -347,12 +348,10 @@ def static_checker(workflow: Workflow) -> None:
         exception_msgs.append(msg)
 
     for sink in step_inputs:
+        sink_type = type_dict[sink.id]
         if (
-            "null" != type_dict[sink.id]
-            and not (
-                isinstance(type_dict[sink.id], MutableSequence)
-                and "null" in type_dict[sink.id]
-            )
+            "null" != sink_type
+            and not (is_sequence(sink_type) and "null" in sink_type)
             and getattr(sink, "source", None) is None
             and getattr(sink, "default", None) is None
             and getattr(sink, "valueFrom", None) is None

@@ -256,7 +256,9 @@ SchemaDefRequirement: TypeAlias = (
 )
 """Type Union for a CWL v1.x SchemaDefRequirement object."""
 __T = TypeVar("__T", covariant=True)
-_Loader: TypeAlias = cwl_v1_0._Loader[__T] | cwl_v1_1._Loader[__T] | cwl_v1_2._Loader[__T]
+_Loader: TypeAlias = (
+    cwl_v1_0._Loader[__T] | cwl_v1_1._Loader[__T] | cwl_v1_2._Loader[__T]
+)
 """Type union for a CWL v1.x _Loader."""
 
 

@@ -5,7 +5,7 @@ from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence, Sequence
 from io import StringIO
 from pathlib import Path
-from typing import IO, Any, Literal, TypeAlias, TypeVar, cast
+from typing import IO, Any, TypeAlias, TypeVar, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -25,78 +25,26 @@ _logger = logging.getLogger("cwl_utils")
 
 SrcSink = namedtuple("SrcSink", ["src", "sink", "linkMerge", "message"])
 
-BasicInputTypeSchemas: TypeAlias = (
-    cwl.InputArraySchema
-    | cwl.InputEnumSchema
-    | cwl.InputRecordSchema
-    | str
-    | Literal[
-        "null",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "string",
-        "File",
-        "Directory",
-    ]
-)
+BasicInputTypeSchemas: TypeAlias = cwl.InputSchema | str | cwl.CWLType
 InputTypeSchemas: TypeAlias = BasicInputTypeSchemas | Sequence[BasicInputTypeSchemas]
 BasicCommandInputTypeSchemas: TypeAlias = (
     cwl.CommandInputArraySchema
     | cwl.CommandInputEnumSchema
     | cwl.CommandInputRecordSchema
     | str
-    | Literal[
-        "null",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "string",
-        "File",
-        "Directory",
-    ]
+    | cwl.CWLType
 )
 CommandInputTypeSchemas: TypeAlias = (
     BasicCommandInputTypeSchemas | Sequence[BasicCommandInputTypeSchemas]
 )
-BasicOutputTypeSchemas: TypeAlias = (
-    cwl.OutputArraySchema
-    | cwl.OutputEnumSchema
-    | cwl.OutputRecordSchema
-    | str
-    | Literal[
-        "null",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "string",
-        "File",
-        "Directory",
-    ]
-)
+BasicOutputTypeSchemas: TypeAlias = cwl.OutputSchema | str | cwl.CWLType
 OutputTypeSchemas: TypeAlias = BasicOutputTypeSchemas | Sequence[BasicOutputTypeSchemas]
 BasicCommandOutputTypeSchemas: TypeAlias = (
     cwl.CommandOutputArraySchema
     | cwl.CommandOutputEnumSchema
     | cwl.CommandOutputRecordSchema
     | str
-    | Literal[
-        "null",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "string",
-        "File",
-        "Directory",
-    ]
+    | cwl.CWLType
 )
 CommandOutputTypeSchemas: TypeAlias = (
     BasicCommandOutputTypeSchemas | Sequence[BasicCommandOutputTypeSchemas]

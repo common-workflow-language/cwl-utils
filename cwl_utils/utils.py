@@ -387,16 +387,7 @@ def sanitise_schema_field(
             schema_field_item["type"] = InputArraySchemaV1_2(
                 type_="array",
                 items=cast(
-                    str
-                    | cwl_v1_2.InputArraySchema
-                    | cwl_v1_2.InputEnumSchema
-                    | cwl_v1_2.InputRecordSchema
-                    | Sequence[
-                        str
-                        | cwl_v1_2.InputArraySchema
-                        | cwl_v1_2.InputEnumSchema
-                        | cwl_v1_2.InputRecordSchema,
-                    ],
+                    str | cwl_v1_2.InputSchema | Sequence[str | cwl_v1_2.InputSchema],
                     rest.get("items", ""),
                 ),
             )
