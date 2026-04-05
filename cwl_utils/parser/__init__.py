@@ -4,7 +4,7 @@ import os
 from abc import ABC
 from collections.abc import MutableMapping, MutableSequence
 from pathlib import Path
-from typing import Any, Optional, TypeAlias, cast
+from typing import Any, Optional, TypeAlias, cast, TypeVar
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
@@ -255,7 +255,8 @@ SchemaDefRequirement: TypeAlias = (
     | cwl_v1_2.SchemaDefRequirement
 )
 """Type Union for a CWL v1.x SchemaDefRequirement object."""
-_Loader: TypeAlias = cwl_v1_0._Loader | cwl_v1_1._Loader | cwl_v1_2._Loader
+__T = TypeVar("__T", covariant=True)
+_Loader: TypeAlias = cwl_v1_0._Loader[__T] | cwl_v1_1._Loader[__T] | cwl_v1_2._Loader[__T]
 """Type union for a CWL v1.x _Loader."""
 
 
