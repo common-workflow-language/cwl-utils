@@ -25,16 +25,13 @@ LoadingOptions: TypeAlias = (
 Saveable: TypeAlias = cwl_v1_0.Saveable | cwl_v1_1.Saveable | cwl_v1_2.Saveable
 """Type union for a CWL v1.x Saveable object."""
 InputParameter: TypeAlias = (
-    cwl_v1_0.InputParameter
-    | cwl_v1_0.CommandInputParameter
-    | cwl_v1_1.InputParameter
-    | cwl_v1_2.InputParameter
+    cwl_v1_0.InputParameter | cwl_v1_1.InputParameter | cwl_v1_2.InputParameter
 )
 """Type union for a CWL v1.x InputEnumSchema object."""
 InputRecordField: TypeAlias = (
     cwl_v1_0.InputRecordField | cwl_v1_1.InputRecordField | cwl_v1_2.InputRecordField
 )
-"""Type union for a CWL v1.x InputRecordSchema object."""
+"""Type union for a CWL v1.x InputRecordField object."""
 InputSchema: TypeAlias = (
     cwl_v1_0.InputSchema | cwl_v1_1.InputSchema | cwl_v1_2.InputSchema
 )
@@ -166,6 +163,17 @@ CommandOutputRecordField: TypeAlias = (
     | cwl_v1_2.CommandOutputRecordField
 )
 """Type union for a CWL v1.x CommandOutputRecordField object."""
+CommandOutputRecordSchema: TypeAlias = (
+    cwl_v1_0.CommandOutputRecordSchema
+    | cwl_v1_1.CommandOutputRecordSchema
+    | cwl_v1_2.CommandOutputRecordSchema
+)
+CommandOutputRecordSchemaTypes = (
+    cwl_v1_0.CommandOutputRecordSchema,
+    cwl_v1_1.CommandOutputRecordSchema,
+    cwl_v1_2.CommandOutputRecordSchema,
+)
+"""Type Union for a CWL v1.x CommandOutputRecordSchema object."""
 ExpressionTool: TypeAlias = (
     cwl_v1_0.ExpressionTool | cwl_v1_1.ExpressionTool | cwl_v1_2.ExpressionTool
 )
@@ -242,7 +250,7 @@ InputRecordSchemaTypes = (
     cwl_v1_1.InputRecordSchema,
     cwl_v1_2.InputRecordSchema,
 )
-"""Type Union for a CWL v1.x RecordSchema object."""
+"""Type Union for a CWL v1.x InputRecordSchema object."""
 
 File: TypeAlias = cwl_v1_0.File | cwl_v1_1.File | cwl_v1_2.File
 """Type Union for a CWL v1.x File object."""
