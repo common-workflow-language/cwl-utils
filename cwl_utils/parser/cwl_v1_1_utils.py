@@ -2,10 +2,10 @@
 import hashlib
 import logging
 from collections import namedtuple
-from collections.abc import MutableMapping, MutableSequence, Sequence
+from collections.abc import MutableMapping, MutableSequence, Sequence, Mapping
 from io import StringIO
 from pathlib import Path
-from typing import IO, Any, TypeAlias, TypeVar, cast
+from typing import IO, Any, TypeAlias, TypeVar
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -107,39 +107,6 @@ def in_output_type_schema_to_output_type_schema(
     return _in_output_type_schema_to_output_type_schema(schema_type, loading_options)
 
 
-def _compare_records(
-    src: cwl.RecordSchema, sink: cwl.RecordSchema, strict: bool = False
-) -> bool:
-    """
-    Compare two records, ensuring they have compatible fields.
-
-    This handles normalizing record names, which will be relative to workflow
-    step, so that they can be compared.
-    """
-    srcfields = {cwl.shortname(field.name): field.type_ for field in (src.fields or {})}
-    sinkfields = {
-        cwl.shortname(field.name): field.type_ for field in (sink.fields or {})
-    }
-    for key in sinkfields.keys():
-        if (
-            not can_assign_src_to_sink(
-                srcfields.get(key, "null"), sinkfields.get(key, "null"), strict
-            )
-            and sinkfields.get(key) is not None
-        ):
-            _logger.info(
-                "Record comparison failure for %s and %s\n"
-                "Did not match fields for %s: %s and %s",
-                cast(cwl.InputRecordSchema | cwl.CommandOutputRecordSchema, src).name,
-                cast(cwl.InputRecordSchema | cwl.CommandOutputRecordSchema, sink).name,
-                key,
-                srcfields.get(key),
-                sinkfields.get(key),
-            )
-            return False
-    return True
-
-
 def _compare_type(type1: Any, type2: Any) -> bool:
     match (type1, type1):
         case cwl.ArraySchema() as t1, cwl.ArraySchema() as t2:
@@ -226,45 +193,15 @@ def _inputfile_load(
             )
 
 
-def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
-    """
-    Check for identical type specifications, ignoring extra keys like inputBinding.
-
-    src: admissible source types
-    sink: admissible sink types
-
-    In non-strict comparison, at least one source type must match one sink type,
-       except for 'null'.
-    In strict comparison, all source types must match at least one sink type.
-    """
-    if "Any" in (src, sink):
-        return True
-    if isinstance(src, cwl.ArraySchema) and isinstance(sink, cwl.ArraySchema):
-        return can_assign_src_to_sink(src.items, sink.items, strict)
-    if isinstance(src, cwl.RecordSchema) and isinstance(sink, cwl.RecordSchema):
-        return _compare_records(src, sink, strict)
-    if isinstance(src, MutableSequence):
-        if strict:
-            for this_src in src:
-                if not can_assign_src_to_sink(this_src, sink):
-                    return False
-            return True
-        for this_src in src:
-            if this_src != "null" and can_assign_src_to_sink(this_src, sink):
-                return True
-        return False
-    if isinstance(sink, MutableSequence):
-        for this_sink in sink:
-            if can_assign_src_to_sink(src, this_sink):
-                return True
-        return False
-    return bool(src == sink)
-
-
 def check_all_types(
-    src_dict: dict[str, Any],
+    src_dict: Mapping[str, cwl.WorkflowInputParameter | cwl.WorkflowStepOutput],
     sinks: Sequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
-    type_dict: dict[str, Any],
+    type_dict: Mapping[
+        str,
+        cwl_utils.parser.utils.InputTypeSchemas
+        | cwl_utils.parser.utils.OutputTypeSchemas
+        | None,
+    ],
 ) -> dict[str, list[SrcSink]]:
     """Given a list of sinks, check if their types match with the types of their sources."""
     validation: dict[str, list[SrcSink]] = {"warning": [], "exception": []}
@@ -295,43 +232,15 @@ def check_all_types(
                 srcs_of_sink = [src_dict[parm_id]]
                 linkMerge = None
             for src in srcs_of_sink:
-                check_result = check_types(
-                    type_dict[cast(str, src.id)],
+                check_result = cwl_utils.parser.utils.check_types(
+                    type_dict[src.id],
                     type_dict[sink.id],
                     linkMerge,
-                    getattr(sink, "valueFrom", None),
+                    sink.valueFrom if isinstance(sink, cwl.WorkflowStepInput) else None,
                 )
                 if check_result in ("warning", "exception"):
                     validation[check_result].append(SrcSink(src, sink, linkMerge, None))
     return validation
-
-
-def check_types(
-    srctype: Any,
-    sinktype: Any,
-    linkMerge: str | None,
-    valueFrom: str | None = None,
-) -> str:
-    """
-    Check if the source and sink types are correct.
-
-    Acceptable types are "pass", "warning", or "exception".
-    """
-    if valueFrom is not None:
-        return "pass"
-    if linkMerge is None:
-        if can_assign_src_to_sink(srctype, sinktype, strict=True):
-            return "pass"
-        if can_assign_src_to_sink(srctype, sinktype, strict=False):
-            return "warning"
-        return "exception"
-    if linkMerge == "merge_nested":
-        return check_types(
-            cwl.ArraySchema(items=srctype, type_="array"), sinktype, None, None
-        )
-    if linkMerge == "merge_flattened":
-        return check_types(merge_flatten_type(srctype), sinktype, None, None)
-    raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
 
 
 def content_limit_respected_read_bytes(f: IO[bytes]) -> bytes:
@@ -452,15 +361,6 @@ def load_inputfile_by_yaml(
     return result
 
 
-def merge_flatten_type(src: Any) -> Any:
-    """Return the merge flattened type of the source type."""
-    if isinstance(src, MutableSequence):
-        return [merge_flatten_type(t) for t in src]
-    if isinstance(src, cwl.ArraySchema):
-        return src
-    return cwl.ArraySchema(type_="array", items=src)
-
-
 def to_input_array(type_: InputTypeSchemas) -> cwl.InputArraySchema:
     return cwl.InputArraySchema(type_="array", items=type_)
 
@@ -564,7 +464,7 @@ def type_for_source(
                 type_="array",
             )
         elif linkMerge == "merge_flattened":
-            new_type = merge_flatten_type(new_type)
+            new_type = cwl_utils.parser.utils.merge_flatten_type(new_type)
         return new_type
     new_types: MutableSequence[InputTypeSchemas | OutputTypeSchemas] = []
     for p, sc in zip(params, scatter_context):
@@ -608,7 +508,7 @@ def type_for_source(
             type_="array",
         )
     elif linkMerge == "merge_flattened":
-        final_type = merge_flatten_type(final_type)
+        final_type = cwl_utils.parser.utils.merge_flatten_type(final_type)
     elif isinstance(sourcenames, list) and len(sourcenames) > 1:
         return cwl.OutputArraySchema(
             items=final_type,

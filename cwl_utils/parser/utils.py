@@ -2,10 +2,18 @@
 
 import copy
 import logging
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import MutableMapping, MutableSequence, Sequence
 from pathlib import Path
-from types import ModuleType
-from typing import Any, Final, Optional, cast, Literal, TypeAlias, overload
+from typing import (
+    Any,
+    Final,
+    Optional,
+    cast,
+    Literal,
+    TypeAlias,
+    overload,
+    Mapping,
+)
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
@@ -31,6 +39,12 @@ from . import (
     InputArraySchema,
     OutputParameter,
     InputParameter,
+    ArraySchema,
+    InputRecordSchema,
+    CommandOutputRecordSchema,
+    OutputRecordSchema,
+    InputRecordField,
+    OutputRecordField,
 )
 from ..types import is_sequence
 
@@ -65,6 +79,133 @@ OutputTypeSchemas: TypeAlias = (
 )
 
 
+SrcSink: TypeAlias = (
+    cwl_v1_0_utils.SrcSink | cwl_v1_1_utils.SrcSink | cwl_v1_2_utils.SrcSink
+)
+
+
+def _compare_records(
+    src: InputRecordSchema | OutputRecordSchema,
+    sink: InputRecordSchema | OutputRecordSchema,
+    strict: bool = False,
+) -> bool:
+    """
+    Compare two records, ensuring they have compatible fields.
+
+    This handles normalizing record names, which will be relative to workflow
+    step, so that they can be compared.
+    """
+    srcfields = {
+        cwl_v1_2.shortname(field.name): cast(
+            InputTypeSchemas | OutputTypeSchemas | None, field.type_
+        )
+        for field in cast(
+            Sequence[InputRecordField | OutputRecordField], src.fields or []
+        )
+    }
+    sinkfields = {
+        cwl_v1_2.shortname(field.name): cast(
+            InputTypeSchemas | OutputTypeSchemas | None, field.type_
+        )
+        for field in cast(
+            Sequence[InputRecordField | OutputRecordField], sink.fields or []
+        )
+    }
+    for key in sinkfields.keys():
+        if (
+            not can_assign_src_to_sink(
+                srcfields.get(key, "null"), sinkfields.get(key, "null"), strict
+            )
+            and sinkfields.get(key) is not None
+        ):
+            _logger.info(
+                "Record comparison failure for %s and %s\n"
+                "Did not match fields for %s: %s and %s",
+                cast(InputRecordSchema | CommandOutputRecordSchema, src).name,
+                cast(InputRecordSchema | CommandOutputRecordSchema, sink).name,
+                key,
+                srcfields.get(key),
+                sinkfields.get(key),
+            )
+            return False
+    return True
+
+
+def can_assign_src_to_sink(
+    src: InputTypeSchemas | OutputTypeSchemas | None,
+    sink: InputTypeSchemas | OutputTypeSchemas | None,
+    strict: bool = False,
+) -> bool:
+    """
+    Check for identical type specifications, ignoring extra keys like inputBinding.
+
+    src: admissible source types
+    sink: admissible sink types
+
+    In non-strict comparison, at least one source type must match one sink type,
+       except for 'null'.
+    In strict comparison, all source types must match at least one sink type.
+    """
+    if "Any" in (src, sink):
+        return True
+    if isinstance(src, InputArraySchema | OutputArraySchema) and isinstance(
+        sink, InputArraySchema | OutputArraySchema
+    ):
+        return can_assign_src_to_sink(
+            cast(InputTypeSchemas | OutputTypeSchemas | None, src.items),
+            cast(InputTypeSchemas | OutputTypeSchemas | None, sink.items),
+            strict,
+        )
+    if isinstance(src, InputRecordSchema | OutputRecordSchema) and isinstance(
+        sink, InputRecordSchema | OutputRecordSchema
+    ):
+        return _compare_records(src, sink, strict)
+    if isinstance(src, MutableSequence):
+        if strict:
+            for this_src in src:
+                if not can_assign_src_to_sink(this_src, sink):
+                    return False
+            return True
+        for this_src in src:
+            if this_src != "null" and can_assign_src_to_sink(this_src, sink):
+                return True
+        return False
+    if isinstance(sink, MutableSequence):
+        for this_sink in sink:
+            if can_assign_src_to_sink(src, this_sink):
+                return True
+        return False
+    return bool(src == sink)
+
+
+def check_types(
+    srctype: InputTypeSchemas | OutputTypeSchemas | None,
+    sinktype: InputTypeSchemas | OutputTypeSchemas | None,
+    linkMerge: str | None,
+    valueFrom: str | None = None,
+) -> str:
+    """
+    Check if the source and sink types are correct.
+
+    Acceptable types are "pass", "warning", or "exception".
+    """
+    if valueFrom is not None:
+        return "pass"
+    if linkMerge is None:
+        if can_assign_src_to_sink(srctype, sinktype, strict=True):
+            return "pass"
+        if can_assign_src_to_sink(srctype, sinktype, strict=False):
+            return "warning"
+        return "exception"
+    if linkMerge == "merge_nested":
+        return check_types(
+            cwl_v1_2.ArraySchema(items=srctype, type_="array"), sinktype, None, None
+        )
+    if linkMerge == "merge_flattened":
+        return check_types(merge_flatten_type(srctype), sinktype, None, None)
+    raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
+
+
 def convert_stdstreams_to_files(process: Process) -> None:
     """Convert stdin, stdout and stderr type shortcuts to files."""
     match process:
@@ -74,6 +215,21 @@ def convert_stdstreams_to_files(process: Process) -> None:
             cwl_v1_1_utils.convert_stdstreams_to_files(process)
         case cwl_v1_2.CommandLineTool():
             cwl_v1_2_utils.convert_stdstreams_to_files(process)
+
+
+def dump_type(
+    type_: InputTypeSchemas | OutputTypeSchemas | None,
+    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+) -> str:
+    match cwlVersion:
+        case "v1.0":
+            return json_dumps(cwl_v1_0.save(type_))
+        case "v1.1":
+            return json_dumps(cwl_v1_1.save(type_))
+        case "v1.2":
+            return json_dumps(cwl_v1_2.save(type_))
+        case _:
+            raise Exception(f"Unsupported CWL version {cwlVersion}")
 
 
 def load_inputfile_by_uri(
@@ -181,6 +337,15 @@ def load_step(
     return cast(Process, copy.deepcopy(step.run))
 
 
+def merge_flatten_type(src: Any) -> Any:
+    """Return the merge flattened type of the source type."""
+    if isinstance(src, MutableSequence):
+        return [merge_flatten_type(t) for t in src]
+    if isinstance(src, ArraySchema):
+        return src
+    return cwl_v1_2.ArraySchema(type_="array", items=src)
+
+
 def static_checker(workflow: Workflow) -> None:
     """Check if all source and sink types of a workflow are compatible before run time."""
     step_inputs: Final[MutableSequence[WorkflowStepInput]] = []
@@ -235,40 +400,70 @@ def static_checker(workflow: Workflow) -> None:
         **{param.id: param.type_ for param in workflow.outputs},
     }
 
-    parser: ModuleType
-    step_inputs_val: dict[str, Any]
-    workflow_outputs_val: dict[str, Any]
+    step_inputs_val: Mapping[str, Sequence[SrcSink]]
+    workflow_outputs_val: Mapping[str, Sequence[SrcSink]]
     match workflow.cwlVersion:
         case "v1.0":
-            parser = cwl_v1_0
             step_inputs_val = cwl_v1_0_utils.check_all_types(
-                src_dict,
+                cast(
+                    Mapping[str, cwl_v1_0.InputParameter | cwl_v1_0.WorkflowStepOutput],
+                    src_dict,
+                ),
                 cast(MutableSequence[cwl_v1_0.WorkflowStepInput], step_inputs),
                 type_dict,
             )
             workflow_outputs_val = cwl_v1_0_utils.check_all_types(
-                src_dict, workflow.outputs, type_dict
+                cast(
+                    Mapping[str, cwl_v1_0.InputParameter | cwl_v1_0.WorkflowStepOutput],
+                    src_dict,
+                ),
+                workflow.outputs,
+                type_dict,
             )
         case "v1.1":
-            parser = cwl_v1_1
             step_inputs_val = cwl_v1_1_utils.check_all_types(
-                src_dict,
+                cast(
+                    Mapping[
+                        str,
+                        cwl_v1_1.WorkflowInputParameter | cwl_v1_1.WorkflowStepOutput,
+                    ],
+                    src_dict,
+                ),
                 cast(MutableSequence[cwl_v1_1.WorkflowStepInput], step_inputs),
                 type_dict,
             )
             workflow_outputs_val = cwl_v1_1_utils.check_all_types(
-                src_dict, workflow.outputs, type_dict
+                cast(
+                    Mapping[
+                        str,
+                        cwl_v1_1.WorkflowInputParameter | cwl_v1_1.WorkflowStepOutput,
+                    ],
+                    src_dict,
+                ),
+                workflow.outputs,
+                type_dict,
             )
         case "v1.2":
-            parser = cwl_v1_2
             step_inputs_val = cwl_v1_2_utils.check_all_types(
-                src_dict,
+                cast(
+                    Mapping[
+                        str,
+                        cwl_v1_2.WorkflowInputParameter | cwl_v1_2.WorkflowStepOutput,
+                    ],
+                    src_dict,
+                ),
                 cast(MutableSequence[cwl_v1_2.WorkflowStepInput], step_inputs),
                 cast(MutableMapping[str, cwl_v1_2.WorkflowStep], param_to_step),
                 type_dict,
             )
             workflow_outputs_val = cwl_v1_2_utils.check_all_types(
-                src_dict,
+                cast(
+                    Mapping[
+                        str,
+                        cwl_v1_2.WorkflowInputParameter | cwl_v1_2.WorkflowStepOutput,
+                    ],
+                    src_dict,
+                ),
                 workflow.outputs,
                 cast(MutableMapping[str, cwl_v1_2.WorkflowStep], param_to_step),
                 type_dict,
@@ -285,20 +480,21 @@ def static_checker(workflow: Workflow) -> None:
         src = warning.src
         sink = warning.sink
         linkMerge = warning.linkMerge
+
         msg = (
             SourceLine(src, "type").makeError(
                 "Source '%s' of type %s may be incompatible"
                 % (
-                    parser.shortname(src.id),
-                    json_dumps(parser.save(type_dict[src.id])),
+                    shortname(src.id, workflow.cwlVersion),
+                    dump_type(type_dict[src.id], workflow.cwlVersion),
                 )
             )
             + "\n"
             + SourceLine(sink, "type").makeError(
                 "  with sink '%s' of type %s"
                 % (
-                    parser.shortname(sink.id),
-                    json_dumps(parser.save(type_dict[sink.id])),
+                    shortname(sink.id, workflow.cwlVersion),
+                    dump_type(type_dict[sink.id], workflow.cwlVersion),
                 )
             )
         )
@@ -322,14 +518,17 @@ def static_checker(workflow: Workflow) -> None:
         msg = (
             SourceLine(src, "type").makeError(
                 "Source '%s' of type %s is incompatible"
-                % (parser.shortname(src.id), json_dumps(parser.save(type_dict[src.id])))
+                % (
+                    shortname(src.id, workflow.cwlVersion),
+                    dump_type(type_dict[src.id], workflow.cwlVersion),
+                )
             )
             + "\n"
             + SourceLine(sink, "type").makeError(
                 "  with sink '%s' of type %s"
                 % (
-                    parser.shortname(sink.id),
-                    json_dumps(parser.save(type_dict[sink.id])),
+                    shortname(sink.id, workflow.cwlVersion),
+                    dump_type(type_dict[sink.id], workflow.cwlVersion),
                 )
             )
         )
@@ -353,7 +552,7 @@ def static_checker(workflow: Workflow) -> None:
         ):
             msg = SourceLine(sink).makeError(
                 "Required parameter '%s' does not have source, default, or valueFrom expression"
-                % parser.shortname(sink.id)
+                % shortname(sink.id, workflow.cwlVersion),
             )
             exception_msgs.append(msg)
 
@@ -555,3 +754,15 @@ def param_for_source_id(
             raise ValidationException(
                 f"Version error. Did not recognise {process.cwlVersion} as a CWL version"
             )
+
+
+def shortname(name: str, cwlVersion: Literal["v1.0", "v1.1", "v1.2"]) -> str:
+    match cwlVersion:
+        case "v1.0":
+            return cwl_v1_0.shortname(name)
+        case "v1.1":
+            return cwl_v1_1.shortname(name)
+        case "v1.2":
+            return cwl_v1_2.shortname(name)
+        case _:
+            raise Exception(f"Unsupported CWL version {cwlVersion}")
