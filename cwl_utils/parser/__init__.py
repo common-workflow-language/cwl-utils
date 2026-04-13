@@ -4,7 +4,7 @@ import os
 from abc import ABC
 from collections.abc import MutableMapping, MutableSequence
 from pathlib import Path
-from typing import Any, Optional, TypeAlias, cast
+from typing import Any, Optional, TypeAlias, cast, TypeVar
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
@@ -31,23 +31,37 @@ InputParameter: TypeAlias = (
 InputRecordField: TypeAlias = (
     cwl_v1_0.InputRecordField | cwl_v1_1.InputRecordField | cwl_v1_2.InputRecordField
 )
-"""Type union for a CWL v1.x InputRecordSchema object."""
+"""Type union for a CWL v1.x InputRecordField object."""
 InputSchema: TypeAlias = (
     cwl_v1_0.InputSchema | cwl_v1_1.InputSchema | cwl_v1_2.InputSchema
 )
 """Type union for a CWL v1.x InputSchema object."""
 OutputParameter: TypeAlias = (
-    cwl_v1_0.OutputParameter | cwl_v1_1.OutputParameter | cwl_v1_2.OutputParameter
+    cwl_v1_0.CommandOutputParameter
+    | cwl_v1_0.ExpressionToolOutputParameter
+    | cwl_v1_0.WorkflowOutputParameter
+    | cwl_v1_1.OutputParameter
+    | cwl_v1_2.OutputParameter
 )
 """Type union for a CWL v1.x OutputParameter object."""
 OutputArraySchema: TypeAlias = (
     cwl_v1_0.OutputArraySchema | cwl_v1_1.OutputArraySchema | cwl_v1_2.OutputArraySchema
 )
 """Type union for a CWL v1.x OutputArraySchema object."""
+OutputArraySchemaTypes = (
+    cwl_v1_0.OutputArraySchema,
+    cwl_v1_1.OutputArraySchema,
+    cwl_v1_2.OutputArraySchema,
+)
 OutputEnumSchema: TypeAlias = (
     cwl_v1_0.OutputEnumSchema | cwl_v1_1.OutputEnumSchema | cwl_v1_2.OutputEnumSchema
 )
 """Type union for a CWL v1.x OutputEnumSchema object."""
+OutputEnumSchemaTypes = (
+    cwl_v1_0.OutputEnumSchema,
+    cwl_v1_1.OutputEnumSchema,
+    cwl_v1_2.OutputEnumSchema,
+)
 OutputRecordField: TypeAlias = (
     cwl_v1_0.OutputRecordField | cwl_v1_1.OutputRecordField | cwl_v1_2.OutputRecordField
 )
@@ -58,6 +72,11 @@ OutputRecordSchema: TypeAlias = (
     | cwl_v1_2.OutputRecordSchema
 )
 """Type union for a CWL v1.x OutputRecordSchema object."""
+OutputRecordSchemaTypes = (
+    cwl_v1_0.OutputRecordSchema,
+    cwl_v1_1.OutputRecordSchema,
+    cwl_v1_2.OutputRecordSchema,
+)
 OutputSchema: TypeAlias = (
     cwl_v1_0.OutputSchema | cwl_v1_1.OutputSchema | cwl_v1_2.OutputSchema
 )
@@ -97,6 +116,12 @@ WorkflowStepOutput: TypeAlias = (
     | cwl_v1_2.WorkflowStepOutput
 )
 """Type union for a CWL v1.x WorkflowStepOutput object."""
+Operation: TypeAlias = cwl_v1_2.Operation
+"""Type union for a CWL v1.x Operation object."""
+OperationInputParameter: TypeAlias = cwl_v1_2.OperationInputParameter
+"""Type union for a CWL v1.x OperationInputParameter object."""
+OperationOutputParameter: TypeAlias = cwl_v1_2.OperationOutputParameter
+"""Type union for a CWL v1.x OperationOutputParameter object."""
 CommandLineTool: TypeAlias = (
     cwl_v1_0.CommandLineTool | cwl_v1_1.CommandLineTool | cwl_v1_2.CommandLineTool
 )
@@ -138,6 +163,17 @@ CommandOutputRecordField: TypeAlias = (
     | cwl_v1_2.CommandOutputRecordField
 )
 """Type union for a CWL v1.x CommandOutputRecordField object."""
+CommandOutputRecordSchema: TypeAlias = (
+    cwl_v1_0.CommandOutputRecordSchema
+    | cwl_v1_1.CommandOutputRecordSchema
+    | cwl_v1_2.CommandOutputRecordSchema
+)
+CommandOutputRecordSchemaTypes = (
+    cwl_v1_0.CommandOutputRecordSchema,
+    cwl_v1_1.CommandOutputRecordSchema,
+    cwl_v1_2.CommandOutputRecordSchema,
+)
+"""Type Union for a CWL v1.x CommandOutputRecordSchema object."""
 ExpressionTool: TypeAlias = (
     cwl_v1_0.ExpressionTool | cwl_v1_1.ExpressionTool | cwl_v1_2.ExpressionTool
 )
@@ -214,7 +250,8 @@ InputRecordSchemaTypes = (
     cwl_v1_1.InputRecordSchema,
     cwl_v1_2.InputRecordSchema,
 )
-"""Type Union for a CWL v1.x RecordSchema object."""
+"""Type Union for a CWL v1.x InputRecordSchema object."""
+
 File: TypeAlias = cwl_v1_0.File | cwl_v1_1.File | cwl_v1_2.File
 """Type Union for a CWL v1.x File object."""
 SecondaryFileSchema: TypeAlias = (
@@ -225,20 +262,18 @@ Directory: TypeAlias = cwl_v1_0.Directory | cwl_v1_1.Directory | cwl_v1_2.Direct
 """Type Union for a CWL v1.x Directory object."""
 Dirent: TypeAlias = cwl_v1_0.Dirent | cwl_v1_1.Dirent | cwl_v1_2.Dirent
 """Type Union for a CWL v1.x Dirent object."""
-LoadContents: TypeAlias = (
-    cwl_v1_1.CommandInputParameter
-    | cwl_v1_2.CommandInputParameter
-    | cwl_v1_1.CommandOutputBinding
-    | cwl_v1_2.CommandOutputBinding
-    | cwl_v1_1.InputRecordField
-    | cwl_v1_2.InputRecordField
-    | cwl_v1_1.WorkflowInputParameter
-    | cwl_v1_2.WorkflowInputParameter
-    | cwl_v1_1.WorkflowStepInput
-    | cwl_v1_2.WorkflowStepInput
-)
+LoadContents: TypeAlias = cwl_v1_1.LoadContents | cwl_v1_2.LoadContents
 """Type Union for a CWL v1.x LoadContents object."""
-_Loader: TypeAlias = cwl_v1_0._Loader | cwl_v1_1._Loader | cwl_v1_2._Loader
+SchemaDefRequirement: TypeAlias = (
+    cwl_v1_0.SchemaDefRequirement
+    | cwl_v1_1.SchemaDefRequirement
+    | cwl_v1_2.SchemaDefRequirement
+)
+"""Type Union for a CWL v1.x SchemaDefRequirement object."""
+__T = TypeVar("__T", covariant=True)
+_Loader: TypeAlias = (
+    cwl_v1_0._Loader[__T] | cwl_v1_1._Loader[__T] | cwl_v1_2._Loader[__T]
+)
 """Type union for a CWL v1.x _Loader."""
 
 

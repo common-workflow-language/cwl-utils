@@ -3,18 +3,24 @@
 # The code itself is released under the Apache 2.0 license and the help text is
 # subject to the license of the original schema.
 
+from __future__ import annotations
+
 import copy
 import logging
 import os
 import pathlib
+import sys
 import tempfile
 import uuid as _uuid__  # pylint: disable=unused-import # noqa: F401
 import xml.sax  # nosec
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
+from collections.abc import Collection  # pylint: disable=unused-import # noqa: F401
 from collections.abc import MutableMapping, MutableSequence, Sequence
 from io import StringIO
 from itertools import chain
-from typing import Any, Final, Optional, Union, cast
+from mypy_extensions import i32, i64, mypyc_attr
+from typing import ClassVar, Literal, Mapping  # pylint: disable=unused-import # noqa: F401
+from typing import Any, Final, Generic, TypeAlias, TypeVar, cast
 from urllib.parse import quote, urldefrag, urlparse, urlsplit, urlunsplit
 from urllib.request import pathname2url
 
@@ -27,22 +33,31 @@ from schema_salad.fetcher import DefaultFetcher, Fetcher, MemoryCachingFetcher
 from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import CacheType, yaml_no_ts  # requires schema-salad v8.2+
 
-_vocab: dict[str, str] = {}
-_rvocab: dict[str, str] = {}
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
+
+_vocab: Final[dict[str, str]] = {}
+_rvocab: Final[dict[str, str]] = {}
 
 _logger: Final = logging.getLogger("salad")
 
 
-IdxType = MutableMapping[str, tuple[Any, "LoadingOptions"]]
+IdxType: TypeAlias = MutableMapping[str, tuple[Any, "LoadingOptions"]]
+E = TypeVar("E", bound=str)
+S = TypeVar("S", bound="Saveable")
+T = TypeVar("T", covariant=True)
 
 
+@mypyc_attr(native_class=True)
 class LoadingOptions:
     idx: Final[IdxType]
-    fileuri: Final[Optional[str]]
+    fileuri: Final[str | None]
     baseuri: Final[str]
     namespaces: Final[MutableMapping[str, str]]
     schemas: Final[MutableSequence[str]]
-    original_doc: Final[Optional[Any]]
+    original_doc: Final[Any | None]
     addl_metadata: Final[MutableMapping[str, Any]]
     fetcher: Final[Fetcher]
     vocab: Final[dict[str, str]]
@@ -50,24 +65,24 @@ class LoadingOptions:
     cache: Final[CacheType]
     imports: Final[list[str]]
     includes: Final[list[str]]
-    no_link_check: Final[Optional[bool]]
-    container: Final[Optional[str]]
+    no_link_check: Final[bool | None]
+    container: Final[str | None]
 
     def __init__(
         self,
-        fetcher: Optional[Fetcher] = None,
-        namespaces: Optional[dict[str, str]] = None,
-        schemas: Optional[list[str]] = None,
-        fileuri: Optional[str] = None,
-        copyfrom: Optional["LoadingOptions"] = None,
-        original_doc: Optional[Any] = None,
-        addl_metadata: Optional[dict[str, str]] = None,
-        baseuri: Optional[str] = None,
-        idx: Optional[IdxType] = None,
-        imports: Optional[list[str]] = None,
-        includes: Optional[list[str]] = None,
-        no_link_check: Optional[bool] = None,
-        container: Optional[str] = None,
+        fetcher: Fetcher | None = None,
+        namespaces: dict[str, str] | None = None,
+        schemas: list[str] | None = None,
+        fileuri: str | None = None,
+        copyfrom: LoadingOptions | None = None,
+        original_doc: Any | None = None,
+        addl_metadata: dict[str, str] | None = None,
+        baseuri: str | None = None,
+        idx: IdxType | None = None,
+        imports: list[str] | None = None,
+        includes: list[str] | None = None,
+        no_link_check: bool | None = None,
+        container: str | None = None,
     ) -> None:
         """Create a LoadingOptions object."""
         self.original_doc = original_doc
@@ -79,7 +94,7 @@ class LoadingOptions:
         self.idx = temp_idx
 
         if fileuri is not None:
-            temp_fileuri: Optional[str] = fileuri
+            temp_fileuri: str | None = fileuri
         else:
             temp_fileuri = copyfrom.fileuri if copyfrom is not None else None
         self.fileuri = temp_fileuri
@@ -121,13 +136,13 @@ class LoadingOptions:
         self.includes = temp_includes
 
         if no_link_check is not None:
-            temp_no_link_check: Optional[bool] = no_link_check
+            temp_no_link_check: bool | None = no_link_check
         else:
             temp_no_link_check = copyfrom.no_link_check if copyfrom is not None else False
         self.no_link_check = temp_no_link_check
 
         if container is not None:
-            temp_container: Optional[str] = container
+            temp_container: str | None = container
         else:
             temp_container = copyfrom.container if copyfrom is not None else None
         self.container = temp_container
@@ -201,7 +216,8 @@ class LoadingOptions:
         return graph
 
 
-class Saveable(ABC):
+@mypyc_attr(native_class=True)
+class Saveable(metaclass=ABCMeta):
     """Mark classes than have a save() and fromDoc() function."""
 
     @classmethod
@@ -211,8 +227,8 @@ class Saveable(ABC):
         _doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-    ) -> "Saveable":
+        docRoot: str | None = None,
+    ) -> Self:
         """Construct this object from the result of yaml.load()."""
 
     @abstractmethod
@@ -223,12 +239,12 @@ class Saveable(ABC):
 
 
 def load_field(
-    val: Union[str, dict[str, str]],
-    fieldtype: "_Loader",
+    val: Any | None,
+    fieldtype: _Loader[T],
     baseuri: str,
     loadingOptions: LoadingOptions,
-    lc: Optional[list[Any]] = None,
-) -> Any:
+    lc: Any | None = None,
+) -> T:
     """Load field."""
     if isinstance(val, MutableMapping):
         if "$import" in val:
@@ -251,7 +267,9 @@ def load_field(
     return fieldtype.load(val, baseuri, loadingOptions, lc=lc)
 
 
-save_type = Optional[Union[MutableMapping[str, Any], MutableSequence[Any], int, float, bool, str]]
+save_type: TypeAlias = (
+    None | MutableMapping[str, Any] | MutableSequence[Any] | i32 | i64 | float | bool | str
+)
 
 
 def extract_type(val_type: type[Any]) -> str:
@@ -328,7 +346,7 @@ def save(
         for key in val:
             newdict[key] = save(val[key], top=False, base_url=base_url, relative_uris=relative_uris)
         return newdict
-    if val is None or isinstance(val, (int, float, bool, str)):
+    if val is None or isinstance(val, (i32, i64, float, bool, str)):
         return val
     raise Exception("Not Saveable: %s" % type(val))
 
@@ -367,7 +385,7 @@ def expand_url(
     loadingOptions: LoadingOptions,
     scoped_id: bool = False,
     vocab_term: bool = False,
-    scoped_ref: Optional[int] = None,
+    scoped_ref: int | None = None,
 ) -> str:
     if url in ("@id", "@type"):
         return url
@@ -428,34 +446,37 @@ def expand_url(
     return url
 
 
-class _Loader:
+@mypyc_attr(native_class=True)
+class _Loader(Generic[T], metaclass=ABCMeta):
+    @abstractmethod
     def load(
         self,
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
-        pass
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> T: ...
 
 
-class _AnyLoader(_Loader):
+@mypyc_attr(native_class=True)
+class _AnyLoader(_Loader[Any]):
     def load(
         self,
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
+        docRoot: str | None = None,
+        lc: Any | None = None,
     ) -> Any:
         if doc is not None:
             return doc
         raise ValidationException("Expected non-null")
 
 
-class _PrimitiveLoader(_Loader):
-    def __init__(self, tp: Union[type, tuple[type[str], type[str]]]) -> None:
+@mypyc_attr(native_class=True)
+class _PrimitiveLoader(_Loader[T]):
+    def __init__(self, tp: type[T]) -> None:
         self.tp: Final = tp
 
     def load(
@@ -463,9 +484,9 @@ class _PrimitiveLoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> T:
         if not isinstance(doc, self.tp):
             raise ValidationException(f"Expected a {self.tp} but got {doc.__class__.__name__}")
         return doc
@@ -474,8 +495,9 @@ class _PrimitiveLoader(_Loader):
         return str(self.tp)
 
 
-class _ArrayLoader(_Loader):
-    def __init__(self, items: _Loader) -> None:
+@mypyc_attr(native_class=True)
+class _ArrayLoader(_Loader[Sequence[T]]):
+    def __init__(self, items: _Loader[T]) -> None:
         self.items: Final = items
 
     def load(
@@ -483,9 +505,9 @@ class _ArrayLoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> list[T]:
         if not isinstance(doc, MutableSequence):
             raise ValidationException(
                 f"Value is a {convert_typing(extract_type(type(doc)))}, "
@@ -531,13 +553,14 @@ class _ArrayLoader(_Loader):
         return f"array<{self.items}>"
 
 
-class _MapLoader(_Loader):
+@mypyc_attr(native_class=True)
+class _MapLoader(_Loader[Mapping[str, T]]):
     def __init__(
         self,
-        values: _Loader,
-        name: Optional[str] = None,
-        container: Optional[str] = None,
-        no_link_check: Optional[bool] = None,
+        values: _Loader[T],
+        name: str | None = None,
+        container: str | None = None,
+        no_link_check: bool | None = None,
     ) -> None:
         self.values: Final = values
         self.name: Final = name
@@ -549,9 +572,9 @@ class _MapLoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> dict[str, T]:
         if not isinstance(doc, MutableMapping):
             raise ValidationException(f"Expected a map, was {type(doc)}")
         if self.container is not None or self.no_link_check is not None:
@@ -574,7 +597,8 @@ class _MapLoader(_Loader):
         return self.name if self.name is not None else f"map<string, {self.values}>"
 
 
-class _EnumLoader(_Loader):
+@mypyc_attr(native_class=True)
+class _EnumLoader(_Loader[E]):
     def __init__(self, symbols: Sequence[str], name: str) -> None:
         self.symbols: Final = symbols
         self.name: Final = name
@@ -584,19 +608,20 @@ class _EnumLoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> E:
         if doc in self.symbols:
-            return doc
+            return cast(E, doc)
         raise ValidationException(f"Expected one of {self.symbols}")
 
     def __repr__(self) -> str:
         return self.name
 
 
-class _SecondaryDSLLoader(_Loader):
-    def __init__(self, inner: _Loader) -> None:
+@mypyc_attr(native_class=True)
+class _SecondaryDSLLoader(_Loader[T]):
+    def __init__(self, inner: _Loader[T]) -> None:
         self.inner: Final = inner
 
     def load(
@@ -604,75 +629,77 @@ class _SecondaryDSLLoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> T:
         r: Final[list[dict[str, Any]]] = []
-        if isinstance(doc, MutableSequence):
-            for d in doc:
-                if isinstance(d, str):
-                    if d.endswith("?"):
-                        r.append({"pattern": d[:-1], "required": False})
-                    else:
-                        r.append({"pattern": d})
-                elif isinstance(d, dict):
-                    new_dict1: dict[str, Any] = {}
-                    dict_copy = copy.deepcopy(d)
-                    if "pattern" in dict_copy:
-                        new_dict1["pattern"] = dict_copy.pop("pattern")
-                    else:
-                        raise ValidationException(
-                            f"Missing pattern in secondaryFiles specification entry: {d}"
-                        )
-                    new_dict1["required"] = (
-                        dict_copy.pop("required") if "required" in dict_copy else None
-                    )
-
-                    if len(dict_copy):
-                        raise ValidationException(
-                            "Unallowed values in secondaryFiles specification entry: {}".format(
-                                dict_copy
+        match doc:
+            case MutableSequence() as dlist:
+                for d in dlist:
+                    if isinstance(d, str):
+                        if d.endswith("?"):
+                            r.append({"pattern": d[:-1], "required": False})
+                        else:
+                            r.append({"pattern": d})
+                    elif isinstance(d, dict):
+                        new_dict1: dict[str, Any] = {}
+                        dict_copy = copy.deepcopy(d)
+                        if "pattern" in dict_copy:
+                            new_dict1["pattern"] = dict_copy.pop("pattern")
+                        else:
+                            raise ValidationException(
+                                f"Missing pattern in secondaryFiles specification entry: {d}"
                             )
+                        new_dict1["required"] = (
+                            dict_copy.pop("required") if "required" in dict_copy else None
                         )
-                    r.append(new_dict1)
 
+                        if len(dict_copy):
+                            raise ValidationException(
+                                "Unallowed values in secondaryFiles specification entry: {}".format(
+                                    dict_copy
+                                )
+                            )
+                        r.append(new_dict1)
+
+                    else:
+                        raise ValidationException(
+                            "Expected a string or sequence of (strings or mappings)."
+                        )
+            case MutableMapping() as decl:
+                new_dict2 = {}
+                doc_copy = copy.deepcopy(decl)
+                if "pattern" in doc_copy:
+                    new_dict2["pattern"] = doc_copy.pop("pattern")
                 else:
                     raise ValidationException(
-                        "Expected a string or sequence of (strings or mappings)."
+                        f"Missing pattern in secondaryFiles specification entry: {decl}"
                     )
-        elif isinstance(doc, MutableMapping):
-            new_dict2: Final = {}
-            doc_copy: Final = copy.deepcopy(doc)
-            if "pattern" in doc_copy:
-                new_dict2["pattern"] = doc_copy.pop("pattern")
-            else:
-                raise ValidationException(
-                    f"Missing pattern in secondaryFiles specification entry: {doc}"
-                )
-            new_dict2["required"] = doc_copy.pop("required") if "required" in doc_copy else None
+                new_dict2["required"] = doc_copy.pop("required") if "required" in doc_copy else None
 
-            if len(doc_copy):
-                raise ValidationException(
-                    f"Unallowed values in secondaryFiles specification entry: {doc_copy}"
-                )
-            r.append(new_dict2)
+                if len(doc_copy):
+                    raise ValidationException(
+                        f"Unallowed values in secondaryFiles specification entry: {doc_copy}"
+                    )
+                r.append(new_dict2)
 
-        elif isinstance(doc, str):
-            if doc.endswith("?"):
-                r.append({"pattern": doc[:-1], "required": False})
-            else:
-                r.append({"pattern": doc})
-        else:
-            raise ValidationException("Expected str or sequence of str")
+            case str(decl):
+                if decl.endswith("?"):
+                    r.append({"pattern": decl[:-1], "required": False})
+                else:
+                    r.append({"pattern": decl})
+            case _:
+                raise ValidationException("Expected str or sequence of str")
         return self.inner.load(r, baseuri, loadingOptions, docRoot, lc=lc)
 
 
-class _RecordLoader(_Loader):
+@mypyc_attr(native_class=True)
+class _RecordLoader(_Loader[S]):
     def __init__(
         self,
-        classtype: type[Saveable],
-        container: Optional[str] = None,
-        no_link_check: Optional[bool] = None,
+        classtype: type[S],
+        container: str | None = None,
+        no_link_check: bool | None = None,
     ) -> None:
         self.classtype: Final = classtype
         self.container: Final = container
@@ -683,9 +710,9 @@ class _RecordLoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> S:
         if not isinstance(doc, MutableMapping):
             raise ValidationException(
                 f"Value is a {convert_typing(extract_type(type(doc)))}, "
@@ -701,7 +728,8 @@ class _RecordLoader(_Loader):
         return str(self.classtype.__name__)
 
 
-class _ExpressionLoader(_Loader):
+@mypyc_attr(native_class=True)
+class _ExpressionLoader(_Loader[str]):
     def __init__(self, items: type[str]) -> None:
         self.items: Final = items
 
@@ -710,23 +738,25 @@ class _ExpressionLoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> str:
         if not isinstance(doc, str):
             raise ValidationException(
                 f"Value is a {convert_typing(extract_type(type(doc)))}, "
                 f"but valid type for this field is a str."
             )
-        return doc
+        else:
+            return doc
 
 
-class _UnionLoader(_Loader):
-    def __init__(self, alternates: Sequence[_Loader], name: Optional[str] = None) -> None:
+@mypyc_attr(native_class=True)
+class _UnionLoader(_Loader[T]):
+    def __init__(self, alternates: Sequence[_Loader[T]], name: str | None = None) -> None:
         self.alternates = alternates
         self.name: Final = name
 
-    def add_loaders(self, loaders: Sequence[_Loader]) -> None:
+    def add_loaders(self, loaders: Sequence[_Loader[T]]) -> None:
         self.alternates = tuple(loader for loader in chain(self.alternates, loaders))
 
     def load(
@@ -734,9 +764,9 @@ class _UnionLoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> T:
         errors: Final = []
 
         if lc is None:
@@ -811,14 +841,15 @@ class _UnionLoader(_Loader):
         return self.name if self.name is not None else " | ".join(str(a) for a in self.alternates)
 
 
-class _URILoader(_Loader):
+@mypyc_attr(native_class=True)
+class _URILoader(_Loader[T]):
     def __init__(
         self,
-        inner: _Loader,
+        inner: _Loader[T],
         scoped_id: bool,
         vocab_term: bool,
-        scoped_ref: Optional[int],
-        no_link_check: Optional[bool],
+        scoped_ref: int | None,
+        no_link_check: bool | None,
     ) -> None:
         self.inner: Final = inner
         self.scoped_id: Final = scoped_id
@@ -831,39 +862,40 @@ class _URILoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> T:
         if self.no_link_check is not None:
             loadingOptions = LoadingOptions(
                 copyfrom=loadingOptions, no_link_check=self.no_link_check
             )
-        if isinstance(doc, MutableSequence):
-            newdoc: Final = []
-            for i in doc:
-                if isinstance(i, str):
-                    newdoc.append(
-                        expand_url(
-                            i,
-                            baseuri,
-                            loadingOptions,
-                            self.scoped_id,
-                            self.vocab_term,
-                            self.scoped_ref,
+        match doc:
+            case MutableSequence() as decl:
+                newdoc: Final = []
+                for i in decl:
+                    if isinstance(i, str):
+                        newdoc.append(
+                            expand_url(
+                                i,
+                                baseuri,
+                                loadingOptions,
+                                self.scoped_id,
+                                self.vocab_term,
+                                self.scoped_ref,
+                            )
                         )
-                    )
-                else:
-                    newdoc.append(i)
-            doc = newdoc
-        elif isinstance(doc, str):
-            doc = expand_url(
-                doc,
-                baseuri,
-                loadingOptions,
-                self.scoped_id,
-                self.vocab_term,
-                self.scoped_ref,
-            )
+                    else:
+                        newdoc.append(i)
+                doc = newdoc
+            case str(decl):
+                doc = expand_url(
+                    decl,
+                    baseuri,
+                    loadingOptions,
+                    self.scoped_id,
+                    self.vocab_term,
+                    self.scoped_ref,
+                )
         if isinstance(doc, str):
             if not loadingOptions.no_link_check:
                 errors: Final = []
@@ -879,8 +911,9 @@ class _URILoader(_Loader):
         return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
-class _TypeDSLLoader(_Loader):
-    def __init__(self, inner: _Loader, refScope: Optional[int], salad_version: str) -> None:
+@mypyc_attr(native_class=True)
+class _TypeDSLLoader(_Loader[T]):
+    def __init__(self, inner: _Loader[T], refScope: int | None, salad_version: str) -> None:
         self.inner: Final = inner
         self.refScope: Final = refScope
         self.salad_version: Final = salad_version
@@ -890,7 +923,7 @@ class _TypeDSLLoader(_Loader):
         doc: str,
         baseuri: str,
         loadingOptions: LoadingOptions,
-    ) -> Union[list[Union[dict[str, Any], str]], dict[str, Any], str]:
+    ) -> list[dict[str, Any] | str] | dict[str, Any] | str:
         doc_ = doc
         optional = False
         if doc_.endswith("?"):
@@ -899,7 +932,7 @@ class _TypeDSLLoader(_Loader):
 
         if doc_.endswith("[]"):
             salad_versions: Final = [int(v) for v in self.salad_version[1:].split(".")]
-            items: Union[list[Union[dict[str, Any], str]], dict[str, Any], str] = ""
+            items: list[dict[str, Any] | str] | dict[str, Any] | str = ""
             rest: Final = doc_[0:-2]
             if salad_versions < [1, 3]:
                 if rest.endswith("[]"):
@@ -911,7 +944,7 @@ class _TypeDSLLoader(_Loader):
                 items = self.resolve(rest, baseuri, loadingOptions)
                 if isinstance(items, str):
                     items = expand_url(items, baseuri, loadingOptions, False, True, self.refScope)
-            expanded: Union[dict[str, Any], str] = {"type": "array", "items": items}
+            expanded: dict[str, Any] | str = {"type": "array", "items": items}
         else:
             expanded = expand_url(doc_, baseuri, loadingOptions, False, True, self.refScope)
 
@@ -925,9 +958,9 @@ class _TypeDSLLoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> T:
         if isinstance(doc, MutableSequence):
             r: Final[list[Any]] = []
             for d in doc:
@@ -949,8 +982,9 @@ class _TypeDSLLoader(_Loader):
         return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
-class _IdMapLoader(_Loader):
-    def __init__(self, inner: _Loader, mapSubject: str, mapPredicate: Optional[str]) -> None:
+@mypyc_attr(native_class=True)
+class _IdMapLoader(_Loader[T]):
+    def __init__(self, inner: _Loader[T], mapSubject: str, mapPredicate: str | None) -> None:
         self.inner: Final = inner
         self.mapSubject: Final = mapSubject
         self.mapPredicate: Final = mapPredicate
@@ -960,9 +994,9 @@ class _IdMapLoader(_Loader):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None,
-        lc: Optional[list[Any]] = None,
-    ) -> Any:
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> T:
         if isinstance(doc, MutableMapping):
             r: Final[list[Any]] = []
             for k in doc.keys():
@@ -989,12 +1023,12 @@ class _IdMapLoader(_Loader):
 
 
 def _document_load(
-    loader: _Loader,
-    doc: Union[str, MutableMapping[str, Any], MutableSequence[Any]],
+    loader: _Loader[T],
+    doc: str | MutableMapping[str, Any] | MutableSequence[Any],
     baseuri: str,
     loadingOptions: LoadingOptions,
-    addl_metadata_fields: Optional[MutableSequence[str]] = None,
-) -> tuple[Any, LoadingOptions]:
+    addl_metadata_fields: MutableSequence[str] | None = None,
+) -> tuple[T, LoadingOptions]:
     if isinstance(doc, str):
         return _document_load_by_url(
             loader,
@@ -1059,11 +1093,11 @@ def _document_load(
 
 
 def _document_load_by_url(
-    loader: _Loader,
+    loader: _Loader[T],
     url: str,
     loadingOptions: LoadingOptions,
-    addl_metadata_fields: Optional[MutableSequence[str]] = None,
-) -> tuple[Any, LoadingOptions]:
+    addl_metadata_fields: MutableSequence[str] | None = None,
+) -> tuple[T, LoadingOptions]:
     if url in loadingOptions.idx:
         return loadingOptions.idx[url]
 
@@ -1117,7 +1151,7 @@ def save_relative_uri(
     uri: Any,
     base_url: str,
     scoped_id: bool,
-    ref_scope: Optional[int],
+    ref_scope: int | None,
     relative_uris: bool,
 ) -> Any:
     """Convert any URI to a relative one, obeying the scoping rules."""
@@ -1168,36 +1202,13 @@ def parser_info() -> str:
     return "org.w3id.cwl.v1_1"
 
 
-class Documented(Saveable):
-    pass
-
-
-class RecordField(Documented):
+@mypyc_attr(native_class=True)
+class RecordField(Saveable):
     """
     A field of a record.
     """
 
     name: str
-
-    def __init__(
-        self,
-        name: Any,
-        type_: Any,
-        doc: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, RecordField):
@@ -1217,8 +1228,8 @@ class RecordField(Documented):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "RecordField":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -1273,14 +1284,14 @@ class RecordField(Documented):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -1376,7 +1387,7 @@ class RecordField(Documented):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -1401,13 +1412,13 @@ class RecordField(Documented):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            doc=doc,
             name=name,
+            doc=doc,
             type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -1422,7 +1433,7 @@ class RecordField(Documented):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -1441,16 +1452,13 @@ class RecordField(Documented):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["doc", "name", "type"])
-
-
-class RecordSchema(Saveable):
     def __init__(
         self,
-        type_: Any,
-        fields: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        name: str,
+        type_: ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | Sequence[ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | UnionSchema | str] | UnionSchema | str,
+        doc: None | Sequence[str] | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -1460,9 +1468,15 @@ class RecordSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.fields = fields
+        self.doc = doc
+        self.name = name
         self.type_ = type_
 
+    attrs: ClassVar[Collection[str]] = frozenset(["doc", "name", "type"])
+
+
+@mypyc_attr(native_class=True)
+class RecordSchema(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, RecordSchema):
             return bool(self.fields == other.fields and self.type_ == other.type_)
@@ -1477,8 +1491,8 @@ class RecordSchema(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "RecordSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -1580,7 +1594,7 @@ class RecordSchema(Saveable):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -1640,24 +1654,12 @@ class RecordSchema(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["fields", "type"])
-
-
-class EnumSchema(Saveable):
-    """
-    Define an enumerated type.
-
-    """
-
-    name: str
-
     def __init__(
         self,
-        symbols: Any,
-        type_: Any,
-        name: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        type_: Record_name,
+        fields: None | Sequence[RecordField] = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -1667,9 +1669,20 @@ class EnumSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.symbols = symbols
+        self.fields = fields
         self.type_ = type_
+
+    attrs: ClassVar[Collection[str]] = frozenset(["fields", "type"])
+
+
+@mypyc_attr(native_class=True)
+class EnumSchema(Saveable):
+    """
+    Define an enumerated type.
+
+    """
+
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, EnumSchema):
@@ -1689,8 +1702,8 @@ class EnumSchema(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "EnumSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -1745,14 +1758,13 @@ class EnumSchema(Saveable):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
@@ -1849,7 +1861,7 @@ class EnumSchema(Saveable):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -1880,7 +1892,7 @@ class EnumSchema(Saveable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -1895,7 +1907,7 @@ class EnumSchema(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
@@ -1913,16 +1925,13 @@ class EnumSchema(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["name", "symbols", "type"])
-
-
-class ArraySchema(Saveable):
     def __init__(
         self,
-        items: Any,
-        type_: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        symbols: Sequence[str],
+        type_: Enum_name,
+        name: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -1932,9 +1941,15 @@ class ArraySchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items = items
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.symbols = symbols
         self.type_ = type_
 
+    attrs: ClassVar[Collection[str]] = frozenset(["name", "symbols", "type"])
+
+
+@mypyc_attr(native_class=True)
+class ArraySchema(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ArraySchema):
             return bool(self.items == other.items and self.type_ == other.type_)
@@ -1949,8 +1964,8 @@ class ArraySchema(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "ArraySchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -2053,7 +2068,7 @@ class ArraySchema(Saveable):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -2112,16 +2127,12 @@ class ArraySchema(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["items", "type"])
-
-
-class MapSchema(Saveable):
     def __init__(
         self,
-        type_: Any,
-        values: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        items: ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | Sequence[ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | UnionSchema | str] | UnionSchema | str,
+        type_: Array_name,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -2131,9 +2142,14 @@ class MapSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
+        self.items = items
         self.type_ = type_
-        self.values = values
 
+    attrs: ClassVar[Collection[str]] = frozenset(["items", "type"])
+
+
+@mypyc_attr(native_class=True)
+class MapSchema(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, MapSchema):
             return bool(self.type_ == other.type_ and self.values == other.values)
@@ -2148,8 +2164,8 @@ class MapSchema(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "MapSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -2252,7 +2268,7 @@ class MapSchema(Saveable):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -2311,16 +2327,12 @@ class MapSchema(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["type", "values"])
-
-
-class UnionSchema(Saveable):
     def __init__(
         self,
-        names: Any,
-        type_: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        type_: Map_name,
+        values: ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | Sequence[ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | UnionSchema | str] | UnionSchema | str,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -2330,9 +2342,14 @@ class UnionSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.names = names
         self.type_ = type_
+        self.values = values
 
+    attrs: ClassVar[Collection[str]] = frozenset(["type", "values"])
+
+
+@mypyc_attr(native_class=True)
+class UnionSchema(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, UnionSchema):
             return bool(self.names == other.names and self.type_ == other.type_)
@@ -2347,8 +2364,8 @@ class UnionSchema(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "UnionSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -2451,7 +2468,7 @@ class UnionSchema(Saveable):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -2510,16 +2527,12 @@ class UnionSchema(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["names", "type"])
-
-
-class CWLArraySchema(ArraySchema):
     def __init__(
         self,
-        items: Any,
-        type_: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        names: ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | Sequence[ArraySchema | EnumSchema | MapSchema | PrimitiveType | RecordSchema | UnionSchema | str] | UnionSchema | str,
+        type_: Union_name,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -2529,9 +2542,14 @@ class CWLArraySchema(ArraySchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items = items
+        self.names = names
         self.type_ = type_
 
+    attrs: ClassVar[Collection[str]] = frozenset(["names", "type"])
+
+
+@mypyc_attr(native_class=True)
+class CWLArraySchema(ArraySchema):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CWLArraySchema):
             return bool(self.items == other.items and self.type_ == other.type_)
@@ -2546,8 +2564,8 @@ class CWLArraySchema(ArraySchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CWLArraySchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -2650,7 +2668,7 @@ class CWLArraySchema(ArraySchema):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -2709,19 +2727,12 @@ class CWLArraySchema(ArraySchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["items", "type"])
-
-
-class CWLRecordField(RecordField):
-    name: str
-
     def __init__(
         self,
-        name: Any,
-        type_: Any,
-        doc: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        items: CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str] | str,
+        type_: Array_name,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -2731,9 +2742,15 @@ class CWLRecordField(RecordField):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.items = items
         self.type_ = type_
+
+    attrs: ClassVar[Collection[str]] = frozenset(["items", "type"])
+
+
+@mypyc_attr(native_class=True)
+class CWLRecordField(RecordField):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CWLRecordField):
@@ -2753,8 +2770,8 @@ class CWLRecordField(RecordField):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CWLRecordField":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -2809,14 +2826,14 @@ class CWLRecordField(RecordField):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -2912,7 +2929,7 @@ class CWLRecordField(RecordField):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -2937,13 +2954,13 @@ class CWLRecordField(RecordField):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            doc=doc,
             name=name,
+            doc=doc,
             type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -2958,7 +2975,7 @@ class CWLRecordField(RecordField):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -2977,16 +2994,13 @@ class CWLRecordField(RecordField):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["doc", "name", "type"])
-
-
-class CWLRecordSchema(RecordSchema):
     def __init__(
         self,
-        type_: Any,
-        fields: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        name: str,
+        type_: CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str] | str,
+        doc: None | Sequence[str] | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -2996,9 +3010,15 @@ class CWLRecordSchema(RecordSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.fields = fields
+        self.doc = doc
+        self.name = name
         self.type_ = type_
 
+    attrs: ClassVar[Collection[str]] = frozenset(["doc", "name", "type"])
+
+
+@mypyc_attr(native_class=True)
+class CWLRecordSchema(RecordSchema):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CWLRecordSchema):
             return bool(self.fields == other.fields and self.type_ == other.type_)
@@ -3013,8 +3033,8 @@ class CWLRecordSchema(RecordSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CWLRecordSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -3116,7 +3136,7 @@ class CWLRecordSchema(RecordSchema):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -3176,9 +3196,28 @@ class CWLRecordSchema(RecordSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["fields", "type"])
+    def __init__(
+        self,
+        type_: Record_name,
+        fields: None | Sequence[CWLRecordField] = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.fields = fields
+        self.type_ = type_
+
+    attrs: ClassVar[Collection[str]] = frozenset(["fields", "type"])
 
 
+@mypyc_attr(native_class=True)
 class File(Saveable):
     """
     Represents a file (or group of files when `secondaryFiles` is provided) that
@@ -3250,43 +3289,6 @@ class File(Saveable):
 
     """
 
-    def __init__(
-        self,
-        location: Optional[Any] = None,
-        path: Optional[Any] = None,
-        basename: Optional[Any] = None,
-        dirname: Optional[Any] = None,
-        nameroot: Optional[Any] = None,
-        nameext: Optional[Any] = None,
-        checksum: Optional[Any] = None,
-        size: Optional[Any] = None,
-        secondaryFiles: Optional[Any] = None,
-        format: Optional[Any] = None,
-        contents: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "File"
-        self.location = location
-        self.path = path
-        self.basename = basename
-        self.dirname = dirname
-        self.nameroot = nameroot
-        self.nameext = nameext
-        self.checksum = checksum
-        self.size = size
-        self.secondaryFiles = secondaryFiles
-        self.format = format
-        self.contents = contents
-
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, File):
             return bool(
@@ -3329,8 +3331,8 @@ class File(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "File":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -3687,7 +3689,7 @@ class File(Saveable):
             try:
                 size = load_field(
                     _doc.get("size"),
-                    union_of_None_type_or_inttype,
+                    union_of_None_type_or_inttype_or_inttype,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("size")
@@ -3870,7 +3872,7 @@ class File(Saveable):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -3983,7 +3985,44 @@ class File(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        location: None | str = None,
+        path: None | str = None,
+        basename: None | str = None,
+        dirname: None | str = None,
+        nameroot: None | str = None,
+        nameext: None | str = None,
+        checksum: None | str = None,
+        size: None | i32 = None,
+        secondaryFiles: None | Sequence[Directory | File] = None,
+        format: None | str = None,
+        contents: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_: Final[str] = "File"
+        self.location = location
+        self.path = path
+        self.basename = basename
+        self.dirname = dirname
+        self.nameroot = nameroot
+        self.nameext = nameext
+        self.checksum = checksum
+        self.size = size
+        self.secondaryFiles = secondaryFiles
+        self.format = format
+        self.contents = contents
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "class",
             "location",
@@ -4001,6 +4040,7 @@ class File(Saveable):
     )
 
 
+@mypyc_attr(native_class=True)
 class Directory(Saveable):
     """
     Represents a directory to present to a command line tool.
@@ -4035,7 +4075,7 @@ class Directory(Saveable):
     the same Directory.
 
     When executing a CommandLineTool, Directories must be recursively staged
-    first and have local values of `path` assigend.
+    first and have local values of `path` assigned.
 
     Directory objects in CommandLineTool output must provide either a
     `location` URI or a `path` property in the context of the tool execution
@@ -4048,29 +4088,6 @@ class Directory(Saveable):
     or in any entry in `secondaryFiles` in the listing) is a fatal error.
 
     """
-
-    def __init__(
-        self,
-        location: Optional[Any] = None,
-        path: Optional[Any] = None,
-        basename: Optional[Any] = None,
-        listing: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "Directory"
-        self.location = location
-        self.path = path
-        self.basename = basename
-        self.listing = listing
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Directory):
@@ -4094,8 +4111,8 @@ class Directory(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "Directory":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -4306,7 +4323,7 @@ class Directory(Saveable):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -4382,52 +4399,14 @@ class Directory(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "location", "path", "basename", "listing"])
-
-
-class Labeled(Saveable):
-    pass
-
-
-class Identified(Saveable):
-    pass
-
-
-class IdentifierRequired(Identified):
-    pass
-
-
-class LoadContents(Saveable):
-    pass
-
-
-class FieldBase(Labeled):
-    pass
-
-
-class InputFormat(Saveable):
-    pass
-
-
-class OutputFormat(Saveable):
-    pass
-
-
-class Parameter(FieldBase, Documented, IdentifierRequired):
-    """
-    Define an input or output parameter to a process.
-
-    """
-
-    pass
-
-
-class InputBinding(Saveable):
     def __init__(
         self,
-        loadContents: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        location: None | str = None,
+        path: None | str = None,
+        basename: None | str = None,
+        listing: None | Sequence[Directory | File] = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -4437,8 +4416,19 @@ class InputBinding(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.loadContents = loadContents
+        self.class_: Final[str] = "Directory"
+        self.location = location
+        self.path = path
+        self.basename = basename
+        self.listing = listing
 
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["class", "location", "path", "basename", "listing"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class InputBinding(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InputBinding):
             return bool(self.loadContents == other.loadContents)
@@ -4453,8 +4443,8 @@ class InputBinding(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "InputBinding":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -4508,7 +4498,7 @@ class InputBinding(Saveable):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -4566,37 +4556,11 @@ class InputBinding(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["loadContents"])
-
-
-class IOSchema(Labeled, Documented):
-    pass
-
-
-class InputSchema(IOSchema):
-    pass
-
-
-class OutputSchema(IOSchema):
-    pass
-
-
-class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
-    name: str
-
     def __init__(
         self,
-        name: Any,
-        type_: Any,
-        doc: Optional[Any] = None,
-        label: Optional[Any] = None,
-        secondaryFiles: Optional[Any] = None,
-        streamable: Optional[Any] = None,
-        format: Optional[Any] = None,
-        loadContents: Optional[Any] = None,
-        loadListing: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        loadContents: None | bool = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -4606,15 +4570,14 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.type_ = type_
-        self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.format = format
         self.loadContents = loadContents
-        self.loadListing = loadListing
+
+    attrs: ClassVar[Collection[str]] = frozenset(["loadContents"])
+
+
+@mypyc_attr(native_class=True)
+class InputRecordField(CWLRecordField):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InputRecordField):
@@ -4652,8 +4615,8 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "InputRecordField":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -4708,14 +4671,14 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -5093,7 +5056,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -5118,8 +5081,8 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            doc=doc,
             name=name,
+            doc=doc,
             type_=type_,
             label=label,
             secondaryFiles=secondaryFiles,
@@ -5130,7 +5093,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -5145,7 +5108,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -5199,7 +5162,39 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        name: str,
+        type_: CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | Sequence[CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str] | str,
+        doc: None | Sequence[str] | str = None,
+        label: None | str = None,
+        secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
+        streamable: None | bool = None,
+        format: None | Sequence[str] | str = None,
+        loadContents: None | bool = None,
+        loadListing: LoadListingEnum | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.doc = doc
+        self.name = name
+        self.type_ = type_
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.format = format
+        self.loadContents = loadContents
+        self.loadListing = loadListing
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "doc",
             "name",
@@ -5214,32 +5209,9 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
     )
 
 
-class InputRecordSchema(CWLRecordSchema, InputSchema):
+@mypyc_attr(native_class=True)
+class InputRecordSchema(CWLRecordSchema):
     name: str
-
-    def __init__(
-        self,
-        type_: Any,
-        fields: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        name: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.fields = fields
-        self.type_ = type_
-        self.label = label
-        self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InputRecordSchema):
@@ -5261,8 +5233,8 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "InputRecordSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -5317,14 +5289,13 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         fields = None
         if "fields" in _doc:
             try:
@@ -5514,7 +5485,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -5539,15 +5510,15 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            name=name,
             fields=fields,
             type_=type_,
             label=label,
             doc=doc,
-            name=name,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -5562,7 +5533,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
@@ -5589,21 +5560,15 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["fields", "type", "label", "doc", "name"])
-
-
-class InputEnumSchema(EnumSchema, InputSchema):
-    name: str
-
     def __init__(
         self,
-        symbols: Any,
-        type_: Any,
-        name: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        type_: Record_name,
+        fields: None | Sequence[InputRecordField] = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        name: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -5613,11 +5578,20 @@ class InputEnumSchema(EnumSchema, InputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.symbols = symbols
+        self.fields = fields
         self.type_ = type_
         self.label = label
         self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["fields", "type", "label", "doc", "name"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class InputEnumSchema(EnumSchema):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InputEnumSchema):
@@ -5639,8 +5613,8 @@ class InputEnumSchema(EnumSchema, InputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "InputEnumSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -5695,14 +5669,13 @@ class InputEnumSchema(EnumSchema, InputSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
@@ -5893,7 +5866,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -5926,7 +5899,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -5941,7 +5914,7 @@ class InputEnumSchema(EnumSchema, InputSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
@@ -5967,21 +5940,15 @@ class InputEnumSchema(EnumSchema, InputSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["name", "symbols", "type", "label", "doc"])
-
-
-class InputArraySchema(CWLArraySchema, InputSchema):
-    name: str
-
     def __init__(
         self,
-        items: Any,
-        type_: Any,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        name: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        symbols: Sequence[str],
+        type_: Enum_name,
+        name: None | str = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -5991,11 +5958,20 @@ class InputArraySchema(CWLArraySchema, InputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items = items
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.symbols = symbols
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["name", "symbols", "type", "label", "doc"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class InputArraySchema(CWLArraySchema):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InputArraySchema):
@@ -6017,8 +5993,8 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "InputArraySchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -6073,14 +6049,13 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -6271,7 +6246,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -6296,15 +6271,15 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            name=name,
             items=items,
             type_=type_,
             label=label,
             doc=doc,
-            name=name,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -6319,7 +6294,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
@@ -6345,23 +6320,15 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["items", "type", "label", "doc", "name"])
-
-
-class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
-    name: str
-
     def __init__(
         self,
-        name: Any,
-        type_: Any,
-        doc: Optional[Any] = None,
-        label: Optional[Any] = None,
-        secondaryFiles: Optional[Any] = None,
-        streamable: Optional[Any] = None,
-        format: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        items: CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | Sequence[CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str] | str,
+        type_: Array_name,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        name: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -6371,13 +6338,20 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.items = items
         self.type_ = type_
         self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.format = format
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["items", "type", "label", "doc", "name"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class OutputRecordField(CWLRecordField):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, OutputRecordField):
@@ -6411,8 +6385,8 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "OutputRecordField":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -6467,14 +6441,14 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -6758,7 +6732,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -6783,8 +6757,8 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            doc=doc,
             name=name,
+            doc=doc,
             type_=type_,
             label=label,
             secondaryFiles=secondaryFiles,
@@ -6793,7 +6767,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -6808,7 +6782,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -6848,23 +6822,17 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
-        ["doc", "name", "type", "label", "secondaryFiles", "streamable", "format"]
-    )
-
-
-class OutputRecordSchema(CWLRecordSchema, OutputSchema):
-    name: str
-
     def __init__(
         self,
-        type_: Any,
-        fields: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        name: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        name: str,
+        type_: CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
+        doc: None | Sequence[str] | str = None,
+        label: None | str = None,
+        secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
+        streamable: None | bool = None,
+        format: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -6874,11 +6842,22 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.fields = fields
+        self.doc = doc
+        self.name = name
         self.type_ = type_
         self.label = label
-        self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.format = format
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["doc", "name", "type", "label", "secondaryFiles", "streamable", "format"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class OutputRecordSchema(CWLRecordSchema):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, OutputRecordSchema):
@@ -6900,8 +6879,8 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "OutputRecordSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -6956,14 +6935,13 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         fields = None
         if "fields" in _doc:
             try:
@@ -7153,7 +7131,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -7178,15 +7156,15 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            name=name,
             fields=fields,
             type_=type_,
             label=label,
             doc=doc,
-            name=name,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -7201,7 +7179,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
@@ -7228,21 +7206,15 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["fields", "type", "label", "doc", "name"])
-
-
-class OutputEnumSchema(EnumSchema, OutputSchema):
-    name: str
-
     def __init__(
         self,
-        symbols: Any,
-        type_: Any,
-        name: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        type_: Record_name,
+        fields: None | Sequence[OutputRecordField] = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        name: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -7252,11 +7224,20 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.symbols = symbols
+        self.fields = fields
         self.type_ = type_
         self.label = label
         self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["fields", "type", "label", "doc", "name"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class OutputEnumSchema(EnumSchema):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, OutputEnumSchema):
@@ -7278,8 +7259,8 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "OutputEnumSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -7334,14 +7315,13 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
@@ -7532,7 +7512,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -7565,7 +7545,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -7580,7 +7560,7 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
@@ -7606,21 +7586,15 @@ class OutputEnumSchema(EnumSchema, OutputSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["name", "symbols", "type", "label", "doc"])
-
-
-class OutputArraySchema(CWLArraySchema, OutputSchema):
-    name: str
-
     def __init__(
         self,
-        items: Any,
-        type_: Any,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        name: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        symbols: Sequence[str],
+        type_: Enum_name,
+        name: None | str = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -7630,11 +7604,20 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items = items
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.symbols = symbols
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["name", "symbols", "type", "label", "doc"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class OutputArraySchema(CWLArraySchema):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, OutputArraySchema):
@@ -7656,8 +7639,8 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "OutputArraySchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -7712,14 +7695,13 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -7910,7 +7892,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -7935,15 +7917,15 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            name=name,
             items=items,
             type_=type_,
             label=label,
             doc=doc,
-            name=name,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -7958,7 +7940,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
@@ -7984,56 +7966,15 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["items", "type", "label", "doc", "name"])
-
-
-class InputParameter(Parameter, InputFormat, LoadContents):
-    pass
-
-
-class OutputParameter(Parameter, OutputFormat):
-    pass
-
-
-class ProcessRequirement(Saveable):
-    """
-    A process requirement declares a prerequisite that may or must be fulfilled
-    before executing a process.  See [`Process.hints`](#process) and
-    [`Process.requirements`](#process).
-
-    Process requirements are the primary mechanism for specifying extensions to
-    the CWL core specification.
-
-    """
-
-    pass
-
-
-class Process(Identified, Labeled, Documented):
-    """
-
-    The base executable type in CWL is the `Process` object defined by the
-    document.  Note that the `Process` object is abstract and cannot be
-    directly executed.
-
-    """
-
-    pass
-
-
-class InlineJavascriptRequirement(ProcessRequirement):
-    """
-    Indicates that the workflow platform must support inline Javascript expressions.
-    If this requirement is not present, the workflow platform must not perform expression
-    interpolatation.
-
-    """
-
     def __init__(
         self,
-        expressionLib: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        items: CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
+        type_: Array_name,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        name: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -8043,8 +7984,25 @@ class InlineJavascriptRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_ = "InlineJavascriptRequirement"
-        self.expressionLib = expressionLib
+        self.items = items
+        self.type_ = type_
+        self.label = label
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["items", "type", "label", "doc", "name"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class InlineJavascriptRequirement(Saveable):
+    """
+    Indicates that the workflow platform must support inline Javascript expressions.
+    If this requirement is not present, the workflow platform must not perform expression
+    interpolatation.
+
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InlineJavascriptRequirement):
@@ -8063,8 +8021,8 @@ class InlineJavascriptRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "InlineJavascriptRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -8134,7 +8092,7 @@ class InlineJavascriptRequirement(ProcessRequirement):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -8200,14 +8158,28 @@ class InlineJavascriptRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "expressionLib"])
+    def __init__(
+        self,
+        expressionLib: None | Sequence[str] = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_: Final[str] = "InlineJavascriptRequirement"
+        self.expressionLib = expressionLib
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "expressionLib"])
 
 
-class CommandInputSchema(Saveable):
-    pass
-
-
-class SchemaDefRequirement(ProcessRequirement):
+@mypyc_attr(native_class=True)
+class SchemaDefRequirement(Saveable):
     """
     This field consists of an array of type definitions which must be used when
     interpreting the `inputs` and `outputs` fields.  When a `type` field
@@ -8218,23 +8190,6 @@ class SchemaDefRequirement(ProcessRequirement):
     to earlier schema definitions.
 
     """
-
-    def __init__(
-        self,
-        types: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "SchemaDefRequirement"
-        self.types = types
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, SchemaDefRequirement):
@@ -8250,8 +8205,8 @@ class SchemaDefRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "SchemaDefRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -8322,7 +8277,7 @@ class SchemaDefRequirement(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -8385,16 +8340,11 @@ class SchemaDefRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "types"])
-
-
-class SecondaryFileSchema(Saveable):
     def __init__(
         self,
-        pattern: Any,
-        required: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        types: Sequence[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema],
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -8404,9 +8354,14 @@ class SecondaryFileSchema(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.pattern = pattern
-        self.required = required
+        self.class_: Final[str] = "SchemaDefRequirement"
+        self.types = types
 
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "types"])
+
+
+@mypyc_attr(native_class=True)
+class SecondaryFileSchema(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, SecondaryFileSchema):
             return bool(
@@ -8423,8 +8378,8 @@ class SecondaryFileSchema(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "SecondaryFileSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -8526,7 +8481,7 @@ class SecondaryFileSchema(Saveable):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -8586,21 +8541,12 @@ class SecondaryFileSchema(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["pattern", "required"])
-
-
-class LoadListingRequirement(ProcessRequirement):
-    """
-    Specify the desired behavior for loading the `listing` field of
-    a Directory object for use by expressions.
-
-    """
-
     def __init__(
         self,
-        loadListing: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        pattern: str,
+        required: None | bool | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -8610,8 +8556,19 @@ class LoadListingRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_ = "LoadListingRequirement"
-        self.loadListing = loadListing
+        self.pattern = pattern
+        self.required = required
+
+    attrs: ClassVar[Collection[str]] = frozenset(["pattern", "required"])
+
+
+@mypyc_attr(native_class=True)
+class LoadListingRequirement(Saveable):
+    """
+    Specify the desired behavior for loading the `listing` field of
+    a Directory object for use by expressions.
+
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, LoadListingRequirement):
@@ -8629,8 +8586,8 @@ class LoadListingRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "LoadListingRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -8700,7 +8657,7 @@ class LoadListingRequirement(ProcessRequirement):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -8766,23 +8723,11 @@ class LoadListingRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "loadListing"])
-
-
-class EnvironmentDef(Saveable):
-    """
-    Define an environment variable that will be set in the runtime environment
-    by the workflow platform when executing the command line tool.  May be the
-    result of executing an expression, such as getting a parameter from input.
-
-    """
-
     def __init__(
         self,
-        envName: Any,
-        envValue: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        loadListing: LoadListingEnum | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -8792,8 +8737,20 @@ class EnvironmentDef(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.envName = envName
-        self.envValue = envValue
+        self.class_: Final[str] = "LoadListingRequirement"
+        self.loadListing = loadListing
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "loadListing"])
+
+
+@mypyc_attr(native_class=True)
+class EnvironmentDef(Saveable):
+    """
+    Define an environment variable that will be set in the runtime environment
+    by the workflow platform when executing the command line tool.  May be the
+    result of executing an expression, such as getting a parameter from input.
+
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, EnvironmentDef):
@@ -8811,8 +8768,8 @@ class EnvironmentDef(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "EnvironmentDef":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -8915,7 +8872,7 @@ class EnvironmentDef(Saveable):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -8975,9 +8932,28 @@ class EnvironmentDef(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["envName", "envValue"])
+    def __init__(
+        self,
+        envName: str,
+        envValue: str,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.envName = envName
+        self.envValue = envValue
+
+    attrs: ClassVar[Collection[str]] = frozenset(["envName", "envValue"])
 
 
+@mypyc_attr(native_class=True)
 class CommandLineBinding(InputBinding):
     """
 
@@ -9018,34 +8994,6 @@ class CommandLineBinding(InputBinding):
 
     """
 
-    def __init__(
-        self,
-        loadContents: Optional[Any] = None,
-        position: Optional[Any] = None,
-        prefix: Optional[Any] = None,
-        separate: Optional[Any] = None,
-        itemSeparator: Optional[Any] = None,
-        valueFrom: Optional[Any] = None,
-        shellQuote: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.loadContents = loadContents
-        self.position = position
-        self.prefix = prefix
-        self.separate = separate
-        self.itemSeparator = itemSeparator
-        self.valueFrom = valueFrom
-        self.shellQuote = shellQuote
-
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandLineBinding):
             return bool(
@@ -9078,8 +9026,8 @@ class CommandLineBinding(InputBinding):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandLineBinding":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -9415,7 +9363,7 @@ class CommandLineBinding(InputBinding):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -9512,7 +9460,35 @@ class CommandLineBinding(InputBinding):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        loadContents: None | bool = None,
+        position: None | i32 | str = None,
+        prefix: None | str = None,
+        separate: None | bool = None,
+        itemSeparator: None | str = None,
+        valueFrom: None | str = None,
+        shellQuote: None | bool = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.loadContents = loadContents
+        self.position = position
+        self.prefix = prefix
+        self.separate = separate
+        self.itemSeparator = itemSeparator
+        self.valueFrom = valueFrom
+        self.shellQuote = shellQuote
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "loadContents",
             "position",
@@ -9525,7 +9501,8 @@ class CommandLineBinding(InputBinding):
     )
 
 
-class CommandOutputBinding(LoadContents):
+@mypyc_attr(native_class=True)
+class CommandOutputBinding(Saveable):
     """
     Describes how to generate an output parameter based on the files produced
     by a CommandLineTool.
@@ -9539,28 +9516,6 @@ class CommandOutputBinding(LoadContents):
       - secondaryFiles
 
     """
-
-    def __init__(
-        self,
-        loadContents: Optional[Any] = None,
-        loadListing: Optional[Any] = None,
-        glob: Optional[Any] = None,
-        outputEval: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.loadContents = loadContents
-        self.loadListing = loadListing
-        self.glob = glob
-        self.outputEval = outputEval
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandOutputBinding):
@@ -9581,8 +9536,8 @@ class CommandOutputBinding(LoadContents):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandOutputBinding":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -9777,7 +9732,7 @@ class CommandOutputBinding(LoadContents):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -9856,30 +9811,14 @@ class CommandOutputBinding(LoadContents):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["loadContents", "loadListing", "glob", "outputEval"])
-
-
-class CommandLineBindable(Saveable):
-    pass
-
-
-class CommandInputRecordField(InputRecordField, CommandLineBindable):
-    name: str
-
     def __init__(
         self,
-        name: Any,
-        type_: Any,
-        doc: Optional[Any] = None,
-        label: Optional[Any] = None,
-        secondaryFiles: Optional[Any] = None,
-        streamable: Optional[Any] = None,
-        format: Optional[Any] = None,
-        loadContents: Optional[Any] = None,
-        loadListing: Optional[Any] = None,
-        inputBinding: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        loadContents: None | bool = None,
+        loadListing: LoadListingEnum | None = None,
+        glob: None | Sequence[str] | str = None,
+        outputEval: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -9889,16 +9828,19 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.type_ = type_
-        self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.format = format
         self.loadContents = loadContents
         self.loadListing = loadListing
-        self.inputBinding = inputBinding
+        self.glob = glob
+        self.outputEval = outputEval
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["loadContents", "loadListing", "glob", "outputEval"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class CommandInputRecordField(InputRecordField):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandInputRecordField):
@@ -9938,8 +9880,8 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandInputRecordField":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -9994,14 +9936,14 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -10426,7 +10368,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -10451,8 +10393,8 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            doc=doc,
             name=name,
+            doc=doc,
             type_=type_,
             label=label,
             secondaryFiles=secondaryFiles,
@@ -10464,7 +10406,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -10479,7 +10421,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -10540,7 +10482,41 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        name: str,
+        type_: CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Sequence[CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | str] | str,
+        doc: None | Sequence[str] | str = None,
+        label: None | str = None,
+        secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
+        streamable: None | bool = None,
+        format: None | Sequence[str] | str = None,
+        loadContents: None | bool = None,
+        loadListing: LoadListingEnum | None = None,
+        inputBinding: CommandLineBinding | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.doc = doc
+        self.name = name
+        self.type_ = type_
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.format = format
+        self.loadContents = loadContents
+        self.loadListing = loadListing
+        self.inputBinding = inputBinding
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "doc",
             "name",
@@ -10556,36 +10532,9 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
     )
 
 
-class CommandInputRecordSchema(
-    InputRecordSchema, CommandInputSchema, CommandLineBindable
-):
+@mypyc_attr(native_class=True)
+class CommandInputRecordSchema(InputRecordSchema):
     name: str
-
-    def __init__(
-        self,
-        type_: Any,
-        fields: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        name: Optional[Any] = None,
-        inputBinding: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.fields = fields
-        self.type_ = type_
-        self.label = label
-        self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.inputBinding = inputBinding
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandInputRecordSchema):
@@ -10617,8 +10566,8 @@ class CommandInputRecordSchema(
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandInputRecordSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -10673,14 +10622,13 @@ class CommandInputRecordSchema(
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         fields = None
         if "fields" in _doc:
             try:
@@ -10917,7 +10865,7 @@ class CommandInputRecordSchema(
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -10942,16 +10890,16 @@ class CommandInputRecordSchema(
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            name=name,
             fields=fields,
             type_=type_,
             label=label,
             doc=doc,
-            name=name,
             inputBinding=inputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -10966,7 +10914,7 @@ class CommandInputRecordSchema(
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
@@ -11000,22 +10948,16 @@ class CommandInputRecordSchema(
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["fields", "type", "label", "doc", "name", "inputBinding"])
-
-
-class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBindable):
-    name: str
-
     def __init__(
         self,
-        symbols: Any,
-        type_: Any,
-        name: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        inputBinding: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        type_: Record_name,
+        fields: None | Sequence[CommandInputRecordField] = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        name: None | str = None,
+        inputBinding: CommandLineBinding | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -11025,12 +10967,21 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.symbols = symbols
+        self.fields = fields
         self.type_ = type_
         self.label = label
         self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.inputBinding = inputBinding
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["fields", "type", "label", "doc", "name", "inputBinding"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class CommandInputEnumSchema(InputEnumSchema):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandInputEnumSchema):
@@ -11062,8 +11013,8 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandInputEnumSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -11118,14 +11069,13 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
@@ -11363,7 +11313,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -11397,7 +11347,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -11412,7 +11362,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
@@ -11445,24 +11395,16 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["name", "symbols", "type", "label", "doc", "inputBinding"])
-
-
-class CommandInputArraySchema(
-    InputArraySchema, CommandInputSchema, CommandLineBindable
-):
-    name: str
-
     def __init__(
         self,
-        items: Any,
-        type_: Any,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        name: Optional[Any] = None,
-        inputBinding: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        symbols: Sequence[str],
+        type_: Enum_name,
+        name: None | str = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        inputBinding: CommandLineBinding | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -11472,12 +11414,21 @@ class CommandInputArraySchema(
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items = items
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.symbols = symbols
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
         self.inputBinding = inputBinding
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["name", "symbols", "type", "label", "doc", "inputBinding"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class CommandInputArraySchema(InputArraySchema):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandInputArraySchema):
@@ -11502,8 +11453,8 @@ class CommandInputArraySchema(
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandInputArraySchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -11558,14 +11509,13 @@ class CommandInputArraySchema(
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -11803,7 +11753,7 @@ class CommandInputArraySchema(
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -11828,16 +11778,16 @@ class CommandInputArraySchema(
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            name=name,
             items=items,
             type_=type_,
             label=label,
             doc=doc,
-            name=name,
             inputBinding=inputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -11852,7 +11802,7 @@ class CommandInputArraySchema(
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
@@ -11885,24 +11835,16 @@ class CommandInputArraySchema(
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["items", "type", "label", "doc", "name", "inputBinding"])
-
-
-class CommandOutputRecordField(OutputRecordField):
-    name: str
-
     def __init__(
         self,
-        name: Any,
-        type_: Any,
-        doc: Optional[Any] = None,
-        label: Optional[Any] = None,
-        secondaryFiles: Optional[Any] = None,
-        streamable: Optional[Any] = None,
-        format: Optional[Any] = None,
-        outputBinding: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        items: CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Sequence[CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | str] | str,
+        type_: Array_name,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        name: None | str = None,
+        inputBinding: CommandLineBinding | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -11912,14 +11854,21 @@ class CommandOutputRecordField(OutputRecordField):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.items = items
         self.type_ = type_
         self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.format = format
-        self.outputBinding = outputBinding
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.inputBinding = inputBinding
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["items", "type", "label", "doc", "name", "inputBinding"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class CommandOutputRecordField(OutputRecordField):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandOutputRecordField):
@@ -11955,8 +11904,8 @@ class CommandOutputRecordField(OutputRecordField):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandOutputRecordField":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -12011,14 +11960,14 @@ class CommandOutputRecordField(OutputRecordField):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
+                name = ""
                 _errors__.append(ValidationException("missing name"))
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         doc = None
         if "doc" in _doc:
             try:
@@ -12349,7 +12298,7 @@ class CommandOutputRecordField(OutputRecordField):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -12374,8 +12323,8 @@ class CommandOutputRecordField(OutputRecordField):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
-            doc=doc,
             name=name,
+            doc=doc,
             type_=type_,
             label=label,
             secondaryFiles=secondaryFiles,
@@ -12385,7 +12334,7 @@ class CommandOutputRecordField(OutputRecordField):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -12400,7 +12349,7 @@ class CommandOutputRecordField(OutputRecordField):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.doc is not None:
             r["doc"] = save(
@@ -12447,7 +12396,37 @@ class CommandOutputRecordField(OutputRecordField):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        name: str,
+        type_: CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Sequence[CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | str] | str,
+        doc: None | Sequence[str] | str = None,
+        label: None | str = None,
+        secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
+        streamable: None | bool = None,
+        format: None | str = None,
+        outputBinding: CommandOutputBinding | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.doc = doc
+        self.name = name
+        self.type_ = type_
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.format = format
+        self.outputBinding = outputBinding
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "doc",
             "name",
@@ -12461,32 +12440,9 @@ class CommandOutputRecordField(OutputRecordField):
     )
 
 
+@mypyc_attr(native_class=True)
 class CommandOutputRecordSchema(OutputRecordSchema):
     name: str
-
-    def __init__(
-        self,
-        type_: Any,
-        fields: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        name: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.fields = fields
-        self.type_ = type_
-        self.label = label
-        self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandOutputRecordSchema):
@@ -12508,8 +12464,8 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandOutputRecordSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -12564,14 +12520,13 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         fields = None
         if "fields" in _doc:
             try:
@@ -12761,7 +12716,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -12786,15 +12741,15 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            name=name,
             fields=fields,
             type_=type_,
             label=label,
             doc=doc,
-            name=name,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -12809,7 +12764,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.fields is not None:
             r["fields"] = save(
@@ -12836,21 +12791,15 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["fields", "type", "label", "doc", "name"])
-
-
-class CommandOutputEnumSchema(OutputEnumSchema):
-    name: str
-
     def __init__(
         self,
-        symbols: Any,
-        type_: Any,
-        name: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        type_: Record_name,
+        fields: None | Sequence[CommandOutputRecordField] = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        name: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -12860,11 +12809,20 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
-        self.symbols = symbols
+        self.fields = fields
         self.type_ = type_
         self.label = label
         self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["fields", "type", "label", "doc", "name"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class CommandOutputEnumSchema(OutputEnumSchema):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandOutputEnumSchema):
@@ -12886,8 +12844,8 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandOutputEnumSchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -12942,14 +12900,13 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
@@ -13140,7 +13097,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -13173,7 +13130,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -13188,7 +13145,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.symbols is not None:
             u = save_relative_uri(self.symbols, self.name, True, None, relative_uris)
@@ -13214,21 +13171,15 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["name", "symbols", "type", "label", "doc"])
-
-
-class CommandOutputArraySchema(OutputArraySchema):
-    name: str
-
     def __init__(
         self,
-        items: Any,
-        type_: Any,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        name: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        symbols: Sequence[str],
+        type_: Enum_name,
+        name: None | str = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -13238,11 +13189,20 @@ class CommandOutputArraySchema(OutputArraySchema):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.items = items
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+        self.symbols = symbols
         self.type_ = type_
         self.label = label
         self.doc = doc
-        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["name", "symbols", "type", "label", "doc"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class CommandOutputArraySchema(OutputArraySchema):
+    name: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandOutputArraySchema):
@@ -13264,8 +13224,8 @@ class CommandOutputArraySchema(OutputArraySchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandOutputArraySchema":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -13320,14 +13280,13 @@ class CommandOutputArraySchema(OutputArraySchema):
                             )
                         )
 
-        __original_name_is_none = name is None
         if name is None:
             if docRoot is not None:
                 name = docRoot
             else:
                 name = "_:" + str(_uuid__.uuid4())
-        if not __original_name_is_none:
-            baseuri = cast(str, name)
+        else:
+            baseuri = name
         try:
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
@@ -13518,7 +13477,7 @@ class CommandOutputArraySchema(OutputArraySchema):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -13543,15 +13502,15 @@ class CommandOutputArraySchema(OutputArraySchema):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            name=name,
             items=items,
             type_=type_,
             label=label,
             doc=doc,
-            name=name,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, name)] = (_constructed, loadingOptions)
+        loadingOptions.idx[name] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -13566,7 +13525,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.name is not None:
-            u = save_relative_uri(self.name, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.name, self.name, True, None, relative_uris)
             r["name"] = u
         if self.items is not None:
             u = save_relative_uri(self.items, self.name, False, 2, relative_uris)
@@ -13592,31 +13551,15 @@ class CommandOutputArraySchema(OutputArraySchema):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["items", "type", "label", "doc", "name"])
-
-
-class CommandInputParameter(InputParameter):
-    """
-    An input parameter for a CommandLineTool.
-    """
-
-    id: str
-
     def __init__(
         self,
-        id: Any,
-        type_: Any,
-        label: Optional[Any] = None,
-        secondaryFiles: Optional[Any] = None,
-        streamable: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        format: Optional[Any] = None,
-        loadContents: Optional[Any] = None,
-        loadListing: Optional[Any] = None,
-        default: Optional[Any] = None,
-        inputBinding: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        items: CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Sequence[CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | str] | str,
+        type_: Array_name,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        name: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -13626,17 +13569,24 @@ class CommandInputParameter(InputParameter):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.doc = doc
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.format = format
-        self.loadContents = loadContents
-        self.loadListing = loadListing
-        self.default = default
+        self.items = items
         self.type_ = type_
-        self.inputBinding = inputBinding
+        self.label = label
+        self.doc = doc
+        self.name = name if name is not None else "_:" + str(_uuid__.uuid4())
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["items", "type", "label", "doc", "name"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class CommandInputParameter(Saveable):
+    """
+    An input parameter for a CommandLineTool.
+    """
+
+    id: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandInputParameter):
@@ -13678,8 +13628,8 @@ class CommandInputParameter(InputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandInputParameter":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -13734,14 +13684,14 @@ class CommandInputParameter(InputParameter):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -14213,7 +14163,7 @@ class CommandInputParameter(InputParameter):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -14238,11 +14188,11 @@ class CommandInputParameter(InputParameter):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
             doc=doc,
-            id=id,
             format=format,
             loadContents=loadContents,
             loadListing=loadListing,
@@ -14252,7 +14202,7 @@ class CommandInputParameter(InputParameter):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -14267,7 +14217,7 @@ class CommandInputParameter(InputParameter):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -14332,7 +14282,43 @@ class CommandInputParameter(InputParameter):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        id: str,
+        type_: CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | Sequence[CWLType | CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema | str] | stdin | str,
+        label: None | str = None,
+        secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
+        streamable: None | bool = None,
+        doc: None | Sequence[str] | str = None,
+        format: None | Sequence[str] | str = None,
+        loadContents: None | bool = None,
+        loadListing: LoadListingEnum | None = None,
+        default: CWLObjectType | None = None,
+        inputBinding: CommandLineBinding | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.format = format
+        self.loadContents = loadContents
+        self.loadListing = loadListing
+        self.default = default
+        self.type_ = type_
+        self.inputBinding = inputBinding
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "label",
             "secondaryFiles",
@@ -14349,42 +14335,13 @@ class CommandInputParameter(InputParameter):
     )
 
 
-class CommandOutputParameter(OutputParameter):
+@mypyc_attr(native_class=True)
+class CommandOutputParameter(Saveable):
     """
     An output parameter for a CommandLineTool.
     """
 
     id: str
-
-    def __init__(
-        self,
-        id: Any,
-        type_: Any,
-        label: Optional[Any] = None,
-        secondaryFiles: Optional[Any] = None,
-        streamable: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        format: Optional[Any] = None,
-        outputBinding: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.doc = doc
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.format = format
-        self.type_ = type_
-        self.outputBinding = outputBinding
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandOutputParameter):
@@ -14420,8 +14377,8 @@ class CommandOutputParameter(OutputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandOutputParameter":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -14476,14 +14433,14 @@ class CommandOutputParameter(OutputParameter):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -14814,7 +14771,7 @@ class CommandOutputParameter(OutputParameter):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -14839,18 +14796,18 @@ class CommandOutputParameter(OutputParameter):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
             doc=doc,
-            id=id,
             format=format,
             type_=type_,
             outputBinding=outputBinding,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -14865,7 +14822,7 @@ class CommandOutputParameter(OutputParameter):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -14912,7 +14869,37 @@ class CommandOutputParameter(OutputParameter):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        id: str,
+        type_: CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | Sequence[CWLType | CommandOutputArraySchema | CommandOutputEnumSchema | CommandOutputRecordSchema | str] | stderr | stdout | str,
+        label: None | str = None,
+        secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
+        streamable: None | bool = None,
+        doc: None | Sequence[str] | str = None,
+        format: None | str = None,
+        outputBinding: CommandOutputBinding | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.format = format
+        self.type_ = type_
+        self.outputBinding = outputBinding
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "label",
             "secondaryFiles",
@@ -14926,60 +14913,14 @@ class CommandOutputParameter(OutputParameter):
     )
 
 
-class CommandLineTool(Process):
+@mypyc_attr(native_class=True)
+class CommandLineTool(Saveable):
     """
     This defines the schema of the CWL Command Line Tool Description document.
 
     """
 
     id: str
-
-    def __init__(
-        self,
-        inputs: Any,
-        outputs: Any,
-        id: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        requirements: Optional[Any] = None,
-        hints: Optional[Any] = None,
-        cwlVersion: Optional[Any] = None,
-        baseCommand: Optional[Any] = None,
-        arguments: Optional[Any] = None,
-        stdin: Optional[Any] = None,
-        stderr: Optional[Any] = None,
-        stdout: Optional[Any] = None,
-        successCodes: Optional[Any] = None,
-        temporaryFailCodes: Optional[Any] = None,
-        permanentFailCodes: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.label = label
-        self.doc = doc
-        self.inputs = inputs
-        self.outputs = outputs
-        self.requirements = requirements
-        self.hints = hints
-        self.cwlVersion = cwlVersion
-        self.class_ = "CommandLineTool"
-        self.baseCommand = baseCommand
-        self.arguments = arguments
-        self.stdin = stdin
-        self.stderr = stderr
-        self.stdout = stdout
-        self.successCodes = successCodes
-        self.temporaryFailCodes = temporaryFailCodes
-        self.permanentFailCodes = permanentFailCodes
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CommandLineTool):
@@ -15033,8 +14974,8 @@ class CommandLineTool(Process):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CommandLineTool":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -15089,14 +15030,13 @@ class CommandLineTool(Process):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         try:
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
@@ -15820,7 +15760,7 @@ class CommandLineTool(Process):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -15864,7 +15804,7 @@ class CommandLineTool(Process):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -15879,7 +15819,7 @@ class CommandLineTool(Process):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
             uri = self.loadingOptions.vocab[self.class_]
@@ -15972,7 +15912,54 @@ class CommandLineTool(Process):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        inputs: Sequence[CommandInputParameter],
+        outputs: Sequence[CommandOutputParameter],
+        id: None | str = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
+        hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
+        cwlVersion: CWLVersion | None = None,
+        baseCommand: None | Sequence[str] | str = None,
+        arguments: None | Sequence[CommandLineBinding | str] = None,
+        stdin: None | str = None,
+        stderr: None | str = None,
+        stdout: None | str = None,
+        successCodes: None | Sequence[i32] = None,
+        temporaryFailCodes: None | Sequence[i32] = None,
+        permanentFailCodes: None | Sequence[i32] = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
+        self.label = label
+        self.doc = doc
+        self.inputs = inputs
+        self.outputs = outputs
+        self.requirements = requirements
+        self.hints = hints
+        self.cwlVersion = cwlVersion
+        self.class_: Final[str] = "CommandLineTool"
+        self.baseCommand = baseCommand
+        self.arguments = arguments
+        self.stdin = stdin
+        self.stderr = stderr
+        self.stdout = stdout
+        self.successCodes = successCodes
+        self.temporaryFailCodes = temporaryFailCodes
+        self.permanentFailCodes = permanentFailCodes
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "id",
             "label",
@@ -15995,7 +15982,8 @@ class CommandLineTool(Process):
     )
 
 
-class DockerRequirement(ProcessRequirement):
+@mypyc_attr(native_class=True)
+class DockerRequirement(Saveable):
     """
     Indicates that a workflow component should be run in a
     [Docker](http://docker.com) or Docker-compatible (such as
@@ -16051,33 +16039,6 @@ class DockerRequirement(ProcessRequirement):
 
     """
 
-    def __init__(
-        self,
-        dockerPull: Optional[Any] = None,
-        dockerLoad: Optional[Any] = None,
-        dockerFile: Optional[Any] = None,
-        dockerImport: Optional[Any] = None,
-        dockerImageId: Optional[Any] = None,
-        dockerOutputDirectory: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "DockerRequirement"
-        self.dockerPull = dockerPull
-        self.dockerLoad = dockerLoad
-        self.dockerFile = dockerFile
-        self.dockerImport = dockerImport
-        self.dockerImageId = dockerImageId
-        self.dockerOutputDirectory = dockerOutputDirectory
-
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, DockerRequirement):
             return bool(
@@ -16110,8 +16071,8 @@ class DockerRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "DockerRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -16416,7 +16377,7 @@ class DockerRequirement(ProcessRequirement):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -16522,7 +16483,34 @@ class DockerRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        dockerPull: None | str = None,
+        dockerLoad: None | str = None,
+        dockerFile: None | str = None,
+        dockerImport: None | str = None,
+        dockerImageId: None | str = None,
+        dockerOutputDirectory: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_: Final[str] = "DockerRequirement"
+        self.dockerPull = dockerPull
+        self.dockerLoad = dockerLoad
+        self.dockerFile = dockerFile
+        self.dockerImport = dockerImport
+        self.dockerImageId = dockerImageId
+        self.dockerOutputDirectory = dockerOutputDirectory
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "class",
             "dockerPull",
@@ -16535,29 +16523,13 @@ class DockerRequirement(ProcessRequirement):
     )
 
 
-class SoftwareRequirement(ProcessRequirement):
+@mypyc_attr(native_class=True)
+class SoftwareRequirement(Saveable):
     """
     A list of software packages that should be configured in the environment of
     the defined process.
 
     """
-
-    def __init__(
-        self,
-        packages: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "SoftwareRequirement"
-        self.packages = packages
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, SoftwareRequirement):
@@ -16573,8 +16545,8 @@ class SoftwareRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "SoftwareRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -16645,7 +16617,7 @@ class SoftwareRequirement(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -16708,17 +16680,11 @@ class SoftwareRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "packages"])
-
-
-class SoftwarePackage(Saveable):
     def __init__(
         self,
-        package: Any,
-        version: Optional[Any] = None,
-        specs: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        packages: Sequence[SoftwarePackage],
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -16728,10 +16694,14 @@ class SoftwarePackage(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.package = package
-        self.version = version
-        self.specs = specs
+        self.class_: Final[str] = "SoftwareRequirement"
+        self.packages = packages
 
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "packages"])
+
+
+@mypyc_attr(native_class=True)
+class SoftwarePackage(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, SoftwarePackage):
             return bool(
@@ -16750,8 +16720,8 @@ class SoftwarePackage(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "SoftwarePackage":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -16900,7 +16870,7 @@ class SoftwarePackage(Saveable):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -16964,25 +16934,13 @@ class SoftwarePackage(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["package", "version", "specs"])
-
-
-class Dirent(Saveable):
-    """
-    Define a file or subdirectory that must be placed in the designated output
-    directory prior to executing the command line tool.  May be the result of
-    executing an expression, such as building a configuration file from a
-    template.
-
-    """
-
     def __init__(
         self,
-        entry: Any,
-        entryname: Optional[Any] = None,
-        writable: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        package: str,
+        version: None | Sequence[str] = None,
+        specs: None | Sequence[str] = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -16992,9 +16950,22 @@ class Dirent(Saveable):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.entryname = entryname
-        self.entry = entry
-        self.writable = writable
+        self.package = package
+        self.version = version
+        self.specs = specs
+
+    attrs: ClassVar[Collection[str]] = frozenset(["package", "version", "specs"])
+
+
+@mypyc_attr(native_class=True)
+class Dirent(Saveable):
+    """
+    Define a file or subdirectory that must be placed in the designated output
+    directory prior to executing the command line tool.  May be the result of
+    executing an expression, such as building a configuration file from a
+    template.
+
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Dirent):
@@ -17014,8 +16985,8 @@ class Dirent(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "Dirent":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -17164,7 +17135,7 @@ class Dirent(Saveable):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -17232,19 +17203,13 @@ class Dirent(Saveable):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["entryname", "entry", "writable"])
-
-
-class InitialWorkDirRequirement(ProcessRequirement):
-    """
-    Define a list of files and subdirectories that must be created by the workflow platform in the designated output directory prior to executing the command line tool.
-    """
-
     def __init__(
         self,
-        listing: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        entry: str,
+        entryname: None | str = None,
+        writable: None | bool = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -17254,8 +17219,18 @@ class InitialWorkDirRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_ = "InitialWorkDirRequirement"
-        self.listing = listing
+        self.entryname = entryname
+        self.entry = entry
+        self.writable = writable
+
+    attrs: ClassVar[Collection[str]] = frozenset(["entryname", "entry", "writable"])
+
+
+@mypyc_attr(native_class=True)
+class InitialWorkDirRequirement(Saveable):
+    """
+    Define a list of files and subdirectories that must be created by the workflow platform in the designated output directory prior to executing the command line tool.
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InitialWorkDirRequirement):
@@ -17271,8 +17246,8 @@ class InitialWorkDirRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "InitialWorkDirRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -17343,7 +17318,7 @@ class InitialWorkDirRequirement(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -17406,21 +17381,11 @@ class InitialWorkDirRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "listing"])
-
-
-class EnvVarRequirement(ProcessRequirement):
-    """
-    Define a list of environment variables which will be set in the
-    execution environment of the tool.  See `EnvironmentDef` for details.
-
-    """
-
     def __init__(
         self,
-        envDef: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        listing: Sequence[Directory | Dirent | File | None | Sequence[Directory | File] | str] | str,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -17430,8 +17395,19 @@ class EnvVarRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_ = "EnvVarRequirement"
-        self.envDef = envDef
+        self.class_: Final[str] = "InitialWorkDirRequirement"
+        self.listing = listing
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "listing"])
+
+
+@mypyc_attr(native_class=True)
+class EnvVarRequirement(Saveable):
+    """
+    Define a list of environment variables which will be set in the
+    execution environment of the tool.  See `EnvironmentDef` for details.
+
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, EnvVarRequirement):
@@ -17447,8 +17423,8 @@ class EnvVarRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "EnvVarRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -17519,7 +17495,7 @@ class EnvVarRequirement(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -17582,25 +17558,11 @@ class EnvVarRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "envDef"])
-
-
-class ShellCommandRequirement(ProcessRequirement):
-    """
-    Modify the behavior of CommandLineTool to generate a single string
-    containing a shell command line.  Each item in the argument list must be
-    joined into a string separated by single spaces and quoted to prevent
-    intepretation by the shell, unless `CommandLineBinding` for that argument
-    contains `shellQuote: false`.  If `shellQuote: false` is specified, the
-    argument is joined into the command string without quoting, which allows
-    the use of shell metacharacters such as `|` for pipes.
-
-    """
-
     def __init__(
         self,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        envDef: Sequence[EnvironmentDef],
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -17610,7 +17572,24 @@ class ShellCommandRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_ = "ShellCommandRequirement"
+        self.class_: Final[str] = "EnvVarRequirement"
+        self.envDef = envDef
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "envDef"])
+
+
+@mypyc_attr(native_class=True)
+class ShellCommandRequirement(Saveable):
+    """
+    Modify the behavior of CommandLineTool to generate a single string
+    containing a shell command line.  Each item in the argument list must be
+    joined into a string separated by single spaces and quoted to prevent
+    interpretation by the shell, unless `CommandLineBinding` for that argument
+    contains `shellQuote: false`.  If `shellQuote: false` is specified, the
+    argument is joined into the command string without quoting, which allows
+    the use of shell metacharacters such as `|` for pipes.
+
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ShellCommandRequirement):
@@ -17626,8 +17605,8 @@ class ShellCommandRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "ShellCommandRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -17650,7 +17629,7 @@ class ShellCommandRequirement(ProcessRequirement):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -17706,10 +17685,26 @@ class ShellCommandRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class"])
+    def __init__(
+        self,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_: Final[str] = "ShellCommandRequirement"
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
-class ResourceRequirement(ProcessRequirement):
+@mypyc_attr(native_class=True)
+class ResourceRequirement(Saveable):
     """
     Specify basic hardware resource requirements.
 
@@ -17733,37 +17728,6 @@ class ResourceRequirement(ProcessRequirement):
     If neither "min" nor "max" is specified for a resource, use the default values below.
 
     """
-
-    def __init__(
-        self,
-        coresMin: Optional[Any] = None,
-        coresMax: Optional[Any] = None,
-        ramMin: Optional[Any] = None,
-        ramMax: Optional[Any] = None,
-        tmpdirMin: Optional[Any] = None,
-        tmpdirMax: Optional[Any] = None,
-        outdirMin: Optional[Any] = None,
-        outdirMax: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "ResourceRequirement"
-        self.coresMin = coresMin
-        self.coresMax = coresMax
-        self.ramMin = ramMin
-        self.ramMax = ramMax
-        self.tmpdirMin = tmpdirMin
-        self.tmpdirMax = tmpdirMax
-        self.outdirMin = outdirMin
-        self.outdirMax = outdirMax
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ResourceRequirement):
@@ -17801,8 +17765,8 @@ class ResourceRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "ResourceRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -17830,7 +17794,7 @@ class ResourceRequirement(ProcessRequirement):
             try:
                 coresMin = load_field(
                     _doc.get("coresMin"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("coresMin")
@@ -17877,7 +17841,7 @@ class ResourceRequirement(ProcessRequirement):
             try:
                 coresMax = load_field(
                     _doc.get("coresMax"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("coresMax")
@@ -17924,7 +17888,7 @@ class ResourceRequirement(ProcessRequirement):
             try:
                 ramMin = load_field(
                     _doc.get("ramMin"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("ramMin")
@@ -17971,7 +17935,7 @@ class ResourceRequirement(ProcessRequirement):
             try:
                 ramMax = load_field(
                     _doc.get("ramMax"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("ramMax")
@@ -18018,7 +17982,7 @@ class ResourceRequirement(ProcessRequirement):
             try:
                 tmpdirMin = load_field(
                     _doc.get("tmpdirMin"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("tmpdirMin")
@@ -18065,7 +18029,7 @@ class ResourceRequirement(ProcessRequirement):
             try:
                 tmpdirMax = load_field(
                     _doc.get("tmpdirMax"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("tmpdirMax")
@@ -18112,7 +18076,7 @@ class ResourceRequirement(ProcessRequirement):
             try:
                 outdirMin = load_field(
                     _doc.get("outdirMin"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("outdirMin")
@@ -18159,7 +18123,7 @@ class ResourceRequirement(ProcessRequirement):
             try:
                 outdirMax = load_field(
                     _doc.get("outdirMax"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
+                    union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("outdirMax")
@@ -18201,7 +18165,7 @@ class ResourceRequirement(ProcessRequirement):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -18311,7 +18275,38 @@ class ResourceRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        coresMin: None | i32 | str = None,
+        coresMax: None | i32 | str = None,
+        ramMin: None | i32 | str = None,
+        ramMax: None | i32 | str = None,
+        tmpdirMin: None | i32 | str = None,
+        tmpdirMax: None | i32 | str = None,
+        outdirMin: None | i32 | str = None,
+        outdirMax: None | i32 | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_: Final[str] = "ResourceRequirement"
+        self.coresMin = coresMin
+        self.coresMax = coresMax
+        self.ramMin = ramMin
+        self.ramMax = ramMax
+        self.tmpdirMin = tmpdirMin
+        self.tmpdirMax = tmpdirMax
+        self.outdirMin = outdirMin
+        self.outdirMax = outdirMax
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "class",
             "coresMin",
@@ -18326,12 +18321,13 @@ class ResourceRequirement(ProcessRequirement):
     )
 
 
-class WorkReuse(ProcessRequirement):
+@mypyc_attr(native_class=True)
+class WorkReuse(Saveable):
     """
     For implementations that support reusing output from past work (on
     the assumption that same code and same input produce same
     results), control whether to enable or disable the reuse behavior
-    for a particular tool or step (to accomodate situations where that
+    for a particular tool or step (to accommodate situations where that
     assumption is incorrect).  A reused step is not executed but
     instead returns the same output as the original execution.
 
@@ -18339,23 +18335,6 @@ class WorkReuse(ProcessRequirement):
     is enabled by default.
 
     """
-
-    def __init__(
-        self,
-        enableReuse: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "WorkReuse"
-        self.enableReuse = enableReuse
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, WorkReuse):
@@ -18373,8 +18352,8 @@ class WorkReuse(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "WorkReuse":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -18445,7 +18424,7 @@ class WorkReuse(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -18511,10 +18490,28 @@ class WorkReuse(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "enableReuse"])
+    def __init__(
+        self,
+        enableReuse: bool | str,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_: Final[str] = "WorkReuse"
+        self.enableReuse = enableReuse
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "enableReuse"])
 
 
-class NetworkAccess(ProcessRequirement):
+@mypyc_attr(native_class=True)
+class NetworkAccess(Saveable):
     """
     Indicate whether a process requires outgoing IPv4/IPv6 network
     access.  Choice of IPv4 or IPv6 is implementation and site
@@ -18529,27 +18526,10 @@ class NetworkAccess(ProcessRequirement):
     may apply their own security policies to restrict what is
     accessible by the tool.
 
-    Enabling network access does not imply a publically routable IP
+    Enabling network access does not imply a publicly routable IP
     address or the ability to accept inbound connections.
 
     """
-
-    def __init__(
-        self,
-        networkAccess: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "NetworkAccess"
-        self.networkAccess = networkAccess
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, NetworkAccess):
@@ -18568,8 +18548,8 @@ class NetworkAccess(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "NetworkAccess":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -18640,7 +18620,7 @@ class NetworkAccess(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -18706,10 +18686,28 @@ class NetworkAccess(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "networkAccess"])
+    def __init__(
+        self,
+        networkAccess: bool | str,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_: Final[str] = "NetworkAccess"
+        self.networkAccess = networkAccess
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "networkAccess"])
 
 
-class InplaceUpdateRequirement(ProcessRequirement):
+@mypyc_attr(native_class=True)
+class InplaceUpdateRequirement(Saveable):
     """
 
     If `inplaceUpdate` is true, then an implementation supporting this
@@ -18727,7 +18725,7 @@ class InplaceUpdateRequirement(ProcessRequirement):
     read-only in every step.
 
     Workflow steps which modify a file must produce the modified file
-    as output.  Downstream steps which futher process the file must
+    as output.  Downstream steps which further process the file must
     use the output of previous steps, and not refer to a common input
     (this is necessary for both ordering and correctness).
 
@@ -18743,23 +18741,6 @@ class InplaceUpdateRequirement(ProcessRequirement):
     not be enabled.
 
     """
-
-    def __init__(
-        self,
-        inplaceUpdate: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "InplaceUpdateRequirement"
-        self.inplaceUpdate = inplaceUpdate
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, InplaceUpdateRequirement):
@@ -18778,8 +18759,8 @@ class InplaceUpdateRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "InplaceUpdateRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -18850,7 +18831,7 @@ class InplaceUpdateRequirement(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -18916,10 +18897,28 @@ class InplaceUpdateRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "inplaceUpdate"])
+    def __init__(
+        self,
+        inplaceUpdate: bool,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_: Final[str] = "InplaceUpdateRequirement"
+        self.inplaceUpdate = inplaceUpdate
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "inplaceUpdate"])
 
 
-class ToolTimeLimit(ProcessRequirement):
+@mypyc_attr(native_class=True)
+class ToolTimeLimit(Saveable):
     """
     Set an upper limit on the execution time of a CommandLineTool.
     A CommandLineTool whose execution duration exceeds the time
@@ -18930,23 +18929,6 @@ class ToolTimeLimit(ProcessRequirement):
     wall-time for the execution of the command line itself.
 
     """
-
-    def __init__(
-        self,
-        timelimit: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "ToolTimeLimit"
-        self.timelimit = timelimit
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ToolTimeLimit):
@@ -18964,8 +18946,8 @@ class ToolTimeLimit(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "ToolTimeLimit":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -18994,7 +18976,7 @@ class ToolTimeLimit(ProcessRequirement):
 
             timelimit = load_field(
                 _doc.get("timelimit"),
-                union_of_inttype_or_ExpressionLoader,
+                union_of_inttype_or_inttype_or_ExpressionLoader,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("timelimit")
@@ -19036,7 +19018,7 @@ class ToolTimeLimit(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -19102,23 +19084,11 @@ class ToolTimeLimit(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "timelimit"])
-
-
-class ExpressionToolOutputParameter(OutputParameter):
-    id: str
-
     def __init__(
         self,
-        id: Any,
-        type_: Any,
-        label: Optional[Any] = None,
-        secondaryFiles: Optional[Any] = None,
-        streamable: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        format: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        timelimit: i32 | str,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -19128,13 +19098,15 @@ class ExpressionToolOutputParameter(OutputParameter):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.doc = doc
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.format = format
-        self.type_ = type_
+        self.class_: Final[str] = "ToolTimeLimit"
+        self.timelimit = timelimit
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "timelimit"])
+
+
+@mypyc_attr(native_class=True)
+class ExpressionToolOutputParameter(Saveable):
+    id: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ExpressionToolOutputParameter):
@@ -19168,8 +19140,8 @@ class ExpressionToolOutputParameter(OutputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "ExpressionToolOutputParameter":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -19224,14 +19196,14 @@ class ExpressionToolOutputParameter(OutputParameter):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -19515,7 +19487,7 @@ class ExpressionToolOutputParameter(OutputParameter):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -19540,17 +19512,17 @@ class ExpressionToolOutputParameter(OutputParameter):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
             doc=doc,
-            id=id,
             format=format,
             type_=type_,
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -19565,7 +19537,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -19605,29 +19577,17 @@ class ExpressionToolOutputParameter(OutputParameter):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
-        ["label", "secondaryFiles", "streamable", "doc", "id", "format", "type"]
-    )
-
-
-class WorkflowInputParameter(InputParameter):
-    id: str
-
     def __init__(
         self,
-        id: Any,
-        type_: Any,
-        label: Optional[Any] = None,
-        secondaryFiles: Optional[Any] = None,
-        streamable: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        format: Optional[Any] = None,
-        loadContents: Optional[Any] = None,
-        loadListing: Optional[Any] = None,
-        default: Optional[Any] = None,
-        inputBinding: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        id: str,
+        type_: CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
+        label: None | str = None,
+        secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
+        streamable: None | bool = None,
+        doc: None | Sequence[str] | str = None,
+        format: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -19641,13 +19601,18 @@ class WorkflowInputParameter(InputParameter):
         self.secondaryFiles = secondaryFiles
         self.streamable = streamable
         self.doc = doc
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
+        self.id = id
         self.format = format
-        self.loadContents = loadContents
-        self.loadListing = loadListing
-        self.default = default
         self.type_ = type_
-        self.inputBinding = inputBinding
+
+    attrs: ClassVar[Collection[str]] = frozenset(
+        ["label", "secondaryFiles", "streamable", "doc", "id", "format", "type"]
+    )
+
+
+@mypyc_attr(native_class=True)
+class WorkflowInputParameter(Saveable):
+    id: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, WorkflowInputParameter):
@@ -19689,8 +19654,8 @@ class WorkflowInputParameter(InputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "WorkflowInputParameter":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -19745,14 +19710,14 @@ class WorkflowInputParameter(InputParameter):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -20224,7 +20189,7 @@ class WorkflowInputParameter(InputParameter):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -20249,11 +20214,11 @@ class WorkflowInputParameter(InputParameter):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
             doc=doc,
-            id=id,
             format=format,
             loadContents=loadContents,
             loadListing=loadListing,
@@ -20263,7 +20228,7 @@ class WorkflowInputParameter(InputParameter):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -20278,7 +20243,7 @@ class WorkflowInputParameter(InputParameter):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -20343,7 +20308,43 @@ class WorkflowInputParameter(InputParameter):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        id: str,
+        type_: CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | Sequence[CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str] | str,
+        label: None | str = None,
+        secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
+        streamable: None | bool = None,
+        doc: None | Sequence[str] | str = None,
+        format: None | Sequence[str] | str = None,
+        loadContents: None | bool = None,
+        loadListing: LoadListingEnum | None = None,
+        default: CWLObjectType | None = None,
+        inputBinding: InputBinding | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.format = format
+        self.loadContents = loadContents
+        self.loadListing = loadListing
+        self.default = default
+        self.type_ = type_
+        self.inputBinding = inputBinding
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "label",
             "secondaryFiles",
@@ -20360,7 +20361,8 @@ class WorkflowInputParameter(InputParameter):
     )
 
 
-class ExpressionTool(Process):
+@mypyc_attr(native_class=True)
+class ExpressionTool(Saveable):
     """
     An ExpressionTool is a type of Process object that can be run by itself
     or as a Workflow step. It executes a pure Javascript expression that has
@@ -20373,39 +20375,6 @@ class ExpressionTool(Process):
     """
 
     id: str
-
-    def __init__(
-        self,
-        inputs: Any,
-        outputs: Any,
-        expression: Any,
-        id: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        requirements: Optional[Any] = None,
-        hints: Optional[Any] = None,
-        cwlVersion: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.label = label
-        self.doc = doc
-        self.inputs = inputs
-        self.outputs = outputs
-        self.requirements = requirements
-        self.hints = hints
-        self.cwlVersion = cwlVersion
-        self.class_ = "ExpressionTool"
-        self.expression = expression
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ExpressionTool):
@@ -20445,8 +20414,8 @@ class ExpressionTool(Process):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "ExpressionTool":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -20501,14 +20470,13 @@ class ExpressionTool(Process):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         try:
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
@@ -20904,7 +20872,7 @@ class ExpressionTool(Process):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -20941,7 +20909,7 @@ class ExpressionTool(Process):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -20956,7 +20924,7 @@ class ExpressionTool(Process):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
             uri = self.loadingOptions.vocab[self.class_]
@@ -21012,7 +20980,40 @@ class ExpressionTool(Process):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        inputs: Sequence[WorkflowInputParameter],
+        outputs: Sequence[ExpressionToolOutputParameter],
+        expression: str,
+        id: None | str = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
+        hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
+        cwlVersion: CWLVersion | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
+        self.label = label
+        self.doc = doc
+        self.inputs = inputs
+        self.outputs = outputs
+        self.requirements = requirements
+        self.hints = hints
+        self.cwlVersion = cwlVersion
+        self.class_: Final[str] = "ExpressionTool"
+        self.expression = expression
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "id",
             "label",
@@ -21028,7 +21029,8 @@ class ExpressionTool(Process):
     )
 
 
-class WorkflowOutputParameter(OutputParameter):
+@mypyc_attr(native_class=True)
+class WorkflowOutputParameter(Saveable):
     """
     Describe an output parameter of a workflow.  The parameter must be
     connected to one or more parameters defined in the workflow that
@@ -21038,38 +21040,6 @@ class WorkflowOutputParameter(OutputParameter):
     """
 
     id: str
-
-    def __init__(
-        self,
-        id: Any,
-        type_: Any,
-        label: Optional[Any] = None,
-        secondaryFiles: Optional[Any] = None,
-        streamable: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        format: Optional[Any] = None,
-        outputSource: Optional[Any] = None,
-        linkMerge: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.label = label
-        self.secondaryFiles = secondaryFiles
-        self.streamable = streamable
-        self.doc = doc
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.format = format
-        self.outputSource = outputSource
-        self.linkMerge = linkMerge
-        self.type_ = type_
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, WorkflowOutputParameter):
@@ -21107,8 +21077,8 @@ class WorkflowOutputParameter(OutputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "WorkflowOutputParameter":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -21163,14 +21133,14 @@ class WorkflowOutputParameter(OutputParameter):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -21548,7 +21518,7 @@ class WorkflowOutputParameter(OutputParameter):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -21573,11 +21543,11 @@ class WorkflowOutputParameter(OutputParameter):
         if _errors__:
             raise ValidationException("", None, _errors__, "*")
         _constructed = cls(
+            id=id,
             label=label,
             secondaryFiles=secondaryFiles,
             streamable=streamable,
             doc=doc,
-            id=id,
             format=format,
             outputSource=outputSource,
             linkMerge=linkMerge,
@@ -21585,7 +21555,7 @@ class WorkflowOutputParameter(OutputParameter):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -21600,7 +21570,7 @@ class WorkflowOutputParameter(OutputParameter):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -21647,7 +21617,39 @@ class WorkflowOutputParameter(OutputParameter):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        id: str,
+        type_: CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | Sequence[CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str] | str,
+        label: None | str = None,
+        secondaryFiles: None | SecondaryFileSchema | Sequence[SecondaryFileSchema] = None,
+        streamable: None | bool = None,
+        doc: None | Sequence[str] | str = None,
+        format: None | str = None,
+        outputSource: None | Sequence[str] | str = None,
+        linkMerge: LinkMergeMethod | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.label = label
+        self.secondaryFiles = secondaryFiles
+        self.streamable = streamable
+        self.doc = doc
+        self.id = id
+        self.format = format
+        self.outputSource = outputSource
+        self.linkMerge = linkMerge
+        self.type_ = type_
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "label",
             "secondaryFiles",
@@ -21662,17 +21664,14 @@ class WorkflowOutputParameter(OutputParameter):
     )
 
 
-class Sink(Saveable):
-    pass
-
-
-class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
+@mypyc_attr(native_class=True)
+class WorkflowStepInput(Saveable):
     """
     The input of a workflow step connects an upstream parameter (from the
     workflow inputs, or the outputs of other workflows steps) with the input
     parameters of the process specified by the `run` field. Only input parameters
     declared by the target process will be passed through at runtime to the process
-    though additonal parameters may be specified (for use within `valueFrom`
+    though additional parameters may be specified (for use within `valueFrom`
     expressions for instance) - unconnected or unused parameters do not represent an
     error condition.
 
@@ -21716,36 +21715,6 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
 
     id: str
 
-    def __init__(
-        self,
-        id: Any,
-        source: Optional[Any] = None,
-        linkMerge: Optional[Any] = None,
-        loadContents: Optional[Any] = None,
-        loadListing: Optional[Any] = None,
-        label: Optional[Any] = None,
-        default: Optional[Any] = None,
-        valueFrom: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.source = source
-        self.linkMerge = linkMerge
-        self.loadContents = loadContents
-        self.loadListing = loadListing
-        self.label = label
-        self.default = default
-        self.valueFrom = valueFrom
-
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, WorkflowStepInput):
             return bool(
@@ -21780,8 +21749,8 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "WorkflowStepInput":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -21836,14 +21805,14 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         source = None
         if "source" in _doc:
             try:
@@ -22173,7 +22142,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -22209,7 +22178,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -22224,7 +22193,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.source is not None:
             u = save_relative_uri(self.source, self.id, False, 2, relative_uris)
@@ -22268,7 +22237,37 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        id: str,
+        source: None | Sequence[str] | str = None,
+        linkMerge: LinkMergeMethod | None = None,
+        loadContents: None | bool = None,
+        loadListing: LoadListingEnum | None = None,
+        label: None | str = None,
+        default: CWLObjectType | None = None,
+        valueFrom: None | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.id = id
+        self.source = source
+        self.linkMerge = linkMerge
+        self.loadContents = loadContents
+        self.loadListing = loadListing
+        self.label = label
+        self.default = default
+        self.valueFrom = valueFrom
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "id",
             "source",
@@ -22282,7 +22281,8 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
     )
 
 
-class WorkflowStepOutput(IdentifierRequired):
+@mypyc_attr(native_class=True)
+class WorkflowStepOutput(Saveable):
     """
     Associate an output parameter of the underlying process with a workflow
     parameter.  The workflow parameter (given in the `id` field) be may be used
@@ -22296,22 +22296,6 @@ class WorkflowStepOutput(IdentifierRequired):
     """
 
     id: str
-
-    def __init__(
-        self,
-        id: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, WorkflowStepOutput):
@@ -22327,8 +22311,8 @@ class WorkflowStepOutput(IdentifierRequired):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "WorkflowStepOutput":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -22383,15 +22367,15 @@ class WorkflowStepOutput(IdentifierRequired):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
-        extension_fields: dict[str, Any] = {}
+        else:
+            baseuri = id
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -22418,7 +22402,7 @@ class WorkflowStepOutput(IdentifierRequired):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -22433,7 +22417,7 @@ class WorkflowStepOutput(IdentifierRequired):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
 
         # top refers to the directory level
@@ -22444,10 +22428,27 @@ class WorkflowStepOutput(IdentifierRequired):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["id"])
+    def __init__(
+        self,
+        id: str,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.id = id
+
+    attrs: ClassVar[Collection[str]] = frozenset(["id"])
 
 
-class WorkflowStep(IdentifierRequired, Labeled, Documented):
+@mypyc_attr(native_class=True)
+class WorkflowStep(Saveable):
     """
     A workflow step is an executable element of a workflow.  It specifies the
     underlying process implementation (such as `CommandLineTool` or another
@@ -22509,40 +22510,6 @@ class WorkflowStep(IdentifierRequired, Labeled, Documented):
 
     id: str
 
-    def __init__(
-        self,
-        id: Any,
-        in_: Any,
-        out: Any,
-        run: Any,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        requirements: Optional[Any] = None,
-        hints: Optional[Any] = None,
-        scatter: Optional[Any] = None,
-        scatterMethod: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.label = label
-        self.doc = doc
-        self.in_ = in_
-        self.out = out
-        self.requirements = requirements
-        self.hints = hints
-        self.run = run
-        self.scatter = scatter
-        self.scatterMethod = scatterMethod
-
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, WorkflowStep):
             return bool(
@@ -22581,8 +22548,8 @@ class WorkflowStep(IdentifierRequired, Labeled, Documented):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "WorkflowStep":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -22637,14 +22604,14 @@ class WorkflowStep(IdentifierRequired, Labeled, Documented):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
+                id = ""
                 _errors__.append(ValidationException("missing id"))
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         label = None
         if "label" in _doc:
             try:
@@ -23073,7 +23040,7 @@ class WorkflowStep(IdentifierRequired, Labeled, Documented):
                                 "is not valid because:",
                             )
                         )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -23111,7 +23078,7 @@ class WorkflowStep(IdentifierRequired, Labeled, Documented):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -23126,7 +23093,7 @@ class WorkflowStep(IdentifierRequired, Labeled, Documented):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.label is not None:
             r["label"] = save(
@@ -23174,7 +23141,41 @@ class WorkflowStep(IdentifierRequired, Labeled, Documented):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        id: str,
+        in_: Sequence[WorkflowStepInput],
+        out: Sequence[WorkflowStepOutput | str],
+        run: CommandLineTool | ExpressionTool | ProcessGenerator | Workflow | str,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
+        hints: None | Sequence[Any] = None,
+        scatter: None | Sequence[str] | str = None,
+        scatterMethod: None | ScatterMethod = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.id = id
+        self.label = label
+        self.doc = doc
+        self.in_ = in_
+        self.out = out
+        self.requirements = requirements
+        self.hints = hints
+        self.run = run
+        self.scatter = scatter
+        self.scatterMethod = scatterMethod
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "id",
             "label",
@@ -23190,7 +23191,8 @@ class WorkflowStep(IdentifierRequired, Labeled, Documented):
     )
 
 
-class Workflow(Process):
+@mypyc_attr(native_class=True)
+class Workflow(Saveable):
     """
     A workflow describes a set of **steps** and the **dependencies** between
     those steps.  When a step produces output that will be consumed by a
@@ -23210,7 +23212,7 @@ class Workflow(Process):
     The `source` field expresses the dependency of one parameter on another
     such that when a value is associated with the parameter specified by
     `source`, that value is propagated to the destination parameter.  When all
-    data links inbound to a given step are fufilled, the step is ready to
+    data links inbound to a given step are fulfilled, the step is ready to
     execute.
 
     ## Workflow success and failure
@@ -23241,39 +23243,6 @@ class Workflow(Process):
     """
 
     id: str
-
-    def __init__(
-        self,
-        inputs: Any,
-        outputs: Any,
-        steps: Any,
-        id: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        requirements: Optional[Any] = None,
-        hints: Optional[Any] = None,
-        cwlVersion: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.label = label
-        self.doc = doc
-        self.inputs = inputs
-        self.outputs = outputs
-        self.requirements = requirements
-        self.hints = hints
-        self.cwlVersion = cwlVersion
-        self.class_ = "Workflow"
-        self.steps = steps
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Workflow):
@@ -23313,8 +23282,8 @@ class Workflow(Process):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "Workflow":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -23369,14 +23338,13 @@ class Workflow(Process):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         try:
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
@@ -23772,7 +23740,7 @@ class Workflow(Process):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -23809,7 +23777,7 @@ class Workflow(Process):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -23824,7 +23792,7 @@ class Workflow(Process):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
             uri = self.loadingOptions.vocab[self.class_]
@@ -23877,7 +23845,40 @@ class Workflow(Process):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        inputs: Sequence[WorkflowInputParameter],
+        outputs: Sequence[WorkflowOutputParameter],
+        steps: Sequence[WorkflowStep],
+        id: None | str = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
+        hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
+        cwlVersion: CWLVersion | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
+        self.label = label
+        self.doc = doc
+        self.inputs = inputs
+        self.outputs = outputs
+        self.requirements = requirements
+        self.hints = hints
+        self.cwlVersion = cwlVersion
+        self.class_: Final[str] = "Workflow"
+        self.steps = steps
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "id",
             "label",
@@ -23893,27 +23894,13 @@ class Workflow(Process):
     )
 
 
-class SubworkflowFeatureRequirement(ProcessRequirement):
+@mypyc_attr(native_class=True)
+class SubworkflowFeatureRequirement(Saveable):
     """
     Indicates that the workflow platform must support nested workflows in
     the `run` field of [WorkflowStep](#WorkflowStep).
 
     """
-
-    def __init__(
-        self,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "SubworkflowFeatureRequirement"
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, SubworkflowFeatureRequirement):
@@ -23929,8 +23916,8 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "SubworkflowFeatureRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -23953,7 +23940,7 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -24009,20 +23996,10 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class"])
-
-
-class ScatterFeatureRequirement(ProcessRequirement):
-    """
-    Indicates that the workflow platform must support the `scatter` and
-    `scatterMethod` fields of [WorkflowStep](#WorkflowStep).
-
-    """
-
     def __init__(
         self,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -24032,7 +24009,18 @@ class ScatterFeatureRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_ = "ScatterFeatureRequirement"
+        self.class_: Final[str] = "SubworkflowFeatureRequirement"
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class"])
+
+
+@mypyc_attr(native_class=True)
+class ScatterFeatureRequirement(Saveable):
+    """
+    Indicates that the workflow platform must support the `scatter` and
+    `scatterMethod` fields of [WorkflowStep](#WorkflowStep).
+
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ScatterFeatureRequirement):
@@ -24048,8 +24036,8 @@ class ScatterFeatureRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "ScatterFeatureRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -24072,7 +24060,7 @@ class ScatterFeatureRequirement(ProcessRequirement):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -24128,20 +24116,10 @@ class ScatterFeatureRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class"])
-
-
-class MultipleInputFeatureRequirement(ProcessRequirement):
-    """
-    Indicates that the workflow platform must support multiple inbound data links
-    listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
-
-    """
-
     def __init__(
         self,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -24151,7 +24129,18 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_ = "MultipleInputFeatureRequirement"
+        self.class_: Final[str] = "ScatterFeatureRequirement"
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class"])
+
+
+@mypyc_attr(native_class=True)
+class MultipleInputFeatureRequirement(Saveable):
+    """
+    Indicates that the workflow platform must support multiple inbound data links
+    listed in the `source` field of [WorkflowStepInput](#WorkflowStepInput).
+
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, MultipleInputFeatureRequirement):
@@ -24167,8 +24156,8 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "MultipleInputFeatureRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -24191,7 +24180,7 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -24247,20 +24236,10 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class"])
-
-
-class StepInputExpressionRequirement(ProcessRequirement):
-    """
-    Indicate that the workflow platform must support the `valueFrom` field
-    of [WorkflowStepInput](#WorkflowStepInput).
-
-    """
-
     def __init__(
         self,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -24270,7 +24249,18 @@ class StepInputExpressionRequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_ = "StepInputExpressionRequirement"
+        self.class_: Final[str] = "MultipleInputFeatureRequirement"
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class"])
+
+
+@mypyc_attr(native_class=True)
+class StepInputExpressionRequirement(Saveable):
+    """
+    Indicate that the workflow platform must support the `valueFrom` field
+    of [WorkflowStepInput](#WorkflowStepInput).
+
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, StepInputExpressionRequirement):
@@ -24286,8 +24276,8 @@ class StepInputExpressionRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "StepInputExpressionRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -24310,7 +24300,7 @@ class StepInputExpressionRequirement(ProcessRequirement):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -24366,15 +24356,10 @@ class StepInputExpressionRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class"])
-
-
-class Secrets(ProcessRequirement):
     def __init__(
         self,
-        secrets: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -24384,9 +24369,13 @@ class Secrets(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_ = "Secrets"
-        self.secrets = secrets
+        self.class_: Final[str] = "StepInputExpressionRequirement"
 
+    attrs: ClassVar[Collection[str]] = frozenset(["class"])
+
+
+@mypyc_attr(native_class=True)
+class Secrets(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Secrets):
             return bool(self.class_ == other.class_ and self.secrets == other.secrets)
@@ -24401,8 +24390,8 @@ class Secrets(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "Secrets":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -24473,7 +24462,7 @@ class Secrets(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -24535,25 +24524,11 @@ class Secrets(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "secrets"])
-
-
-class ProcessGenerator(Process):
-    id: str
-
     def __init__(
         self,
-        inputs: Any,
-        outputs: Any,
-        run: Any,
-        id: Optional[Any] = None,
-        label: Optional[Any] = None,
-        doc: Optional[Any] = None,
-        requirements: Optional[Any] = None,
-        hints: Optional[Any] = None,
-        cwlVersion: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        secrets: Sequence[str],
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -24563,16 +24538,15 @@ class ProcessGenerator(Process):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.label = label
-        self.doc = doc
-        self.inputs = inputs
-        self.outputs = outputs
-        self.requirements = requirements
-        self.hints = hints
-        self.cwlVersion = cwlVersion
-        self.class_ = "ProcessGenerator"
-        self.run = run
+        self.class_: Final[str] = "Secrets"
+        self.secrets = secrets
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "secrets"])
+
+
+@mypyc_attr(native_class=True)
+class ProcessGenerator(Saveable):
+    id: str
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ProcessGenerator):
@@ -24612,8 +24586,8 @@ class ProcessGenerator(Process):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "ProcessGenerator":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -24668,14 +24642,13 @@ class ProcessGenerator(Process):
                             )
                         )
 
-        __original_id_is_none = id is None
         if id is None:
             if docRoot is not None:
                 id = docRoot
             else:
                 id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
+        else:
+            baseuri = id
         try:
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
@@ -24792,7 +24765,7 @@ class ProcessGenerator(Process):
 
             inputs = load_field(
                 _doc.get("inputs"),
-                idmap_inputs_array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader,
+                idmap_inputs_array_of_WorkflowInputParameterLoader,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("inputs")
@@ -24840,7 +24813,7 @@ class ProcessGenerator(Process):
 
             outputs = load_field(
                 _doc.get("outputs"),
-                idmap_outputs_array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader,
+                idmap_outputs_array_of_ExpressionToolOutputParameterLoader,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("outputs")
@@ -25073,7 +25046,7 @@ class ProcessGenerator(Process):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -25110,7 +25083,7 @@ class ProcessGenerator(Process):
             extension_fields=extension_fields,
             loadingOptions=loadingOptions,
         )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
+        loadingOptions.idx[id] = (_constructed, loadingOptions)
         return _constructed
 
     def save(
@@ -25125,7 +25098,7 @@ class ProcessGenerator(Process):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
+            u = save_relative_uri(self.id, self.id, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
             uri = self.loadingOptions.vocab[self.class_]
@@ -25177,7 +25150,40 @@ class ProcessGenerator(Process):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        inputs: Sequence[WorkflowInputParameter],
+        outputs: Sequence[ExpressionToolOutputParameter],
+        run: CommandLineTool | ExpressionTool | ProcessGenerator | Workflow | str,
+        id: None | str = None,
+        label: None | str = None,
+        doc: None | Sequence[str] | str = None,
+        requirements: None | Sequence[CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
+        hints: None | Sequence[Any | CUDARequirement | DockerRequirement | EnvVarRequirement | InitialWorkDirRequirement | InlineJavascriptRequirement | InplaceUpdateRequirement | LoadListingRequirement | MPIRequirement | MultipleInputFeatureRequirement | NetworkAccess | ResourceRequirement | ScatterFeatureRequirement | SchemaDefRequirement | Secrets | ShellCommandRequirement | ShmSize | SoftwareRequirement | StepInputExpressionRequirement | SubworkflowFeatureRequirement | ToolTimeLimit | WorkReuse] = None,
+        cwlVersion: CWLVersion | None = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
+        self.label = label
+        self.doc = doc
+        self.inputs = inputs
+        self.outputs = outputs
+        self.requirements = requirements
+        self.hints = hints
+        self.cwlVersion = cwlVersion
+        self.class_: Final[str] = "ProcessGenerator"
+        self.run = run
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "id",
             "label",
@@ -25193,28 +25199,12 @@ class ProcessGenerator(Process):
     )
 
 
-class MPIRequirement(ProcessRequirement):
+@mypyc_attr(native_class=True)
+class MPIRequirement(Saveable):
     """
     Indicates that a process requires an MPI runtime.
 
     """
-
-    def __init__(
-        self,
-        processes: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "MPIRequirement"
-        self.processes = processes
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, MPIRequirement):
@@ -25232,8 +25222,8 @@ class MPIRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "MPIRequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -25304,7 +25294,7 @@ class MPIRequirement(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -25370,23 +25360,11 @@ class MPIRequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "processes"])
-
-
-class CUDARequirement(ProcessRequirement):
-    """
-    Require support for NVIDA CUDA (GPU hardware acceleration).
-
-    """
-
     def __init__(
         self,
-        cudaComputeCapability: Any,
-        cudaVersionMin: Any,
-        cudaDeviceCountMax: Optional[Any] = None,
-        cudaDeviceCountMin: Optional[Any] = None,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
+        processes: i32 | str,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
     ) -> None:
         if extension_fields:
             self.extension_fields = extension_fields
@@ -25396,11 +25374,18 @@ class CUDARequirement(ProcessRequirement):
             self.loadingOptions = loadingOptions
         else:
             self.loadingOptions = LoadingOptions()
-        self.class_ = "CUDARequirement"
-        self.cudaComputeCapability = cudaComputeCapability
-        self.cudaDeviceCountMax = cudaDeviceCountMax
-        self.cudaDeviceCountMin = cudaDeviceCountMin
-        self.cudaVersionMin = cudaVersionMin
+        self.class_: Final[str] = "MPIRequirement"
+        self.processes = processes
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "processes"])
+
+
+@mypyc_attr(native_class=True)
+class CUDARequirement(Saveable):
+    """
+    Require support for NVIDA CUDA (GPU hardware acceleration).
+
+    """
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, CUDARequirement):
@@ -25430,8 +25415,8 @@ class CUDARequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "CUDARequirement":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -25644,7 +25629,7 @@ class CUDARequirement(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -25734,7 +25719,30 @@ class CUDARequirement(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(
+    def __init__(
+        self,
+        cudaComputeCapability: Sequence[str] | str,
+        cudaVersionMin: str,
+        cudaDeviceCountMax: None | i32 | str = None,
+        cudaDeviceCountMin: None | i32 | str = None,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_: Final[str] = "CUDARequirement"
+        self.cudaComputeCapability = cudaComputeCapability
+        self.cudaDeviceCountMax = cudaDeviceCountMax
+        self.cudaDeviceCountMin = cudaDeviceCountMin
+        self.cudaVersionMin = cudaVersionMin
+
+    attrs: ClassVar[Collection[str]] = frozenset(
         [
             "class",
             "cudaComputeCapability",
@@ -25745,24 +25753,8 @@ class CUDARequirement(ProcessRequirement):
     )
 
 
-class ShmSize(ProcessRequirement):
-    def __init__(
-        self,
-        shmSize: Any,
-        extension_fields: Optional[dict[str, Any]] = None,
-        loadingOptions: Optional[LoadingOptions] = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_ = "ShmSize"
-        self.shmSize = shmSize
-
+@mypyc_attr(native_class=True)
+class ShmSize(Saveable):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ShmSize):
             return bool(self.class_ == other.class_ and self.shmSize == other.shmSize)
@@ -25777,8 +25769,8 @@ class ShmSize(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: Optional[str] = None
-    ) -> "ShmSize":
+        docRoot: str | None = None
+    ) -> Self:
         _doc = copy.copy(doc)
 
         if hasattr(doc, "lc"):
@@ -25849,7 +25841,7 @@ class ShmSize(ProcessRequirement):
                             "is not valid because:",
                         )
                     )
-        extension_fields: dict[str, Any] = {}
+        extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
                 if not k:
@@ -25912,10 +25904,27 @@ class ShmSize(ProcessRequirement):
                 r["$schemas"] = self.loadingOptions.schemas
         return r
 
-    attrs = frozenset(["class", "shmSize"])
+    def __init__(
+        self,
+        shmSize: str,
+        extension_fields: MutableMapping[str, Any] | None = None,
+        loadingOptions: LoadingOptions | None = None,
+    ) -> None:
+        if extension_fields:
+            self.extension_fields = extension_fields
+        else:
+            self.extension_fields = CommentedMap()
+        if loadingOptions:
+            self.loadingOptions = loadingOptions
+        else:
+            self.loadingOptions = LoadingOptions()
+        self.class_: Final[str] = "ShmSize"
+        self.shmSize = shmSize
+
+    attrs: ClassVar[Collection[str]] = frozenset(["class", "shmSize"])
 
 
-_vocab = {
+_vocab.update({
     "Any": "https://w3id.org/cwl/salad#Any",
     "ArraySchema": "https://w3id.org/cwl/salad#ArraySchema",
     "CUDARequirement": "http://commonwl.org/cwltool#CUDARequirement",
@@ -26018,16 +26027,6 @@ _vocab = {
     "deep_listing": "https://w3id.org/cwl/cwl#LoadListingEnum/deep_listing",
     "dotproduct": "https://w3id.org/cwl/cwl#ScatterMethod/dotproduct",
     "double": "http://www.w3.org/2001/XMLSchema#double",
-    "draft-2": "https://w3id.org/cwl/cwl#draft-2",
-    "draft-3": "https://w3id.org/cwl/cwl#draft-3",
-    "draft-3.dev1": "https://w3id.org/cwl/cwl#draft-3.dev1",
-    "draft-3.dev2": "https://w3id.org/cwl/cwl#draft-3.dev2",
-    "draft-3.dev3": "https://w3id.org/cwl/cwl#draft-3.dev3",
-    "draft-3.dev4": "https://w3id.org/cwl/cwl#draft-3.dev4",
-    "draft-3.dev5": "https://w3id.org/cwl/cwl#draft-3.dev5",
-    "draft-4.dev1": "https://w3id.org/cwl/cwl#draft-4.dev1",
-    "draft-4.dev2": "https://w3id.org/cwl/cwl#draft-4.dev2",
-    "draft-4.dev3": "https://w3id.org/cwl/cwl#draft-4.dev3",
     "enum": "https://w3id.org/cwl/salad#enum",
     "flat_crossproduct": "https://w3id.org/cwl/cwl#ScatterMethod/flat_crossproduct",
     "float": "http://www.w3.org/2001/XMLSchema#float",
@@ -26046,12 +26045,9 @@ _vocab = {
     "stdout": "https://w3id.org/cwl/cwl#stdout",
     "string": "http://www.w3.org/2001/XMLSchema#string",
     "union": "https://w3id.org/cwl/salad#union",
-    "v1.0": "https://w3id.org/cwl/cwl#v1.0",
-    "v1.0.dev4": "https://w3id.org/cwl/cwl#v1.0.dev4",
     "v1.1": "https://w3id.org/cwl/cwl#v1.1",
-    "v1.1.0-dev1": "https://w3id.org/cwl/cwl#v1.1.0-dev1",
-}
-_rvocab = {
+})
+_rvocab.update({
     "https://w3id.org/cwl/salad#Any": "Any",
     "https://w3id.org/cwl/salad#ArraySchema": "ArraySchema",
     "http://commonwl.org/cwltool#CUDARequirement": "CUDARequirement",
@@ -26154,16 +26150,6 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#LoadListingEnum/deep_listing": "deep_listing",
     "https://w3id.org/cwl/cwl#ScatterMethod/dotproduct": "dotproduct",
     "http://www.w3.org/2001/XMLSchema#double": "double",
-    "https://w3id.org/cwl/cwl#draft-2": "draft-2",
-    "https://w3id.org/cwl/cwl#draft-3": "draft-3",
-    "https://w3id.org/cwl/cwl#draft-3.dev1": "draft-3.dev1",
-    "https://w3id.org/cwl/cwl#draft-3.dev2": "draft-3.dev2",
-    "https://w3id.org/cwl/cwl#draft-3.dev3": "draft-3.dev3",
-    "https://w3id.org/cwl/cwl#draft-3.dev4": "draft-3.dev4",
-    "https://w3id.org/cwl/cwl#draft-3.dev5": "draft-3.dev5",
-    "https://w3id.org/cwl/cwl#draft-4.dev1": "draft-4.dev1",
-    "https://w3id.org/cwl/cwl#draft-4.dev2": "draft-4.dev2",
-    "https://w3id.org/cwl/cwl#draft-4.dev3": "draft-4.dev3",
     "https://w3id.org/cwl/salad#enum": "enum",
     "https://w3id.org/cwl/cwl#ScatterMethod/flat_crossproduct": "flat_crossproduct",
     "http://www.w3.org/2001/XMLSchema#float": "float",
@@ -26182,19 +26168,20 @@ _rvocab = {
     "https://w3id.org/cwl/cwl#stdout": "stdout",
     "http://www.w3.org/2001/XMLSchema#string": "string",
     "https://w3id.org/cwl/salad#union": "union",
-    "https://w3id.org/cwl/cwl#v1.0": "v1.0",
-    "https://w3id.org/cwl/cwl#v1.0.dev4": "v1.0.dev4",
     "https://w3id.org/cwl/cwl#v1.1": "v1.1",
-    "https://w3id.org/cwl/cwl#v1.1.0-dev1": "v1.1.0-dev1",
-}
+})
 
-strtype = _PrimitiveLoader(str)
-inttype = _PrimitiveLoader(int)
-floattype = _PrimitiveLoader(float)
-booltype = _PrimitiveLoader(bool)
-None_type = _PrimitiveLoader(type(None))
-Any_type = _AnyLoader()
-PrimitiveTypeLoader = _EnumLoader(
+strtype: Final[_Loader[str]] = _PrimitiveLoader(str)
+inttype: Final[_Loader[i32]] = _PrimitiveLoader(i32)
+floattype: Final[_Loader[float]] = _PrimitiveLoader(float)
+booltype: Final[_Loader[bool]] = _PrimitiveLoader(bool)
+None_type: Final[_Loader[None]] = _PrimitiveLoader(type(None))
+Any_type: Final[_Loader[Any]] = _AnyLoader()
+longtype: Final[_Loader[i64]] = _PrimitiveLoader(i64)
+PrimitiveType: TypeAlias = Literal[
+    "null", "boolean", "int", "long", "float", "double", "string"
+]
+PrimitiveTypeLoader: Final[_Loader[PrimitiveType]] = _EnumLoader(
     (
         "null",
         "boolean",
@@ -26220,17 +26207,23 @@ float: single precision (32-bit) IEEE 754 floating-point number
 double: double precision (64-bit) IEEE 754 floating-point number
 string: Unicode character sequence
 """
-AnyLoader = _EnumLoader(("Any",), "Any")
+Any_: TypeAlias = Literal["Any"]
+Any_Loader: Final[_Loader[Any_]] = _EnumLoader(("Any",), "Any_")
 """
 The **Any** type validates for any non-null value.
 """
-RecordFieldLoader = _RecordLoader(RecordField, None, None)
-RecordSchemaLoader = _RecordLoader(RecordSchema, None, None)
-EnumSchemaLoader = _RecordLoader(EnumSchema, None, None)
-ArraySchemaLoader = _RecordLoader(ArraySchema, None, None)
-MapSchemaLoader = _RecordLoader(MapSchema, None, None)
-UnionSchemaLoader = _RecordLoader(UnionSchema, None, None)
-CWLTypeLoader = _EnumLoader(
+RecordFieldLoader: Final[_Loader[RecordField]] = _RecordLoader(RecordField, None, None)
+RecordSchemaLoader: Final[_Loader[RecordSchema]] = _RecordLoader(
+    RecordSchema, None, None
+)
+EnumSchemaLoader: Final[_Loader[EnumSchema]] = _RecordLoader(EnumSchema, None, None)
+ArraySchemaLoader: Final[_Loader[ArraySchema]] = _RecordLoader(ArraySchema, None, None)
+MapSchemaLoader: Final[_Loader[MapSchema]] = _RecordLoader(MapSchema, None, None)
+UnionSchemaLoader: Final[_Loader[UnionSchema]] = _RecordLoader(UnionSchema, None, None)
+CWLType: TypeAlias = Literal[
+    "null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"
+]
+CWLTypeLoader: Final[_Loader[CWLType]] = _EnumLoader(
     (
         "null",
         "boolean",
@@ -26249,54 +26242,114 @@ Extends primitive types with the concept of a file and directory as a builtin ty
 File: A File object
 Directory: A Directory object
 """
-CWLArraySchemaLoader = _RecordLoader(CWLArraySchema, None, None)
-CWLRecordFieldLoader = _RecordLoader(CWLRecordField, None, None)
-CWLRecordSchemaLoader = _RecordLoader(CWLRecordSchema, None, None)
-FileLoader = _RecordLoader(File, None, None)
-DirectoryLoader = _RecordLoader(Directory, None, None)
-CWLObjectTypeLoader = _UnionLoader((), "CWLObjectTypeLoader")
-union_of_None_type_or_CWLObjectTypeLoader = _UnionLoader(
-    (
-        None_type,
-        CWLObjectTypeLoader,
+CWLArraySchemaLoader: Final[_Loader[CWLArraySchema]] = _RecordLoader(
+    CWLArraySchema, None, None
+)
+CWLRecordFieldLoader: Final[_Loader[CWLRecordField]] = _RecordLoader(
+    CWLRecordField, None, None
+)
+CWLRecordSchemaLoader: Final[_Loader[CWLRecordSchema]] = _RecordLoader(
+    CWLRecordSchema, None, None
+)
+FileLoader: Final[_Loader[File]] = _RecordLoader(File, None, None)
+DirectoryLoader: Final[_Loader[Directory]] = _RecordLoader(Directory, None, None)
+CWLObjectTypeLoader: Final[_UnionLoader[Any]] = _UnionLoader((), "CWLObjectTypeLoader")
+union_of_None_type_or_CWLObjectTypeLoader: Final[_Loader[CWLObjectType | None]] = (
+    _UnionLoader(
+        (
+            None_type,
+            CWLObjectTypeLoader,
+        )
     )
 )
-array_of_union_of_None_type_or_CWLObjectTypeLoader = _ArrayLoader(
-    union_of_None_type_or_CWLObjectTypeLoader
+array_of_union_of_None_type_or_CWLObjectTypeLoader: Final[
+    _Loader[Sequence[CWLObjectType | None]]
+] = _ArrayLoader(union_of_None_type_or_CWLObjectTypeLoader)
+map_of_union_of_None_type_or_CWLObjectTypeLoader: Final[
+    _Loader[Mapping[str, CWLObjectType | None]]
+] = _MapLoader(union_of_None_type_or_CWLObjectTypeLoader, "None", None, None)
+InlineJavascriptRequirementLoader: Final[_Loader[InlineJavascriptRequirement]] = (
+    _RecordLoader(InlineJavascriptRequirement, None, None)
 )
-map_of_union_of_None_type_or_CWLObjectTypeLoader = _MapLoader(
-    union_of_None_type_or_CWLObjectTypeLoader, "None", None, None
+SchemaDefRequirementLoader: Final[_Loader[SchemaDefRequirement]] = _RecordLoader(
+    SchemaDefRequirement, None, None
 )
-InlineJavascriptRequirementLoader = _RecordLoader(
-    InlineJavascriptRequirement, None, None
+LoadListingRequirementLoader: Final[_Loader[LoadListingRequirement]] = _RecordLoader(
+    LoadListingRequirement, None, None
 )
-SchemaDefRequirementLoader = _RecordLoader(SchemaDefRequirement, None, None)
-LoadListingRequirementLoader = _RecordLoader(LoadListingRequirement, None, None)
-DockerRequirementLoader = _RecordLoader(DockerRequirement, None, None)
-SoftwareRequirementLoader = _RecordLoader(SoftwareRequirement, None, None)
-InitialWorkDirRequirementLoader = _RecordLoader(InitialWorkDirRequirement, None, None)
-EnvVarRequirementLoader = _RecordLoader(EnvVarRequirement, None, None)
-ShellCommandRequirementLoader = _RecordLoader(ShellCommandRequirement, None, None)
-ResourceRequirementLoader = _RecordLoader(ResourceRequirement, None, None)
-WorkReuseLoader = _RecordLoader(WorkReuse, None, None)
-NetworkAccessLoader = _RecordLoader(NetworkAccess, None, None)
-InplaceUpdateRequirementLoader = _RecordLoader(InplaceUpdateRequirement, None, None)
-ToolTimeLimitLoader = _RecordLoader(ToolTimeLimit, None, None)
-SubworkflowFeatureRequirementLoader = _RecordLoader(
-    SubworkflowFeatureRequirement, None, None
+DockerRequirementLoader: Final[_Loader[DockerRequirement]] = _RecordLoader(
+    DockerRequirement, None, None
 )
-ScatterFeatureRequirementLoader = _RecordLoader(ScatterFeatureRequirement, None, None)
-MultipleInputFeatureRequirementLoader = _RecordLoader(
-    MultipleInputFeatureRequirement, None, None
+SoftwareRequirementLoader: Final[_Loader[SoftwareRequirement]] = _RecordLoader(
+    SoftwareRequirement, None, None
 )
-StepInputExpressionRequirementLoader = _RecordLoader(
-    StepInputExpressionRequirement, None, None
+InitialWorkDirRequirementLoader: Final[_Loader[InitialWorkDirRequirement]] = (
+    _RecordLoader(InitialWorkDirRequirement, None, None)
 )
-SecretsLoader = _RecordLoader(Secrets, None, None)
-MPIRequirementLoader = _RecordLoader(MPIRequirement, None, None)
-CUDARequirementLoader = _RecordLoader(CUDARequirement, None, None)
-ShmSizeLoader = _RecordLoader(ShmSize, None, None)
-union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader = _UnionLoader(
+EnvVarRequirementLoader: Final[_Loader[EnvVarRequirement]] = _RecordLoader(
+    EnvVarRequirement, None, None
+)
+ShellCommandRequirementLoader: Final[_Loader[ShellCommandRequirement]] = _RecordLoader(
+    ShellCommandRequirement, None, None
+)
+ResourceRequirementLoader: Final[_Loader[ResourceRequirement]] = _RecordLoader(
+    ResourceRequirement, None, None
+)
+WorkReuseLoader: Final[_Loader[WorkReuse]] = _RecordLoader(WorkReuse, None, None)
+NetworkAccessLoader: Final[_Loader[NetworkAccess]] = _RecordLoader(
+    NetworkAccess, None, None
+)
+InplaceUpdateRequirementLoader: Final[_Loader[InplaceUpdateRequirement]] = (
+    _RecordLoader(InplaceUpdateRequirement, None, None)
+)
+ToolTimeLimitLoader: Final[_Loader[ToolTimeLimit]] = _RecordLoader(
+    ToolTimeLimit, None, None
+)
+SubworkflowFeatureRequirementLoader: Final[_Loader[SubworkflowFeatureRequirement]] = (
+    _RecordLoader(SubworkflowFeatureRequirement, None, None)
+)
+ScatterFeatureRequirementLoader: Final[_Loader[ScatterFeatureRequirement]] = (
+    _RecordLoader(ScatterFeatureRequirement, None, None)
+)
+MultipleInputFeatureRequirementLoader: Final[
+    _Loader[MultipleInputFeatureRequirement]
+] = _RecordLoader(MultipleInputFeatureRequirement, None, None)
+StepInputExpressionRequirementLoader: Final[_Loader[StepInputExpressionRequirement]] = (
+    _RecordLoader(StepInputExpressionRequirement, None, None)
+)
+SecretsLoader: Final[_Loader[Secrets]] = _RecordLoader(Secrets, None, None)
+MPIRequirementLoader: Final[_Loader[MPIRequirement]] = _RecordLoader(
+    MPIRequirement, None, None
+)
+CUDARequirementLoader: Final[_Loader[CUDARequirement]] = _RecordLoader(
+    CUDARequirement, None, None
+)
+ShmSizeLoader: Final[_Loader[ShmSize]] = _RecordLoader(ShmSize, None, None)
+union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader: Final[
+    _Loader[
+        CUDARequirement
+        | DockerRequirement
+        | EnvVarRequirement
+        | InitialWorkDirRequirement
+        | InlineJavascriptRequirement
+        | InplaceUpdateRequirement
+        | LoadListingRequirement
+        | MPIRequirement
+        | MultipleInputFeatureRequirement
+        | NetworkAccess
+        | ResourceRequirement
+        | ScatterFeatureRequirement
+        | SchemaDefRequirement
+        | Secrets
+        | ShellCommandRequirement
+        | ShmSize
+        | SoftwareRequirement
+        | StepInputExpressionRequirement
+        | SubworkflowFeatureRequirement
+        | ToolTimeLimit
+        | WorkReuse
+    ]
+] = _UnionLoader(
     (
         InlineJavascriptRequirementLoader,
         SchemaDefRequirementLoader,
@@ -26321,46 +26374,146 @@ union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_Load
         ShmSizeLoader,
     )
 )
-array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader = _ArrayLoader(
+array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader: Final[
+    _Loader[
+        Sequence[
+            CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _ArrayLoader(
     union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader
 )
-union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader = _UnionLoader(
+union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader: Final[
+    _Loader[
+        CWLObjectType
+        | None
+        | Sequence[
+            CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _UnionLoader(
     (
         None_type,
         array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader,
         CWLObjectTypeLoader,
     )
 )
-map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader = _MapLoader(
+map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader: Final[
+    _Loader[
+        Mapping[
+            str,
+            CWLObjectType
+            | None
+            | Sequence[
+                CUDARequirement
+                | DockerRequirement
+                | EnvVarRequirement
+                | InitialWorkDirRequirement
+                | InlineJavascriptRequirement
+                | InplaceUpdateRequirement
+                | LoadListingRequirement
+                | MPIRequirement
+                | MultipleInputFeatureRequirement
+                | NetworkAccess
+                | ResourceRequirement
+                | ScatterFeatureRequirement
+                | SchemaDefRequirement
+                | Secrets
+                | ShellCommandRequirement
+                | ShmSize
+                | SoftwareRequirement
+                | StepInputExpressionRequirement
+                | SubworkflowFeatureRequirement
+                | ToolTimeLimit
+                | WorkReuse
+            ],
+        ]
+    ]
+] = _MapLoader(
     union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader,
     "CWLInputFile",
     "@list",
     True,
 )
-CWLInputFileLoader = map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader
-CWLVersionLoader = _EnumLoader(
-    (
-        "draft-2",
-        "draft-3.dev1",
-        "draft-3.dev2",
-        "draft-3.dev3",
-        "draft-3.dev4",
-        "draft-3.dev5",
-        "draft-3",
-        "draft-4.dev1",
-        "draft-4.dev2",
-        "draft-4.dev3",
-        "v1.0.dev4",
-        "v1.0",
-        "v1.1.0-dev1",
-        "v1.1",
-    ),
-    "CWLVersion",
-)
+CWLInputFileLoader: Final[
+    _Loader[
+        Mapping[
+            str,
+            CWLObjectType
+            | None
+            | Sequence[
+                CUDARequirement
+                | DockerRequirement
+                | EnvVarRequirement
+                | InitialWorkDirRequirement
+                | InlineJavascriptRequirement
+                | InplaceUpdateRequirement
+                | LoadListingRequirement
+                | MPIRequirement
+                | MultipleInputFeatureRequirement
+                | NetworkAccess
+                | ResourceRequirement
+                | ScatterFeatureRequirement
+                | SchemaDefRequirement
+                | Secrets
+                | ShellCommandRequirement
+                | ShmSize
+                | SoftwareRequirement
+                | StepInputExpressionRequirement
+                | SubworkflowFeatureRequirement
+                | ToolTimeLimit
+                | WorkReuse
+            ],
+        ]
+    ]
+] = map_of_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_CWLObjectTypeLoader
+CWLVersion: TypeAlias = Literal["v1.1"]
+CWLVersionLoader: Final[_Loader[CWLVersion]] = _EnumLoader(("v1.1",), "CWLVersion")
 """
-Version symbols for published CWL document versions.
+Current version symbol for CWL documents.
 """
-LoadListingEnumLoader = _EnumLoader(
+LoadListingEnum: TypeAlias = Literal["no_listing", "shallow_listing", "deep_listing"]
+LoadListingEnumLoader: Final[_Loader[LoadListingEnum]] = _EnumLoader(
     (
         "no_listing",
         "shallow_listing",
@@ -26376,31 +26529,79 @@ no_listing: Do not load the directory listing.
 shallow_listing: Only load the top level listing, do not recurse into subdirectories.
 deep_listing: Load the directory listing and recursively load all subdirectories as well.
 """
-ExpressionLoader = _ExpressionLoader(str)
-InputBindingLoader = _RecordLoader(InputBinding, None, None)
-InputRecordFieldLoader = _RecordLoader(InputRecordField, None, None)
-InputRecordSchemaLoader = _RecordLoader(InputRecordSchema, None, None)
-InputEnumSchemaLoader = _RecordLoader(InputEnumSchema, None, None)
-InputArraySchemaLoader = _RecordLoader(InputArraySchema, None, None)
-OutputRecordFieldLoader = _RecordLoader(OutputRecordField, None, None)
-OutputRecordSchemaLoader = _RecordLoader(OutputRecordSchema, None, None)
-OutputEnumSchemaLoader = _RecordLoader(OutputEnumSchema, None, None)
-OutputArraySchemaLoader = _RecordLoader(OutputArraySchema, None, None)
-SecondaryFileSchemaLoader = _RecordLoader(SecondaryFileSchema, None, None)
-EnvironmentDefLoader = _RecordLoader(EnvironmentDef, None, None)
-CommandLineBindingLoader = _RecordLoader(CommandLineBinding, None, None)
-CommandOutputBindingLoader = _RecordLoader(CommandOutputBinding, None, None)
-CommandInputRecordFieldLoader = _RecordLoader(CommandInputRecordField, None, None)
-CommandInputRecordSchemaLoader = _RecordLoader(CommandInputRecordSchema, None, None)
-CommandInputEnumSchemaLoader = _RecordLoader(CommandInputEnumSchema, None, None)
-CommandInputArraySchemaLoader = _RecordLoader(CommandInputArraySchema, None, None)
-CommandOutputRecordFieldLoader = _RecordLoader(CommandOutputRecordField, None, None)
-CommandOutputRecordSchemaLoader = _RecordLoader(CommandOutputRecordSchema, None, None)
-CommandOutputEnumSchemaLoader = _RecordLoader(CommandOutputEnumSchema, None, None)
-CommandOutputArraySchemaLoader = _RecordLoader(CommandOutputArraySchema, None, None)
-CommandInputParameterLoader = _RecordLoader(CommandInputParameter, None, None)
-CommandOutputParameterLoader = _RecordLoader(CommandOutputParameter, None, None)
-stdinLoader = _EnumLoader(("stdin",), "stdin")
+Expression: TypeAlias = Literal["ExpressionPlaceholder"]
+ExpressionLoader: Final[_Loader[str]] = _ExpressionLoader(str)
+InputBindingLoader: Final[_Loader[InputBinding]] = _RecordLoader(
+    InputBinding, None, None
+)
+InputRecordFieldLoader: Final[_Loader[InputRecordField]] = _RecordLoader(
+    InputRecordField, None, None
+)
+InputRecordSchemaLoader: Final[_Loader[InputRecordSchema]] = _RecordLoader(
+    InputRecordSchema, None, None
+)
+InputEnumSchemaLoader: Final[_Loader[InputEnumSchema]] = _RecordLoader(
+    InputEnumSchema, None, None
+)
+InputArraySchemaLoader: Final[_Loader[InputArraySchema]] = _RecordLoader(
+    InputArraySchema, None, None
+)
+OutputRecordFieldLoader: Final[_Loader[OutputRecordField]] = _RecordLoader(
+    OutputRecordField, None, None
+)
+OutputRecordSchemaLoader: Final[_Loader[OutputRecordSchema]] = _RecordLoader(
+    OutputRecordSchema, None, None
+)
+OutputEnumSchemaLoader: Final[_Loader[OutputEnumSchema]] = _RecordLoader(
+    OutputEnumSchema, None, None
+)
+OutputArraySchemaLoader: Final[_Loader[OutputArraySchema]] = _RecordLoader(
+    OutputArraySchema, None, None
+)
+SecondaryFileSchemaLoader: Final[_Loader[SecondaryFileSchema]] = _RecordLoader(
+    SecondaryFileSchema, None, None
+)
+EnvironmentDefLoader: Final[_Loader[EnvironmentDef]] = _RecordLoader(
+    EnvironmentDef, None, None
+)
+CommandLineBindingLoader: Final[_Loader[CommandLineBinding]] = _RecordLoader(
+    CommandLineBinding, None, None
+)
+CommandOutputBindingLoader: Final[_Loader[CommandOutputBinding]] = _RecordLoader(
+    CommandOutputBinding, None, None
+)
+CommandInputRecordFieldLoader: Final[_Loader[CommandInputRecordField]] = _RecordLoader(
+    CommandInputRecordField, None, None
+)
+CommandInputRecordSchemaLoader: Final[_Loader[CommandInputRecordSchema]] = (
+    _RecordLoader(CommandInputRecordSchema, None, None)
+)
+CommandInputEnumSchemaLoader: Final[_Loader[CommandInputEnumSchema]] = _RecordLoader(
+    CommandInputEnumSchema, None, None
+)
+CommandInputArraySchemaLoader: Final[_Loader[CommandInputArraySchema]] = _RecordLoader(
+    CommandInputArraySchema, None, None
+)
+CommandOutputRecordFieldLoader: Final[_Loader[CommandOutputRecordField]] = (
+    _RecordLoader(CommandOutputRecordField, None, None)
+)
+CommandOutputRecordSchemaLoader: Final[_Loader[CommandOutputRecordSchema]] = (
+    _RecordLoader(CommandOutputRecordSchema, None, None)
+)
+CommandOutputEnumSchemaLoader: Final[_Loader[CommandOutputEnumSchema]] = _RecordLoader(
+    CommandOutputEnumSchema, None, None
+)
+CommandOutputArraySchemaLoader: Final[_Loader[CommandOutputArraySchema]] = (
+    _RecordLoader(CommandOutputArraySchema, None, None)
+)
+CommandInputParameterLoader: Final[_Loader[CommandInputParameter]] = _RecordLoader(
+    CommandInputParameter, None, None
+)
+CommandOutputParameterLoader: Final[_Loader[CommandOutputParameter]] = _RecordLoader(
+    CommandOutputParameter, None, None
+)
+stdin: TypeAlias = Literal["stdin"]
+stdinLoader: Final[_Loader[stdin]] = _EnumLoader(("stdin",), "stdin")
 """
 Only valid as a `type` for a `CommandLineTool` input with no
 `inputBinding` set. `stdin` must not be specified at the `CommandLineTool`
@@ -26422,7 +26623,8 @@ inputs:
 stdin: ${inputs.an_input_name.path}
 ```
 """
-stdoutLoader = _EnumLoader(("stdout",), "stdout")
+stdout: TypeAlias = Literal["stdout"]
+stdoutLoader: Final[_Loader[stdout]] = _EnumLoader(("stdout",), "stdout")
 """
 Only valid as a `type` for a `CommandLineTool` output with no
 `outputBinding` set.
@@ -26466,7 +26668,8 @@ outputs:
 stdout: random_stdout_filenameABCDEFG
 ```
 """
-stderrLoader = _EnumLoader(("stderr",), "stderr")
+stderr: TypeAlias = Literal["stderr"]
+stderrLoader: Final[_Loader[stderr]] = _EnumLoader(("stderr",), "stderr")
 """
 Only valid as a `type` for a `CommandLineTool` output with no
 `outputBinding` set.
@@ -26510,15 +26713,24 @@ outputs:
 stderr: random_stderr_filenameABCDEFG
 ```
 """
-CommandLineToolLoader = _RecordLoader(CommandLineTool, None, None)
-SoftwarePackageLoader = _RecordLoader(SoftwarePackage, None, None)
-DirentLoader = _RecordLoader(Dirent, None, None)
-ExpressionToolOutputParameterLoader = _RecordLoader(
-    ExpressionToolOutputParameter, None, None
+CommandLineToolLoader: Final[_Loader[CommandLineTool]] = _RecordLoader(
+    CommandLineTool, None, None
 )
-WorkflowInputParameterLoader = _RecordLoader(WorkflowInputParameter, None, None)
-ExpressionToolLoader = _RecordLoader(ExpressionTool, None, None)
-LinkMergeMethodLoader = _EnumLoader(
+SoftwarePackageLoader: Final[_Loader[SoftwarePackage]] = _RecordLoader(
+    SoftwarePackage, None, None
+)
+DirentLoader: Final[_Loader[Dirent]] = _RecordLoader(Dirent, None, None)
+ExpressionToolOutputParameterLoader: Final[_Loader[ExpressionToolOutputParameter]] = (
+    _RecordLoader(ExpressionToolOutputParameter, None, None)
+)
+WorkflowInputParameterLoader: Final[_Loader[WorkflowInputParameter]] = _RecordLoader(
+    WorkflowInputParameter, None, None
+)
+ExpressionToolLoader: Final[_Loader[ExpressionTool]] = _RecordLoader(
+    ExpressionTool, None, None
+)
+LinkMergeMethod: TypeAlias = Literal["merge_nested", "merge_flattened"]
+LinkMergeMethodLoader: Final[_Loader[LinkMergeMethod]] = _EnumLoader(
     (
         "merge_nested",
         "merge_flattened",
@@ -26528,10 +26740,19 @@ LinkMergeMethodLoader = _EnumLoader(
 """
 The input link merge method, described in [WorkflowStepInput](#WorkflowStepInput).
 """
-WorkflowOutputParameterLoader = _RecordLoader(WorkflowOutputParameter, None, None)
-WorkflowStepInputLoader = _RecordLoader(WorkflowStepInput, None, None)
-WorkflowStepOutputLoader = _RecordLoader(WorkflowStepOutput, None, None)
-ScatterMethodLoader = _EnumLoader(
+WorkflowOutputParameterLoader: Final[_Loader[WorkflowOutputParameter]] = _RecordLoader(
+    WorkflowOutputParameter, None, None
+)
+WorkflowStepInputLoader: Final[_Loader[WorkflowStepInput]] = _RecordLoader(
+    WorkflowStepInput, None, None
+)
+WorkflowStepOutputLoader: Final[_Loader[WorkflowStepOutput]] = _RecordLoader(
+    WorkflowStepOutput, None, None
+)
+ScatterMethod: TypeAlias = Literal[
+    "dotproduct", "nested_crossproduct", "flat_crossproduct"
+]
+ScatterMethodLoader: Final[_Loader[ScatterMethod]] = _EnumLoader(
     (
         "dotproduct",
         "nested_crossproduct",
@@ -26542,19 +26763,37 @@ ScatterMethodLoader = _EnumLoader(
 """
 The scatter method, as described in [workflow step scatter](#WorkflowStep).
 """
-WorkflowStepLoader = _RecordLoader(WorkflowStep, None, None)
-WorkflowLoader = _RecordLoader(Workflow, None, None)
-ProcessGeneratorLoader = _RecordLoader(ProcessGenerator, None, None)
-array_of_strtype = _ArrayLoader(strtype)
-union_of_None_type_or_strtype_or_array_of_strtype = _UnionLoader(
+WorkflowStepLoader: Final[_Loader[WorkflowStep]] = _RecordLoader(
+    WorkflowStep, None, None
+)
+WorkflowLoader: Final[_Loader[Workflow]] = _RecordLoader(Workflow, None, None)
+ProcessGeneratorLoader: Final[_Loader[ProcessGenerator]] = _RecordLoader(
+    ProcessGenerator, None, None
+)
+array_of_strtype: Final[_Loader[Sequence[str]]] = _ArrayLoader(strtype)
+union_of_None_type_or_strtype_or_array_of_strtype: Final[
+    _Loader[None | Sequence[str] | str]
+] = _UnionLoader(
     (
         None_type,
         strtype,
         array_of_strtype,
     )
 )
-uri_strtype_True_False_None_None = _URILoader(strtype, True, False, None, None)
-union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype = _UnionLoader(
+uri_strtype_True_False_None_None: Final[_Loader[str]] = _URILoader(
+    strtype, True, False, None, None
+)
+union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: Final[
+    _Loader[
+        ArraySchema
+        | EnumSchema
+        | MapSchema
+        | PrimitiveType
+        | RecordSchema
+        | UnionSchema
+        | str
+    ]
+] = _UnionLoader(
     (
         PrimitiveTypeLoader,
         RecordSchemaLoader,
@@ -26565,10 +26804,41 @@ union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArrayS
         strtype,
     )
 )
-array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype = _ArrayLoader(
+array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[
+            ArraySchema
+            | EnumSchema
+            | MapSchema
+            | PrimitiveType
+            | RecordSchema
+            | UnionSchema
+            | str
+        ]
+    ]
+] = _ArrayLoader(
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype
 )
-union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype = _UnionLoader(
+union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: Final[
+    _Loader[
+        ArraySchema
+        | EnumSchema
+        | MapSchema
+        | PrimitiveType
+        | RecordSchema
+        | Sequence[
+            ArraySchema
+            | EnumSchema
+            | MapSchema
+            | PrimitiveType
+            | RecordSchema
+            | UnionSchema
+            | str
+        ]
+        | UnionSchema
+        | str
+    ]
+] = _UnionLoader(
     (
         PrimitiveTypeLoader,
         RecordSchemaLoader,
@@ -26580,51 +26850,110 @@ union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArrayS
         array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_2 = _TypeDSLLoader(
+typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_2: Final[
+    _Loader[
+        ArraySchema
+        | EnumSchema
+        | MapSchema
+        | PrimitiveType
+        | RecordSchema
+        | Sequence[
+            ArraySchema
+            | EnumSchema
+            | MapSchema
+            | PrimitiveType
+            | RecordSchema
+            | UnionSchema
+            | str
+        ]
+        | UnionSchema
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-array_of_RecordFieldLoader = _ArrayLoader(RecordFieldLoader)
-union_of_None_type_or_array_of_RecordFieldLoader = _UnionLoader(
+array_of_RecordFieldLoader: Final[_Loader[Sequence[RecordField]]] = _ArrayLoader(
+    RecordFieldLoader
+)
+union_of_None_type_or_array_of_RecordFieldLoader: Final[
+    _Loader[None | Sequence[RecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_RecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_RecordFieldLoader = _IdMapLoader(
-    union_of_None_type_or_array_of_RecordFieldLoader, "name", "type"
+idmap_fields_union_of_None_type_or_array_of_RecordFieldLoader: Final[
+    _Loader[None | Sequence[RecordField]]
+] = _IdMapLoader(union_of_None_type_or_array_of_RecordFieldLoader, "name", "type")
+Record_name: TypeAlias = Literal["record"]
+Record_nameLoader: Final[_Loader[Record_name]] = _EnumLoader(("record",), "Record_name")
+typedsl_Record_nameLoader_2: Final[_Loader[Record_name]] = _TypeDSLLoader(
+    Record_nameLoader, 2, "v1.1"
 )
-Record_nameLoader = _EnumLoader(("record",), "Record_name")
-typedsl_Record_nameLoader_2 = _TypeDSLLoader(Record_nameLoader, 2, "v1.1")
-union_of_None_type_or_strtype = _UnionLoader(
+union_of_None_type_or_strtype: Final[_Loader[None | str]] = _UnionLoader(
     (
         None_type,
         strtype,
     )
 )
-uri_union_of_None_type_or_strtype_True_False_None_None = _URILoader(
-    union_of_None_type_or_strtype, True, False, None, None
+uri_union_of_None_type_or_strtype_True_False_None_None: Final[_Loader[None | str]] = (
+    _URILoader(union_of_None_type_or_strtype, True, False, None, None)
 )
-uri_array_of_strtype_True_False_None_None = _URILoader(
+uri_array_of_strtype_True_False_None_None: Final[_Loader[Sequence[str]]] = _URILoader(
     array_of_strtype, True, False, None, None
 )
-Enum_nameLoader = _EnumLoader(("enum",), "Enum_name")
-typedsl_Enum_nameLoader_2 = _TypeDSLLoader(Enum_nameLoader, 2, "v1.1")
-uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_False_True_2_None = _URILoader(
+Enum_name: TypeAlias = Literal["enum"]
+Enum_nameLoader: Final[_Loader[Enum_name]] = _EnumLoader(("enum",), "Enum_name")
+typedsl_Enum_nameLoader_2: Final[_Loader[Enum_name]] = _TypeDSLLoader(
+    Enum_nameLoader, 2, "v1.1"
+)
+uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        ArraySchema
+        | EnumSchema
+        | MapSchema
+        | PrimitiveType
+        | RecordSchema
+        | Sequence[
+            ArraySchema
+            | EnumSchema
+            | MapSchema
+            | PrimitiveType
+            | RecordSchema
+            | UnionSchema
+            | str
+        ]
+        | UnionSchema
+        | str
+    ]
+] = _URILoader(
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-Array_nameLoader = _EnumLoader(("array",), "Array_name")
-typedsl_Array_nameLoader_2 = _TypeDSLLoader(Array_nameLoader, 2, "v1.1")
-Map_nameLoader = _EnumLoader(("map",), "Map_name")
-typedsl_Map_nameLoader_2 = _TypeDSLLoader(Map_nameLoader, 2, "v1.1")
-Union_nameLoader = _EnumLoader(("union",), "Union_name")
-typedsl_Union_nameLoader_2 = _TypeDSLLoader(Union_nameLoader, 2, "v1.1")
-union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype = _UnionLoader(
+Array_name: TypeAlias = Literal["array"]
+Array_nameLoader: Final[_Loader[Array_name]] = _EnumLoader(("array",), "Array_name")
+typedsl_Array_nameLoader_2: Final[_Loader[Array_name]] = _TypeDSLLoader(
+    Array_nameLoader, 2, "v1.1"
+)
+Map_name: TypeAlias = Literal["map"]
+Map_nameLoader: Final[_Loader[Map_name]] = _EnumLoader(("map",), "Map_name")
+typedsl_Map_nameLoader_2: Final[_Loader[Map_name]] = _TypeDSLLoader(
+    Map_nameLoader, 2, "v1.1"
+)
+Union_name: TypeAlias = Literal["union"]
+Union_nameLoader: Final[_Loader[Union_name]] = _EnumLoader(("union",), "Union_name")
+typedsl_Union_nameLoader_2: Final[_Loader[Union_name]] = _TypeDSLLoader(
+    Union_nameLoader, 2, "v1.1"
+)
+union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: Final[
+    _Loader[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str]
+] = _UnionLoader(
     (
         PrimitiveTypeLoader,
         CWLRecordSchemaLoader,
@@ -26633,10 +26962,23 @@ union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWL
         strtype,
     )
 )
-array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype = _ArrayLoader(
+array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str]
+    ]
+] = _ArrayLoader(
     union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype
 )
-union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLArraySchema
+        | CWLRecordSchema
+        | EnumSchema
+        | PrimitiveType
+        | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str]
+        | str
+    ]
+] = _UnionLoader(
     (
         PrimitiveTypeLoader,
         CWLRecordSchemaLoader,
@@ -26646,57 +26988,85 @@ union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWL
         array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype,
     )
 )
-uri_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_False_True_2_None = _URILoader(
+uri_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        CWLArraySchema
+        | CWLRecordSchema
+        | EnumSchema
+        | PrimitiveType
+        | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str]
+        | str
+    ]
+] = _URILoader(
     union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CWLArraySchema
+        | CWLRecordSchema
+        | EnumSchema
+        | PrimitiveType
+        | Sequence[CWLArraySchema | CWLRecordSchema | EnumSchema | PrimitiveType | str]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-array_of_CWLRecordFieldLoader = _ArrayLoader(CWLRecordFieldLoader)
-union_of_None_type_or_array_of_CWLRecordFieldLoader = _UnionLoader(
+array_of_CWLRecordFieldLoader: Final[_Loader[Sequence[CWLRecordField]]] = _ArrayLoader(
+    CWLRecordFieldLoader
+)
+union_of_None_type_or_array_of_CWLRecordFieldLoader: Final[
+    _Loader[None | Sequence[CWLRecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_CWLRecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_CWLRecordFieldLoader = _IdMapLoader(
-    union_of_None_type_or_array_of_CWLRecordFieldLoader, "name", "type"
-)
-File_classLoader = _EnumLoader(("File",), "File_class")
-uri_File_classLoader_False_True_None_None = _URILoader(
+idmap_fields_union_of_None_type_or_array_of_CWLRecordFieldLoader: Final[
+    _Loader[None | Sequence[CWLRecordField]]
+] = _IdMapLoader(union_of_None_type_or_array_of_CWLRecordFieldLoader, "name", "type")
+File_class: TypeAlias = Literal["File"]
+File_classLoader: Final[_Loader[File_class]] = _EnumLoader(("File",), "File_class")
+uri_File_classLoader_False_True_None_None: Final[_Loader[File_class]] = _URILoader(
     File_classLoader, False, True, None, None
 )
-uri_union_of_None_type_or_strtype_False_False_None_None = _URILoader(
-    union_of_None_type_or_strtype, False, False, None, None
+uri_union_of_None_type_or_strtype_False_False_None_None: Final[_Loader[None | str]] = (
+    _URILoader(union_of_None_type_or_strtype, False, False, None, None)
 )
-union_of_None_type_or_inttype = _UnionLoader(
+union_of_None_type_or_inttype_or_inttype: Final[_Loader[None | i32]] = _UnionLoader(
     (
         None_type,
         inttype,
+        inttype,
     )
 )
-union_of_FileLoader_or_DirectoryLoader = _UnionLoader(
+union_of_FileLoader_or_DirectoryLoader: Final[_Loader[Directory | File]] = _UnionLoader(
     (
         FileLoader,
         DirectoryLoader,
     )
 )
-array_of_union_of_FileLoader_or_DirectoryLoader = _ArrayLoader(
-    union_of_FileLoader_or_DirectoryLoader
-)
-union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader = _UnionLoader(
+array_of_union_of_FileLoader_or_DirectoryLoader: Final[
+    _Loader[Sequence[Directory | File]]
+] = _ArrayLoader(union_of_FileLoader_or_DirectoryLoader)
+union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader: Final[
+    _Loader[None | Sequence[Directory | File]]
+] = _UnionLoader(
     (
         None_type,
         array_of_union_of_FileLoader_or_DirectoryLoader,
     )
 )
-secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader = _UnionLoader(
+secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader: Final[
+    _Loader[None | Sequence[Directory | File]]
+] = _UnionLoader(
     (
         _SecondaryDSLLoader(
             union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader
@@ -26704,34 +27074,45 @@ secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_Director
         union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader,
     )
 )
-uri_union_of_None_type_or_strtype_True_False_None_True = _URILoader(
-    union_of_None_type_or_strtype, True, False, None, True
+uri_union_of_None_type_or_strtype_True_False_None_True: Final[_Loader[None | str]] = (
+    _URILoader(union_of_None_type_or_strtype, True, False, None, True)
 )
-Directory_classLoader = _EnumLoader(("Directory",), "Directory_class")
-uri_Directory_classLoader_False_True_None_None = _URILoader(
-    Directory_classLoader, False, True, None, None
+Directory_class: TypeAlias = Literal["Directory"]
+Directory_classLoader: Final[_Loader[Directory_class]] = _EnumLoader(
+    ("Directory",), "Directory_class"
 )
-union_of_None_type_or_booltype = _UnionLoader(
+uri_Directory_classLoader_False_True_None_None: Final[_Loader[Directory_class]] = (
+    _URILoader(Directory_classLoader, False, True, None, None)
+)
+union_of_None_type_or_booltype: Final[_Loader[None | bool]] = _UnionLoader(
     (
         None_type,
         booltype,
     )
 )
-union_of_None_type_or_LoadListingEnumLoader = _UnionLoader(
-    (
-        None_type,
-        LoadListingEnumLoader,
+union_of_None_type_or_LoadListingEnumLoader: Final[_Loader[LoadListingEnum | None]] = (
+    _UnionLoader(
+        (
+            None_type,
+            LoadListingEnumLoader,
+        )
     )
 )
-array_of_SecondaryFileSchemaLoader = _ArrayLoader(SecondaryFileSchemaLoader)
-union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader = _UnionLoader(
+array_of_SecondaryFileSchemaLoader: Final[_Loader[Sequence[SecondaryFileSchema]]] = (
+    _ArrayLoader(SecondaryFileSchemaLoader)
+)
+union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader: (
+    Final[_Loader[None | SecondaryFileSchema | Sequence[SecondaryFileSchema]]]
+) = _UnionLoader(
     (
         None_type,
         SecondaryFileSchemaLoader,
         array_of_SecondaryFileSchemaLoader,
     )
 )
-secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader = _UnionLoader(
+secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader: Final[
+    _Loader[None | SecondaryFileSchema | Sequence[SecondaryFileSchema]]
+] = _UnionLoader(
     (
         _SecondaryDSLLoader(
             union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader
@@ -26739,7 +27120,9 @@ secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_Se
         union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
     )
 )
-union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader = _UnionLoader(
+union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader: Final[
+    _Loader[None | Sequence[str] | str]
+] = _UnionLoader(
     (
         None_type,
         strtype,
@@ -26747,24 +27130,32 @@ union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader = _UnionLo
         ExpressionLoader,
     )
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_True = _URILoader(
+uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_True: Final[
+    _Loader[None | Sequence[str] | str]
+] = _URILoader(
     union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader,
     True,
     False,
     None,
     True,
 )
-union_of_None_type_or_strtype_or_ExpressionLoader = _UnionLoader(
-    (
-        None_type,
-        strtype,
-        ExpressionLoader,
+union_of_None_type_or_strtype_or_ExpressionLoader: Final[_Loader[None | str]] = (
+    _UnionLoader(
+        (
+            None_type,
+            strtype,
+            ExpressionLoader,
+        )
     )
 )
-uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True = _URILoader(
+uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True: Final[
+    _Loader[None | str]
+] = _URILoader(
     union_of_None_type_or_strtype_or_ExpressionLoader, True, False, None, True
 )
-union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: Final[
+    _Loader[CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         InputRecordSchemaLoader,
@@ -26773,10 +27164,25 @@ union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_In
         strtype,
     )
 )
-array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype = _ArrayLoader(
+array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str]
+    ]
+] = _ArrayLoader(
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype
 )
-union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLType
+        | InputArraySchema
+        | InputEnumSchema
+        | InputRecordSchema
+        | Sequence[
+            CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         InputRecordSchemaLoader,
@@ -26786,29 +27192,57 @@ union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_In
         array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CWLType
+        | InputArraySchema
+        | InputEnumSchema
+        | InputRecordSchema
+        | Sequence[
+            CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-array_of_InputRecordFieldLoader = _ArrayLoader(InputRecordFieldLoader)
-union_of_None_type_or_array_of_InputRecordFieldLoader = _UnionLoader(
+array_of_InputRecordFieldLoader: Final[_Loader[Sequence[InputRecordField]]] = (
+    _ArrayLoader(InputRecordFieldLoader)
+)
+union_of_None_type_or_array_of_InputRecordFieldLoader: Final[
+    _Loader[None | Sequence[InputRecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_InputRecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_InputRecordFieldLoader = _IdMapLoader(
-    union_of_None_type_or_array_of_InputRecordFieldLoader, "name", "type"
-)
-uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2_None = _URILoader(
+idmap_fields_union_of_None_type_or_array_of_InputRecordFieldLoader: Final[
+    _Loader[None | Sequence[InputRecordField]]
+] = _IdMapLoader(union_of_None_type_or_array_of_InputRecordFieldLoader, "name", "type")
+uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        CWLType
+        | InputArraySchema
+        | InputEnumSchema
+        | InputRecordSchema
+        | Sequence[
+            CWLType | InputArraySchema | InputEnumSchema | InputRecordSchema | str
+        ]
+        | str
+    ]
+] = _URILoader(
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: Final[
+    _Loader[CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         OutputRecordSchemaLoader,
@@ -26817,10 +27251,27 @@ union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_
         strtype,
     )
 )
-array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype = _ArrayLoader(
+array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[
+            CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype
 )
-union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLType
+        | OutputArraySchema
+        | OutputEnumSchema
+        | OutputRecordSchema
+        | Sequence[
+            CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         OutputRecordSchemaLoader,
@@ -26830,69 +27281,198 @@ union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_
         array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CWLType
+        | OutputArraySchema
+        | OutputEnumSchema
+        | OutputRecordSchema
+        | Sequence[
+            CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-array_of_OutputRecordFieldLoader = _ArrayLoader(OutputRecordFieldLoader)
-union_of_None_type_or_array_of_OutputRecordFieldLoader = _UnionLoader(
+array_of_OutputRecordFieldLoader: Final[_Loader[Sequence[OutputRecordField]]] = (
+    _ArrayLoader(OutputRecordFieldLoader)
+)
+union_of_None_type_or_array_of_OutputRecordFieldLoader: Final[
+    _Loader[None | Sequence[OutputRecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_OutputRecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader = _IdMapLoader(
-    union_of_None_type_or_array_of_OutputRecordFieldLoader, "name", "type"
-)
-uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2_None = _URILoader(
+idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader: Final[
+    _Loader[None | Sequence[OutputRecordField]]
+] = _IdMapLoader(union_of_None_type_or_array_of_OutputRecordFieldLoader, "name", "type")
+uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        CWLType
+        | OutputArraySchema
+        | OutputEnumSchema
+        | OutputRecordSchema
+        | Sequence[
+            CWLType | OutputArraySchema | OutputEnumSchema | OutputRecordSchema | str
+        ]
+        | str
+    ]
+] = _URILoader(
     union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader = _UnionLoader(
+union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader: Final[
+    _Loader[CommandInputParameter | WorkflowInputParameter]
+] = _UnionLoader(
     (
         CommandInputParameterLoader,
         WorkflowInputParameterLoader,
     )
 )
-array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader = (
-    _ArrayLoader(union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader)
-)
-idmap_inputs_array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader = _IdMapLoader(
+array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader: Final[
+    _Loader[Sequence[CommandInputParameter | WorkflowInputParameter]]
+] = _ArrayLoader(union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader)
+idmap_inputs_array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader: Final[
+    _Loader[Sequence[CommandInputParameter | WorkflowInputParameter]]
+] = _IdMapLoader(
     array_of_union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader,
     "id",
     "type",
 )
-union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader = _UnionLoader(
+union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader: Final[
+    _Loader[
+        CommandOutputParameter | ExpressionToolOutputParameter | WorkflowOutputParameter
+    ]
+] = _UnionLoader(
     (
         CommandOutputParameterLoader,
         ExpressionToolOutputParameterLoader,
         WorkflowOutputParameterLoader,
     )
 )
-array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader = _ArrayLoader(
+array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader: Final[
+    _Loader[
+        Sequence[
+            CommandOutputParameter
+            | ExpressionToolOutputParameter
+            | WorkflowOutputParameter
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader
 )
-idmap_outputs_array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader = _IdMapLoader(
+idmap_outputs_array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader: Final[
+    _Loader[
+        Sequence[
+            CommandOutputParameter
+            | ExpressionToolOutputParameter
+            | WorkflowOutputParameter
+        ]
+    ]
+] = _IdMapLoader(
     array_of_union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader,
     "id",
     "type",
 )
-union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader = _UnionLoader(
+union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader: Final[
+    _Loader[
+        None
+        | Sequence[
+            CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _UnionLoader(
     (
         None_type,
         array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader,
     )
 )
-idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader = _IdMapLoader(
+idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader: Final[
+    _Loader[
+        None
+        | Sequence[
+            CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _IdMapLoader(
     union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader,
     "class",
     "None",
 )
-union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type = _UnionLoader(
+union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type: Final[
+    _Loader[
+        Any
+        | CUDARequirement
+        | DockerRequirement
+        | EnvVarRequirement
+        | InitialWorkDirRequirement
+        | InlineJavascriptRequirement
+        | InplaceUpdateRequirement
+        | LoadListingRequirement
+        | MPIRequirement
+        | MultipleInputFeatureRequirement
+        | NetworkAccess
+        | ResourceRequirement
+        | ScatterFeatureRequirement
+        | SchemaDefRequirement
+        | Secrets
+        | ShellCommandRequirement
+        | ShmSize
+        | SoftwareRequirement
+        | StepInputExpressionRequirement
+        | SubworkflowFeatureRequirement
+        | ToolTimeLimit
+        | WorkReuse
+    ]
+] = _UnionLoader(
     (
         InlineJavascriptRequirementLoader,
         SchemaDefRequirementLoader,
@@ -26918,84 +27498,188 @@ union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_Load
         Any_type,
     )
 )
-array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type = _ArrayLoader(
+array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type: Final[
+    _Loader[
+        Sequence[
+            Any
+            | CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _ArrayLoader(
     union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type
 )
-union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type = _UnionLoader(
+union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type: Final[
+    _Loader[
+        None
+        | Sequence[
+            Any
+            | CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _UnionLoader(
     (
         None_type,
         array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type,
     )
 )
-idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type = _IdMapLoader(
+idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type: Final[
+    _Loader[
+        None
+        | Sequence[
+            Any
+            | CUDARequirement
+            | DockerRequirement
+            | EnvVarRequirement
+            | InitialWorkDirRequirement
+            | InlineJavascriptRequirement
+            | InplaceUpdateRequirement
+            | LoadListingRequirement
+            | MPIRequirement
+            | MultipleInputFeatureRequirement
+            | NetworkAccess
+            | ResourceRequirement
+            | ScatterFeatureRequirement
+            | SchemaDefRequirement
+            | Secrets
+            | ShellCommandRequirement
+            | ShmSize
+            | SoftwareRequirement
+            | StepInputExpressionRequirement
+            | SubworkflowFeatureRequirement
+            | ToolTimeLimit
+            | WorkReuse
+        ]
+    ]
+] = _IdMapLoader(
     union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_SecretsLoader_or_MPIRequirementLoader_or_CUDARequirementLoader_or_ShmSizeLoader_or_Any_type,
     "class",
     "None",
 )
-union_of_None_type_or_CWLVersionLoader = _UnionLoader(
-    (
-        None_type,
-        CWLVersionLoader,
+union_of_None_type_or_CWLVersionLoader: Final[_Loader[CWLVersion | None]] = (
+    _UnionLoader(
+        (
+            None_type,
+            CWLVersionLoader,
+        )
     )
 )
-uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None = _URILoader(
-    union_of_None_type_or_CWLVersionLoader, False, True, None, None
-)
-InlineJavascriptRequirement_classLoader = _EnumLoader(
-    ("InlineJavascriptRequirement",), "InlineJavascriptRequirement_class"
-)
-uri_InlineJavascriptRequirement_classLoader_False_True_None_None = _URILoader(
-    InlineJavascriptRequirement_classLoader, False, True, None, None
-)
-union_of_None_type_or_array_of_strtype = _UnionLoader(
-    (
-        None_type,
-        array_of_strtype,
+uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None: Final[
+    _Loader[CWLVersion | None]
+] = _URILoader(union_of_None_type_or_CWLVersionLoader, False, True, None, None)
+InlineJavascriptRequirement_class: TypeAlias = Literal["InlineJavascriptRequirement"]
+InlineJavascriptRequirement_classLoader: Final[
+    _Loader[InlineJavascriptRequirement_class]
+] = _EnumLoader(("InlineJavascriptRequirement",), "InlineJavascriptRequirement_class")
+uri_InlineJavascriptRequirement_classLoader_False_True_None_None: Final[
+    _Loader[InlineJavascriptRequirement_class]
+] = _URILoader(InlineJavascriptRequirement_classLoader, False, True, None, None)
+union_of_None_type_or_array_of_strtype: Final[_Loader[None | Sequence[str]]] = (
+    _UnionLoader(
+        (
+            None_type,
+            array_of_strtype,
+        )
     )
 )
-SchemaDefRequirement_classLoader = _EnumLoader(
-    ("SchemaDefRequirement",), "SchemaDefRequirement_class"
+SchemaDefRequirement_class: TypeAlias = Literal["SchemaDefRequirement"]
+SchemaDefRequirement_classLoader: Final[_Loader[SchemaDefRequirement_class]] = (
+    _EnumLoader(("SchemaDefRequirement",), "SchemaDefRequirement_class")
 )
-uri_SchemaDefRequirement_classLoader_False_True_None_None = _URILoader(
-    SchemaDefRequirement_classLoader, False, True, None, None
-)
-union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader = _UnionLoader(
+uri_SchemaDefRequirement_classLoader_False_True_None_None: Final[
+    _Loader[SchemaDefRequirement_class]
+] = _URILoader(SchemaDefRequirement_classLoader, False, True, None, None)
+union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader: Final[
+    _Loader[CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema]
+] = _UnionLoader(
     (
         CommandInputRecordSchemaLoader,
         CommandInputEnumSchemaLoader,
         CommandInputArraySchemaLoader,
     )
 )
-array_of_union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader = _ArrayLoader(
+array_of_union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader: Final[
+    _Loader[
+        Sequence[
+            CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader
 )
-union_of_strtype_or_ExpressionLoader = _UnionLoader(
+union_of_strtype_or_ExpressionLoader: Final[_Loader[str]] = _UnionLoader(
     (
         strtype,
         ExpressionLoader,
     )
 )
-union_of_None_type_or_booltype_or_ExpressionLoader = _UnionLoader(
+union_of_None_type_or_booltype_or_ExpressionLoader: Final[
+    _Loader[None | bool | str]
+] = _UnionLoader(
     (
         None_type,
         booltype,
         ExpressionLoader,
     )
 )
-LoadListingRequirement_classLoader = _EnumLoader(
-    ("LoadListingRequirement",), "LoadListingRequirement_class"
+LoadListingRequirement_class: TypeAlias = Literal["LoadListingRequirement"]
+LoadListingRequirement_classLoader: Final[_Loader[LoadListingRequirement_class]] = (
+    _EnumLoader(("LoadListingRequirement",), "LoadListingRequirement_class")
 )
-uri_LoadListingRequirement_classLoader_False_True_None_None = _URILoader(
-    LoadListingRequirement_classLoader, False, True, None, None
-)
-union_of_None_type_or_inttype_or_ExpressionLoader = _UnionLoader(
-    (
-        None_type,
-        inttype,
-        ExpressionLoader,
+uri_LoadListingRequirement_classLoader_False_True_None_None: Final[
+    _Loader[LoadListingRequirement_class]
+] = _URILoader(LoadListingRequirement_classLoader, False, True, None, None)
+union_of_None_type_or_inttype_or_ExpressionLoader: Final[_Loader[None | i32 | str]] = (
+    _UnionLoader(
+        (
+            None_type,
+            inttype,
+            ExpressionLoader,
+        )
     )
 )
-union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_strtype = _UnionLoader(
+union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_strtype: Final[
+    _Loader[None | Sequence[str] | str]
+] = _UnionLoader(
     (
         None_type,
         strtype,
@@ -27003,19 +27687,29 @@ union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_strtype = _UnionLo
         array_of_strtype,
     )
 )
-union_of_None_type_or_ExpressionLoader = _UnionLoader(
+union_of_None_type_or_ExpressionLoader: Final[_Loader[None | str]] = _UnionLoader(
     (
         None_type,
         ExpressionLoader,
     )
 )
-union_of_None_type_or_CommandLineBindingLoader = _UnionLoader(
+union_of_None_type_or_CommandLineBindingLoader: Final[
+    _Loader[CommandLineBinding | None]
+] = _UnionLoader(
     (
         None_type,
         CommandLineBindingLoader,
     )
 )
-union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLType
+        | CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         CommandInputRecordSchemaLoader,
@@ -27024,10 +27718,35 @@ union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSche
         strtype,
     )
 )
-array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _ArrayLoader(
+array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[
+            CWLType
+            | CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | str
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype
 )
-union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLType
+        | CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Sequence[
+            CWLType
+            | CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         CommandInputRecordSchemaLoader,
@@ -27037,31 +27756,73 @@ union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSche
         array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CWLType
+        | CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Sequence[
+            CWLType
+            | CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-array_of_CommandInputRecordFieldLoader = _ArrayLoader(CommandInputRecordFieldLoader)
-union_of_None_type_or_array_of_CommandInputRecordFieldLoader = _UnionLoader(
+array_of_CommandInputRecordFieldLoader: Final[
+    _Loader[Sequence[CommandInputRecordField]]
+] = _ArrayLoader(CommandInputRecordFieldLoader)
+union_of_None_type_or_array_of_CommandInputRecordFieldLoader: Final[
+    _Loader[None | Sequence[CommandInputRecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_CommandInputRecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_CommandInputRecordFieldLoader = (
-    _IdMapLoader(
-        union_of_None_type_or_array_of_CommandInputRecordFieldLoader, "name", "type"
-    )
+idmap_fields_union_of_None_type_or_array_of_CommandInputRecordFieldLoader: Final[
+    _Loader[None | Sequence[CommandInputRecordField]]
+] = _IdMapLoader(
+    union_of_None_type_or_array_of_CommandInputRecordFieldLoader, "name", "type"
 )
-uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2_None = _URILoader(
+uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        CWLType
+        | CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Sequence[
+            CWLType
+            | CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | str
+        ]
+        | str
+    ]
+] = _URILoader(
     union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLType
+        | CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         CommandOutputRecordSchemaLoader,
@@ -27070,10 +27831,35 @@ union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSc
         strtype,
     )
 )
-array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _ArrayLoader(
+array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        Sequence[
+            CWLType
+            | CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | str
+        ]
+    ]
+] = _ArrayLoader(
     union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype
 )
-union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLType
+        | CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Sequence[
+            CWLType
+            | CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | str
+        ]
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         CommandOutputRecordSchemaLoader,
@@ -27083,37 +27869,89 @@ union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSc
         array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CWLType
+        | CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Sequence[
+            CWLType
+            | CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | str
+        ]
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-union_of_None_type_or_CommandOutputBindingLoader = _UnionLoader(
+union_of_None_type_or_CommandOutputBindingLoader: Final[
+    _Loader[CommandOutputBinding | None]
+] = _UnionLoader(
     (
         None_type,
         CommandOutputBindingLoader,
     )
 )
-array_of_CommandOutputRecordFieldLoader = _ArrayLoader(CommandOutputRecordFieldLoader)
-union_of_None_type_or_array_of_CommandOutputRecordFieldLoader = _UnionLoader(
+array_of_CommandOutputRecordFieldLoader: Final[
+    _Loader[Sequence[CommandOutputRecordField]]
+] = _ArrayLoader(CommandOutputRecordFieldLoader)
+union_of_None_type_or_array_of_CommandOutputRecordFieldLoader: Final[
+    _Loader[None | Sequence[CommandOutputRecordField]]
+] = _UnionLoader(
     (
         None_type,
         array_of_CommandOutputRecordFieldLoader,
     )
 )
-idmap_fields_union_of_None_type_or_array_of_CommandOutputRecordFieldLoader = (
-    _IdMapLoader(
-        union_of_None_type_or_array_of_CommandOutputRecordFieldLoader, "name", "type"
-    )
+idmap_fields_union_of_None_type_or_array_of_CommandOutputRecordFieldLoader: Final[
+    _Loader[None | Sequence[CommandOutputRecordField]]
+] = _IdMapLoader(
+    union_of_None_type_or_array_of_CommandOutputRecordFieldLoader, "name", "type"
 )
-uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2_None = _URILoader(
+uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2_None: Final[
+    _Loader[
+        CWLType
+        | CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Sequence[
+            CWLType
+            | CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | str
+        ]
+        | str
+    ]
+] = _URILoader(
     union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     False,
     True,
     2,
     None,
 )
-union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLType
+        | CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Sequence[
+            CWLType
+            | CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | str
+        ]
+        | stdin
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         stdinLoader,
@@ -27124,12 +27962,45 @@ union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_Comma
         array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CWLType
+        | CommandInputArraySchema
+        | CommandInputEnumSchema
+        | CommandInputRecordSchema
+        | Sequence[
+            CWLType
+            | CommandInputArraySchema
+            | CommandInputEnumSchema
+            | CommandInputRecordSchema
+            | str
+        ]
+        | stdin
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype = _UnionLoader(
+union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: Final[
+    _Loader[
+        CWLType
+        | CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Sequence[
+            CWLType
+            | CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | str
+        ]
+        | stderr
+        | stdout
+        | str
+    ]
+] = _UnionLoader(
     (
         CWLTypeLoader,
         stdoutLoader,
@@ -27141,72 +28012,109 @@ union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSch
         array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     )
 )
-typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2 = _TypeDSLLoader(
+typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2: Final[
+    _Loader[
+        CWLType
+        | CommandOutputArraySchema
+        | CommandOutputEnumSchema
+        | CommandOutputRecordSchema
+        | Sequence[
+            CWLType
+            | CommandOutputArraySchema
+            | CommandOutputEnumSchema
+            | CommandOutputRecordSchema
+            | str
+        ]
+        | stderr
+        | stdout
+        | str
+    ]
+] = _TypeDSLLoader(
     union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
 )
-CommandLineTool_classLoader = _EnumLoader(("CommandLineTool",), "CommandLineTool_class")
-uri_CommandLineTool_classLoader_False_True_None_None = _URILoader(
-    CommandLineTool_classLoader, False, True, None, None
+CommandLineTool_class: TypeAlias = Literal["CommandLineTool"]
+CommandLineTool_classLoader: Final[_Loader[CommandLineTool_class]] = _EnumLoader(
+    ("CommandLineTool",), "CommandLineTool_class"
 )
-array_of_CommandInputParameterLoader = _ArrayLoader(CommandInputParameterLoader)
-idmap_inputs_array_of_CommandInputParameterLoader = _IdMapLoader(
-    array_of_CommandInputParameterLoader, "id", "type"
-)
-array_of_CommandOutputParameterLoader = _ArrayLoader(CommandOutputParameterLoader)
-idmap_outputs_array_of_CommandOutputParameterLoader = _IdMapLoader(
-    array_of_CommandOutputParameterLoader, "id", "type"
-)
-union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader = _UnionLoader(
+uri_CommandLineTool_classLoader_False_True_None_None: Final[
+    _Loader[CommandLineTool_class]
+] = _URILoader(CommandLineTool_classLoader, False, True, None, None)
+array_of_CommandInputParameterLoader: Final[
+    _Loader[Sequence[CommandInputParameter]]
+] = _ArrayLoader(CommandInputParameterLoader)
+idmap_inputs_array_of_CommandInputParameterLoader: Final[
+    _Loader[Sequence[CommandInputParameter]]
+] = _IdMapLoader(array_of_CommandInputParameterLoader, "id", "type")
+array_of_CommandOutputParameterLoader: Final[
+    _Loader[Sequence[CommandOutputParameter]]
+] = _ArrayLoader(CommandOutputParameterLoader)
+idmap_outputs_array_of_CommandOutputParameterLoader: Final[
+    _Loader[Sequence[CommandOutputParameter]]
+] = _IdMapLoader(array_of_CommandOutputParameterLoader, "id", "type")
+union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader: Final[
+    _Loader[CommandLineBinding | str]
+] = _UnionLoader(
     (
         strtype,
         ExpressionLoader,
         CommandLineBindingLoader,
     )
 )
-array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader = (
-    _ArrayLoader(union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader)
-)
-union_of_None_type_or_array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader = _UnionLoader(
+array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader: Final[
+    _Loader[Sequence[CommandLineBinding | str]]
+] = _ArrayLoader(union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader)
+union_of_None_type_or_array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader: Final[
+    _Loader[None | Sequence[CommandLineBinding | str]]
+] = _UnionLoader(
     (
         None_type,
         array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader,
     )
 )
-array_of_inttype = _ArrayLoader(inttype)
-union_of_None_type_or_array_of_inttype = _UnionLoader(
-    (
-        None_type,
-        array_of_inttype,
+array_of_inttype: Final[_Loader[Sequence[i32]]] = _ArrayLoader(inttype)
+union_of_None_type_or_array_of_inttype: Final[_Loader[None | Sequence[i32]]] = (
+    _UnionLoader(
+        (
+            None_type,
+            array_of_inttype,
+        )
     )
 )
-DockerRequirement_classLoader = _EnumLoader(
+DockerRequirement_class: TypeAlias = Literal["DockerRequirement"]
+DockerRequirement_classLoader: Final[_Loader[DockerRequirement_class]] = _EnumLoader(
     ("DockerRequirement",), "DockerRequirement_class"
 )
-uri_DockerRequirement_classLoader_False_True_None_None = _URILoader(
-    DockerRequirement_classLoader, False, True, None, None
+uri_DockerRequirement_classLoader_False_True_None_None: Final[
+    _Loader[DockerRequirement_class]
+] = _URILoader(DockerRequirement_classLoader, False, True, None, None)
+SoftwareRequirement_class: TypeAlias = Literal["SoftwareRequirement"]
+SoftwareRequirement_classLoader: Final[_Loader[SoftwareRequirement_class]] = (
+    _EnumLoader(("SoftwareRequirement",), "SoftwareRequirement_class")
 )
-SoftwareRequirement_classLoader = _EnumLoader(
-    ("SoftwareRequirement",), "SoftwareRequirement_class"
+uri_SoftwareRequirement_classLoader_False_True_None_None: Final[
+    _Loader[SoftwareRequirement_class]
+] = _URILoader(SoftwareRequirement_classLoader, False, True, None, None)
+array_of_SoftwarePackageLoader: Final[_Loader[Sequence[SoftwarePackage]]] = (
+    _ArrayLoader(SoftwarePackageLoader)
 )
-uri_SoftwareRequirement_classLoader_False_True_None_None = _URILoader(
-    SoftwareRequirement_classLoader, False, True, None, None
-)
-array_of_SoftwarePackageLoader = _ArrayLoader(SoftwarePackageLoader)
-idmap_packages_array_of_SoftwarePackageLoader = _IdMapLoader(
-    array_of_SoftwarePackageLoader, "package", "specs"
-)
-uri_union_of_None_type_or_array_of_strtype_False_False_None_True = _URILoader(
-    union_of_None_type_or_array_of_strtype, False, False, None, True
-)
-InitialWorkDirRequirement_classLoader = _EnumLoader(
-    ("InitialWorkDirRequirement",), "InitialWorkDirRequirement_class"
-)
-uri_InitialWorkDirRequirement_classLoader_False_True_None_None = _URILoader(
-    InitialWorkDirRequirement_classLoader, False, True, None, None
-)
-union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader = _UnionLoader(
+idmap_packages_array_of_SoftwarePackageLoader: Final[
+    _Loader[Sequence[SoftwarePackage]]
+] = _IdMapLoader(array_of_SoftwarePackageLoader, "package", "specs")
+uri_union_of_None_type_or_array_of_strtype_False_False_None_True: Final[
+    _Loader[None | Sequence[str]]
+] = _URILoader(union_of_None_type_or_array_of_strtype, False, False, None, True)
+InitialWorkDirRequirement_class: TypeAlias = Literal["InitialWorkDirRequirement"]
+InitialWorkDirRequirement_classLoader: Final[
+    _Loader[InitialWorkDirRequirement_class]
+] = _EnumLoader(("InitialWorkDirRequirement",), "InitialWorkDirRequirement_class")
+uri_InitialWorkDirRequirement_classLoader_False_True_None_None: Final[
+    _Loader[InitialWorkDirRequirement_class]
+] = _URILoader(InitialWorkDirRequirement_classLoader, False, True, None, None)
+union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader: Final[
+    _Loader[Directory | Dirent | File | None | Sequence[Directory | File] | str]
+] = _UnionLoader(
     (
         None_type,
         FileLoader,
@@ -27216,133 +28124,189 @@ union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoa
         ExpressionLoader,
     )
 )
-array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader = _ArrayLoader(
+array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader: Final[
+    _Loader[
+        Sequence[Directory | Dirent | File | None | Sequence[Directory | File] | str]
+    ]
+] = _ArrayLoader(
     union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader
 )
-union_of_array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader_or_ExpressionLoader = _UnionLoader(
+union_of_array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader_or_ExpressionLoader: Final[
+    _Loader[
+        Sequence[Directory | Dirent | File | None | Sequence[Directory | File] | str]
+        | str
+    ]
+] = _UnionLoader(
     (
         array_of_union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader,
         ExpressionLoader,
     )
 )
-EnvVarRequirement_classLoader = _EnumLoader(
+EnvVarRequirement_class: TypeAlias = Literal["EnvVarRequirement"]
+EnvVarRequirement_classLoader: Final[_Loader[EnvVarRequirement_class]] = _EnumLoader(
     ("EnvVarRequirement",), "EnvVarRequirement_class"
 )
-uri_EnvVarRequirement_classLoader_False_True_None_None = _URILoader(
-    EnvVarRequirement_classLoader, False, True, None, None
+uri_EnvVarRequirement_classLoader_False_True_None_None: Final[
+    _Loader[EnvVarRequirement_class]
+] = _URILoader(EnvVarRequirement_classLoader, False, True, None, None)
+array_of_EnvironmentDefLoader: Final[_Loader[Sequence[EnvironmentDef]]] = _ArrayLoader(
+    EnvironmentDefLoader
 )
-array_of_EnvironmentDefLoader = _ArrayLoader(EnvironmentDefLoader)
-idmap_envDef_array_of_EnvironmentDefLoader = _IdMapLoader(
-    array_of_EnvironmentDefLoader, "envName", "envValue"
+idmap_envDef_array_of_EnvironmentDefLoader: Final[_Loader[Sequence[EnvironmentDef]]] = (
+    _IdMapLoader(array_of_EnvironmentDefLoader, "envName", "envValue")
 )
-ShellCommandRequirement_classLoader = _EnumLoader(
-    ("ShellCommandRequirement",), "ShellCommandRequirement_class"
+ShellCommandRequirement_class: TypeAlias = Literal["ShellCommandRequirement"]
+ShellCommandRequirement_classLoader: Final[_Loader[ShellCommandRequirement_class]] = (
+    _EnumLoader(("ShellCommandRequirement",), "ShellCommandRequirement_class")
 )
-uri_ShellCommandRequirement_classLoader_False_True_None_None = _URILoader(
-    ShellCommandRequirement_classLoader, False, True, None, None
+uri_ShellCommandRequirement_classLoader_False_True_None_None: Final[
+    _Loader[ShellCommandRequirement_class]
+] = _URILoader(ShellCommandRequirement_classLoader, False, True, None, None)
+ResourceRequirement_class: TypeAlias = Literal["ResourceRequirement"]
+ResourceRequirement_classLoader: Final[_Loader[ResourceRequirement_class]] = (
+    _EnumLoader(("ResourceRequirement",), "ResourceRequirement_class")
 )
-ResourceRequirement_classLoader = _EnumLoader(
-    ("ResourceRequirement",), "ResourceRequirement_class"
+uri_ResourceRequirement_classLoader_False_True_None_None: Final[
+    _Loader[ResourceRequirement_class]
+] = _URILoader(ResourceRequirement_classLoader, False, True, None, None)
+union_of_None_type_or_inttype_or_inttype_or_ExpressionLoader: Final[
+    _Loader[None | i32 | str]
+] = _UnionLoader(
+    (
+        None_type,
+        inttype,
+        inttype,
+        ExpressionLoader,
+    )
 )
-uri_ResourceRequirement_classLoader_False_True_None_None = _URILoader(
-    ResourceRequirement_classLoader, False, True, None, None
+WorkReuse_class: TypeAlias = Literal["WorkReuse"]
+WorkReuse_classLoader: Final[_Loader[WorkReuse_class]] = _EnumLoader(
+    ("WorkReuse",), "WorkReuse_class"
 )
-WorkReuse_classLoader = _EnumLoader(("WorkReuse",), "WorkReuse_class")
-uri_WorkReuse_classLoader_False_True_None_None = _URILoader(
-    WorkReuse_classLoader, False, True, None, None
+uri_WorkReuse_classLoader_False_True_None_None: Final[_Loader[WorkReuse_class]] = (
+    _URILoader(WorkReuse_classLoader, False, True, None, None)
 )
-union_of_booltype_or_ExpressionLoader = _UnionLoader(
+union_of_booltype_or_ExpressionLoader: Final[_Loader[bool | str]] = _UnionLoader(
     (
         booltype,
         ExpressionLoader,
     )
 )
-NetworkAccess_classLoader = _EnumLoader(("NetworkAccess",), "NetworkAccess_class")
-uri_NetworkAccess_classLoader_False_True_None_None = _URILoader(
-    NetworkAccess_classLoader, False, True, None, None
+NetworkAccess_class: TypeAlias = Literal["NetworkAccess"]
+NetworkAccess_classLoader: Final[_Loader[NetworkAccess_class]] = _EnumLoader(
+    ("NetworkAccess",), "NetworkAccess_class"
 )
-InplaceUpdateRequirement_classLoader = _EnumLoader(
-    ("InplaceUpdateRequirement",), "InplaceUpdateRequirement_class"
+uri_NetworkAccess_classLoader_False_True_None_None: Final[
+    _Loader[NetworkAccess_class]
+] = _URILoader(NetworkAccess_classLoader, False, True, None, None)
+InplaceUpdateRequirement_class: TypeAlias = Literal["InplaceUpdateRequirement"]
+InplaceUpdateRequirement_classLoader: Final[_Loader[InplaceUpdateRequirement_class]] = (
+    _EnumLoader(("InplaceUpdateRequirement",), "InplaceUpdateRequirement_class")
 )
-uri_InplaceUpdateRequirement_classLoader_False_True_None_None = _URILoader(
-    InplaceUpdateRequirement_classLoader, False, True, None, None
+uri_InplaceUpdateRequirement_classLoader_False_True_None_None: Final[
+    _Loader[InplaceUpdateRequirement_class]
+] = _URILoader(InplaceUpdateRequirement_classLoader, False, True, None, None)
+ToolTimeLimit_class: TypeAlias = Literal["ToolTimeLimit"]
+ToolTimeLimit_classLoader: Final[_Loader[ToolTimeLimit_class]] = _EnumLoader(
+    ("ToolTimeLimit",), "ToolTimeLimit_class"
 )
-ToolTimeLimit_classLoader = _EnumLoader(("ToolTimeLimit",), "ToolTimeLimit_class")
-uri_ToolTimeLimit_classLoader_False_True_None_None = _URILoader(
-    ToolTimeLimit_classLoader, False, True, None, None
-)
-union_of_inttype_or_ExpressionLoader = _UnionLoader(
-    (
-        inttype,
-        ExpressionLoader,
+uri_ToolTimeLimit_classLoader_False_True_None_None: Final[
+    _Loader[ToolTimeLimit_class]
+] = _URILoader(ToolTimeLimit_classLoader, False, True, None, None)
+union_of_inttype_or_inttype_or_ExpressionLoader: Final[_Loader[i32 | str]] = (
+    _UnionLoader(
+        (
+            inttype,
+            inttype,
+            ExpressionLoader,
+        )
     )
 )
-union_of_None_type_or_InputBindingLoader = _UnionLoader(
-    (
-        None_type,
-        InputBindingLoader,
+union_of_None_type_or_InputBindingLoader: Final[_Loader[InputBinding | None]] = (
+    _UnionLoader(
+        (
+            None_type,
+            InputBindingLoader,
+        )
     )
 )
-ExpressionTool_classLoader = _EnumLoader(("ExpressionTool",), "ExpressionTool_class")
-uri_ExpressionTool_classLoader_False_True_None_None = _URILoader(
-    ExpressionTool_classLoader, False, True, None, None
+ExpressionTool_class: TypeAlias = Literal["ExpressionTool"]
+ExpressionTool_classLoader: Final[_Loader[ExpressionTool_class]] = _EnumLoader(
+    ("ExpressionTool",), "ExpressionTool_class"
 )
-array_of_WorkflowInputParameterLoader = _ArrayLoader(WorkflowInputParameterLoader)
-idmap_inputs_array_of_WorkflowInputParameterLoader = _IdMapLoader(
-    array_of_WorkflowInputParameterLoader, "id", "type"
-)
-array_of_ExpressionToolOutputParameterLoader = _ArrayLoader(
-    ExpressionToolOutputParameterLoader
-)
-idmap_outputs_array_of_ExpressionToolOutputParameterLoader = _IdMapLoader(
-    array_of_ExpressionToolOutputParameterLoader, "id", "type"
-)
-uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1_None = _URILoader(
-    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 1, None
-)
-union_of_None_type_or_LinkMergeMethodLoader = _UnionLoader(
-    (
-        None_type,
-        LinkMergeMethodLoader,
+uri_ExpressionTool_classLoader_False_True_None_None: Final[
+    _Loader[ExpressionTool_class]
+] = _URILoader(ExpressionTool_classLoader, False, True, None, None)
+array_of_WorkflowInputParameterLoader: Final[
+    _Loader[Sequence[WorkflowInputParameter]]
+] = _ArrayLoader(WorkflowInputParameterLoader)
+idmap_inputs_array_of_WorkflowInputParameterLoader: Final[
+    _Loader[Sequence[WorkflowInputParameter]]
+] = _IdMapLoader(array_of_WorkflowInputParameterLoader, "id", "type")
+array_of_ExpressionToolOutputParameterLoader: Final[
+    _Loader[Sequence[ExpressionToolOutputParameter]]
+] = _ArrayLoader(ExpressionToolOutputParameterLoader)
+idmap_outputs_array_of_ExpressionToolOutputParameterLoader: Final[
+    _Loader[Sequence[ExpressionToolOutputParameter]]
+] = _IdMapLoader(array_of_ExpressionToolOutputParameterLoader, "id", "type")
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1_None: Final[
+    _Loader[None | Sequence[str] | str]
+] = _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 1, None)
+union_of_None_type_or_LinkMergeMethodLoader: Final[_Loader[LinkMergeMethod | None]] = (
+    _UnionLoader(
+        (
+            None_type,
+            LinkMergeMethodLoader,
+        )
     )
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None = _URILoader(
-    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2, None
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None: Final[
+    _Loader[None | Sequence[str] | str]
+] = _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2, None)
+array_of_WorkflowStepInputLoader: Final[_Loader[Sequence[WorkflowStepInput]]] = (
+    _ArrayLoader(WorkflowStepInputLoader)
 )
-array_of_WorkflowStepInputLoader = _ArrayLoader(WorkflowStepInputLoader)
-idmap_in__array_of_WorkflowStepInputLoader = _IdMapLoader(
-    array_of_WorkflowStepInputLoader, "id", "source"
-)
-union_of_strtype_or_WorkflowStepOutputLoader = _UnionLoader(
+idmap_in__array_of_WorkflowStepInputLoader: Final[
+    _Loader[Sequence[WorkflowStepInput]]
+] = _IdMapLoader(array_of_WorkflowStepInputLoader, "id", "source")
+union_of_strtype_or_WorkflowStepOutputLoader: Final[
+    _Loader[WorkflowStepOutput | str]
+] = _UnionLoader(
     (
         strtype,
         WorkflowStepOutputLoader,
     )
 )
-array_of_union_of_strtype_or_WorkflowStepOutputLoader = _ArrayLoader(
-    union_of_strtype_or_WorkflowStepOutputLoader
-)
-union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader = _UnionLoader(
-    (array_of_union_of_strtype_or_WorkflowStepOutputLoader,)
-)
-uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None_None = _URILoader(
+array_of_union_of_strtype_or_WorkflowStepOutputLoader: Final[
+    _Loader[Sequence[WorkflowStepOutput | str]]
+] = _ArrayLoader(union_of_strtype_or_WorkflowStepOutputLoader)
+union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader: Final[
+    _Loader[Sequence[WorkflowStepOutput | str]]
+] = _UnionLoader((array_of_union_of_strtype_or_WorkflowStepOutputLoader,))
+uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None_None: Final[
+    _Loader[Sequence[WorkflowStepOutput | str]]
+] = _URILoader(
     union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader,
     True,
     False,
     None,
     None,
 )
-array_of_Any_type = _ArrayLoader(Any_type)
-union_of_None_type_or_array_of_Any_type = _UnionLoader(
-    (
-        None_type,
-        array_of_Any_type,
+array_of_Any_type: Final[_Loader[Sequence[Any]]] = _ArrayLoader(Any_type)
+union_of_None_type_or_array_of_Any_type: Final[_Loader[None | Sequence[Any]]] = (
+    _UnionLoader(
+        (
+            None_type,
+            array_of_Any_type,
+        )
     )
 )
-idmap_hints_union_of_None_type_or_array_of_Any_type = _IdMapLoader(
-    union_of_None_type_or_array_of_Any_type, "class", "None"
-)
-union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader = _UnionLoader(
+idmap_hints_union_of_None_type_or_array_of_Any_type: Final[
+    _Loader[None | Sequence[Any]]
+] = _IdMapLoader(union_of_None_type_or_array_of_Any_type, "class", "None")
+union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader: Final[
+    _Loader[CommandLineTool | ExpressionTool | ProcessGenerator | Workflow | str]
+] = _UnionLoader(
     (
         strtype,
         CommandLineToolLoader,
@@ -27351,73 +28315,114 @@ union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoa
         ProcessGeneratorLoader,
     )
 )
-uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_False_False_None_None = _URILoader(
+uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_False_False_None_None: Final[
+    _Loader[CommandLineTool | ExpressionTool | ProcessGenerator | Workflow | str]
+] = _URILoader(
     union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
     False,
     False,
     None,
     None,
 )
-uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0_None = _URILoader(
-    union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0, None
-)
-union_of_None_type_or_ScatterMethodLoader = _UnionLoader(
-    (
-        None_type,
-        ScatterMethodLoader,
+uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0_None: Final[
+    _Loader[None | Sequence[str] | str]
+] = _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0, None)
+union_of_None_type_or_ScatterMethodLoader: Final[_Loader[None | ScatterMethod]] = (
+    _UnionLoader(
+        (
+            None_type,
+            ScatterMethodLoader,
+        )
     )
 )
-uri_union_of_None_type_or_ScatterMethodLoader_False_True_None_None = _URILoader(
-    union_of_None_type_or_ScatterMethodLoader, False, True, None, None
+uri_union_of_None_type_or_ScatterMethodLoader_False_True_None_None: Final[
+    _Loader[None | ScatterMethod]
+] = _URILoader(union_of_None_type_or_ScatterMethodLoader, False, True, None, None)
+Workflow_class: TypeAlias = Literal["Workflow"]
+Workflow_classLoader: Final[_Loader[Workflow_class]] = _EnumLoader(
+    ("Workflow",), "Workflow_class"
 )
-Workflow_classLoader = _EnumLoader(("Workflow",), "Workflow_class")
-uri_Workflow_classLoader_False_True_None_None = _URILoader(
-    Workflow_classLoader, False, True, None, None
+uri_Workflow_classLoader_False_True_None_None: Final[_Loader[Workflow_class]] = (
+    _URILoader(Workflow_classLoader, False, True, None, None)
 )
-array_of_WorkflowOutputParameterLoader = _ArrayLoader(WorkflowOutputParameterLoader)
-idmap_outputs_array_of_WorkflowOutputParameterLoader = _IdMapLoader(
-    array_of_WorkflowOutputParameterLoader, "id", "type"
+array_of_WorkflowOutputParameterLoader: Final[
+    _Loader[Sequence[WorkflowOutputParameter]]
+] = _ArrayLoader(WorkflowOutputParameterLoader)
+idmap_outputs_array_of_WorkflowOutputParameterLoader: Final[
+    _Loader[Sequence[WorkflowOutputParameter]]
+] = _IdMapLoader(array_of_WorkflowOutputParameterLoader, "id", "type")
+array_of_WorkflowStepLoader: Final[_Loader[Sequence[WorkflowStep]]] = _ArrayLoader(
+    WorkflowStepLoader
 )
-array_of_WorkflowStepLoader = _ArrayLoader(WorkflowStepLoader)
-union_of_array_of_WorkflowStepLoader = _UnionLoader((array_of_WorkflowStepLoader,))
-idmap_steps_union_of_array_of_WorkflowStepLoader = _IdMapLoader(
-    union_of_array_of_WorkflowStepLoader, "id", "None"
+union_of_array_of_WorkflowStepLoader: Final[_Loader[Sequence[WorkflowStep]]] = (
+    _UnionLoader((array_of_WorkflowStepLoader,))
 )
-SubworkflowFeatureRequirement_classLoader = _EnumLoader(
+idmap_steps_union_of_array_of_WorkflowStepLoader: Final[
+    _Loader[Sequence[WorkflowStep]]
+] = _IdMapLoader(union_of_array_of_WorkflowStepLoader, "id", "None")
+SubworkflowFeatureRequirement_class: TypeAlias = Literal[
+    "SubworkflowFeatureRequirement"
+]
+SubworkflowFeatureRequirement_classLoader: Final[
+    _Loader[SubworkflowFeatureRequirement_class]
+] = _EnumLoader(
     ("SubworkflowFeatureRequirement",), "SubworkflowFeatureRequirement_class"
 )
-uri_SubworkflowFeatureRequirement_classLoader_False_True_None_None = _URILoader(
-    SubworkflowFeatureRequirement_classLoader, False, True, None, None
-)
-ScatterFeatureRequirement_classLoader = _EnumLoader(
-    ("ScatterFeatureRequirement",), "ScatterFeatureRequirement_class"
-)
-uri_ScatterFeatureRequirement_classLoader_False_True_None_None = _URILoader(
-    ScatterFeatureRequirement_classLoader, False, True, None, None
-)
-MultipleInputFeatureRequirement_classLoader = _EnumLoader(
+uri_SubworkflowFeatureRequirement_classLoader_False_True_None_None: Final[
+    _Loader[SubworkflowFeatureRequirement_class]
+] = _URILoader(SubworkflowFeatureRequirement_classLoader, False, True, None, None)
+ScatterFeatureRequirement_class: TypeAlias = Literal["ScatterFeatureRequirement"]
+ScatterFeatureRequirement_classLoader: Final[
+    _Loader[ScatterFeatureRequirement_class]
+] = _EnumLoader(("ScatterFeatureRequirement",), "ScatterFeatureRequirement_class")
+uri_ScatterFeatureRequirement_classLoader_False_True_None_None: Final[
+    _Loader[ScatterFeatureRequirement_class]
+] = _URILoader(ScatterFeatureRequirement_classLoader, False, True, None, None)
+MultipleInputFeatureRequirement_class: TypeAlias = Literal[
+    "MultipleInputFeatureRequirement"
+]
+MultipleInputFeatureRequirement_classLoader: Final[
+    _Loader[MultipleInputFeatureRequirement_class]
+] = _EnumLoader(
     ("MultipleInputFeatureRequirement",), "MultipleInputFeatureRequirement_class"
 )
-uri_MultipleInputFeatureRequirement_classLoader_False_True_None_None = _URILoader(
-    MultipleInputFeatureRequirement_classLoader, False, True, None, None
-)
-StepInputExpressionRequirement_classLoader = _EnumLoader(
+uri_MultipleInputFeatureRequirement_classLoader_False_True_None_None: Final[
+    _Loader[MultipleInputFeatureRequirement_class]
+] = _URILoader(MultipleInputFeatureRequirement_classLoader, False, True, None, None)
+StepInputExpressionRequirement_class: TypeAlias = Literal[
+    "StepInputExpressionRequirement"
+]
+StepInputExpressionRequirement_classLoader: Final[
+    _Loader[StepInputExpressionRequirement_class]
+] = _EnumLoader(
     ("StepInputExpressionRequirement",), "StepInputExpressionRequirement_class"
 )
-uri_StepInputExpressionRequirement_classLoader_False_True_None_None = _URILoader(
-    StepInputExpressionRequirement_classLoader, False, True, None, None
+uri_StepInputExpressionRequirement_classLoader_False_True_None_None: Final[
+    _Loader[StepInputExpressionRequirement_class]
+] = _URILoader(StepInputExpressionRequirement_classLoader, False, True, None, None)
+uri_strtype_False_True_None_None: Final[_Loader[str]] = _URILoader(
+    strtype, False, True, None, None
 )
-uri_strtype_False_True_None_None = _URILoader(strtype, False, True, None, None)
-uri_array_of_strtype_False_False_0_None = _URILoader(
+uri_array_of_strtype_False_False_0_None: Final[_Loader[Sequence[str]]] = _URILoader(
     array_of_strtype, False, False, 0, None
 )
-union_of_strtype_or_array_of_strtype = _UnionLoader(
+union_of_inttype_or_ExpressionLoader: Final[_Loader[i32 | str]] = _UnionLoader(
     (
-        strtype,
-        array_of_strtype,
+        inttype,
+        ExpressionLoader,
     )
 )
-union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader = _UnionLoader(
+union_of_strtype_or_array_of_strtype: Final[_Loader[Sequence[str] | str]] = (
+    _UnionLoader(
+        (
+            strtype,
+            array_of_strtype,
+        )
+    )
+)
+union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader: Final[
+    _Loader[CommandLineTool | ExpressionTool | ProcessGenerator | Workflow]
+] = _UnionLoader(
     (
         CommandLineToolLoader,
         ExpressionToolLoader,
@@ -27425,10 +28430,20 @@ union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_Proc
         ProcessGeneratorLoader,
     )
 )
-array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader = _ArrayLoader(
+array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader: Final[
+    _Loader[Sequence[CommandLineTool | ExpressionTool | ProcessGenerator | Workflow]]
+] = _ArrayLoader(
     union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader
 )
-union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader = _UnionLoader(
+union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader: Final[
+    _Loader[
+        CommandLineTool
+        | ExpressionTool
+        | ProcessGenerator
+        | Sequence[CommandLineTool | ExpressionTool | ProcessGenerator | Workflow]
+        | Workflow
+    ]
+] = _UnionLoader(
     (
         CommandLineToolLoader,
         ExpressionToolLoader,
@@ -27442,6 +28457,7 @@ CWLObjectTypeLoader.add_loaders(
     (
         booltype,
         inttype,
+        longtype,
         floattype,
         strtype,
         FileLoader,
@@ -27450,12 +28466,70 @@ CWLObjectTypeLoader.add_loaders(
         map_of_union_of_None_type_or_CWLObjectTypeLoader,
     )
 )
+CWLObjectType: TypeAlias = (
+    "Directory | File | Mapping[str, CWLObjectType | None] | Sequence[CWLObjectType | None] | bool | float | i32 | i64 | str"
+)
+
+Sink: TypeAlias = WorkflowStepInput
+InputSchema: TypeAlias = InputArraySchema | InputEnumSchema | InputRecordSchema
+OutputSchema: TypeAlias = OutputArraySchema | OutputEnumSchema | OutputRecordSchema
+InputParameter: TypeAlias = CommandInputParameter | WorkflowInputParameter
+OutputParameter: TypeAlias = (
+    CommandOutputParameter | ExpressionToolOutputParameter | WorkflowOutputParameter
+)
+ProcessRequirement: TypeAlias = (
+    CUDARequirement
+    | DockerRequirement
+    | EnvVarRequirement
+    | InitialWorkDirRequirement
+    | InlineJavascriptRequirement
+    | InplaceUpdateRequirement
+    | LoadListingRequirement
+    | MPIRequirement
+    | MultipleInputFeatureRequirement
+    | NetworkAccess
+    | ResourceRequirement
+    | ScatterFeatureRequirement
+    | SchemaDefRequirement
+    | Secrets
+    | ShellCommandRequirement
+    | ShmSize
+    | SoftwareRequirement
+    | StepInputExpressionRequirement
+    | SubworkflowFeatureRequirement
+    | ToolTimeLimit
+    | WorkReuse
+)
+Process: TypeAlias = CommandLineTool | ExpressionTool | ProcessGenerator | Workflow
+CommandInputSchema: TypeAlias = (
+    CommandInputArraySchema | CommandInputEnumSchema | CommandInputRecordSchema
+)
+CommandLineBindable: TypeAlias = (
+    CommandInputArraySchema
+    | CommandInputEnumSchema
+    | CommandInputRecordField
+    | CommandInputRecordSchema
+)
+IOSchema: TypeAlias = InputSchema | OutputSchema
+LoadContents: TypeAlias = (
+    CommandOutputBinding | InputParameter | InputRecordField | WorkflowStepInput
+)
+InputFormat: TypeAlias = InputParameter | InputRecordField
+OutputFormat: TypeAlias = OutputParameter | OutputRecordField
+Parameter: TypeAlias = InputParameter | OutputParameter
+Documented: TypeAlias = IOSchema | Parameter | Process | RecordField | WorkflowStep
+IdentifierRequired: TypeAlias = (
+    Parameter | WorkflowStep | WorkflowStepInput | WorkflowStepOutput
+)
+FieldBase: TypeAlias = InputRecordField | OutputRecordField | Parameter
+Identified: TypeAlias = IdentifierRequired | Process
+Labeled: TypeAlias = FieldBase | IOSchema | Process | WorkflowStep | WorkflowStepInput
 
 
 def load_document(
     doc: Any,
-    baseuri: Optional[str] = None,
-    loadingOptions: Optional[LoadingOptions] = None,
+    baseuri: str | None = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     if baseuri is None:
         baseuri = file_uri(os.getcwd()) + "/"
@@ -27472,9 +28546,9 @@ def load_document(
 
 def load_document_with_metadata(
     doc: Any,
-    baseuri: Optional[str] = None,
-    loadingOptions: Optional[LoadingOptions] = None,
-    addl_metadata_fields: Optional[MutableSequence[str]] = None,
+    baseuri: str | None = None,
+    loadingOptions: LoadingOptions | None = None,
+    addl_metadata_fields: MutableSequence[str] | None = None,
 ) -> Any:
     if baseuri is None:
         baseuri = file_uri(os.getcwd()) + "/"
@@ -27492,7 +28566,7 @@ def load_document_with_metadata(
 def load_document_by_string(
     string: Any,
     uri: str,
-    loadingOptions: Optional[LoadingOptions] = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     yaml = yaml_no_ts()
     result = yaml.load(string)
@@ -27513,7 +28587,7 @@ def load_document_by_string(
 def load_document_by_yaml(
     yaml: Any,
     uri: str,
-    loadingOptions: Optional[LoadingOptions] = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """
     Shortcut to load via a YAML object.

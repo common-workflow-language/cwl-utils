@@ -7,11 +7,11 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import MutableMapping, MutableSequence, Sequence
 from copy import deepcopy
 from importlib.resources import files
 from io import StringIO
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from ruamel.yaml.main import YAML
@@ -381,11 +381,15 @@ def sanitise_schema_field(
         case {"type": {"type": "enum", **rest}}:
             schema_field_item["type"] = InputEnumSchemaV1_2(
                 type_="enum",
-                symbols=rest.get("symbols", ""),
+                symbols=cast(Sequence[str], rest.get("symbols", [])),
             )
         case {"type": {"type": "array", **rest}}:
             schema_field_item["type"] = InputArraySchemaV1_2(
-                type_="array", items=rest.get("items", "")
+                type_="array",
+                items=cast(
+                    str | cwl_v1_2.InputSchema | Sequence[str | cwl_v1_2.InputSchema],
+                    rest.get("items", ""),
+                ),
             )
         case {"type": {"$import": _}}:
             pass  # Leave import as is
