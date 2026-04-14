@@ -263,68 +263,102 @@ def sanitise_schema_field(
     Schemas need to be resolved before converted to JSON properties.
 
     Convert
-      {
-        'type': 'Directory?'
-      }
+
+    .. code:: python
+
+       {
+         'type': 'Directory?'
+       }
+
     To
-      {
-        'type': ['null', 'Directory']
-      }
+
+    .. code:: python
+
+       {
+         'type': ['null', 'Directory']
+       }
 
     Convert
-      {
-        'type': 'string[]'
-      }
+
+    .. code:: python
+
+       {
+         'type': 'string[]'
+       }
+
     To
-      InputArraySchema(
-        type_=array,
-        items=string
-      )
+
+    .. code:: python
+
+       InputArraySchema(
+         type_=array,
+         items=string
+       )
 
     Convert
-      {
-        'type': 'File[]?'
-      }
+
+    .. code:: python
+
+       {
+         'type': 'File[]?'
+       }
+
     To
-      {
-        'type': [
-          'null', InputArraySchema(
-            type_=array,
-            items=File
-          )
-        ]
-      }
+
+    .. code:: python
+
+       {
+         'type': [
+           'null', InputArraySchema(
+             type_=array,
+             items=File
+           )
+         ]
+       }
 
     Convert
-      {
-        'type': 'Enum',
-        'symbols': ['A', 'B', 'C']
-      }
+
+    .. code:: python
+
+       {
+         'type': 'Enum',
+         'symbols': ['A', 'B', 'C']
+       }
 
     To
-      {
-        'type': InputEnumSchema(
-          type_=enum,
-          symbols=['A', 'B', 'C']
-        )
-      }
+
+    .. code:: python
+
+       {
+         'type': InputEnumSchema(
+           type_=enum,
+           symbols=['A', 'B', 'C']
+         )
+       }
 
     Convert
-      {
-        'type': 'array',
-        'items': {
-          '$import': '../../../schemas/fastq-list-row/1.0.0/fastq-list-row__1.0.0.yaml#fastq-list-row'
-        }
-      }
+
+    .. code:: python
+
+       {
+         'type': 'array',
+         'items': {
+           '$import': '../../../schemas/fastq-list-row/1.0.0/fastq-list-row__1.0.0.yaml#fastq-list-row'
+         }
+       }
+
     To
-      {
-        'type': InputArraySchema(
-          type_=array,
-          items={
-            '$import': '../../../schemas/fastq-list-row/1.0.0/fastq-list-row__1.0.0.yaml#fastq-list-row'
-          }
-        )
-      }
+
+    .. code:: python
+
+       {
+         'type': InputArraySchema(
+           type_=array,
+           items={
+             '$import': '../../../schemas/fastq-list-row/1.0.0/fastq-list-row__1.0.0.yaml#fastq-list-row'
+           }
+         )
+       }
 
     :param schema_field_item:
     :return:

@@ -171,7 +171,7 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
     sink: admissible sink types
 
     In non-strict comparison, at least one source type must match one sink type,
-       except for 'null'.
+    except for 'null'.
     In strict comparison, all source types must match at least one sink type.
     """
     if "Any" in (src, sink):

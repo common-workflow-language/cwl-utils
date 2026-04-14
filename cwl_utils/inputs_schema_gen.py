@@ -116,7 +116,7 @@ class JSONSchemaProperty:
         """
         Generate the type dict for a property from a CWL input parameter type.
 
-        We call this function for each type in the type_ list
+        We call this function for each type in the :py:attr:`type_` list
         In the case there are multiple types, each dict is added to the oneOf list
         """
         # Primitive types should have a 1-1 mapping
