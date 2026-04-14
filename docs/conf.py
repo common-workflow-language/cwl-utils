@@ -6,19 +6,16 @@
 
 # -- Path setup --------------------------------------------------------------
 
-import importlib.metadata
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-import sys
 import time
 from datetime import datetime, timezone
 
-sys.path.insert(0, os.path.abspath(".."))
-
+from cwl_utils.__meta__ import __version__
 
 # -- Project information -----------------------------------------------------
 
@@ -82,8 +79,7 @@ html_theme_options = {
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
-release = importlib.metadata.version("cwl_utils")
-version = ".".join(release.split(".")[:2])
+version = __version__
 
 autoapi_dirs = ["../cwl_utils"]
 autodoc_typehints = "description"
