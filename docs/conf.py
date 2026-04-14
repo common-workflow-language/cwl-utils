@@ -88,7 +88,7 @@ version = ".".join(release.split(".")[:2])
 autoapi_dirs = ["../cwl_utils"]
 autodoc_typehints = "description"
 autoapi_keep_files = True
-autoapi_ignore = ["*migrations*", "*.pyi"]
+autoapi_ignore = ["*migrations*", "*.pyi", "*tests*"]
 autoapi_options = [
     "members",
     "undoc-members",
