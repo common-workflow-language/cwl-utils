@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Optional, TypeAlias, cast
 from urllib.parse import unquote_plus, urlparse
 
+import schema_salad.metaschema
 from schema_salad.exceptions import ValidationException
 from schema_salad.utils import yaml_no_ts
 
@@ -181,9 +182,7 @@ SoftwareRequirementTypes = (
     cwl_v1_2.SoftwareRequirement,
 )
 """Type union for a CWL v1.x SoftwareRequirement object."""
-ArraySchema: TypeAlias = (
-    cwl_v1_0.ArraySchema | cwl_v1_1.ArraySchema | cwl_v1_2.ArraySchema
-)
+ArraySchema: TypeAlias = schema_salad.metaschema.ArraySchema
 InputArraySchema: TypeAlias = (
     cwl_v1_0.InputArraySchema | cwl_v1_1.InputArraySchema | cwl_v1_2.InputArraySchema
 )
@@ -193,7 +192,7 @@ InputArraySchemaTypes = (
     cwl_v1_2.InputArraySchema,
 )
 """Type Union for a CWL v1.x ArraySchema object."""
-EnumSchema: TypeAlias = cwl_v1_0.EnumSchema | cwl_v1_1.EnumSchema | cwl_v1_2.EnumSchema
+EnumSchema: TypeAlias = schema_salad.metaschema.EnumSchema
 InputEnumSchema: TypeAlias = (
     cwl_v1_0.InputEnumSchema | cwl_v1_1.InputEnumSchema | cwl_v1_2.InputEnumSchema
 )
@@ -203,9 +202,7 @@ InputEnumSchemaTypes = (
     cwl_v1_2.InputEnumSchema,
 )
 """Type Union for a CWL v1.x EnumSchema object."""
-RecordSchema: TypeAlias = (
-    cwl_v1_0.RecordSchema | cwl_v1_1.RecordSchema | cwl_v1_2.RecordSchema
-)
+RecordSchema: TypeAlias = schema_salad.metaschema.RecordSchema
 InputRecordSchema: TypeAlias = (
     cwl_v1_0.InputRecordSchema | cwl_v1_1.InputRecordSchema | cwl_v1_2.InputRecordSchema
 )

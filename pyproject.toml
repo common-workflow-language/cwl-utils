@@ -36,7 +36,7 @@ dependencies = [
     "packaging",
     "rdflib",
     "requests",
-    "schema-salad >= 8.8.20250205075315,<9",
+    "schema-salad @ git+https://github.com/common-workflow-language/schema_salad@refs/pull/1028/head",
     "ruamel.yaml >= 0.17.6, < 0.20",
     "typing_extensions >= 4.10.0",
 ]
@@ -73,6 +73,9 @@ cwl-inputs-schema-gen = "cwl_utils.inputs_schema_gen:main"
 [tool.pytest.ini_options]
 testpaths = ["cwl_utils/tests"]
 addopts = "-rsx -n auto"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.version]
 path = "cwl_utils/__meta__.py"

@@ -11,6 +11,7 @@ from contextlib import suppress
 from typing import Any, cast
 
 from ruamel import yaml
+from schema_salad.metaschema import ArraySchema
 from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
 
@@ -56,11 +57,11 @@ def escape_expression_field(contents: str) -> str:
 
 
 def clean_type_ids(
-    cwltype: cwl.ArraySchema | cwl.InputRecordSchema,
-) -> cwl.ArraySchema | cwl.InputRecordSchema:
+    cwltype: ArraySchema | cwl.InputRecordSchema,
+) -> ArraySchema | cwl.InputRecordSchema:
     """Simplify type identifiers."""
     result = copy.deepcopy(cwltype)
-    if isinstance(result, cwl.ArraySchema):
+    if isinstance(result, ArraySchema):
         if isinstance(result.items, MutableSequence):
             for item in result.items:
                 if hasattr(item, "id"):
@@ -339,8 +340,8 @@ def generate_etool_from_expr(
             self_type = target
         if isinstance(self_type, list):
             new_type: (
-                list[cwl.ArraySchema | cwl.InputRecordSchema]
-                | cwl.ArraySchema
+                list[ArraySchema | cwl.InputRecordSchema]
+                | ArraySchema
                 | cwl.InputRecordSchema
             ) = [clean_type_ids(t.type_) for t in self_type]
         else:
@@ -715,7 +716,7 @@ def process_workflow_inputs_and_outputs(
                 else:
                     sources = [s.split("#")[-1] for s in param2.outputSource]
                 source_type_items = utils.type_for_source(workflow, sources)
-                if isinstance(source_type_items, cwl.ArraySchema):
+                if isinstance(source_type_items, ArraySchema):
                     if isinstance(source_type_items.items, list):
                         if "null" not in source_type_items.items:
                             source_type_items.items.append("null")
@@ -1452,7 +1453,7 @@ def traverse_CommandLineTool(
                     modified = True
                     inp_id = "_{}_glob".format(outp.id.split("#")[-1])
                     etool_id = f"_expression_{step_id}{inp_id}"
-                    glob_target_type = ["string", cwl.ArraySchema("string", "array")]
+                    glob_target_type = ["string", ArraySchema("string", "array")]
                     target = cwl.WorkflowInputParameter(id=None, type_=glob_target_type)
                     replace_step_clt_expr_with_etool(
                         expression, etool_id, parent, target, step, replace_etool
@@ -1954,7 +1955,7 @@ def traverse_step(
                                     source_types.append(temp_type)
                         source_type = cwl.WorkflowInputParameter(
                             id=None,
-                            type_=cwl.ArraySchema(source_types, "array"),
+                            type_=ArraySchema(source_types, "array"),
                         )
                     else:
                         input_source_id = inp.source.split("#")[-1]
