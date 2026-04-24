@@ -40,8 +40,6 @@ from schema_salad.runtime import (
     save,
     save_relative_uri,
     _document_load,
-    _rvocab,
-    _vocab
 )
 from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import yaml_no_ts
@@ -51,6 +49,9 @@ if sys.version_info >= (3, 11):
     from typing import Self
 else:
     from typing_extensions import Self
+
+_vocab: Final[dict[str, str]] = {}
+_rvocab: Final[dict[str, str]] = {}
 
 
 def parser_info() -> str:
@@ -203,7 +204,13 @@ class CWLArraySchema(schema_salad.metaschema.ArraySchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -465,7 +472,13 @@ class CWLRecordField(schema_salad.metaschema.RecordField):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -669,7 +682,13 @@ class CWLRecordSchema(schema_salad.metaschema.RecordSchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -850,7 +869,8 @@ class File(Saveable):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -1380,7 +1400,13 @@ class File(Saveable):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -1424,8 +1450,10 @@ class File(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -1591,7 +1619,8 @@ class Directory(Saveable):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -1792,7 +1821,13 @@ class Directory(Saveable):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -1829,8 +1864,10 @@ class Directory(Saveable):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -2004,7 +2041,13 @@ class InputBinding(Saveable):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -2592,7 +2635,13 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -3013,7 +3062,13 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -3394,7 +3449,13 @@ class InputEnumSchema(schema_salad.metaschema.EnumSchema, InputSchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -3774,7 +3835,13 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -4263,7 +4330,13 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -4658,7 +4731,13 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -5039,7 +5118,13 @@ class OutputEnumSchema(schema_salad.metaschema.EnumSchema, OutputSchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -5419,7 +5504,13 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -5581,7 +5672,8 @@ class InlineJavascriptRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -5641,7 +5733,13 @@ class InlineJavascriptRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -5675,8 +5773,10 @@ class InlineJavascriptRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -5763,7 +5863,8 @@ class SchemaDefRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -5824,7 +5925,13 @@ class SchemaDefRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -5858,8 +5965,10 @@ class SchemaDefRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -6028,7 +6137,13 @@ class SecondaryFileSchema(Saveable):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -6141,7 +6256,8 @@ class LoadListingRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -6201,7 +6317,13 @@ class LoadListingRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -6235,8 +6357,10 @@ class LoadListingRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -6414,7 +6538,13 @@ class EnvironmentDef(Saveable):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -6898,7 +7028,13 @@ class CommandLineBinding(InputBinding):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -7258,7 +7394,13 @@ class CommandOutputBinding(LoadContents):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -7910,7 +8052,13 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -8401,7 +8549,13 @@ class CommandInputRecordSchema(
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -8849,7 +9003,13 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -9291,7 +9451,13 @@ class CommandInputArraySchema(
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -9839,7 +10005,13 @@ class CommandOutputRecordField(OutputRecordField):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -10251,7 +10423,13 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -10632,7 +10810,13 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -11012,7 +11196,13 @@ class CommandOutputArraySchema(OutputArraySchema):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -11710,7 +11900,13 @@ class CommandInputParameter(InputParameter):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -12312,7 +12508,13 @@ class CommandOutputParameter(OutputParameter):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -12598,7 +12800,8 @@ class CommandLineTool(Process):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -13318,7 +13521,13 @@ class CommandLineTool(Process):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -13371,8 +13580,10 @@ class CommandLineTool(Process):
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -13588,7 +13799,8 @@ class DockerRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -13883,7 +14095,13 @@ class DockerRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -13922,8 +14140,10 @@ class DockerRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -14050,7 +14270,8 @@ class SoftwareRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -14111,7 +14332,13 @@ class SoftwareRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -14145,8 +14372,10 @@ class SoftwareRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -14366,7 +14595,13 @@ class SoftwarePackage(Saveable):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -14627,7 +14862,13 @@ class Dirent(Saveable):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -14746,7 +14987,8 @@ class InitialWorkDirRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -14807,7 +15049,13 @@ class InitialWorkDirRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -14841,8 +15089,10 @@ class InitialWorkDirRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -14921,7 +15171,8 @@ class EnvVarRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -14982,7 +15233,13 @@ class EnvVarRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -15016,8 +15273,10 @@ class EnvVarRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -15094,7 +15353,8 @@ class ShellCommandRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -15107,7 +15367,13 @@ class ShellCommandRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -15138,8 +15404,10 @@ class ShellCommandRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -15262,7 +15530,8 @@ class ResourceRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -15651,7 +15920,13 @@ class ResourceRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -15692,8 +15967,10 @@ class ResourceRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -15828,7 +16105,8 @@ class WorkReuse(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -15889,7 +16167,13 @@ class WorkReuse(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -15923,8 +16207,10 @@ class WorkReuse(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -16015,7 +16301,8 @@ class NetworkAccess(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -16076,7 +16363,13 @@ class NetworkAccess(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -16110,8 +16403,10 @@ class NetworkAccess(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -16204,7 +16499,8 @@ class InplaceUpdateRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -16265,7 +16561,13 @@ class InplaceUpdateRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -16299,8 +16601,10 @@ class InplaceUpdateRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -16384,7 +16688,8 @@ class ToolTimeLimit(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -16445,7 +16750,13 @@ class ToolTimeLimit(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -16479,8 +16790,10 @@ class ToolTimeLimit(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -16924,7 +17237,13 @@ class ExpressionToolOutputParameter(OutputParameter):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -17633,7 +17952,13 @@ class WorkflowInputParameter(InputParameter):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -17915,7 +18240,8 @@ class ExpressionTool(Process):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -18307,7 +18633,13 @@ class ExpressionTool(Process):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -18353,8 +18685,10 @@ class ExpressionTool(Process):
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -18948,7 +19282,13 @@ class WorkflowOutputParameter(OutputParameter):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -19553,7 +19893,13 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -19766,7 +20112,13 @@ class WorkflowStepOutput(IdentifierRequired):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -20270,7 +20622,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
                             )
                         )
 
-        subscope_baseuri = expand_url('run', baseuri, loadingOptions, True)
+        subscope_baseuri = expand_url('run', baseuri, loadingOptions, _vocab, _rvocab, True)
         try:
             if _doc.get("run") is None:
                 raise ValidationException("missing required field `run`", None, [])
@@ -20422,7 +20774,13 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -20707,7 +21065,8 @@ class Workflow(Process):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -21099,7 +21458,13 @@ class Workflow(Process):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -21145,8 +21510,10 @@ class Workflow(Process):
             u = save_relative_uri(self.id, base_url, True, None, relative_uris)
             r["id"] = u
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -21266,7 +21633,8 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -21279,7 +21647,13 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -21310,8 +21684,10 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -21384,7 +21760,8 @@ class ScatterFeatureRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -21397,7 +21774,13 @@ class ScatterFeatureRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -21428,8 +21811,10 @@ class ScatterFeatureRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -21502,7 +21887,8 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -21515,7 +21901,13 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -21546,8 +21938,10 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -21620,7 +22014,8 @@ class StepInputExpressionRequirement(ProcessRequirement):
                 lc=_doc.get("class")
             )
 
-            if class_ not in (cls.__name__, loadingOptions.vocab.get(cls.__name__)):
+            vocab = _vocab | loadingOptions.vocab
+            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
                raise e
@@ -21633,7 +22028,13 @@ class StepInputExpressionRequirement(ProcessRequirement):
                     )
                 elif ":" in k:
                     ex = expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
+                        k,
+                        "",
+                        loadingOptions,
+                        _vocab,
+                        _rvocab,
+                        scoped_id=False,
+                        vocab_term=False,
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -21664,8 +22065,10 @@ class StepInputExpressionRequirement(ProcessRequirement):
             for ef in self.extension_fields:
                 r[ef] = self.extension_fields[ef]
         if self.class_ is not None:
-            uri = self.loadingOptions.vocab[self.class_]
-            if p := self.loadingOptions.rvocab.get(uri[: -len(self.class_)]):
+            vocab = _vocab | self.loadingOptions.vocab
+            rvocab = _rvocab | self.loadingOptions.rvocab
+            uri = vocab[self.class_]
+            if p := rvocab.get(uri[: -len(self.class_)]):
                 uri = f"{p}:{self.class_}"
             else:
                 uri = self.class_
@@ -22324,7 +22727,9 @@ union_of_None_type_or_strtype_or_array_of_strtype: Final = _UnionLoader(
         array_of_strtype,
     )
 )
-uri_strtype_True_False_None_None: Final = _URILoader(strtype, True, False, None, None)
+uri_strtype_True_False_None_None: Final = _URILoader(
+    strtype, True, False, None, None, _vocab, _rvocab
+)
 union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: (
     Final
 ) = _UnionLoader(
@@ -22363,6 +22768,8 @@ typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_o
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype,
     2,
     "v1.1",
+    _vocab,
+    _rvocab,
 )
 array_of_RecordFieldLoader: Final = _ArrayLoader(RecordFieldLoader)
 union_of_None_type_or_array_of_RecordFieldLoader: Final = _UnionLoader(
@@ -22375,7 +22782,9 @@ idmap_fields_union_of_None_type_or_array_of_RecordFieldLoader: Final = _IdMapLoa
     union_of_None_type_or_array_of_RecordFieldLoader, "name", "type"
 )
 Record_nameLoader: Final = _EnumLoader(("record",), "Record_name")
-typedsl_Record_nameLoader_2: Final = _TypeDSLLoader(Record_nameLoader, 2, "v1.1")
+typedsl_Record_nameLoader_2: Final = _TypeDSLLoader(
+    Record_nameLoader, 2, "v1.1", _vocab, _rvocab
+)
 union_of_None_type_or_strtype: Final = _UnionLoader(
     (
         None_type,
@@ -22383,13 +22792,15 @@ union_of_None_type_or_strtype: Final = _UnionLoader(
     )
 )
 uri_union_of_None_type_or_strtype_True_False_None_None: Final = _URILoader(
-    union_of_None_type_or_strtype, True, False, None, None
+    union_of_None_type_or_strtype, True, False, None, None, _vocab, _rvocab
 )
 uri_array_of_strtype_True_False_None_None: Final = _URILoader(
-    array_of_strtype, True, False, None, None
+    array_of_strtype, True, False, None, None, _vocab, _rvocab
 )
 Enum_nameLoader: Final = _EnumLoader(("enum",), "Enum_name")
-typedsl_Enum_nameLoader_2: Final = _TypeDSLLoader(Enum_nameLoader, 2, "v1.1")
+typedsl_Enum_nameLoader_2: Final = _TypeDSLLoader(
+    Enum_nameLoader, 2, "v1.1", _vocab, _rvocab
+)
 uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_False_True_2_None: (
     Final
 ) = _URILoader(
@@ -22398,13 +22809,21 @@ uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_Ar
     True,
     2,
     None,
+    _vocab,
+    _rvocab,
 )
 Array_nameLoader: Final = _EnumLoader(("array",), "Array_name")
-typedsl_Array_nameLoader_2: Final = _TypeDSLLoader(Array_nameLoader, 2, "v1.1")
+typedsl_Array_nameLoader_2: Final = _TypeDSLLoader(
+    Array_nameLoader, 2, "v1.1", _vocab, _rvocab
+)
 Map_nameLoader: Final = _EnumLoader(("map",), "Map_name")
-typedsl_Map_nameLoader_2: Final = _TypeDSLLoader(Map_nameLoader, 2, "v1.1")
+typedsl_Map_nameLoader_2: Final = _TypeDSLLoader(
+    Map_nameLoader, 2, "v1.1", _vocab, _rvocab
+)
 Union_nameLoader: Final = _EnumLoader(("union",), "Union_name")
-typedsl_Union_nameLoader_2: Final = _TypeDSLLoader(Union_nameLoader, 2, "v1.1")
+typedsl_Union_nameLoader_2: Final = _TypeDSLLoader(
+    Union_nameLoader, 2, "v1.1", _vocab, _rvocab
+)
 union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: (
     Final
 ) = _UnionLoader(
@@ -22441,6 +22860,8 @@ uri_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or
     True,
     2,
     None,
+    _vocab,
+    _rvocab,
 )
 typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_2: (
     Final
@@ -22448,6 +22869,8 @@ typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoade
     union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype,
     2,
     "v1.1",
+    _vocab,
+    _rvocab,
 )
 array_of_CWLRecordFieldLoader: Final = _ArrayLoader(CWLRecordFieldLoader)
 union_of_None_type_or_array_of_CWLRecordFieldLoader: Final = _UnionLoader(
@@ -22461,10 +22884,10 @@ idmap_fields_union_of_None_type_or_array_of_CWLRecordFieldLoader: Final = _IdMap
 )
 File_classLoader: Final = _EnumLoader(("File",), "File_class")
 uri_File_classLoader_False_True_None_None: Final = _URILoader(
-    File_classLoader, False, True, None, None
+    File_classLoader, False, True, None, None, _vocab, _rvocab
 )
 uri_union_of_None_type_or_strtype_False_False_None_None: Final = _URILoader(
-    union_of_None_type_or_strtype, False, False, None, None
+    union_of_None_type_or_strtype, False, False, None, None, _vocab, _rvocab
 )
 union_of_None_type_or_inttype: Final = _UnionLoader(
     (
@@ -22500,11 +22923,11 @@ secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_Director
     )
 )
 uri_union_of_None_type_or_strtype_True_False_None_True: Final = _URILoader(
-    union_of_None_type_or_strtype, True, False, None, True
+    union_of_None_type_or_strtype, True, False, None, True, _vocab, _rvocab
 )
 Directory_classLoader: Final = _EnumLoader(("Directory",), "Directory_class")
 uri_Directory_classLoader_False_True_None_None: Final = _URILoader(
-    Directory_classLoader, False, True, None, None
+    Directory_classLoader, False, True, None, None, _vocab, _rvocab
 )
 union_of_None_type_or_booltype: Final = _UnionLoader(
     (
@@ -22556,6 +22979,8 @@ uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_F
     False,
     None,
     True,
+    _vocab,
+    _rvocab,
 )
 union_of_None_type_or_strtype_or_ExpressionLoader: Final = _UnionLoader(
     (
@@ -22566,7 +22991,13 @@ union_of_None_type_or_strtype_or_ExpressionLoader: Final = _UnionLoader(
 )
 uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True: Final = (
     _URILoader(
-        union_of_None_type_or_strtype_or_ExpressionLoader, True, False, None, True
+        union_of_None_type_or_strtype_or_ExpressionLoader,
+        True,
+        False,
+        None,
+        True,
+        _vocab,
+        _rvocab,
     )
 )
 union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: (
@@ -22603,6 +23034,8 @@ typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoad
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
+    _vocab,
+    _rvocab,
 )
 array_of_InputRecordFieldLoader: Final = _ArrayLoader(InputRecordFieldLoader)
 union_of_None_type_or_array_of_InputRecordFieldLoader: Final = _UnionLoader(
@@ -22622,6 +23055,8 @@ uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_o
     True,
     2,
     None,
+    _vocab,
+    _rvocab,
 )
 union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: (
     Final
@@ -22657,6 +23092,8 @@ typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLo
     union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
+    _vocab,
+    _rvocab,
 )
 array_of_OutputRecordFieldLoader: Final = _ArrayLoader(OutputRecordFieldLoader)
 union_of_None_type_or_array_of_OutputRecordFieldLoader: Final = _UnionLoader(
@@ -22676,6 +23113,8 @@ uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader
     True,
     2,
     None,
+    _vocab,
+    _rvocab,
 )
 union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader: Final = (
     _UnionLoader(
@@ -22782,13 +23221,13 @@ union_of_None_type_or_CWLVersionLoader: Final = _UnionLoader(
     )
 )
 uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None: Final = _URILoader(
-    union_of_None_type_or_CWLVersionLoader, False, True, None, None
+    union_of_None_type_or_CWLVersionLoader, False, True, None, None, _vocab, _rvocab
 )
 InlineJavascriptRequirement_classLoader: Final = _EnumLoader(
     ("InlineJavascriptRequirement",), "InlineJavascriptRequirement_class"
 )
 uri_InlineJavascriptRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    InlineJavascriptRequirement_classLoader, False, True, None, None
+    InlineJavascriptRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 union_of_None_type_or_array_of_strtype: Final = _UnionLoader(
     (
@@ -22800,7 +23239,7 @@ SchemaDefRequirement_classLoader: Final = _EnumLoader(
     ("SchemaDefRequirement",), "SchemaDefRequirement_class"
 )
 uri_SchemaDefRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    SchemaDefRequirement_classLoader, False, True, None, None
+    SchemaDefRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader: (
     Final
@@ -22833,7 +23272,7 @@ LoadListingRequirement_classLoader: Final = _EnumLoader(
     ("LoadListingRequirement",), "LoadListingRequirement_class"
 )
 uri_LoadListingRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    LoadListingRequirement_classLoader, False, True, None, None
+    LoadListingRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 union_of_None_type_or_inttype_or_ExpressionLoader: Final = _UnionLoader(
     (
@@ -22898,6 +23337,8 @@ typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInput
     union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
+    _vocab,
+    _rvocab,
 )
 array_of_CommandInputRecordFieldLoader: Final = _ArrayLoader(
     CommandInputRecordFieldLoader
@@ -22921,6 +23362,8 @@ uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnum
     True,
     2,
     None,
+    _vocab,
+    _rvocab,
 )
 union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: (
     Final
@@ -22956,6 +23399,8 @@ typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutp
     union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
+    _vocab,
+    _rvocab,
 )
 union_of_None_type_or_CommandOutputBindingLoader: Final = _UnionLoader(
     (
@@ -22985,6 +23430,8 @@ uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEn
     True,
     2,
     None,
+    _vocab,
+    _rvocab,
 )
 union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: (
     Final
@@ -23005,6 +23452,8 @@ typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_
     union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
+    _vocab,
+    _rvocab,
 )
 union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: (
     Final
@@ -23026,12 +23475,14 @@ typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputR
     union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
+    _vocab,
+    _rvocab,
 )
 CommandLineTool_classLoader: Final = _EnumLoader(
     ("CommandLineTool",), "CommandLineTool_class"
 )
 uri_CommandLineTool_classLoader_False_True_None_None: Final = _URILoader(
-    CommandLineTool_classLoader, False, True, None, None
+    CommandLineTool_classLoader, False, True, None, None, _vocab, _rvocab
 )
 array_of_CommandInputParameterLoader: Final = _ArrayLoader(CommandInputParameterLoader)
 idmap_inputs_array_of_CommandInputParameterLoader: Final = _IdMapLoader(
@@ -23072,26 +23523,26 @@ DockerRequirement_classLoader: Final = _EnumLoader(
     ("DockerRequirement",), "DockerRequirement_class"
 )
 uri_DockerRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    DockerRequirement_classLoader, False, True, None, None
+    DockerRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 SoftwareRequirement_classLoader: Final = _EnumLoader(
     ("SoftwareRequirement",), "SoftwareRequirement_class"
 )
 uri_SoftwareRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    SoftwareRequirement_classLoader, False, True, None, None
+    SoftwareRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 array_of_SoftwarePackageLoader: Final = _ArrayLoader(SoftwarePackageLoader)
 idmap_packages_array_of_SoftwarePackageLoader: Final = _IdMapLoader(
     array_of_SoftwarePackageLoader, "package", "specs"
 )
 uri_union_of_None_type_or_array_of_strtype_False_False_None_True: Final = _URILoader(
-    union_of_None_type_or_array_of_strtype, False, False, None, True
+    union_of_None_type_or_array_of_strtype, False, False, None, True, _vocab, _rvocab
 )
 InitialWorkDirRequirement_classLoader: Final = _EnumLoader(
     ("InitialWorkDirRequirement",), "InitialWorkDirRequirement_class"
 )
 uri_InitialWorkDirRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    InitialWorkDirRequirement_classLoader, False, True, None, None
+    InitialWorkDirRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 union_of_None_type_or_FileLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader_or_DirectoryLoader_or_DirentLoader_or_ExpressionLoader: (
     Final
@@ -23122,7 +23573,7 @@ EnvVarRequirement_classLoader: Final = _EnumLoader(
     ("EnvVarRequirement",), "EnvVarRequirement_class"
 )
 uri_EnvVarRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    EnvVarRequirement_classLoader, False, True, None, None
+    EnvVarRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 array_of_EnvironmentDefLoader: Final = _ArrayLoader(EnvironmentDefLoader)
 idmap_envDef_array_of_EnvironmentDefLoader: Final = _IdMapLoader(
@@ -23132,17 +23583,17 @@ ShellCommandRequirement_classLoader: Final = _EnumLoader(
     ("ShellCommandRequirement",), "ShellCommandRequirement_class"
 )
 uri_ShellCommandRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    ShellCommandRequirement_classLoader, False, True, None, None
+    ShellCommandRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 ResourceRequirement_classLoader: Final = _EnumLoader(
     ("ResourceRequirement",), "ResourceRequirement_class"
 )
 uri_ResourceRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    ResourceRequirement_classLoader, False, True, None, None
+    ResourceRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 WorkReuse_classLoader: Final = _EnumLoader(("WorkReuse",), "WorkReuse_class")
 uri_WorkReuse_classLoader_False_True_None_None: Final = _URILoader(
-    WorkReuse_classLoader, False, True, None, None
+    WorkReuse_classLoader, False, True, None, None, _vocab, _rvocab
 )
 union_of_booltype_or_ExpressionLoader: Final = _UnionLoader(
     (
@@ -23154,19 +23605,19 @@ NetworkAccess_classLoader: Final = _EnumLoader(
     ("NetworkAccess",), "NetworkAccess_class"
 )
 uri_NetworkAccess_classLoader_False_True_None_None: Final = _URILoader(
-    NetworkAccess_classLoader, False, True, None, None
+    NetworkAccess_classLoader, False, True, None, None, _vocab, _rvocab
 )
 InplaceUpdateRequirement_classLoader: Final = _EnumLoader(
     ("InplaceUpdateRequirement",), "InplaceUpdateRequirement_class"
 )
 uri_InplaceUpdateRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    InplaceUpdateRequirement_classLoader, False, True, None, None
+    InplaceUpdateRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 ToolTimeLimit_classLoader: Final = _EnumLoader(
     ("ToolTimeLimit",), "ToolTimeLimit_class"
 )
 uri_ToolTimeLimit_classLoader_False_True_None_None: Final = _URILoader(
-    ToolTimeLimit_classLoader, False, True, None, None
+    ToolTimeLimit_classLoader, False, True, None, None, _vocab, _rvocab
 )
 union_of_inttype_or_ExpressionLoader: Final = _UnionLoader(
     (
@@ -23184,7 +23635,7 @@ ExpressionTool_classLoader: Final = _EnumLoader(
     ("ExpressionTool",), "ExpressionTool_class"
 )
 uri_ExpressionTool_classLoader_False_True_None_None: Final = _URILoader(
-    ExpressionTool_classLoader, False, True, None, None
+    ExpressionTool_classLoader, False, True, None, None, _vocab, _rvocab
 )
 array_of_WorkflowInputParameterLoader: Final = _ArrayLoader(
     WorkflowInputParameterLoader
@@ -23199,7 +23650,15 @@ idmap_outputs_array_of_ExpressionToolOutputParameterLoader: Final = _IdMapLoader
     array_of_ExpressionToolOutputParameterLoader, "id", "type"
 )
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1_None: Final = (
-    _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 1, None)
+    _URILoader(
+        union_of_None_type_or_strtype_or_array_of_strtype,
+        False,
+        False,
+        1,
+        None,
+        _vocab,
+        _rvocab,
+    )
 )
 union_of_None_type_or_LinkMergeMethodLoader: Final = _UnionLoader(
     (
@@ -23208,7 +23667,15 @@ union_of_None_type_or_LinkMergeMethodLoader: Final = _UnionLoader(
     )
 )
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None: Final = (
-    _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2, None)
+    _URILoader(
+        union_of_None_type_or_strtype_or_array_of_strtype,
+        False,
+        False,
+        2,
+        None,
+        _vocab,
+        _rvocab,
+    )
 )
 array_of_WorkflowStepInputLoader: Final = _ArrayLoader(WorkflowStepInputLoader)
 idmap_in__array_of_WorkflowStepInputLoader: Final = _IdMapLoader(
@@ -23234,6 +23701,8 @@ uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_No
     False,
     None,
     None,
+    _vocab,
+    _rvocab,
 )
 array_of_Any_type: Final = _ArrayLoader(Any_type)
 union_of_None_type_or_array_of_Any_type: Final = _UnionLoader(
@@ -23263,9 +23732,19 @@ uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_Workflo
     False,
     None,
     None,
+    _vocab,
+    _rvocab,
 )
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0_None: Final = (
-    _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0, None)
+    _URILoader(
+        union_of_None_type_or_strtype_or_array_of_strtype,
+        False,
+        False,
+        0,
+        None,
+        _vocab,
+        _rvocab,
+    )
 )
 union_of_None_type_or_ScatterMethodLoader: Final = _UnionLoader(
     (
@@ -23274,11 +23753,11 @@ union_of_None_type_or_ScatterMethodLoader: Final = _UnionLoader(
     )
 )
 uri_union_of_None_type_or_ScatterMethodLoader_False_True_None_None: Final = _URILoader(
-    union_of_None_type_or_ScatterMethodLoader, False, True, None, None
+    union_of_None_type_or_ScatterMethodLoader, False, True, None, None, _vocab, _rvocab
 )
 Workflow_classLoader: Final = _EnumLoader(("Workflow",), "Workflow_class")
 uri_Workflow_classLoader_False_True_None_None: Final = _URILoader(
-    Workflow_classLoader, False, True, None, None
+    Workflow_classLoader, False, True, None, None, _vocab, _rvocab
 )
 array_of_WorkflowOutputParameterLoader: Final = _ArrayLoader(
     WorkflowOutputParameterLoader
@@ -23297,25 +23776,33 @@ SubworkflowFeatureRequirement_classLoader: Final = _EnumLoader(
     ("SubworkflowFeatureRequirement",), "SubworkflowFeatureRequirement_class"
 )
 uri_SubworkflowFeatureRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    SubworkflowFeatureRequirement_classLoader, False, True, None, None
+    SubworkflowFeatureRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 ScatterFeatureRequirement_classLoader: Final = _EnumLoader(
     ("ScatterFeatureRequirement",), "ScatterFeatureRequirement_class"
 )
 uri_ScatterFeatureRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    ScatterFeatureRequirement_classLoader, False, True, None, None
+    ScatterFeatureRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 MultipleInputFeatureRequirement_classLoader: Final = _EnumLoader(
     ("MultipleInputFeatureRequirement",), "MultipleInputFeatureRequirement_class"
 )
 uri_MultipleInputFeatureRequirement_classLoader_False_True_None_None: Final = (
-    _URILoader(MultipleInputFeatureRequirement_classLoader, False, True, None, None)
+    _URILoader(
+        MultipleInputFeatureRequirement_classLoader,
+        False,
+        True,
+        None,
+        None,
+        _vocab,
+        _rvocab,
+    )
 )
 StepInputExpressionRequirement_classLoader: Final = _EnumLoader(
     ("StepInputExpressionRequirement",), "StepInputExpressionRequirement_class"
 )
 uri_StepInputExpressionRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    StepInputExpressionRequirement_classLoader, False, True, None, None
+    StepInputExpressionRequirement_classLoader, False, True, None, None, _vocab, _rvocab
 )
 union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader: Final = (
     _UnionLoader(
