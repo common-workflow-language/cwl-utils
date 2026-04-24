@@ -4,11 +4,11 @@ import copy
 import logging
 from collections.abc import MutableSequence
 from pathlib import Path
-from types import ModuleType
-from typing import Any, Optional, cast
+from typing import Any, cast
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
+from schema_salad.runtime import file_uri, shortname, save
 from schema_salad.sourceline import SourceLine, strip_dup_lineno
 from schema_salad.utils import json_dumps, yaml_no_ts
 
@@ -64,17 +64,7 @@ def load_inputfile_by_uri(
     baseuri: str = real_path
 
     if loadingOptions is None:
-        match version:
-            case "v1.0":
-                loadingOptions = cwl_v1_0.LoadingOptions(fileuri=baseuri)
-            case "v1.1":
-                loadingOptions = cwl_v1_1.LoadingOptions(fileuri=baseuri)
-            case "v1.2":
-                loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
-            case _:
-                raise ValidationException(
-                    f"Version error. Did not recognise {version} as a CWL version"
-                )
+        loadingOptions = LoadingOptions(fileuri=baseuri)
 
     doc = loadingOptions.fetcher.fetch_text(real_path)
     return load_inputfile_by_string(version, doc, baseuri, loadingOptions)
@@ -88,7 +78,7 @@ def load_inputfile(
 ) -> Any:
     """Load a CWL input file from a serialized YAML string or a YAML object."""
     if baseuri is None:
-        baseuri = cwl_v1_0.file_uri(str(Path.cwd())) + "/"
+        baseuri = file_uri(str(Path.cwd())) + "/"
     if isinstance(doc, str):
         return load_inputfile_by_string(version, doc, baseuri, loadingOptions)
     return load_inputfile_by_yaml(version, doc, baseuri, loadingOptions)
@@ -114,17 +104,11 @@ def load_inputfile_by_yaml(
     """Load a CWL input file from a YAML object."""
     match version:
         case "v1.0":
-            return cwl_v1_0_utils.load_inputfile_by_yaml(
-                yaml, uri, cast(Optional[cwl_v1_0.LoadingOptions], loadingOptions)
-            )
+            return cwl_v1_0_utils.load_inputfile_by_yaml(yaml, uri, loadingOptions)
         case "v1.1":
-            return cwl_v1_1_utils.load_inputfile_by_yaml(
-                yaml, uri, cast(Optional[cwl_v1_1.LoadingOptions], loadingOptions)
-            )
+            return cwl_v1_1_utils.load_inputfile_by_yaml(yaml, uri, loadingOptions)
         case "v1.2":
-            return cwl_v1_2_utils.load_inputfile_by_yaml(
-                yaml, uri, cast(Optional[cwl_v1_2.LoadingOptions], loadingOptions)
-            )
+            return cwl_v1_2_utils.load_inputfile_by_yaml(yaml, uri, loadingOptions)
         case None:
             raise ValidationException("could not get the cwlVersion")
         case _:
@@ -204,12 +188,10 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         **{param.id: param.type_ for param in workflow.outputs},
     }
 
-    parser: ModuleType
     step_inputs_val: dict[str, Any]
     workflow_outputs_val: dict[str, Any]
     match workflow.cwlVersion:
         case "v1.0":
-            parser = cwl_v1_0
             step_inputs_val = cwl_v1_0_utils.check_all_types(
                 src_dict, step_inputs, type_dict
             )
@@ -217,7 +199,6 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
                 src_dict, workflow.outputs, type_dict
             )
         case "v1.1":
-            parser = cwl_v1_1
             step_inputs_val = cwl_v1_1_utils.check_all_types(
                 src_dict, step_inputs, type_dict
             )
@@ -225,7 +206,6 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
                 src_dict, workflow.outputs, type_dict
             )
         case "v1.2":
-            parser = cwl_v1_2
             step_inputs_val = cwl_v1_2_utils.check_all_types(
                 src_dict, step_inputs, param_to_step, type_dict
             )
@@ -248,16 +228,16 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
             SourceLine(src, "type").makeError(
                 "Source '%s' of type %s may be incompatible"
                 % (
-                    parser.shortname(src.id),
-                    json_dumps(parser.save(type_dict[src.id])),
+                    shortname(src.id),
+                    json_dumps(save(type_dict[src.id])),
                 )
             )
             + "\n"
             + SourceLine(sink, "type").makeError(
                 "  with sink '%s' of type %s"
                 % (
-                    parser.shortname(sink.id),
-                    json_dumps(parser.save(type_dict[sink.id])),
+                    shortname(sink.id),
+                    json_dumps(save(type_dict[sink.id])),
                 )
             )
         )
@@ -281,14 +261,14 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         msg = (
             SourceLine(src, "type").makeError(
                 "Source '%s' of type %s is incompatible"
-                % (parser.shortname(src.id), json_dumps(parser.save(type_dict[src.id])))
+                % (shortname(src.id), json_dumps(save(type_dict[src.id])))
             )
             + "\n"
             + SourceLine(sink, "type").makeError(
                 "  with sink '%s' of type %s"
                 % (
-                    parser.shortname(sink.id),
-                    json_dumps(parser.save(type_dict[sink.id])),
+                    shortname(sink.id),
+                    json_dumps(save(type_dict[sink.id])),
                 )
             )
         )
@@ -314,7 +294,7 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         ):
             msg = SourceLine(sink).makeError(
                 "Required parameter '%s' does not have source, default, or valueFrom expression"
-                % parser.shortname(sink.id)
+                % shortname(sink.id)
             )
             exception_msgs.append(msg)
 

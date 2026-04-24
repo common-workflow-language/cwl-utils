@@ -12,6 +12,7 @@ from typing import Any, cast
 
 from ruamel import yaml
 from schema_salad.metaschema import ArraySchema
+from schema_salad.runtime import LoadingOptions, save
 from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
 
@@ -41,7 +42,7 @@ def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool
             stdout_path = process.stdout
             if not stdout_path:
                 stdout_path = hashlib.sha1(  # nosec
-                    json_dumps(cwl.save(process)).encode("utf-8")
+                    json_dumps(save(process)).encode("utf-8")
                 ).hexdigest()
                 result.stdout = stdout_path
             result.outputs[index].type_ = "File"
@@ -1324,7 +1325,7 @@ return result; }"""
 
 
 def add_input_to_process(
-    process: cwl.Process, name: str, inptype: Any, loadingOptions: cwl.LoadingOptions
+    process: cwl.Process, name: str, inptype: Any, loadingOptions: LoadingOptions
 ) -> None:
     """Add a new InputParameter to the given CommandLineTool."""
     if isinstance(process, cwl.CommandLineTool):

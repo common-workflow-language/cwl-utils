@@ -13,6 +13,7 @@ from typing import Any, Protocol
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.scalarstring import walk_tree
+from schema_salad.runtime import save
 
 from cwl_utils import (
     cwl_v1_0_expression_refactor,
@@ -111,15 +112,12 @@ def refactor(args: argparse.Namespace) -> int:
                 traverse: Callable[[Any, bool, bool, bool, bool], tuple[Any, bool]] = (
                     cwl_v1_0_expression_refactor.traverse
                 )
-                save: saveCWL = cwl_v1_0.save
             case "v1.1":
                 top = cwl_v1_1.load_document_by_yaml(result, uri)
                 traverse = cwl_v1_1_expression_refactor.traverse
-                save = cwl_v1_1.save
             case "v1.2":
                 top = cwl_v1_2.load_document_by_yaml(result, uri)
                 traverse = cwl_v1_2_expression_refactor.traverse
-                save = cwl_v1_2.save
             case _:
                 _logger.error(
                     "Sorry, %s is not a supported CWL version by this tool.",
