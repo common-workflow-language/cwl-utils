@@ -4,54 +4,834 @@
 # subject to the license of the original schema.
 from __future__ import annotations
 
-import copy
 import os
 import sys
 import uuid as _uuid__
-from collections.abc import Collection, MutableMapping, MutableSequence
-from typing import Any, ClassVar, Final, cast
-
+from collections.abc import Collection
 from mypy_extensions import trait
-from ruamel.yaml.comments import CommentedMap
+from typing import ClassVar
 
-from schema_salad.exceptions import ValidationException
 from schema_salad.runtime import (
-    LoadingOptions,
-    Saveable,
-    _AnyLoader,
-    _ArrayLoader,
-    _EnumLoader,
-    _ExpressionLoader,
-    _IdMapLoader,
-    _MapLoader,
-    _PrimitiveLoader,
-    _RecordLoader,
-    _SecondaryDSLLoader,
-    _TypeDSLLoader,
-    _UnionLoader,
-    _URILoader,
-    convert_typing,
-    expand_url,
-    extract_type,
     file_uri,
-    load_field,
     parse_errors,
     prefix_url,
     save,
     save_relative_uri,
-    _document_load,
 )
-from schema_salad.sourceline import SourceLine, add_lc_filename
-from schema_salad.utils import yaml_no_ts
 
-import schema_salad.metaschema
 if sys.version_info >= (3, 11):
     from typing import Self
 else:
     from typing_extensions import Self
+import schema_salad.metaschema
+
+import copy
+
+from collections.abc import MutableSequence, Sequence, MutableMapping
+from io import StringIO
+from itertools import chain
+from typing import Any, Final, cast, Generic, TypeVar
+from urllib.parse import urldefrag, urlsplit, urlunsplit
+
+from ruamel.yaml.comments import CommentedMap
+
+from schema_salad.exceptions import ValidationException, SchemaSaladException
+from schema_salad.runtime import LoadingOptions, convert_typing, extract_type, Saveable
+from schema_salad.sourceline import SourceLine, add_lc_filename
+from schema_salad.utils import yaml_no_ts
+
+S = TypeVar("S", bound=Saveable)
+
 
 _vocab: Final[dict[str, str]] = {}
 _rvocab: Final[dict[str, str]] = {}
+
+
+class _Loader:
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> Any | None:
+        pass
+
+
+class _AnyLoader(_Loader):
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> Any:
+        if doc is not None:
+            return doc
+        raise ValidationException("Expected non-null")
+
+
+class _PrimitiveLoader(_Loader):
+    def __init__(self, tp: type | tuple[type[str], type[str]]) -> None:
+        self.tp: Final = tp
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> Any:
+        if not isinstance(doc, self.tp):
+            raise ValidationException(f"Expected a {self.tp} but got {doc.__class__.__name__}")
+        return doc
+
+    def __repr__(self) -> str:
+        return str(self.tp)
+
+
+class _ArrayLoader(_Loader):
+    def __init__(self, items: _Loader) -> None:
+        self.items: Final = items
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> list[Any]:
+        if not isinstance(doc, MutableSequence):
+            raise ValidationException(
+                f"Value is a {convert_typing(extract_type(type(doc)))}, "
+                f"but valid type for this field is an array."
+            )
+        r: Final[list[Any]] = []
+        errors: Final[list[SchemaSaladException]] = []
+        fields: Final[list[str]] = []
+        for i in range(0, len(doc)):
+            try:
+                lf = _load_field(
+                    doc[i], _UnionLoader([self, self.items]), baseuri, loadingOptions, lc=lc
+                )
+                flatten = loadingOptions.container != "@list"
+                if flatten and isinstance(lf, MutableSequence):
+                    r.extend(lf)
+                else:
+                    r.append(lf)
+
+                if isinstance(doc[i], CommentedMap):
+                    if doc[i].get("id") is not None:
+                        if doc[i].get("id") in fields:
+                            errors.append(
+                                ValidationException(
+                                    f"Duplicate field {doc[i].get('id')!r}",
+                                    SourceLine(doc[i], "id", str),
+                                    [],
+                                )
+                            )
+                        else:
+                            fields.append(doc[i].get("id"))
+
+            except ValidationException as e:
+                e = ValidationException(
+                    "array item is invalid because", SourceLine(doc, i, str), [e]
+                )
+                errors.append(e)
+        if errors:
+            raise ValidationException("", None, errors)
+        return r
+
+    def __repr__(self) -> str:
+        return f"array<{self.items}>"
+
+
+class _MapLoader(_Loader):
+    def __init__(
+        self,
+        values: _Loader,
+        name: str | None = None,
+        container: str | None = None,
+        no_link_check: bool | None = None,
+    ) -> None:
+        self.values: Final = values
+        self.name: Final = name
+        self.container: Final = container
+        self.no_link_check: Final = no_link_check
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(doc, MutableMapping):
+            raise ValidationException(f"Expected a map, was {type(doc)}")
+        if self.container is not None or self.no_link_check is not None:
+            loadingOptions = LoadingOptions(
+                copyfrom=loadingOptions, container=self.container, no_link_check=self.no_link_check
+            )
+        r: Final[dict[str, Any]] = {}
+        errors: Final[list[SchemaSaladException]] = []
+        for k, v in doc.items():
+            try:
+                lf = _load_field(v, self.values, baseuri, loadingOptions, lc)
+                r[k] = lf
+            except ValidationException as e:
+                errors.append(e.with_sourceline(SourceLine(doc, k, str)))
+        if errors:
+            raise ValidationException("", None, errors)
+        return r
+
+    def __repr__(self) -> str:
+        return self.name if self.name is not None else f"map<string, {self.values}>"
+
+
+class _EnumLoader(_Loader):
+    def __init__(self, symbols: Sequence[str], name: str) -> None:
+        self.symbols: Final = symbols
+        self.name: Final = name
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> str:
+        if doc in self.symbols:
+            return cast(str, doc)
+        raise ValidationException(f"Expected one of {self.symbols}")
+
+    def __repr__(self) -> str:
+        return self.name
+
+
+class _SecondaryDSLLoader(_Loader):
+    def __init__(self, inner: _Loader) -> None:
+        self.inner: Final = inner
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> Any:
+        r: Final[list[dict[str, Any]]] = []
+        match doc:
+            case MutableSequence() as dlist:
+                for d in dlist:
+                    if isinstance(d, str):
+                        if d.endswith("?"):
+                            r.append({"pattern": d[:-1], "required": False})
+                        else:
+                            r.append({"pattern": d})
+                    elif isinstance(d, dict):
+                        new_dict1: dict[str, Any] = {}
+                        dict_copy = copy.deepcopy(d)
+                        if "pattern" in dict_copy:
+                            new_dict1["pattern"] = dict_copy.pop("pattern")
+                        else:
+                            raise ValidationException(
+                                f"Missing pattern in secondaryFiles specification entry: {d}"
+                            )
+                        new_dict1["required"] = (
+                            dict_copy.pop("required") if "required" in dict_copy else None
+                        )
+
+                        if len(dict_copy):
+                            raise ValidationException(
+                                "Unallowed values in secondaryFiles specification entry: {}".format(
+                                    dict_copy
+                                )
+                            )
+                        r.append(new_dict1)
+
+                    else:
+                        raise ValidationException(
+                            "Expected a string or sequence of (strings or mappings)."
+                        )
+            case MutableMapping() as decl:
+                new_dict2 = {}
+                doc_copy = copy.deepcopy(decl)
+                if "pattern" in doc_copy:
+                    new_dict2["pattern"] = doc_copy.pop("pattern")
+                else:
+                    raise ValidationException(
+                        f"Missing pattern in secondaryFiles specification entry: {decl}"
+                    )
+                new_dict2["required"] = doc_copy.pop("required") if "required" in doc_copy else None
+
+                if len(doc_copy):
+                    raise ValidationException(
+                        f"Unallowed values in secondaryFiles specification entry: {doc_copy}"
+                    )
+                r.append(new_dict2)
+
+            case str(decl):
+                if decl.endswith("?"):
+                    r.append({"pattern": decl[:-1], "required": False})
+                else:
+                    r.append({"pattern": decl})
+            case _:
+                raise ValidationException("Expected str or sequence of str")
+        return self.inner.load(r, baseuri, loadingOptions, docRoot, lc=lc)
+
+
+class _RecordLoader(_Loader, Generic[S]):
+    def __init__(
+        self,
+        classtype: type[S],
+        container: str | None = None,
+        no_link_check: bool | None = None,
+    ) -> None:
+        self.classtype: Final = classtype
+        self.container: Final = container
+        self.no_link_check: Final = no_link_check
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> S:
+        if not isinstance(doc, MutableMapping):
+            raise ValidationException(
+                f"Value is a {convert_typing(extract_type(type(doc)))}, "
+                f"but valid type for this field is an object."
+            )
+        if self.container is not None or self.no_link_check is not None:
+            loadingOptions = LoadingOptions(
+                copyfrom=loadingOptions, container=self.container, no_link_check=self.no_link_check
+            )
+        return self.classtype.fromDoc(doc, baseuri, loadingOptions, docRoot=docRoot)
+
+    def __repr__(self) -> str:
+        return str(self.classtype.__name__)
+
+
+class _ExpressionLoader(_Loader):
+    def __init__(self, items: type[str]) -> None:
+        self.items: Final = items
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> str:
+        if not isinstance(doc, str):
+            raise ValidationException(
+                f"Value is a {convert_typing(extract_type(type(doc)))}, "
+                f"but valid type for this field is a str."
+            )
+        else:
+            return doc
+
+
+class _UnionLoader(_Loader):
+    def __init__(self, alternates: Sequence[_Loader], name: str | None = None) -> None:
+        self.alternates = alternates
+        self.name: Final = name
+
+    def add_loaders(self, loaders: Sequence[_Loader]) -> None:
+        self.alternates = tuple(loader for loader in chain(self.alternates, loaders))
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> Any:
+        errors: Final = []
+
+        if lc is None:
+            lc = []
+
+        for t in self.alternates:
+            try:
+                return t.load(doc, baseuri, loadingOptions, docRoot=docRoot, lc=lc)
+            except ValidationException as e:
+                if isinstance(t, _ArrayLoader) and len(self.alternates) > 1:
+                    continue
+                if isinstance(doc, (CommentedMap, dict)):
+                    if "class" in doc:
+                        if str(doc.get("class")) == str(t):
+                            errors.append(
+                                ValidationException(
+                                    f"Object `{baseuri.split('/')[-1]}` is not valid because:",
+                                    SourceLine(doc, next(iter(doc)), str),
+                                    [e],
+                                )
+                            )
+                    else:
+                        if "array" in str(t):
+                            continue
+                        else:
+                            if "id" in doc:
+                                id = baseuri.split("/")[-1] + "#" + str(doc.get("id"))
+                                if "id" in lc:
+                                    errors.append(
+                                        ValidationException(
+                                            f"checking object `{id}` using `{t}`",
+                                            SourceLine(lc, "id", str),
+                                            [e],
+                                        )
+                                    )
+                                else:
+                                    errors.append(
+                                        ValidationException(
+                                            f"checking object `{id}` using `{t}`",
+                                            SourceLine(lc, doc.get("id"), str),
+                                            [e],
+                                        )
+                                    )
+                            else:
+                                if not isinstance(
+                                    t, (_PrimitiveLoader)
+                                ):  # avoids 'tried <class "NoneType"> was {x}' errors
+                                    errors.append(
+                                        ValidationException(f"tried `{t}` but", None, [e])
+                                    )
+                else:
+                    # avoids "tried <class "CWLType"> but x" and instead returns the values for parsing
+                    errors.append(ValidationException("", None, [e]))
+
+        if isinstance(doc, (CommentedMap, dict)) and "class" in doc:
+            if str(doc.get("class")) not in str(self.alternates):
+                errors.append(
+                    ValidationException(
+                        "Field `class` contains undefined reference to "
+                        + "`"
+                        + "/".join(baseuri.split("/")[0:-1])
+                        + "/"
+                        + str(doc.get("class"))
+                        + "`",
+                        SourceLine(doc, "class", str),
+                        [],
+                    )
+                )
+        raise ValidationException("", None, errors, "*")
+
+    def __repr__(self) -> str:
+        return self.name if self.name is not None else " | ".join(str(a) for a in self.alternates)
+
+
+class _URILoader(_Loader):
+    def __init__(
+        self,
+        inner: _Loader,
+        scoped_id: bool,
+        vocab_term: bool,
+        scoped_ref: int | None,
+        no_link_check: bool | None,
+    ) -> None:
+        self.inner: Final = inner
+        self.scoped_id: Final = scoped_id
+        self.vocab_term: Final = vocab_term
+        self.scoped_ref: Final = scoped_ref
+        self.no_link_check: Final = no_link_check
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> Any:
+        if self.no_link_check is not None:
+            loadingOptions = LoadingOptions(
+                copyfrom=loadingOptions, no_link_check=self.no_link_check
+            )
+        match doc:
+            case MutableSequence() as decl:
+                newdoc: Final = []
+                for i in decl:
+                    if isinstance(i, str):
+                        newdoc.append(
+                            _expand_url(
+                                i,
+                                baseuri,
+                                loadingOptions,
+                                self.scoped_id,
+                                self.vocab_term,
+                                self.scoped_ref,
+                            )
+                        )
+                    else:
+                        newdoc.append(i)
+                doc = newdoc
+            case str(decl):
+                doc = _expand_url(
+                    decl,
+                    baseuri,
+                    loadingOptions,
+                    self.scoped_id,
+                    self.vocab_term,
+                    self.scoped_ref,
+                )
+        if isinstance(doc, str):
+            if not loadingOptions.no_link_check:
+                errors: Final = []
+                try:
+                    if not loadingOptions.fetcher.check_exists(doc):
+                        errors.append(
+                            ValidationException(f"contains undefined reference to `{doc}`")
+                        )
+                except ValidationException:
+                    pass
+                if len(errors) > 0:
+                    raise ValidationException("", None, errors)
+        return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
+
+
+class _TypeDSLLoader(_Loader):
+    def __init__(
+        self,
+        inner: _Loader,
+        refScope: int | None,
+        salad_version: str,
+    ) -> None:
+        self.inner: Final = inner
+        self.refScope: Final = refScope
+        self.salad_version: Final = salad_version
+
+    def resolve(
+        self,
+        doc: str,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+    ) -> list[dict[str, Any] | str] | dict[str, Any] | str:
+        doc_ = doc
+        optional = False
+        if doc_.endswith("?"):
+            optional = True
+            doc_ = doc_[0:-1]
+
+        if doc_.endswith("[]"):
+            salad_versions: Final = [int(v) for v in self.salad_version[1:].split(".")]
+            items: list[dict[str, Any] | str] | dict[str, Any] | str = ""
+            rest: Final = doc_[0:-2]
+            if salad_versions < [1, 3]:
+                if rest.endswith("[]"):
+                    # To show the error message with the original type
+                    return doc
+                else:
+                    items = _expand_url(
+                        rest,
+                        baseuri,
+                        loadingOptions,
+                        False,
+                        True,
+                        self.refScope,
+                    )
+            else:
+                items = self.resolve(rest, baseuri, loadingOptions)
+                if isinstance(items, str):
+                    items = _expand_url(
+                        items,
+                        baseuri,
+                        loadingOptions,
+                        False,
+                        True,
+                        self.refScope,
+                    )
+            expanded: dict[str, Any] | str = {"type": "array", "items": items}
+        else:
+            expanded = _expand_url(
+                doc_,
+                baseuri,
+                loadingOptions,
+                False,
+                True,
+                self.refScope,
+            )
+
+        if optional:
+            return ["null", expanded]
+        else:
+            return expanded
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> Any:
+        if isinstance(doc, MutableSequence):
+            r: Final[list[Any]] = []
+            for d in doc:
+                if isinstance(d, str):
+                    resolved = self.resolve(d, baseuri, loadingOptions)
+                    if isinstance(resolved, MutableSequence):
+                        for i in resolved:
+                            if i not in r:
+                                r.append(i)
+                    else:
+                        if resolved not in r:
+                            r.append(resolved)
+                else:
+                    r.append(d)
+            doc = r
+        elif isinstance(doc, str):
+            doc = self.resolve(doc, baseuri, loadingOptions)
+
+        return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
+
+
+class _IdMapLoader(_Loader):
+    def __init__(self, inner: _Loader, mapSubject: str, mapPredicate: str | None) -> None:
+        self.inner: Final = inner
+        self.mapSubject: Final = mapSubject
+        self.mapPredicate: Final = mapPredicate
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> Any:
+        if isinstance(doc, MutableMapping):
+            r: Final[list[Any]] = []
+            for k in doc.keys():
+                val = doc[k]
+                if isinstance(val, CommentedMap):
+                    v = copy.copy(val)
+                    v.lc.data = val.lc.data
+                    v.lc.filename = val.lc.filename
+                    v[self.mapSubject] = k
+                    r.append(v)
+                elif isinstance(val, MutableMapping):
+                    v2 = copy.copy(val)
+                    v2[self.mapSubject] = k
+                    r.append(v2)
+                else:
+                    if self.mapPredicate:
+                        v3 = {self.mapPredicate: val}
+                        v3[self.mapSubject] = k
+                        r.append(v3)
+                    else:
+                        raise ValidationException("No mapPredicate")
+            doc = r
+        return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
+
+
+def _document_load(
+    loader: _Loader,
+    doc: str | MutableMapping[str, Any] | MutableSequence[Any],
+    baseuri: str,
+    loadingOptions: LoadingOptions,
+    addl_metadata_fields: MutableSequence[str] | None = None,
+) -> tuple[Any, LoadingOptions]:
+    if isinstance(doc, str):
+        return _document_load_by_url(
+            loader,
+            loadingOptions.fetcher.urljoin(baseuri, doc),
+            loadingOptions,
+            addl_metadata_fields=addl_metadata_fields,
+        )
+
+    if isinstance(doc, MutableMapping):
+        addl_metadata: Final = {}
+        if addl_metadata_fields is not None:
+            for mf in addl_metadata_fields:
+                if mf in doc:
+                    addl_metadata[mf] = doc[mf]
+
+        docuri: Final = baseuri
+        if "$base" in doc:
+            baseuri = doc["$base"]
+
+        loadingOptions = LoadingOptions(
+            copyfrom=loadingOptions,
+            namespaces=doc.get("$namespaces", None),
+            schemas=doc.get("$schemas", None),
+            baseuri=doc.get("$base", None),
+            addl_metadata=addl_metadata,
+        )
+
+        doc2: Final = copy.copy(doc)
+        if "$namespaces" in doc2:
+            doc2.pop("$namespaces")
+        if "$schemas" in doc2:
+            doc2.pop("$schemas")
+        if "$base" in doc2:
+            doc2.pop("$base")
+
+        if "$graph" in doc2:
+            loadingOptions.idx[baseuri] = (
+                loader.load(doc2["$graph"], baseuri, loadingOptions),
+                loadingOptions,
+            )
+        else:
+            loadingOptions.idx[baseuri] = (
+                loader.load(doc2, baseuri, loadingOptions, docRoot=baseuri),
+                loadingOptions,
+            )
+
+        if docuri != baseuri:
+            loadingOptions.idx[docuri] = loadingOptions.idx[baseuri]
+
+        return loadingOptions.idx[baseuri]
+
+    if isinstance(doc, MutableSequence):
+        loadingOptions.idx[baseuri] = (
+            loader.load(doc, baseuri, loadingOptions),
+            loadingOptions,
+        )
+        return loadingOptions.idx[baseuri]
+
+    raise ValidationException(
+        "Expected URI string, MutableMapping or MutableSequence, got %s" % type(doc)
+    )
+
+
+def _document_load_by_url(
+    loader: _Loader,
+    url: str,
+    loadingOptions: LoadingOptions,
+    addl_metadata_fields: MutableSequence[str] | None = None,
+) -> tuple[Any, LoadingOptions]:
+    if url in loadingOptions.idx:
+        return loadingOptions.idx[url]
+
+    doc_url, frg = urldefrag(url)
+
+    text: Final = loadingOptions.fetcher.fetch_text(doc_url)
+    textIO: Final = StringIO(text)
+    textIO.name = str(doc_url)
+    yaml: Final = yaml_no_ts()
+    result: Final = yaml.load(textIO)
+    add_lc_filename(result, doc_url)
+
+    loadingOptions = LoadingOptions(copyfrom=loadingOptions, fileuri=doc_url)
+
+    _document_load(
+        loader,
+        result,
+        doc_url,
+        loadingOptions,
+        addl_metadata_fields=addl_metadata_fields,
+    )
+
+    return loadingOptions.idx[url]
+
+
+def _expand_url(
+    url: str,
+    base_url: str,
+    loadingOptions: LoadingOptions,
+    scoped_id: bool = False,
+    vocab_term: bool = False,
+    scoped_ref: int | None = None,
+) -> str:
+    if url in ("@id", "@type"):
+        return url
+
+    vocab = _vocab | loadingOptions.vocab
+    if vocab_term and url in vocab:
+        return url
+
+    if bool(vocab) and ":" in url:
+        prefix: Final = url.split(":")[0]
+        if prefix in vocab:
+            url = vocab[prefix] + url[len(prefix) + 1 :]
+
+    split1: Final = urlsplit(url)
+
+    if (
+        (bool(split1.scheme) and split1.scheme in loadingOptions.fetcher.supported_schemes())
+        or url.startswith("$(")
+        or url.startswith("${")
+    ):
+        pass
+    elif scoped_id and not bool(split1.fragment):
+        splitbase1: Final = urlsplit(base_url)
+        frg: str
+        if bool(splitbase1.fragment):
+            frg = splitbase1.fragment + "/" + split1.path
+        else:
+            frg = split1.path
+        pt: Final = splitbase1.path if splitbase1.path != "" else "/"
+        url = urlunsplit((splitbase1.scheme, splitbase1.netloc, pt, splitbase1.query, frg))
+    elif scoped_ref is not None and not bool(split1.fragment):
+        splitbase2: Final = urlsplit(base_url)
+        sp = splitbase2.fragment.split("/")
+        n = scoped_ref
+        while n > 0 and len(sp) > 0:
+            sp.pop()
+            n -= 1
+        sp.append(url)
+        url = urlunsplit(
+            (
+                splitbase2.scheme,
+                splitbase2.netloc,
+                splitbase2.path,
+                splitbase2.query,
+                "/".join(sp),
+            )
+        )
+    else:
+        url = loadingOptions.fetcher.urljoin(base_url, url)
+
+    if vocab_term:
+        split2: Final = urlsplit(url)
+        if bool(split2.scheme):
+            if url in (rvocab := _rvocab | loadingOptions.rvocab):
+                return rvocab[url]
+        else:
+            raise ValidationException(f"Term {url!r} not in vocabulary")
+
+    return url
+
+
+def _load_field(
+    val: Any | None,
+    fieldtype: "_Loader",
+    baseuri: str,
+    loadingOptions: LoadingOptions,
+    lc: Any | None = None,
+) -> Any:
+    """Load field."""
+    if isinstance(val, MutableMapping):
+        if "$import" in val:
+            if loadingOptions.fileuri is None:
+                raise SchemaSaladException("Cannot load $import without fileuri")
+            url1: Final = loadingOptions.fetcher.urljoin(loadingOptions.fileuri, val["$import"])
+            result, metadata = _document_load_by_url(
+                fieldtype,
+                url1,
+                loadingOptions,
+            )
+            loadingOptions.imports.append(url1)
+            return result
+        if "$include" in val:
+            if loadingOptions.fileuri is None:
+                raise SchemaSaladException("Cannot load $import without fileuri")
+            url2: Final = loadingOptions.fetcher.urljoin(loadingOptions.fileuri, val["$include"])
+            val = loadingOptions.fetcher.fetch_text(url2)
+            loadingOptions.includes.append(url2)
+    return fieldtype.load(val, baseuri, loadingOptions, lc=lc)
 
 
 def parser_info() -> str:
@@ -103,7 +883,7 @@ class CWLArraySchema(schema_salad.metaschema.ArraySchema):
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
 
-            items = load_field(
+            items = _load_field(
                 _doc.get("items"),
                 uri_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_False_True_2_None,
                 baseuri,
@@ -151,7 +931,7 @@ class CWLArraySchema(schema_salad.metaschema.ArraySchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Array_nameLoader_2,
                 baseuri,
@@ -203,14 +983,8 @@ class CWLArraySchema(schema_salad.metaschema.ArraySchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -315,7 +1089,7 @@ class CWLRecordField(schema_salad.metaschema.RecordField):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -371,7 +1145,7 @@ class CWLRecordField(schema_salad.metaschema.RecordField):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -419,7 +1193,7 @@ class CWLRecordField(schema_salad.metaschema.RecordField):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -471,14 +1245,8 @@ class CWLRecordField(schema_salad.metaschema.RecordField):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -581,7 +1349,7 @@ class CWLRecordSchema(schema_salad.metaschema.RecordSchema):
         fields = None
         if "fields" in _doc:
             try:
-                fields = load_field(
+                fields = _load_field(
                     _doc.get("fields"),
                     idmap_fields_union_of_None_type_or_array_of_CWLRecordFieldLoader,
                     baseuri,
@@ -629,7 +1397,7 @@ class CWLRecordSchema(schema_salad.metaschema.RecordSchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Record_nameLoader_2,
                 baseuri,
@@ -681,14 +1449,8 @@ class CWLRecordSchema(schema_salad.metaschema.RecordSchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -861,7 +1623,7 @@ class File(Saveable):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_File_classLoader_False_True_None_None,
                 baseuri,
@@ -877,7 +1639,7 @@ class File(Saveable):
         location = None
         if "location" in _doc:
             try:
-                location = load_field(
+                location = _load_field(
                     _doc.get("location"),
                     uri_union_of_None_type_or_strtype_False_False_None_None,
                     baseuri,
@@ -924,7 +1686,7 @@ class File(Saveable):
         path = None
         if "path" in _doc:
             try:
-                path = load_field(
+                path = _load_field(
                     _doc.get("path"),
                     uri_union_of_None_type_or_strtype_False_False_None_None,
                     baseuri,
@@ -971,7 +1733,7 @@ class File(Saveable):
         basename = None
         if "basename" in _doc:
             try:
-                basename = load_field(
+                basename = _load_field(
                     _doc.get("basename"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -1018,7 +1780,7 @@ class File(Saveable):
         dirname = None
         if "dirname" in _doc:
             try:
-                dirname = load_field(
+                dirname = _load_field(
                     _doc.get("dirname"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -1065,7 +1827,7 @@ class File(Saveable):
         nameroot = None
         if "nameroot" in _doc:
             try:
-                nameroot = load_field(
+                nameroot = _load_field(
                     _doc.get("nameroot"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -1112,7 +1874,7 @@ class File(Saveable):
         nameext = None
         if "nameext" in _doc:
             try:
-                nameext = load_field(
+                nameext = _load_field(
                     _doc.get("nameext"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -1159,7 +1921,7 @@ class File(Saveable):
         checksum = None
         if "checksum" in _doc:
             try:
-                checksum = load_field(
+                checksum = _load_field(
                     _doc.get("checksum"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -1206,7 +1968,7 @@ class File(Saveable):
         size = None
         if "size" in _doc:
             try:
-                size = load_field(
+                size = _load_field(
                     _doc.get("size"),
                     union_of_None_type_or_inttype,
                     baseuri,
@@ -1253,7 +2015,7 @@ class File(Saveable):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader,
                     baseuri,
@@ -1300,7 +2062,7 @@ class File(Saveable):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_True_False_None_True,
                     baseuri,
@@ -1347,7 +2109,7 @@ class File(Saveable):
         contents = None
         if "contents" in _doc:
             try:
-                contents = load_field(
+                contents = _load_field(
                     _doc.get("contents"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -1399,14 +2161,8 @@ class File(Saveable):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -1611,7 +2367,7 @@ class Directory(Saveable):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_Directory_classLoader_False_True_None_None,
                 baseuri,
@@ -1627,7 +2383,7 @@ class Directory(Saveable):
         location = None
         if "location" in _doc:
             try:
-                location = load_field(
+                location = _load_field(
                     _doc.get("location"),
                     uri_union_of_None_type_or_strtype_False_False_None_None,
                     baseuri,
@@ -1674,7 +2430,7 @@ class Directory(Saveable):
         path = None
         if "path" in _doc:
             try:
-                path = load_field(
+                path = _load_field(
                     _doc.get("path"),
                     uri_union_of_None_type_or_strtype_False_False_None_None,
                     baseuri,
@@ -1721,7 +2477,7 @@ class Directory(Saveable):
         basename = None
         if "basename" in _doc:
             try:
-                basename = load_field(
+                basename = _load_field(
                     _doc.get("basename"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -1768,7 +2524,7 @@ class Directory(Saveable):
         listing = None
         if "listing" in _doc:
             try:
-                listing = load_field(
+                listing = _load_field(
                     _doc.get("listing"),
                     union_of_None_type_or_array_of_union_of_FileLoader_or_DirectoryLoader,
                     baseuri,
@@ -1820,14 +2576,8 @@ class Directory(Saveable):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -1988,7 +2738,7 @@ class InputBinding(Saveable):
         loadContents = None
         if "loadContents" in _doc:
             try:
-                loadContents = load_field(
+                loadContents = _load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -2040,14 +2790,8 @@ class InputBinding(Saveable):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -2196,7 +2940,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -2252,7 +2996,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -2300,7 +3044,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -2347,7 +3091,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -2394,7 +3138,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -2441,7 +3185,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -2488,7 +3232,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -2535,7 +3279,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         loadContents = None
         if "loadContents" in _doc:
             try:
-                loadContents = load_field(
+                loadContents = _load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -2582,7 +3326,7 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
         loadListing = None
         if "loadListing" in _doc:
             try:
-                loadListing = load_field(
+                loadListing = _load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
@@ -2634,14 +3378,8 @@ class InputRecordField(CWLRecordField, FieldBase, InputFormat, LoadContents):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -2811,7 +3549,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -2867,7 +3605,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
         fields = None
         if "fields" in _doc:
             try:
-                fields = load_field(
+                fields = _load_field(
                     _doc.get("fields"),
                     idmap_fields_union_of_None_type_or_array_of_InputRecordFieldLoader,
                     baseuri,
@@ -2915,7 +3653,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Record_nameLoader_2,
                 baseuri,
@@ -2962,7 +3700,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -3009,7 +3747,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -3061,14 +3799,8 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -3197,7 +3929,7 @@ class InputEnumSchema(schema_salad.metaschema.EnumSchema, InputSchema):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -3254,7 +3986,7 @@ class InputEnumSchema(schema_salad.metaschema.EnumSchema, InputSchema):
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
 
-            symbols = load_field(
+            symbols = _load_field(
                 _doc.get("symbols"),
                 uri_array_of_strtype_True_False_None_None,
                 baseuri,
@@ -3302,7 +4034,7 @@ class InputEnumSchema(schema_salad.metaschema.EnumSchema, InputSchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Enum_nameLoader_2,
                 baseuri,
@@ -3349,7 +4081,7 @@ class InputEnumSchema(schema_salad.metaschema.EnumSchema, InputSchema):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -3396,7 +4128,7 @@ class InputEnumSchema(schema_salad.metaschema.EnumSchema, InputSchema):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -3448,14 +4180,8 @@ class InputEnumSchema(schema_salad.metaschema.EnumSchema, InputSchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -3583,7 +4309,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -3640,7 +4366,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
 
-            items = load_field(
+            items = _load_field(
                 _doc.get("items"),
                 uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_False_True_2_None,
                 baseuri,
@@ -3688,7 +4414,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Array_nameLoader_2,
                 baseuri,
@@ -3735,7 +4461,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -3782,7 +4508,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -3834,14 +4560,8 @@ class InputArraySchema(CWLArraySchema, InputSchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -3985,7 +4705,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -4041,7 +4761,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -4089,7 +4809,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -4136,7 +4856,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -4183,7 +4903,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -4230,7 +4950,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -4277,7 +4997,7 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -4329,14 +5049,8 @@ class OutputRecordField(CWLRecordField, FieldBase, OutputFormat):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -4480,7 +5194,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -4536,7 +5250,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
         fields = None
         if "fields" in _doc:
             try:
-                fields = load_field(
+                fields = _load_field(
                     _doc.get("fields"),
                     idmap_fields_union_of_None_type_or_array_of_OutputRecordFieldLoader,
                     baseuri,
@@ -4584,7 +5298,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Record_nameLoader_2,
                 baseuri,
@@ -4631,7 +5345,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -4678,7 +5392,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -4730,14 +5444,8 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -4866,7 +5574,7 @@ class OutputEnumSchema(schema_salad.metaschema.EnumSchema, OutputSchema):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -4923,7 +5631,7 @@ class OutputEnumSchema(schema_salad.metaschema.EnumSchema, OutputSchema):
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
 
-            symbols = load_field(
+            symbols = _load_field(
                 _doc.get("symbols"),
                 uri_array_of_strtype_True_False_None_None,
                 baseuri,
@@ -4971,7 +5679,7 @@ class OutputEnumSchema(schema_salad.metaschema.EnumSchema, OutputSchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Enum_nameLoader_2,
                 baseuri,
@@ -5018,7 +5726,7 @@ class OutputEnumSchema(schema_salad.metaschema.EnumSchema, OutputSchema):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -5065,7 +5773,7 @@ class OutputEnumSchema(schema_salad.metaschema.EnumSchema, OutputSchema):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -5117,14 +5825,8 @@ class OutputEnumSchema(schema_salad.metaschema.EnumSchema, OutputSchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -5252,7 +5954,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -5309,7 +6011,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
 
-            items = load_field(
+            items = _load_field(
                 _doc.get("items"),
                 uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_False_True_2_None,
                 baseuri,
@@ -5357,7 +6059,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Array_nameLoader_2,
                 baseuri,
@@ -5404,7 +6106,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -5451,7 +6153,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -5503,14 +6205,8 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -5664,7 +6360,7 @@ class InlineJavascriptRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_InlineJavascriptRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -5680,7 +6376,7 @@ class InlineJavascriptRequirement(ProcessRequirement):
         expressionLib = None
         if "expressionLib" in _doc:
             try:
-                expressionLib = load_field(
+                expressionLib = _load_field(
                     _doc.get("expressionLib"),
                     union_of_None_type_or_array_of_strtype,
                     baseuri,
@@ -5732,14 +6428,8 @@ class InlineJavascriptRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -5859,7 +6549,7 @@ class SchemaDefRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_SchemaDefRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -5876,7 +6566,7 @@ class SchemaDefRequirement(ProcessRequirement):
             if _doc.get("types") is None:
                 raise ValidationException("missing required field `types`", None, [])
 
-            types = load_field(
+            types = _load_field(
                 _doc.get("types"),
                 array_of_union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader,
                 baseuri,
@@ -5928,14 +6618,8 @@ class SchemaDefRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -6053,7 +6737,7 @@ class SecondaryFileSchema(Saveable):
             if _doc.get("pattern") is None:
                 raise ValidationException("missing required field `pattern`", None, [])
 
-            pattern = load_field(
+            pattern = _load_field(
                 _doc.get("pattern"),
                 union_of_strtype_or_ExpressionLoader,
                 baseuri,
@@ -6100,7 +6784,7 @@ class SecondaryFileSchema(Saveable):
         required = None
         if "required" in _doc:
             try:
-                required = load_field(
+                required = _load_field(
                     _doc.get("required"),
                     union_of_None_type_or_booltype_or_ExpressionLoader,
                     baseuri,
@@ -6152,14 +6836,8 @@ class SecondaryFileSchema(Saveable):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -6264,7 +6942,7 @@ class LoadListingRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_LoadListingRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -6280,7 +6958,7 @@ class LoadListingRequirement(ProcessRequirement):
         loadListing = None
         if "loadListing" in _doc:
             try:
-                loadListing = load_field(
+                loadListing = _load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
@@ -6332,14 +7010,8 @@ class LoadListingRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -6453,7 +7125,7 @@ class EnvironmentDef(Saveable):
             if _doc.get("envName") is None:
                 raise ValidationException("missing required field `envName`", None, [])
 
-            envName = load_field(
+            envName = _load_field(
                 _doc.get("envName"),
                 strtype,
                 baseuri,
@@ -6501,7 +7173,7 @@ class EnvironmentDef(Saveable):
             if _doc.get("envValue") is None:
                 raise ValidationException("missing required field `envValue`", None, [])
 
-            envValue = load_field(
+            envValue = _load_field(
                 _doc.get("envValue"),
                 union_of_strtype_or_ExpressionLoader,
                 baseuri,
@@ -6553,14 +7225,8 @@ class EnvironmentDef(Saveable):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -6709,7 +7375,7 @@ class CommandLineBinding(InputBinding):
         loadContents = None
         if "loadContents" in _doc:
             try:
-                loadContents = load_field(
+                loadContents = _load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -6756,7 +7422,7 @@ class CommandLineBinding(InputBinding):
         position = None
         if "position" in _doc:
             try:
-                position = load_field(
+                position = _load_field(
                     _doc.get("position"),
                     union_of_None_type_or_inttype_or_ExpressionLoader,
                     baseuri,
@@ -6803,7 +7469,7 @@ class CommandLineBinding(InputBinding):
         prefix = None
         if "prefix" in _doc:
             try:
-                prefix = load_field(
+                prefix = _load_field(
                     _doc.get("prefix"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -6850,7 +7516,7 @@ class CommandLineBinding(InputBinding):
         separate = None
         if "separate" in _doc:
             try:
-                separate = load_field(
+                separate = _load_field(
                     _doc.get("separate"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -6897,7 +7563,7 @@ class CommandLineBinding(InputBinding):
         itemSeparator = None
         if "itemSeparator" in _doc:
             try:
-                itemSeparator = load_field(
+                itemSeparator = _load_field(
                     _doc.get("itemSeparator"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -6944,7 +7610,7 @@ class CommandLineBinding(InputBinding):
         valueFrom = None
         if "valueFrom" in _doc:
             try:
-                valueFrom = load_field(
+                valueFrom = _load_field(
                     _doc.get("valueFrom"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
@@ -6991,7 +7657,7 @@ class CommandLineBinding(InputBinding):
         shellQuote = None
         if "shellQuote" in _doc:
             try:
-                shellQuote = load_field(
+                shellQuote = _load_field(
                     _doc.get("shellQuote"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -7043,14 +7709,8 @@ class CommandLineBinding(InputBinding):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -7216,7 +7876,7 @@ class CommandOutputBinding(LoadContents):
         loadContents = None
         if "loadContents" in _doc:
             try:
-                loadContents = load_field(
+                loadContents = _load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -7263,7 +7923,7 @@ class CommandOutputBinding(LoadContents):
         loadListing = None
         if "loadListing" in _doc:
             try:
-                loadListing = load_field(
+                loadListing = _load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
@@ -7310,7 +7970,7 @@ class CommandOutputBinding(LoadContents):
         glob = None
         if "glob" in _doc:
             try:
-                glob = load_field(
+                glob = _load_field(
                     _doc.get("glob"),
                     union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_strtype,
                     baseuri,
@@ -7357,7 +8017,7 @@ class CommandOutputBinding(LoadContents):
         outputEval = None
         if "outputEval" in _doc:
             try:
-                outputEval = load_field(
+                outputEval = _load_field(
                     _doc.get("outputEval"),
                     union_of_None_type_or_ExpressionLoader,
                     baseuri,
@@ -7409,14 +8069,8 @@ class CommandOutputBinding(LoadContents):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -7582,7 +8236,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -7638,7 +8292,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -7686,7 +8340,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -7733,7 +8387,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -7780,7 +8434,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -7827,7 +8481,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -7874,7 +8528,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -7921,7 +8575,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         loadContents = None
         if "loadContents" in _doc:
             try:
-                loadContents = load_field(
+                loadContents = _load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -7968,7 +8622,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         loadListing = None
         if "loadListing" in _doc:
             try:
-                loadListing = load_field(
+                loadListing = _load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
@@ -8015,7 +8669,7 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
         inputBinding = None
         if "inputBinding" in _doc:
             try:
-                inputBinding = load_field(
+                inputBinding = _load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
@@ -8067,14 +8721,8 @@ class CommandInputRecordField(InputRecordField, CommandLineBindable):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -8267,7 +8915,7 @@ class CommandInputRecordSchema(
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -8323,7 +8971,7 @@ class CommandInputRecordSchema(
         fields = None
         if "fields" in _doc:
             try:
-                fields = load_field(
+                fields = _load_field(
                     _doc.get("fields"),
                     idmap_fields_union_of_None_type_or_array_of_CommandInputRecordFieldLoader,
                     baseuri,
@@ -8371,7 +9019,7 @@ class CommandInputRecordSchema(
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Record_nameLoader_2,
                 baseuri,
@@ -8418,7 +9066,7 @@ class CommandInputRecordSchema(
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -8465,7 +9113,7 @@ class CommandInputRecordSchema(
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -8512,7 +9160,7 @@ class CommandInputRecordSchema(
         inputBinding = None
         if "inputBinding" in _doc:
             try:
-                inputBinding = load_field(
+                inputBinding = _load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
@@ -8564,14 +9212,8 @@ class CommandInputRecordSchema(
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -8720,7 +9362,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -8777,7 +9419,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
 
-            symbols = load_field(
+            symbols = _load_field(
                 _doc.get("symbols"),
                 uri_array_of_strtype_True_False_None_None,
                 baseuri,
@@ -8825,7 +9467,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Enum_nameLoader_2,
                 baseuri,
@@ -8872,7 +9514,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -8919,7 +9561,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -8966,7 +9608,7 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
         inputBinding = None
         if "inputBinding" in _doc:
             try:
-                inputBinding = load_field(
+                inputBinding = _load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
@@ -9018,14 +9660,8 @@ class CommandInputEnumSchema(InputEnumSchema, CommandInputSchema, CommandLineBin
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -9168,7 +9804,7 @@ class CommandInputArraySchema(
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -9225,7 +9861,7 @@ class CommandInputArraySchema(
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
 
-            items = load_field(
+            items = _load_field(
                 _doc.get("items"),
                 uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_False_True_2_None,
                 baseuri,
@@ -9273,7 +9909,7 @@ class CommandInputArraySchema(
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Array_nameLoader_2,
                 baseuri,
@@ -9320,7 +9956,7 @@ class CommandInputArraySchema(
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -9367,7 +10003,7 @@ class CommandInputArraySchema(
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -9414,7 +10050,7 @@ class CommandInputArraySchema(
         inputBinding = None
         if "inputBinding" in _doc:
             try:
-                inputBinding = load_field(
+                inputBinding = _load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
@@ -9466,14 +10102,8 @@ class CommandInputArraySchema(
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -9629,7 +10259,7 @@ class CommandOutputRecordField(OutputRecordField):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -9685,7 +10315,7 @@ class CommandOutputRecordField(OutputRecordField):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -9733,7 +10363,7 @@ class CommandOutputRecordField(OutputRecordField):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -9780,7 +10410,7 @@ class CommandOutputRecordField(OutputRecordField):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -9827,7 +10457,7 @@ class CommandOutputRecordField(OutputRecordField):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -9874,7 +10504,7 @@ class CommandOutputRecordField(OutputRecordField):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -9921,7 +10551,7 @@ class CommandOutputRecordField(OutputRecordField):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -9968,7 +10598,7 @@ class CommandOutputRecordField(OutputRecordField):
         outputBinding = None
         if "outputBinding" in _doc:
             try:
-                outputBinding = load_field(
+                outputBinding = _load_field(
                     _doc.get("outputBinding"),
                     union_of_None_type_or_CommandOutputBindingLoader,
                     baseuri,
@@ -10020,14 +10650,8 @@ class CommandOutputRecordField(OutputRecordField):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -10188,7 +10812,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -10244,7 +10868,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         fields = None
         if "fields" in _doc:
             try:
-                fields = load_field(
+                fields = _load_field(
                     _doc.get("fields"),
                     idmap_fields_union_of_None_type_or_array_of_CommandOutputRecordFieldLoader,
                     baseuri,
@@ -10292,7 +10916,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Record_nameLoader_2,
                 baseuri,
@@ -10339,7 +10963,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -10386,7 +11010,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -10438,14 +11062,8 @@ class CommandOutputRecordSchema(OutputRecordSchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -10574,7 +11192,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -10631,7 +11249,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             if _doc.get("symbols") is None:
                 raise ValidationException("missing required field `symbols`", None, [])
 
-            symbols = load_field(
+            symbols = _load_field(
                 _doc.get("symbols"),
                 uri_array_of_strtype_True_False_None_None,
                 baseuri,
@@ -10679,7 +11297,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Enum_nameLoader_2,
                 baseuri,
@@ -10726,7 +11344,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -10773,7 +11391,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -10825,14 +11443,8 @@ class CommandOutputEnumSchema(OutputEnumSchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -10960,7 +11572,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         name = None
         if "name" in _doc:
             try:
-                name = load_field(
+                name = _load_field(
                     _doc.get("name"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -11017,7 +11629,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             if _doc.get("items") is None:
                 raise ValidationException("missing required field `items`", None, [])
 
-            items = load_field(
+            items = _load_field(
                 _doc.get("items"),
                 uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_False_True_2_None,
                 baseuri,
@@ -11065,7 +11677,7 @@ class CommandOutputArraySchema(OutputArraySchema):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_Array_nameLoader_2,
                 baseuri,
@@ -11112,7 +11724,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -11159,7 +11771,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -11211,14 +11823,8 @@ class CommandOutputArraySchema(OutputArraySchema):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -11383,7 +11989,7 @@ class CommandInputParameter(InputParameter):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -11439,7 +12045,7 @@ class CommandInputParameter(InputParameter):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -11486,7 +12092,7 @@ class CommandInputParameter(InputParameter):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -11533,7 +12139,7 @@ class CommandInputParameter(InputParameter):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -11580,7 +12186,7 @@ class CommandInputParameter(InputParameter):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -11627,7 +12233,7 @@ class CommandInputParameter(InputParameter):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -11674,7 +12280,7 @@ class CommandInputParameter(InputParameter):
         loadContents = None
         if "loadContents" in _doc:
             try:
-                loadContents = load_field(
+                loadContents = _load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -11721,7 +12327,7 @@ class CommandInputParameter(InputParameter):
         loadListing = None
         if "loadListing" in _doc:
             try:
-                loadListing = load_field(
+                loadListing = _load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
@@ -11768,7 +12374,7 @@ class CommandInputParameter(InputParameter):
         default = None
         if "default" in _doc:
             try:
-                default = load_field(
+                default = _load_field(
                     _doc.get("default"),
                     union_of_None_type_or_CWLObjectTypeLoader,
                     baseuri,
@@ -11816,7 +12422,7 @@ class CommandInputParameter(InputParameter):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -11863,7 +12469,7 @@ class CommandInputParameter(InputParameter):
         inputBinding = None
         if "inputBinding" in _doc:
             try:
-                inputBinding = load_field(
+                inputBinding = _load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_CommandLineBindingLoader,
                     baseuri,
@@ -11915,14 +12521,8 @@ class CommandInputParameter(InputParameter):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -12132,7 +12732,7 @@ class CommandOutputParameter(OutputParameter):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -12188,7 +12788,7 @@ class CommandOutputParameter(OutputParameter):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -12235,7 +12835,7 @@ class CommandOutputParameter(OutputParameter):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -12282,7 +12882,7 @@ class CommandOutputParameter(OutputParameter):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -12329,7 +12929,7 @@ class CommandOutputParameter(OutputParameter):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -12376,7 +12976,7 @@ class CommandOutputParameter(OutputParameter):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -12424,7 +13024,7 @@ class CommandOutputParameter(OutputParameter):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -12471,7 +13071,7 @@ class CommandOutputParameter(OutputParameter):
         outputBinding = None
         if "outputBinding" in _doc:
             try:
-                outputBinding = load_field(
+                outputBinding = _load_field(
                     _doc.get("outputBinding"),
                     union_of_None_type_or_CommandOutputBindingLoader,
                     baseuri,
@@ -12523,14 +13123,8 @@ class CommandOutputParameter(OutputParameter):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -12755,7 +13349,7 @@ class CommandLineTool(Process):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -12812,7 +13406,7 @@ class CommandLineTool(Process):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_CommandLineTool_classLoader_False_True_None_None,
                 baseuri,
@@ -12828,7 +13422,7 @@ class CommandLineTool(Process):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -12875,7 +13469,7 @@ class CommandLineTool(Process):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -12923,7 +13517,7 @@ class CommandLineTool(Process):
             if _doc.get("inputs") is None:
                 raise ValidationException("missing required field `inputs`", None, [])
 
-            inputs = load_field(
+            inputs = _load_field(
                 _doc.get("inputs"),
                 idmap_inputs_array_of_CommandInputParameterLoader,
                 baseuri,
@@ -12971,7 +13565,7 @@ class CommandLineTool(Process):
             if _doc.get("outputs") is None:
                 raise ValidationException("missing required field `outputs`", None, [])
 
-            outputs = load_field(
+            outputs = _load_field(
                 _doc.get("outputs"),
                 idmap_outputs_array_of_CommandOutputParameterLoader,
                 baseuri,
@@ -13018,7 +13612,7 @@ class CommandLineTool(Process):
         requirements = None
         if "requirements" in _doc:
             try:
-                requirements = load_field(
+                requirements = _load_field(
                     _doc.get("requirements"),
                     idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
@@ -13065,7 +13659,7 @@ class CommandLineTool(Process):
         hints = None
         if "hints" in _doc:
             try:
-                hints = load_field(
+                hints = _load_field(
                     _doc.get("hints"),
                     idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
                     baseuri,
@@ -13112,7 +13706,7 @@ class CommandLineTool(Process):
         cwlVersion = None
         if "cwlVersion" in _doc:
             try:
-                cwlVersion = load_field(
+                cwlVersion = _load_field(
                     _doc.get("cwlVersion"),
                     uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None,
                     baseuri,
@@ -13159,7 +13753,7 @@ class CommandLineTool(Process):
         intent = None
         if "intent" in _doc:
             try:
-                intent = load_field(
+                intent = _load_field(
                     _doc.get("intent"),
                     uri_union_of_None_type_or_array_of_strtype_True_False_None_None,
                     baseuri,
@@ -13206,7 +13800,7 @@ class CommandLineTool(Process):
         baseCommand = None
         if "baseCommand" in _doc:
             try:
-                baseCommand = load_field(
+                baseCommand = _load_field(
                     _doc.get("baseCommand"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -13253,7 +13847,7 @@ class CommandLineTool(Process):
         arguments = None
         if "arguments" in _doc:
             try:
-                arguments = load_field(
+                arguments = _load_field(
                     _doc.get("arguments"),
                     union_of_None_type_or_array_of_union_of_strtype_or_ExpressionLoader_or_CommandLineBindingLoader,
                     baseuri,
@@ -13300,7 +13894,7 @@ class CommandLineTool(Process):
         stdin = None
         if "stdin" in _doc:
             try:
-                stdin = load_field(
+                stdin = _load_field(
                     _doc.get("stdin"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
@@ -13347,7 +13941,7 @@ class CommandLineTool(Process):
         stderr = None
         if "stderr" in _doc:
             try:
-                stderr = load_field(
+                stderr = _load_field(
                     _doc.get("stderr"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
@@ -13394,7 +13988,7 @@ class CommandLineTool(Process):
         stdout = None
         if "stdout" in _doc:
             try:
-                stdout = load_field(
+                stdout = _load_field(
                     _doc.get("stdout"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
@@ -13441,7 +14035,7 @@ class CommandLineTool(Process):
         successCodes = None
         if "successCodes" in _doc:
             try:
-                successCodes = load_field(
+                successCodes = _load_field(
                     _doc.get("successCodes"),
                     union_of_None_type_or_array_of_inttype,
                     baseuri,
@@ -13488,7 +14082,7 @@ class CommandLineTool(Process):
         temporaryFailCodes = None
         if "temporaryFailCodes" in _doc:
             try:
-                temporaryFailCodes = load_field(
+                temporaryFailCodes = _load_field(
                     _doc.get("temporaryFailCodes"),
                     union_of_None_type_or_array_of_inttype,
                     baseuri,
@@ -13535,7 +14129,7 @@ class CommandLineTool(Process):
         permanentFailCodes = None
         if "permanentFailCodes" in _doc:
             try:
-                permanentFailCodes = load_field(
+                permanentFailCodes = _load_field(
                     _doc.get("permanentFailCodes"),
                     union_of_None_type_or_array_of_inttype,
                     baseuri,
@@ -13587,14 +14181,8 @@ class CommandLineTool(Process):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -13863,7 +14451,7 @@ class DockerRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_DockerRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -13879,7 +14467,7 @@ class DockerRequirement(ProcessRequirement):
         dockerPull = None
         if "dockerPull" in _doc:
             try:
-                dockerPull = load_field(
+                dockerPull = _load_field(
                     _doc.get("dockerPull"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -13926,7 +14514,7 @@ class DockerRequirement(ProcessRequirement):
         dockerLoad = None
         if "dockerLoad" in _doc:
             try:
-                dockerLoad = load_field(
+                dockerLoad = _load_field(
                     _doc.get("dockerLoad"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -13973,7 +14561,7 @@ class DockerRequirement(ProcessRequirement):
         dockerFile = None
         if "dockerFile" in _doc:
             try:
-                dockerFile = load_field(
+                dockerFile = _load_field(
                     _doc.get("dockerFile"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -14020,7 +14608,7 @@ class DockerRequirement(ProcessRequirement):
         dockerImport = None
         if "dockerImport" in _doc:
             try:
-                dockerImport = load_field(
+                dockerImport = _load_field(
                     _doc.get("dockerImport"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -14067,7 +14655,7 @@ class DockerRequirement(ProcessRequirement):
         dockerImageId = None
         if "dockerImageId" in _doc:
             try:
-                dockerImageId = load_field(
+                dockerImageId = _load_field(
                     _doc.get("dockerImageId"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -14114,7 +14702,7 @@ class DockerRequirement(ProcessRequirement):
         dockerOutputDirectory = None
         if "dockerOutputDirectory" in _doc:
             try:
-                dockerOutputDirectory = load_field(
+                dockerOutputDirectory = _load_field(
                     _doc.get("dockerOutputDirectory"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -14166,14 +14754,8 @@ class DockerRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -14334,7 +14916,7 @@ class SoftwareRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_SoftwareRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -14351,7 +14933,7 @@ class SoftwareRequirement(ProcessRequirement):
             if _doc.get("packages") is None:
                 raise ValidationException("missing required field `packages`", None, [])
 
-            packages = load_field(
+            packages = _load_field(
                 _doc.get("packages"),
                 idmap_packages_array_of_SoftwarePackageLoader,
                 baseuri,
@@ -14403,14 +14985,8 @@ class SoftwareRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -14520,7 +15096,7 @@ class SoftwarePackage(Saveable):
             if _doc.get("package") is None:
                 raise ValidationException("missing required field `package`", None, [])
 
-            package = load_field(
+            package = _load_field(
                 _doc.get("package"),
                 strtype,
                 baseuri,
@@ -14567,7 +15143,7 @@ class SoftwarePackage(Saveable):
         version = None
         if "version" in _doc:
             try:
-                version = load_field(
+                version = _load_field(
                     _doc.get("version"),
                     union_of_None_type_or_array_of_strtype,
                     baseuri,
@@ -14614,7 +15190,7 @@ class SoftwarePackage(Saveable):
         specs = None
         if "specs" in _doc:
             try:
-                specs = load_field(
+                specs = _load_field(
                     _doc.get("specs"),
                     uri_union_of_None_type_or_array_of_strtype_False_False_None_True,
                     baseuri,
@@ -14666,14 +15242,8 @@ class SoftwarePackage(Saveable):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -14788,7 +15358,7 @@ class Dirent(Saveable):
         entryname = None
         if "entryname" in _doc:
             try:
-                entryname = load_field(
+                entryname = _load_field(
                     _doc.get("entryname"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
@@ -14836,7 +15406,7 @@ class Dirent(Saveable):
             if _doc.get("entry") is None:
                 raise ValidationException("missing required field `entry`", None, [])
 
-            entry = load_field(
+            entry = _load_field(
                 _doc.get("entry"),
                 union_of_strtype_or_ExpressionLoader,
                 baseuri,
@@ -14883,7 +15453,7 @@ class Dirent(Saveable):
         writable = None
         if "writable" in _doc:
             try:
-                writable = load_field(
+                writable = _load_field(
                     _doc.get("writable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -14935,14 +15505,8 @@ class Dirent(Saveable):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -15053,7 +15617,7 @@ class InitialWorkDirRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_InitialWorkDirRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -15070,7 +15634,7 @@ class InitialWorkDirRequirement(ProcessRequirement):
             if _doc.get("listing") is None:
                 raise ValidationException("missing required field `listing`", None, [])
 
-            listing = load_field(
+            listing = _load_field(
                 _doc.get("listing"),
                 union_of_ExpressionLoader_or_array_of_union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_DirectoryLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader,
                 baseuri,
@@ -15122,14 +15686,8 @@ class InitialWorkDirRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -15237,7 +15795,7 @@ class EnvVarRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_EnvVarRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -15254,7 +15812,7 @@ class EnvVarRequirement(ProcessRequirement):
             if _doc.get("envDef") is None:
                 raise ValidationException("missing required field `envDef`", None, [])
 
-            envDef = load_field(
+            envDef = _load_field(
                 _doc.get("envDef"),
                 idmap_envDef_array_of_EnvironmentDefLoader,
                 baseuri,
@@ -15306,14 +15864,8 @@ class EnvVarRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -15419,7 +15971,7 @@ class ShellCommandRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_ShellCommandRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -15440,14 +15992,8 @@ class ShellCommandRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -15598,7 +16144,7 @@ class ResourceRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_ResourceRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -15614,7 +16160,7 @@ class ResourceRequirement(ProcessRequirement):
         coresMin = None
         if "coresMin" in _doc:
             try:
-                coresMin = load_field(
+                coresMin = _load_field(
                     _doc.get("coresMin"),
                     union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader,
                     baseuri,
@@ -15661,7 +16207,7 @@ class ResourceRequirement(ProcessRequirement):
         coresMax = None
         if "coresMax" in _doc:
             try:
-                coresMax = load_field(
+                coresMax = _load_field(
                     _doc.get("coresMax"),
                     union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader,
                     baseuri,
@@ -15708,7 +16254,7 @@ class ResourceRequirement(ProcessRequirement):
         ramMin = None
         if "ramMin" in _doc:
             try:
-                ramMin = load_field(
+                ramMin = _load_field(
                     _doc.get("ramMin"),
                     union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader,
                     baseuri,
@@ -15755,7 +16301,7 @@ class ResourceRequirement(ProcessRequirement):
         ramMax = None
         if "ramMax" in _doc:
             try:
-                ramMax = load_field(
+                ramMax = _load_field(
                     _doc.get("ramMax"),
                     union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader,
                     baseuri,
@@ -15802,7 +16348,7 @@ class ResourceRequirement(ProcessRequirement):
         tmpdirMin = None
         if "tmpdirMin" in _doc:
             try:
-                tmpdirMin = load_field(
+                tmpdirMin = _load_field(
                     _doc.get("tmpdirMin"),
                     union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader,
                     baseuri,
@@ -15849,7 +16395,7 @@ class ResourceRequirement(ProcessRequirement):
         tmpdirMax = None
         if "tmpdirMax" in _doc:
             try:
-                tmpdirMax = load_field(
+                tmpdirMax = _load_field(
                     _doc.get("tmpdirMax"),
                     union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader,
                     baseuri,
@@ -15896,7 +16442,7 @@ class ResourceRequirement(ProcessRequirement):
         outdirMin = None
         if "outdirMin" in _doc:
             try:
-                outdirMin = load_field(
+                outdirMin = _load_field(
                     _doc.get("outdirMin"),
                     union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader,
                     baseuri,
@@ -15943,7 +16489,7 @@ class ResourceRequirement(ProcessRequirement):
         outdirMax = None
         if "outdirMax" in _doc:
             try:
-                outdirMax = load_field(
+                outdirMax = _load_field(
                     _doc.get("outdirMax"),
                     union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader,
                     baseuri,
@@ -15995,14 +16541,8 @@ class ResourceRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -16173,7 +16713,7 @@ class WorkReuse(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_WorkReuse_classLoader_False_True_None_None,
                 baseuri,
@@ -16190,7 +16730,7 @@ class WorkReuse(ProcessRequirement):
             if _doc.get("enableReuse") is None:
                 raise ValidationException("missing required field `enableReuse`", None, [])
 
-            enableReuse = load_field(
+            enableReuse = _load_field(
                 _doc.get("enableReuse"),
                 union_of_booltype_or_ExpressionLoader,
                 baseuri,
@@ -16242,14 +16782,8 @@ class WorkReuse(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -16369,7 +16903,7 @@ class NetworkAccess(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_NetworkAccess_classLoader_False_True_None_None,
                 baseuri,
@@ -16386,7 +16920,7 @@ class NetworkAccess(ProcessRequirement):
             if _doc.get("networkAccess") is None:
                 raise ValidationException("missing required field `networkAccess`", None, [])
 
-            networkAccess = load_field(
+            networkAccess = _load_field(
                 _doc.get("networkAccess"),
                 union_of_booltype_or_ExpressionLoader,
                 baseuri,
@@ -16438,14 +16972,8 @@ class NetworkAccess(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -16567,7 +17095,7 @@ class InplaceUpdateRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_InplaceUpdateRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -16584,7 +17112,7 @@ class InplaceUpdateRequirement(ProcessRequirement):
             if _doc.get("inplaceUpdate") is None:
                 raise ValidationException("missing required field `inplaceUpdate`", None, [])
 
-            inplaceUpdate = load_field(
+            inplaceUpdate = _load_field(
                 _doc.get("inplaceUpdate"),
                 booltype,
                 baseuri,
@@ -16636,14 +17164,8 @@ class InplaceUpdateRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -16756,7 +17278,7 @@ class ToolTimeLimit(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_ToolTimeLimit_classLoader_False_True_None_None,
                 baseuri,
@@ -16773,7 +17295,7 @@ class ToolTimeLimit(ProcessRequirement):
             if _doc.get("timelimit") is None:
                 raise ValidationException("missing required field `timelimit`", None, [])
 
-            timelimit = load_field(
+            timelimit = _load_field(
                 _doc.get("timelimit"),
                 union_of_inttype_or_ExpressionLoader,
                 baseuri,
@@ -16825,14 +17347,8 @@ class ToolTimeLimit(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -16968,7 +17484,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -17024,7 +17540,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -17071,7 +17587,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -17118,7 +17634,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -17165,7 +17681,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -17212,7 +17728,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -17260,7 +17776,7 @@ class ExpressionToolOutputParameter(OutputParameter):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -17312,14 +17828,8 @@ class ExpressionToolOutputParameter(OutputParameter):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -17495,7 +18005,7 @@ class WorkflowInputParameter(InputParameter):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -17551,7 +18061,7 @@ class WorkflowInputParameter(InputParameter):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -17598,7 +18108,7 @@ class WorkflowInputParameter(InputParameter):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -17645,7 +18155,7 @@ class WorkflowInputParameter(InputParameter):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -17692,7 +18202,7 @@ class WorkflowInputParameter(InputParameter):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -17739,7 +18249,7 @@ class WorkflowInputParameter(InputParameter):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -17786,7 +18296,7 @@ class WorkflowInputParameter(InputParameter):
         loadContents = None
         if "loadContents" in _doc:
             try:
-                loadContents = load_field(
+                loadContents = _load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -17833,7 +18343,7 @@ class WorkflowInputParameter(InputParameter):
         loadListing = None
         if "loadListing" in _doc:
             try:
-                loadListing = load_field(
+                loadListing = _load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
@@ -17880,7 +18390,7 @@ class WorkflowInputParameter(InputParameter):
         default = None
         if "default" in _doc:
             try:
-                default = load_field(
+                default = _load_field(
                     _doc.get("default"),
                     union_of_None_type_or_CWLObjectTypeLoader,
                     baseuri,
@@ -17928,7 +18438,7 @@ class WorkflowInputParameter(InputParameter):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -17975,7 +18485,7 @@ class WorkflowInputParameter(InputParameter):
         inputBinding = None
         if "inputBinding" in _doc:
             try:
-                inputBinding = load_field(
+                inputBinding = _load_field(
                     _doc.get("inputBinding"),
                     union_of_None_type_or_InputBindingLoader,
                     baseuri,
@@ -18027,14 +18537,8 @@ class WorkflowInputParameter(InputParameter):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -18255,7 +18759,7 @@ class ExpressionTool(Process):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -18312,7 +18816,7 @@ class ExpressionTool(Process):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_ExpressionTool_classLoader_False_True_None_None,
                 baseuri,
@@ -18328,7 +18832,7 @@ class ExpressionTool(Process):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -18375,7 +18879,7 @@ class ExpressionTool(Process):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -18423,7 +18927,7 @@ class ExpressionTool(Process):
             if _doc.get("inputs") is None:
                 raise ValidationException("missing required field `inputs`", None, [])
 
-            inputs = load_field(
+            inputs = _load_field(
                 _doc.get("inputs"),
                 idmap_inputs_array_of_WorkflowInputParameterLoader,
                 baseuri,
@@ -18471,7 +18975,7 @@ class ExpressionTool(Process):
             if _doc.get("outputs") is None:
                 raise ValidationException("missing required field `outputs`", None, [])
 
-            outputs = load_field(
+            outputs = _load_field(
                 _doc.get("outputs"),
                 idmap_outputs_array_of_ExpressionToolOutputParameterLoader,
                 baseuri,
@@ -18518,7 +19022,7 @@ class ExpressionTool(Process):
         requirements = None
         if "requirements" in _doc:
             try:
-                requirements = load_field(
+                requirements = _load_field(
                     _doc.get("requirements"),
                     idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
@@ -18565,7 +19069,7 @@ class ExpressionTool(Process):
         hints = None
         if "hints" in _doc:
             try:
-                hints = load_field(
+                hints = _load_field(
                     _doc.get("hints"),
                     idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
                     baseuri,
@@ -18612,7 +19116,7 @@ class ExpressionTool(Process):
         cwlVersion = None
         if "cwlVersion" in _doc:
             try:
-                cwlVersion = load_field(
+                cwlVersion = _load_field(
                     _doc.get("cwlVersion"),
                     uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None,
                     baseuri,
@@ -18659,7 +19163,7 @@ class ExpressionTool(Process):
         intent = None
         if "intent" in _doc:
             try:
-                intent = load_field(
+                intent = _load_field(
                     _doc.get("intent"),
                     uri_union_of_None_type_or_array_of_strtype_True_False_None_None,
                     baseuri,
@@ -18707,7 +19211,7 @@ class ExpressionTool(Process):
             if _doc.get("expression") is None:
                 raise ValidationException("missing required field `expression`", None, [])
 
-            expression = load_field(
+            expression = _load_field(
                 _doc.get("expression"),
                 ExpressionLoader,
                 baseuri,
@@ -18759,14 +19263,8 @@ class ExpressionTool(Process):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -18981,7 +19479,7 @@ class WorkflowOutputParameter(OutputParameter):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -19037,7 +19535,7 @@ class WorkflowOutputParameter(OutputParameter):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -19084,7 +19582,7 @@ class WorkflowOutputParameter(OutputParameter):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -19131,7 +19629,7 @@ class WorkflowOutputParameter(OutputParameter):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -19178,7 +19676,7 @@ class WorkflowOutputParameter(OutputParameter):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -19225,7 +19723,7 @@ class WorkflowOutputParameter(OutputParameter):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -19272,7 +19770,7 @@ class WorkflowOutputParameter(OutputParameter):
         outputSource = None
         if "outputSource" in _doc:
             try:
-                outputSource = load_field(
+                outputSource = _load_field(
                     _doc.get("outputSource"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1_None,
                     baseuri,
@@ -19319,7 +19817,7 @@ class WorkflowOutputParameter(OutputParameter):
         linkMerge = None
         if "linkMerge" in _doc:
             try:
-                linkMerge = load_field(
+                linkMerge = _load_field(
                     _doc.get("linkMerge"),
                     union_of_None_type_or_LinkMergeMethodLoader,
                     baseuri,
@@ -19366,7 +19864,7 @@ class WorkflowOutputParameter(OutputParameter):
         pickValue = None
         if "pickValue" in _doc:
             try:
-                pickValue = load_field(
+                pickValue = _load_field(
                     _doc.get("pickValue"),
                     union_of_None_type_or_PickValueMethodLoader,
                     baseuri,
@@ -19414,7 +19912,7 @@ class WorkflowOutputParameter(OutputParameter):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -19466,14 +19964,8 @@ class WorkflowOutputParameter(OutputParameter):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -19746,7 +20238,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -19802,7 +20294,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
         source = None
         if "source" in _doc:
             try:
-                source = load_field(
+                source = _load_field(
                     _doc.get("source"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None,
                     baseuri,
@@ -19849,7 +20341,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
         linkMerge = None
         if "linkMerge" in _doc:
             try:
-                linkMerge = load_field(
+                linkMerge = _load_field(
                     _doc.get("linkMerge"),
                     union_of_None_type_or_LinkMergeMethodLoader,
                     baseuri,
@@ -19896,7 +20388,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
         pickValue = None
         if "pickValue" in _doc:
             try:
-                pickValue = load_field(
+                pickValue = _load_field(
                     _doc.get("pickValue"),
                     union_of_None_type_or_PickValueMethodLoader,
                     baseuri,
@@ -19943,7 +20435,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
         loadContents = None
         if "loadContents" in _doc:
             try:
-                loadContents = load_field(
+                loadContents = _load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -19990,7 +20482,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
         loadListing = None
         if "loadListing" in _doc:
             try:
-                loadListing = load_field(
+                loadListing = _load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
@@ -20037,7 +20529,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -20084,7 +20576,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
         default = None
         if "default" in _doc:
             try:
-                default = load_field(
+                default = _load_field(
                     _doc.get("default"),
                     union_of_None_type_or_CWLObjectTypeLoader,
                     baseuri,
@@ -20131,7 +20623,7 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
         valueFrom = None
         if "valueFrom" in _doc:
             try:
-                valueFrom = load_field(
+                valueFrom = _load_field(
                     _doc.get("valueFrom"),
                     union_of_None_type_or_strtype_or_ExpressionLoader,
                     baseuri,
@@ -20183,14 +20675,8 @@ class WorkflowStepInput(IdentifierRequired, Sink, LoadContents, Labeled):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -20347,7 +20833,7 @@ class WorkflowStepOutput(IdentifierRequired):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -20408,14 +20894,8 @@ class WorkflowStepOutput(IdentifierRequired):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -20596,7 +21076,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -20652,7 +21132,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -20699,7 +21179,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -20747,7 +21227,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
             if _doc.get("in") is None:
                 raise ValidationException("missing required field `in`", None, [])
 
-            in_ = load_field(
+            in_ = _load_field(
                 _doc.get("in"),
                 idmap_in__array_of_WorkflowStepInputLoader,
                 baseuri,
@@ -20795,7 +21275,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
             if _doc.get("out") is None:
                 raise ValidationException("missing required field `out`", None, [])
 
-            out = load_field(
+            out = _load_field(
                 _doc.get("out"),
                 uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_None_None,
                 baseuri,
@@ -20842,7 +21322,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
         requirements = None
         if "requirements" in _doc:
             try:
-                requirements = load_field(
+                requirements = _load_field(
                     _doc.get("requirements"),
                     idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
@@ -20889,7 +21369,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
         hints = None
         if "hints" in _doc:
             try:
-                hints = load_field(
+                hints = _load_field(
                     _doc.get("hints"),
                     idmap_hints_union_of_None_type_or_array_of_Any_type,
                     baseuri,
@@ -20934,12 +21414,12 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
                             )
                         )
 
-        subscope_baseuri = expand_url('run', baseuri, loadingOptions, _vocab, _rvocab, True)
+        subscope_baseuri = _expand_url('run', baseuri, loadingOptions, True)
         try:
             if _doc.get("run") is None:
                 raise ValidationException("missing required field `run`", None, [])
 
-            run = load_field(
+            run = _load_field(
                 _doc.get("run"),
                 uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_OperationLoader_False_False_None_None,
                 subscope_baseuri,
@@ -20986,7 +21466,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
         when = None
         if "when" in _doc:
             try:
-                when = load_field(
+                when = _load_field(
                     _doc.get("when"),
                     union_of_None_type_or_ExpressionLoader,
                     baseuri,
@@ -21033,7 +21513,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
         scatter = None
         if "scatter" in _doc:
             try:
-                scatter = load_field(
+                scatter = _load_field(
                     _doc.get("scatter"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0_None,
                     baseuri,
@@ -21080,7 +21560,7 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
         scatterMethod = None
         if "scatterMethod" in _doc:
             try:
-                scatterMethod = load_field(
+                scatterMethod = _load_field(
                     _doc.get("scatterMethod"),
                     uri_union_of_None_type_or_ScatterMethodLoader_False_True_None_None,
                     baseuri,
@@ -21132,14 +21612,8 @@ class WorkflowStep(IdentifierRequired, Labeled, schema_salad.metaschema.Document
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -21371,7 +21845,7 @@ class Workflow(Process):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -21428,7 +21902,7 @@ class Workflow(Process):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_Workflow_classLoader_False_True_None_None,
                 baseuri,
@@ -21444,7 +21918,7 @@ class Workflow(Process):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -21491,7 +21965,7 @@ class Workflow(Process):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -21539,7 +22013,7 @@ class Workflow(Process):
             if _doc.get("inputs") is None:
                 raise ValidationException("missing required field `inputs`", None, [])
 
-            inputs = load_field(
+            inputs = _load_field(
                 _doc.get("inputs"),
                 idmap_inputs_array_of_WorkflowInputParameterLoader,
                 baseuri,
@@ -21587,7 +22061,7 @@ class Workflow(Process):
             if _doc.get("outputs") is None:
                 raise ValidationException("missing required field `outputs`", None, [])
 
-            outputs = load_field(
+            outputs = _load_field(
                 _doc.get("outputs"),
                 idmap_outputs_array_of_WorkflowOutputParameterLoader,
                 baseuri,
@@ -21634,7 +22108,7 @@ class Workflow(Process):
         requirements = None
         if "requirements" in _doc:
             try:
-                requirements = load_field(
+                requirements = _load_field(
                     _doc.get("requirements"),
                     idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
@@ -21681,7 +22155,7 @@ class Workflow(Process):
         hints = None
         if "hints" in _doc:
             try:
-                hints = load_field(
+                hints = _load_field(
                     _doc.get("hints"),
                     idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
                     baseuri,
@@ -21728,7 +22202,7 @@ class Workflow(Process):
         cwlVersion = None
         if "cwlVersion" in _doc:
             try:
-                cwlVersion = load_field(
+                cwlVersion = _load_field(
                     _doc.get("cwlVersion"),
                     uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None,
                     baseuri,
@@ -21775,7 +22249,7 @@ class Workflow(Process):
         intent = None
         if "intent" in _doc:
             try:
-                intent = load_field(
+                intent = _load_field(
                     _doc.get("intent"),
                     uri_union_of_None_type_or_array_of_strtype_True_False_None_None,
                     baseuri,
@@ -21823,7 +22297,7 @@ class Workflow(Process):
             if _doc.get("steps") is None:
                 raise ValidationException("missing required field `steps`", None, [])
 
-            steps = load_field(
+            steps = _load_field(
                 _doc.get("steps"),
                 idmap_steps_union_of_array_of_WorkflowStepLoader,
                 baseuri,
@@ -21875,14 +22349,8 @@ class Workflow(Process):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -22048,7 +22516,7 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_SubworkflowFeatureRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -22069,14 +22537,8 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -22175,7 +22637,7 @@ class ScatterFeatureRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_ScatterFeatureRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -22196,14 +22658,8 @@ class ScatterFeatureRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -22302,7 +22758,7 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_MultipleInputFeatureRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -22323,14 +22779,8 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -22429,7 +22879,7 @@ class StepInputExpressionRequirement(ProcessRequirement):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_StepInputExpressionRequirement_classLoader_False_True_None_None,
                 baseuri,
@@ -22450,14 +22900,8 @@ class StepInputExpressionRequirement(ProcessRequirement):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -22600,7 +23044,7 @@ class OperationInputParameter(InputParameter):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -22656,7 +23100,7 @@ class OperationInputParameter(InputParameter):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -22703,7 +23147,7 @@ class OperationInputParameter(InputParameter):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -22750,7 +23194,7 @@ class OperationInputParameter(InputParameter):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -22797,7 +23241,7 @@ class OperationInputParameter(InputParameter):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -22844,7 +23288,7 @@ class OperationInputParameter(InputParameter):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -22891,7 +23335,7 @@ class OperationInputParameter(InputParameter):
         loadContents = None
         if "loadContents" in _doc:
             try:
-                loadContents = load_field(
+                loadContents = _load_field(
                     _doc.get("loadContents"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -22938,7 +23382,7 @@ class OperationInputParameter(InputParameter):
         loadListing = None
         if "loadListing" in _doc:
             try:
-                loadListing = load_field(
+                loadListing = _load_field(
                     _doc.get("loadListing"),
                     union_of_None_type_or_LoadListingEnumLoader,
                     baseuri,
@@ -22985,7 +23429,7 @@ class OperationInputParameter(InputParameter):
         default = None
         if "default" in _doc:
             try:
-                default = load_field(
+                default = _load_field(
                     _doc.get("default"),
                     union_of_None_type_or_CWLObjectTypeLoader,
                     baseuri,
@@ -23033,7 +23477,7 @@ class OperationInputParameter(InputParameter):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -23085,14 +23529,8 @@ class OperationInputParameter(InputParameter):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -23289,7 +23727,7 @@ class OperationOutputParameter(OutputParameter):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_strtype_True_False_None_None,
                     baseuri,
@@ -23345,7 +23783,7 @@ class OperationOutputParameter(OutputParameter):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -23392,7 +23830,7 @@ class OperationOutputParameter(OutputParameter):
         secondaryFiles = None
         if "secondaryFiles" in _doc:
             try:
-                secondaryFiles = load_field(
+                secondaryFiles = _load_field(
                     _doc.get("secondaryFiles"),
                     secondaryfilesdsl_union_of_None_type_or_SecondaryFileSchemaLoader_or_array_of_SecondaryFileSchemaLoader,
                     baseuri,
@@ -23439,7 +23877,7 @@ class OperationOutputParameter(OutputParameter):
         streamable = None
         if "streamable" in _doc:
             try:
-                streamable = load_field(
+                streamable = _load_field(
                     _doc.get("streamable"),
                     union_of_None_type_or_booltype,
                     baseuri,
@@ -23486,7 +23924,7 @@ class OperationOutputParameter(OutputParameter):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -23533,7 +23971,7 @@ class OperationOutputParameter(OutputParameter):
         format = None
         if "format" in _doc:
             try:
-                format = load_field(
+                format = _load_field(
                     _doc.get("format"),
                     uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True,
                     baseuri,
@@ -23581,7 +24019,7 @@ class OperationOutputParameter(OutputParameter):
             if _doc.get("type") is None:
                 raise ValidationException("missing required field `type`", None, [])
 
-            type_ = load_field(
+            type_ = _load_field(
                 _doc.get("type"),
                 typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_2,
                 baseuri,
@@ -23633,14 +24071,8 @@ class OperationOutputParameter(OutputParameter):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -23816,7 +24248,7 @@ class Operation(Process):
         id = None
         if "id" in _doc:
             try:
-                id = load_field(
+                id = _load_field(
                     _doc.get("id"),
                     uri_union_of_None_type_or_strtype_True_False_None_None,
                     baseuri,
@@ -23873,7 +24305,7 @@ class Operation(Process):
             if _doc.get("class") is None:
                 raise ValidationException("missing required field `class`", None, [])
 
-            class_ = load_field(
+            class_ = _load_field(
                 _doc.get("class"),
                 uri_Operation_classLoader_False_True_None_None,
                 baseuri,
@@ -23889,7 +24321,7 @@ class Operation(Process):
         label = None
         if "label" in _doc:
             try:
-                label = load_field(
+                label = _load_field(
                     _doc.get("label"),
                     union_of_None_type_or_strtype,
                     baseuri,
@@ -23936,7 +24368,7 @@ class Operation(Process):
         doc = None
         if "doc" in _doc:
             try:
-                doc = load_field(
+                doc = _load_field(
                     _doc.get("doc"),
                     union_of_None_type_or_strtype_or_array_of_strtype,
                     baseuri,
@@ -23984,7 +24416,7 @@ class Operation(Process):
             if _doc.get("inputs") is None:
                 raise ValidationException("missing required field `inputs`", None, [])
 
-            inputs = load_field(
+            inputs = _load_field(
                 _doc.get("inputs"),
                 idmap_inputs_array_of_OperationInputParameterLoader,
                 baseuri,
@@ -24032,7 +24464,7 @@ class Operation(Process):
             if _doc.get("outputs") is None:
                 raise ValidationException("missing required field `outputs`", None, [])
 
-            outputs = load_field(
+            outputs = _load_field(
                 _doc.get("outputs"),
                 idmap_outputs_array_of_OperationOutputParameterLoader,
                 baseuri,
@@ -24079,7 +24511,7 @@ class Operation(Process):
         requirements = None
         if "requirements" in _doc:
             try:
-                requirements = load_field(
+                requirements = _load_field(
                     _doc.get("requirements"),
                     idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
                     baseuri,
@@ -24126,7 +24558,7 @@ class Operation(Process):
         hints = None
         if "hints" in _doc:
             try:
-                hints = load_field(
+                hints = _load_field(
                     _doc.get("hints"),
                     idmap_hints_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_WorkReuseLoader_or_NetworkAccessLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type,
                     baseuri,
@@ -24173,7 +24605,7 @@ class Operation(Process):
         cwlVersion = None
         if "cwlVersion" in _doc:
             try:
-                cwlVersion = load_field(
+                cwlVersion = _load_field(
                     _doc.get("cwlVersion"),
                     uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None,
                     baseuri,
@@ -24220,7 +24652,7 @@ class Operation(Process):
         intent = None
         if "intent" in _doc:
             try:
-                intent = load_field(
+                intent = _load_field(
                     _doc.get("intent"),
                     uri_union_of_None_type_or_array_of_strtype_True_False_None_None,
                     baseuri,
@@ -24272,14 +24704,8 @@ class Operation(Process):
                         ValidationException("mapping with implicit null key")
                     )
                 elif ":" in k:
-                    ex = expand_url(
-                        k,
-                        "",
-                        loadingOptions,
-                        _vocab,
-                        _rvocab,
-                        scoped_id=False,
-                        vocab_term=False,
+                    ex = _expand_url(
+                        k, "", loadingOptions, scoped_id=False, vocab_term=False
                     )
                     extension_fields[ex] = _doc[k]
                 else:
@@ -25068,9 +25494,7 @@ union_of_None_type_or_strtype_or_array_of_strtype: Final = _UnionLoader(
         array_of_strtype,
     )
 )
-uri_strtype_True_False_None_None: Final = _URILoader(
-    strtype, True, False, None, None, _vocab, _rvocab
-)
+uri_strtype_True_False_None_None: Final = _URILoader(strtype, True, False, None, None)
 union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype: (
     Final
 ) = _UnionLoader(
@@ -25109,8 +25533,6 @@ typedsl_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_o
     union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype,
     2,
     "v1.1",
-    _vocab,
-    _rvocab,
 )
 array_of_RecordFieldLoader: Final = _ArrayLoader(RecordFieldLoader)
 union_of_None_type_or_array_of_RecordFieldLoader: Final = _UnionLoader(
@@ -25123,9 +25545,7 @@ idmap_fields_union_of_None_type_or_array_of_RecordFieldLoader: Final = _IdMapLoa
     union_of_None_type_or_array_of_RecordFieldLoader, "name", "type"
 )
 Record_nameLoader: Final = _EnumLoader(("record",), "Record_name")
-typedsl_Record_nameLoader_2: Final = _TypeDSLLoader(
-    Record_nameLoader, 2, "v1.1", _vocab, _rvocab
-)
+typedsl_Record_nameLoader_2: Final = _TypeDSLLoader(Record_nameLoader, 2, "v1.1")
 union_of_None_type_or_strtype: Final = _UnionLoader(
     (
         None_type,
@@ -25133,15 +25553,13 @@ union_of_None_type_or_strtype: Final = _UnionLoader(
     )
 )
 uri_union_of_None_type_or_strtype_True_False_None_None: Final = _URILoader(
-    union_of_None_type_or_strtype, True, False, None, None, _vocab, _rvocab
+    union_of_None_type_or_strtype, True, False, None, None
 )
 uri_array_of_strtype_True_False_None_None: Final = _URILoader(
-    array_of_strtype, True, False, None, None, _vocab, _rvocab
+    array_of_strtype, True, False, None, None
 )
 Enum_nameLoader: Final = _EnumLoader(("enum",), "Enum_name")
-typedsl_Enum_nameLoader_2: Final = _TypeDSLLoader(
-    Enum_nameLoader, 2, "v1.1", _vocab, _rvocab
-)
+typedsl_Enum_nameLoader_2: Final = _TypeDSLLoader(Enum_nameLoader, 2, "v1.1")
 uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_ArraySchemaLoader_or_MapSchemaLoader_or_UnionSchemaLoader_or_strtype_False_True_2_None: (
     Final
 ) = _URILoader(
@@ -25150,21 +25568,13 @@ uri_union_of_PrimitiveTypeLoader_or_RecordSchemaLoader_or_EnumSchemaLoader_or_Ar
     True,
     2,
     None,
-    _vocab,
-    _rvocab,
 )
 Array_nameLoader: Final = _EnumLoader(("array",), "Array_name")
-typedsl_Array_nameLoader_2: Final = _TypeDSLLoader(
-    Array_nameLoader, 2, "v1.1", _vocab, _rvocab
-)
+typedsl_Array_nameLoader_2: Final = _TypeDSLLoader(Array_nameLoader, 2, "v1.1")
 Map_nameLoader: Final = _EnumLoader(("map",), "Map_name")
-typedsl_Map_nameLoader_2: Final = _TypeDSLLoader(
-    Map_nameLoader, 2, "v1.1", _vocab, _rvocab
-)
+typedsl_Map_nameLoader_2: Final = _TypeDSLLoader(Map_nameLoader, 2, "v1.1")
 Union_nameLoader: Final = _EnumLoader(("union",), "Union_name")
-typedsl_Union_nameLoader_2: Final = _TypeDSLLoader(
-    Union_nameLoader, 2, "v1.1", _vocab, _rvocab
-)
+typedsl_Union_nameLoader_2: Final = _TypeDSLLoader(Union_nameLoader, 2, "v1.1")
 union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype: (
     Final
 ) = _UnionLoader(
@@ -25201,8 +25611,6 @@ uri_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or
     True,
     2,
     None,
-    _vocab,
-    _rvocab,
 )
 typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_2: (
     Final
@@ -25210,8 +25618,6 @@ typedsl_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoade
     union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype_or_array_of_union_of_PrimitiveTypeLoader_or_CWLRecordSchemaLoader_or_EnumSchemaLoader_or_CWLArraySchemaLoader_or_strtype,
     2,
     "v1.1",
-    _vocab,
-    _rvocab,
 )
 array_of_CWLRecordFieldLoader: Final = _ArrayLoader(CWLRecordFieldLoader)
 union_of_None_type_or_array_of_CWLRecordFieldLoader: Final = _UnionLoader(
@@ -25225,10 +25631,10 @@ idmap_fields_union_of_None_type_or_array_of_CWLRecordFieldLoader: Final = _IdMap
 )
 File_classLoader: Final = _EnumLoader(("File",), "File_class")
 uri_File_classLoader_False_True_None_None: Final = _URILoader(
-    File_classLoader, False, True, None, None, _vocab, _rvocab
+    File_classLoader, False, True, None, None
 )
 uri_union_of_None_type_or_strtype_False_False_None_None: Final = _URILoader(
-    union_of_None_type_or_strtype, False, False, None, None, _vocab, _rvocab
+    union_of_None_type_or_strtype, False, False, None, None
 )
 union_of_None_type_or_inttype: Final = _UnionLoader(
     (
@@ -25264,11 +25670,11 @@ secondaryfilesdsl_union_of_None_type_or_array_of_union_of_FileLoader_or_Director
     )
 )
 uri_union_of_None_type_or_strtype_True_False_None_True: Final = _URILoader(
-    union_of_None_type_or_strtype, True, False, None, True, _vocab, _rvocab
+    union_of_None_type_or_strtype, True, False, None, True
 )
 Directory_classLoader: Final = _EnumLoader(("Directory",), "Directory_class")
 uri_Directory_classLoader_False_True_None_None: Final = _URILoader(
-    Directory_classLoader, False, True, None, None, _vocab, _rvocab
+    Directory_classLoader, False, True, None, None
 )
 union_of_None_type_or_booltype: Final = _UnionLoader(
     (
@@ -25320,8 +25726,6 @@ uri_union_of_None_type_or_strtype_or_array_of_strtype_or_ExpressionLoader_True_F
     False,
     None,
     True,
-    _vocab,
-    _rvocab,
 )
 union_of_None_type_or_strtype_or_ExpressionLoader: Final = _UnionLoader(
     (
@@ -25332,13 +25736,7 @@ union_of_None_type_or_strtype_or_ExpressionLoader: Final = _UnionLoader(
 )
 uri_union_of_None_type_or_strtype_or_ExpressionLoader_True_False_None_True: Final = (
     _URILoader(
-        union_of_None_type_or_strtype_or_ExpressionLoader,
-        True,
-        False,
-        None,
-        True,
-        _vocab,
-        _rvocab,
+        union_of_None_type_or_strtype_or_ExpressionLoader, True, False, None, True
     )
 )
 union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype: (
@@ -25375,8 +25773,6 @@ typedsl_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoad
     union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
-    _vocab,
-    _rvocab,
 )
 array_of_InputRecordFieldLoader: Final = _ArrayLoader(InputRecordFieldLoader)
 union_of_None_type_or_array_of_InputRecordFieldLoader: Final = _UnionLoader(
@@ -25396,8 +25792,6 @@ uri_union_of_CWLTypeLoader_or_InputRecordSchemaLoader_or_InputEnumSchemaLoader_o
     True,
     2,
     None,
-    _vocab,
-    _rvocab,
 )
 union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype: (
     Final
@@ -25433,8 +25827,6 @@ typedsl_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLo
     union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader_or_OutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
-    _vocab,
-    _rvocab,
 )
 array_of_OutputRecordFieldLoader: Final = _ArrayLoader(OutputRecordFieldLoader)
 union_of_None_type_or_array_of_OutputRecordFieldLoader: Final = _UnionLoader(
@@ -25454,8 +25846,6 @@ uri_union_of_CWLTypeLoader_or_OutputRecordSchemaLoader_or_OutputEnumSchemaLoader
     True,
     2,
     None,
-    _vocab,
-    _rvocab,
 )
 union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader_or_OperationInputParameterLoader: (
     Final
@@ -25566,7 +25956,7 @@ union_of_None_type_or_CWLVersionLoader: Final = _UnionLoader(
     )
 )
 uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None: Final = _URILoader(
-    union_of_None_type_or_CWLVersionLoader, False, True, None, None, _vocab, _rvocab
+    union_of_None_type_or_CWLVersionLoader, False, True, None, None
 )
 union_of_None_type_or_array_of_strtype: Final = _UnionLoader(
     (
@@ -25575,19 +25965,19 @@ union_of_None_type_or_array_of_strtype: Final = _UnionLoader(
     )
 )
 uri_union_of_None_type_or_array_of_strtype_True_False_None_None: Final = _URILoader(
-    union_of_None_type_or_array_of_strtype, True, False, None, None, _vocab, _rvocab
+    union_of_None_type_or_array_of_strtype, True, False, None, None
 )
 InlineJavascriptRequirement_classLoader: Final = _EnumLoader(
     ("InlineJavascriptRequirement",), "InlineJavascriptRequirement_class"
 )
 uri_InlineJavascriptRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    InlineJavascriptRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    InlineJavascriptRequirement_classLoader, False, True, None, None
 )
 SchemaDefRequirement_classLoader: Final = _EnumLoader(
     ("SchemaDefRequirement",), "SchemaDefRequirement_class"
 )
 uri_SchemaDefRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    SchemaDefRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    SchemaDefRequirement_classLoader, False, True, None, None
 )
 union_of_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader: (
     Final
@@ -25620,7 +26010,7 @@ LoadListingRequirement_classLoader: Final = _EnumLoader(
     ("LoadListingRequirement",), "LoadListingRequirement_class"
 )
 uri_LoadListingRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    LoadListingRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    LoadListingRequirement_classLoader, False, True, None, None
 )
 union_of_None_type_or_inttype_or_ExpressionLoader: Final = _UnionLoader(
     (
@@ -25685,8 +26075,6 @@ typedsl_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInput
     union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
-    _vocab,
-    _rvocab,
 )
 array_of_CommandInputRecordFieldLoader: Final = _ArrayLoader(
     CommandInputRecordFieldLoader
@@ -25710,8 +26098,6 @@ uri_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnum
     True,
     2,
     None,
-    _vocab,
-    _rvocab,
 )
 union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: (
     Final
@@ -25747,8 +26133,6 @@ typedsl_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutp
     union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
-    _vocab,
-    _rvocab,
 )
 union_of_None_type_or_CommandOutputBindingLoader: Final = _UnionLoader(
     (
@@ -25778,8 +26162,6 @@ uri_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEn
     True,
     2,
     None,
-    _vocab,
-    _rvocab,
 )
 union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype: (
     Final
@@ -25800,8 +26182,6 @@ typedsl_union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_
     union_of_CWLTypeLoader_or_stdinLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandInputRecordSchemaLoader_or_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
-    _vocab,
-    _rvocab,
 )
 union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype: (
     Final
@@ -25823,14 +26203,12 @@ typedsl_union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputR
     union_of_CWLTypeLoader_or_stdoutLoader_or_stderrLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype_or_array_of_union_of_CWLTypeLoader_or_CommandOutputRecordSchemaLoader_or_CommandOutputEnumSchemaLoader_or_CommandOutputArraySchemaLoader_or_strtype,
     2,
     "v1.1",
-    _vocab,
-    _rvocab,
 )
 CommandLineTool_classLoader: Final = _EnumLoader(
     ("CommandLineTool",), "CommandLineTool_class"
 )
 uri_CommandLineTool_classLoader_False_True_None_None: Final = _URILoader(
-    CommandLineTool_classLoader, False, True, None, None, _vocab, _rvocab
+    CommandLineTool_classLoader, False, True, None, None
 )
 array_of_CommandInputParameterLoader: Final = _ArrayLoader(CommandInputParameterLoader)
 idmap_inputs_array_of_CommandInputParameterLoader: Final = _IdMapLoader(
@@ -25871,26 +26249,26 @@ DockerRequirement_classLoader: Final = _EnumLoader(
     ("DockerRequirement",), "DockerRequirement_class"
 )
 uri_DockerRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    DockerRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    DockerRequirement_classLoader, False, True, None, None
 )
 SoftwareRequirement_classLoader: Final = _EnumLoader(
     ("SoftwareRequirement",), "SoftwareRequirement_class"
 )
 uri_SoftwareRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    SoftwareRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    SoftwareRequirement_classLoader, False, True, None, None
 )
 array_of_SoftwarePackageLoader: Final = _ArrayLoader(SoftwarePackageLoader)
 idmap_packages_array_of_SoftwarePackageLoader: Final = _IdMapLoader(
     array_of_SoftwarePackageLoader, "package", "specs"
 )
 uri_union_of_None_type_or_array_of_strtype_False_False_None_True: Final = _URILoader(
-    union_of_None_type_or_array_of_strtype, False, False, None, True, _vocab, _rvocab
+    union_of_None_type_or_array_of_strtype, False, False, None, True
 )
 InitialWorkDirRequirement_classLoader: Final = _EnumLoader(
     ("InitialWorkDirRequirement",), "InitialWorkDirRequirement_class"
 )
 uri_InitialWorkDirRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    InitialWorkDirRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    InitialWorkDirRequirement_classLoader, False, True, None, None
 )
 union_of_None_type_or_DirentLoader_or_ExpressionLoader_or_FileLoader_or_DirectoryLoader_or_array_of_union_of_FileLoader_or_DirectoryLoader: (
     Final
@@ -25921,7 +26299,7 @@ EnvVarRequirement_classLoader: Final = _EnumLoader(
     ("EnvVarRequirement",), "EnvVarRequirement_class"
 )
 uri_EnvVarRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    EnvVarRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    EnvVarRequirement_classLoader, False, True, None, None
 )
 array_of_EnvironmentDefLoader: Final = _ArrayLoader(EnvironmentDefLoader)
 idmap_envDef_array_of_EnvironmentDefLoader: Final = _IdMapLoader(
@@ -25931,13 +26309,13 @@ ShellCommandRequirement_classLoader: Final = _EnumLoader(
     ("ShellCommandRequirement",), "ShellCommandRequirement_class"
 )
 uri_ShellCommandRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    ShellCommandRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    ShellCommandRequirement_classLoader, False, True, None, None
 )
 ResourceRequirement_classLoader: Final = _EnumLoader(
     ("ResourceRequirement",), "ResourceRequirement_class"
 )
 uri_ResourceRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    ResourceRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    ResourceRequirement_classLoader, False, True, None, None
 )
 union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader: Final = _UnionLoader(
     (
@@ -25949,7 +26327,7 @@ union_of_None_type_or_inttype_or_floattype_or_ExpressionLoader: Final = _UnionLo
 )
 WorkReuse_classLoader: Final = _EnumLoader(("WorkReuse",), "WorkReuse_class")
 uri_WorkReuse_classLoader_False_True_None_None: Final = _URILoader(
-    WorkReuse_classLoader, False, True, None, None, _vocab, _rvocab
+    WorkReuse_classLoader, False, True, None, None
 )
 union_of_booltype_or_ExpressionLoader: Final = _UnionLoader(
     (
@@ -25961,19 +26339,19 @@ NetworkAccess_classLoader: Final = _EnumLoader(
     ("NetworkAccess",), "NetworkAccess_class"
 )
 uri_NetworkAccess_classLoader_False_True_None_None: Final = _URILoader(
-    NetworkAccess_classLoader, False, True, None, None, _vocab, _rvocab
+    NetworkAccess_classLoader, False, True, None, None
 )
 InplaceUpdateRequirement_classLoader: Final = _EnumLoader(
     ("InplaceUpdateRequirement",), "InplaceUpdateRequirement_class"
 )
 uri_InplaceUpdateRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    InplaceUpdateRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    InplaceUpdateRequirement_classLoader, False, True, None, None
 )
 ToolTimeLimit_classLoader: Final = _EnumLoader(
     ("ToolTimeLimit",), "ToolTimeLimit_class"
 )
 uri_ToolTimeLimit_classLoader_False_True_None_None: Final = _URILoader(
-    ToolTimeLimit_classLoader, False, True, None, None, _vocab, _rvocab
+    ToolTimeLimit_classLoader, False, True, None, None
 )
 union_of_inttype_or_ExpressionLoader: Final = _UnionLoader(
     (
@@ -25991,7 +26369,7 @@ ExpressionTool_classLoader: Final = _EnumLoader(
     ("ExpressionTool",), "ExpressionTool_class"
 )
 uri_ExpressionTool_classLoader_False_True_None_None: Final = _URILoader(
-    ExpressionTool_classLoader, False, True, None, None, _vocab, _rvocab
+    ExpressionTool_classLoader, False, True, None, None
 )
 array_of_WorkflowInputParameterLoader: Final = _ArrayLoader(
     WorkflowInputParameterLoader
@@ -26006,15 +26384,7 @@ idmap_outputs_array_of_ExpressionToolOutputParameterLoader: Final = _IdMapLoader
     array_of_ExpressionToolOutputParameterLoader, "id", "type"
 )
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_1_None: Final = (
-    _URILoader(
-        union_of_None_type_or_strtype_or_array_of_strtype,
-        False,
-        False,
-        1,
-        None,
-        _vocab,
-        _rvocab,
-    )
+    _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 1, None)
 )
 union_of_None_type_or_LinkMergeMethodLoader: Final = _UnionLoader(
     (
@@ -26029,15 +26399,7 @@ union_of_None_type_or_PickValueMethodLoader: Final = _UnionLoader(
     )
 )
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_2_None: Final = (
-    _URILoader(
-        union_of_None_type_or_strtype_or_array_of_strtype,
-        False,
-        False,
-        2,
-        None,
-        _vocab,
-        _rvocab,
-    )
+    _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 2, None)
 )
 array_of_WorkflowStepInputLoader: Final = _ArrayLoader(WorkflowStepInputLoader)
 idmap_in__array_of_WorkflowStepInputLoader: Final = _IdMapLoader(
@@ -26063,8 +26425,6 @@ uri_union_of_array_of_union_of_strtype_or_WorkflowStepOutputLoader_True_False_No
     False,
     None,
     None,
-    _vocab,
-    _rvocab,
 )
 array_of_Any_type: Final = _ArrayLoader(Any_type)
 union_of_None_type_or_array_of_Any_type: Final = _UnionLoader(
@@ -26095,19 +26455,9 @@ uri_union_of_strtype_or_CommandLineToolLoader_or_ExpressionToolLoader_or_Workflo
     False,
     None,
     None,
-    _vocab,
-    _rvocab,
 )
 uri_union_of_None_type_or_strtype_or_array_of_strtype_False_False_0_None: Final = (
-    _URILoader(
-        union_of_None_type_or_strtype_or_array_of_strtype,
-        False,
-        False,
-        0,
-        None,
-        _vocab,
-        _rvocab,
-    )
+    _URILoader(union_of_None_type_or_strtype_or_array_of_strtype, False, False, 0, None)
 )
 union_of_None_type_or_ScatterMethodLoader: Final = _UnionLoader(
     (
@@ -26116,11 +26466,11 @@ union_of_None_type_or_ScatterMethodLoader: Final = _UnionLoader(
     )
 )
 uri_union_of_None_type_or_ScatterMethodLoader_False_True_None_None: Final = _URILoader(
-    union_of_None_type_or_ScatterMethodLoader, False, True, None, None, _vocab, _rvocab
+    union_of_None_type_or_ScatterMethodLoader, False, True, None, None
 )
 Workflow_classLoader: Final = _EnumLoader(("Workflow",), "Workflow_class")
 uri_Workflow_classLoader_False_True_None_None: Final = _URILoader(
-    Workflow_classLoader, False, True, None, None, _vocab, _rvocab
+    Workflow_classLoader, False, True, None, None
 )
 array_of_WorkflowOutputParameterLoader: Final = _ArrayLoader(
     WorkflowOutputParameterLoader
@@ -26139,37 +26489,29 @@ SubworkflowFeatureRequirement_classLoader: Final = _EnumLoader(
     ("SubworkflowFeatureRequirement",), "SubworkflowFeatureRequirement_class"
 )
 uri_SubworkflowFeatureRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    SubworkflowFeatureRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    SubworkflowFeatureRequirement_classLoader, False, True, None, None
 )
 ScatterFeatureRequirement_classLoader: Final = _EnumLoader(
     ("ScatterFeatureRequirement",), "ScatterFeatureRequirement_class"
 )
 uri_ScatterFeatureRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    ScatterFeatureRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    ScatterFeatureRequirement_classLoader, False, True, None, None
 )
 MultipleInputFeatureRequirement_classLoader: Final = _EnumLoader(
     ("MultipleInputFeatureRequirement",), "MultipleInputFeatureRequirement_class"
 )
 uri_MultipleInputFeatureRequirement_classLoader_False_True_None_None: Final = (
-    _URILoader(
-        MultipleInputFeatureRequirement_classLoader,
-        False,
-        True,
-        None,
-        None,
-        _vocab,
-        _rvocab,
-    )
+    _URILoader(MultipleInputFeatureRequirement_classLoader, False, True, None, None)
 )
 StepInputExpressionRequirement_classLoader: Final = _EnumLoader(
     ("StepInputExpressionRequirement",), "StepInputExpressionRequirement_class"
 )
 uri_StepInputExpressionRequirement_classLoader_False_True_None_None: Final = _URILoader(
-    StepInputExpressionRequirement_classLoader, False, True, None, None, _vocab, _rvocab
+    StepInputExpressionRequirement_classLoader, False, True, None, None
 )
 Operation_classLoader: Final = _EnumLoader(("Operation",), "Operation_class")
 uri_Operation_classLoader_False_True_None_None: Final = _URILoader(
-    Operation_classLoader, False, True, None, None, _vocab, _rvocab
+    Operation_classLoader, False, True, None, None
 )
 array_of_OperationInputParameterLoader: Final = _ArrayLoader(
     OperationInputParameterLoader
