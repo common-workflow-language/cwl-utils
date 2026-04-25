@@ -234,7 +234,7 @@ LoadContents: TypeAlias = (
     | cwl_v1_2.WorkflowStepInput
 )
 """Type Union for a CWL v1.x LoadContents object."""
-_Loader: TypeAlias = schema_salad.runtime._Loader
+_Loader: TypeAlias = cwl_v1_0._Loader | cwl_v1_1._Loader | cwl_v1_2._Loader
 """Type union for a CWL v1.x _Loader."""
 
 
