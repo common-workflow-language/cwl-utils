@@ -8,10 +8,10 @@ import os
 import sys
 import uuid as _uuid__
 from collections.abc import Collection
-from mypy_extensions import trait
 from typing import ClassVar
 
 from schema_salad.runtime import (
+    Saveable,
     file_uri,
     parse_errors,
     prefix_url,
@@ -23,25 +23,27 @@ if sys.version_info >= (3, 11):
     from typing import Self
 else:
     from typing_extensions import Self
+
 import schema_salad.metaschema
 
 import copy
-
 from collections.abc import MutableSequence, Sequence, MutableMapping
 from io import StringIO
 from itertools import chain
-from typing import Any, Final, cast, Generic, TypeVar
+from typing import Any, Final, cast, Generic
 from urllib.parse import urldefrag, urlsplit, urlunsplit
 
 from ruamel.yaml.comments import CommentedMap
 
 from schema_salad.exceptions import ValidationException, SchemaSaladException
-from schema_salad.runtime import LoadingOptions, convert_typing, extract_type, Saveable
+from schema_salad.runtime import (
+    LoadingOptions,
+    convert_typing,
+    extract_type,
+    SaveableType,
+)
 from schema_salad.sourceline import SourceLine, add_lc_filename
-from schema_salad.utils import yaml_no_ts
-
-S = TypeVar("S", bound=Saveable)
-
+from schema_salad.utils import yaml_no_ts  # requires schema-salad v8.2+
 
 _vocab: Final[dict[str, str]] = {}
 _rvocab: Final[dict[str, str]] = {}
@@ -287,10 +289,10 @@ class _SecondaryDSLLoader(_Loader):
         return self.inner.load(r, baseuri, loadingOptions, docRoot, lc=lc)
 
 
-class _RecordLoader(_Loader, Generic[S]):
+class _RecordLoader(_Loader, Generic[SaveableType]):
     def __init__(
         self,
-        classtype: type[S],
+        classtype: type[SaveableType],
         container: str | None = None,
         no_link_check: bool | None = None,
     ) -> None:
@@ -305,7 +307,7 @@ class _RecordLoader(_Loader, Generic[S]):
         loadingOptions: LoadingOptions,
         docRoot: str | None = None,
         lc: Any | None = None,
-    ) -> S:
+    ) -> SaveableType:
         if not isinstance(doc, MutableMapping):
             raise ValidationException(
                 f"Value is a {convert_typing(extract_type(type(doc)))}, "
@@ -1633,9 +1635,9 @@ class File(Saveable):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         location = None
         if "location" in _doc:
             try:
@@ -2377,9 +2379,9 @@ class Directory(Saveable):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         location = None
         if "location" in _doc:
             try:
@@ -2651,42 +2653,34 @@ class Directory(Saveable):
     )
 
 
-@trait
 class Labeled(Saveable):
     pass
 
 
-@trait
 class Identified(Saveable):
     pass
 
 
-@trait
 class IdentifierRequired(Identified):
     pass
 
 
-@trait
 class LoadContents(Saveable):
     pass
 
 
-@trait
 class FieldBase(Labeled):
     pass
 
 
-@trait
 class InputFormat(Saveable):
     pass
 
 
-@trait
 class OutputFormat(Saveable):
     pass
 
 
-@trait
 class Parameter(FieldBase, schema_salad.metaschema.Documented, IdentifierRequired):
     """
     Define an input or output parameter to a process.
@@ -2843,17 +2837,14 @@ class InputBinding(Saveable):
     attrs: ClassVar[Collection[str]] = frozenset(["loadContents"])
 
 
-@trait
 class IOSchema(Labeled, schema_salad.metaschema.Documented):
     pass
 
 
-@trait
 class InputSchema(IOSchema):
     pass
 
 
-@trait
 class OutputSchema(IOSchema):
     pass
 
@@ -6276,17 +6267,14 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
     )
 
 
-@trait
 class InputParameter(Parameter, InputFormat, LoadContents):
     pass
 
 
-@trait
 class OutputParameter(Parameter, OutputFormat):
     pass
 
 
-@trait
 class ProcessRequirement(Saveable):
     """
     A process requirement declares a prerequisite that may or must be fulfilled before executing a process.  See ```Process.hints`` <#process>`__ and ```Process.requirements`` <#process>`__.
@@ -6298,7 +6286,6 @@ class ProcessRequirement(Saveable):
     pass
 
 
-@trait
 class Process(Identified, Labeled, schema_salad.metaschema.Documented):
     """
     The base executable type in CWL is the ``Process`` object defined by the document.  Note that the ``Process`` object is abstract and cannot be directly executed.
@@ -6370,9 +6357,9 @@ class InlineJavascriptRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         expressionLib = None
         if "expressionLib" in _doc:
             try:
@@ -6491,7 +6478,6 @@ class InlineJavascriptRequirement(ProcessRequirement):
     attrs: ClassVar[Collection[str]] = frozenset(["class", "expressionLib"])
 
 
-@trait
 class CommandInputSchema(Saveable):
     pass
 
@@ -6559,9 +6545,9 @@ class SchemaDefRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         try:
             if _doc.get("types") is None:
                 raise ValidationException("missing required field `types`", None, [])
@@ -6952,9 +6938,9 @@ class LoadListingRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         loadListing = None
         if "loadListing" in _doc:
             try:
@@ -8145,7 +8131,6 @@ class CommandOutputBinding(LoadContents):
     )
 
 
-@trait
 class CommandLineBindable(Saveable):
     pass
 
@@ -13416,9 +13401,9 @@ class CommandLineTool(Process):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         label = None
         if "label" in _doc:
             try:
@@ -14461,9 +14446,9 @@ class DockerRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         dockerPull = None
         if "dockerPull" in _doc:
             try:
@@ -14926,9 +14911,9 @@ class SoftwareRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         try:
             if _doc.get("packages") is None:
                 raise ValidationException("missing required field `packages`", None, [])
@@ -15627,9 +15612,9 @@ class InitialWorkDirRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         try:
             if _doc.get("listing") is None:
                 raise ValidationException("missing required field `listing`", None, [])
@@ -15805,9 +15790,9 @@ class EnvVarRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         try:
             if _doc.get("envDef") is None:
                 raise ValidationException("missing required field `envDef`", None, [])
@@ -15981,9 +15966,9 @@ class ShellCommandRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -16154,9 +16139,9 @@ class ResourceRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         coresMin = None
         if "coresMin" in _doc:
             try:
@@ -16723,9 +16708,9 @@ class WorkReuse(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         try:
             if _doc.get("enableReuse") is None:
                 raise ValidationException("missing required field `enableReuse`", None, [])
@@ -16913,9 +16898,9 @@ class NetworkAccess(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         try:
             if _doc.get("networkAccess") is None:
                 raise ValidationException("missing required field `networkAccess`", None, [])
@@ -17105,9 +17090,9 @@ class InplaceUpdateRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         try:
             if _doc.get("inplaceUpdate") is None:
                 raise ValidationException("missing required field `inplaceUpdate`", None, [])
@@ -17288,9 +17273,9 @@ class ToolTimeLimit(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         try:
             if _doc.get("timelimit") is None:
                 raise ValidationException("missing required field `timelimit`", None, [])
@@ -18826,9 +18811,9 @@ class ExpressionTool(Process):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         label = None
         if "label" in _doc:
             try:
@@ -20076,7 +20061,6 @@ class WorkflowOutputParameter(OutputParameter):
     )
 
 
-@trait
 class Sink(Saveable):
     pass
 
@@ -21912,9 +21896,9 @@ class Workflow(Process):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         label = None
         if "label" in _doc:
             try:
@@ -22526,9 +22510,9 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -22647,9 +22631,9 @@ class ScatterFeatureRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -22768,9 +22752,9 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -22889,9 +22873,9 @@ class StepInputExpressionRequirement(ProcessRequirement):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         extension_fields: MutableMapping[str, Any] = {}
         for k in _doc.keys():
             if k not in cls.attrs:
@@ -24315,9 +24299,9 @@ class Operation(Process):
 
             vocab = _vocab | loadingOptions.vocab
             if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-               raise ValidationException(f"tried `{cls.__name__}` but")
+                raise ValidationException(f"tried `{cls.__name__}` but")
         except ValidationException as e:
-               raise e
+            raise e
         label = None
         if "label" in _doc:
             try:

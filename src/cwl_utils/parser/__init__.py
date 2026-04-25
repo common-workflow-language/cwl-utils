@@ -285,8 +285,9 @@ def load_document_by_uri(
         base_uri = path.resolve().parent.as_uri()
         id_ = path.resolve().name.split("#")[1] if "#" in path.resolve().name else None
 
-    if loadingOptions is None:
-        loadingOptions = LoadingOptions(fileuri=real_uri, baseuri=base_uri)
+    loadingOptions = LoadingOptions(
+        fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
+    )
 
     return load_document_by_string(
         loadingOptions.fetcher.fetch_text(real_uri),
