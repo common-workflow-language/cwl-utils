@@ -5,7 +5,7 @@ from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
 from pathlib import Path
-from typing import IO, Any, cast
+from typing import IO, Any, Union, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -13,7 +13,7 @@ from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import aslist, json_dumps, yaml_no_ts
 
 import cwl_utils.parser
-import cwl_utils.parser.cwl_v1_1 as cwl
+import cwl_utils.parser.cwl_v1_3 as cwl
 import cwl_utils.parser.utils
 from cwl_utils.errors import WorkflowException
 from cwl_utils.utils import yaml_dumps
@@ -48,8 +48,12 @@ def _compare_records(
             _logger.info(
                 "Record comparison failure for %s and %s\n"
                 "Did not match fields for %s: %s and %s",
-                cast(cwl.InputRecordSchema | cwl.CommandOutputRecordSchema, src).name,
-                cast(cwl.InputRecordSchema | cwl.CommandOutputRecordSchema, sink).name,
+                cast(
+                    Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], src
+                ).name,
+                cast(
+                    Union[cwl.InputRecordSchema, cwl.CommandOutputRecordSchema], sink
+                ).name,
                 key,
                 srcfields.get(key),
                 sinkfields.get(key),
@@ -75,11 +79,32 @@ def _compare_type(type1: Any, type2: Any) -> bool:
         case MutableSequence(), MutableSequence():
             if len(type1) != len(type2):
                 return False
-            for t3 in type1:
-                if not any(_compare_type(t3, t2) for t2 in type2):
+            for t1 in type1:
+                if not any(_compare_type(t1, t2) for t2 in type2):
                     return False
             return True
     return bool(type1 == type2)
+
+
+def _is_all_output_method_loop_step(
+    param_to_step: dict[str, cwl.WorkflowStep], parm_id: str
+) -> bool:
+    if (source_step := param_to_step.get(parm_id)) is not None:
+        if (
+            isinstance(source_step, cwl.LoopWorkflowStep)
+            and source_step.outputMethod == "all_iterations"
+        ):
+            return True
+    return False
+
+
+def _is_conditional_step(
+    param_to_step: dict[str, cwl.WorkflowStep], parm_id: str
+) -> bool:
+    if (source_step := param_to_step.get(parm_id)) is not None:
+        if source_step.when is not None:
+            return True
+    return False
 
 
 def _inputfile_load(
@@ -152,7 +177,7 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
     sink: admissible sink types
 
     In non-strict comparison, at least one source type must match one sink type,
-    except for 'null'.
+       except for 'null'.
     In strict comparison, all source types must match at least one sink type.
     """
     if "Any" in (src, sink):
@@ -182,11 +207,15 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
 def check_all_types(
     src_dict: dict[str, Any],
     sinks: MutableSequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
+    param_to_step: dict[str, cwl.WorkflowStep],
     type_dict: dict[str, Any],
 ) -> dict[str, list[SrcSink]]:
     """Given a list of sinks, check if their types match with the types of their sources."""
     validation: dict[str, list[SrcSink]] = {"warning": [], "exception": []}
     for sink in sinks:
+        extra_message = (
+            "pickValue is %s" % sink.pickValue if sink.pickValue is not None else None
+        )
         match sink:
             case cwl.WorkflowOutputParameter():
                 sourceName = "outputSource"
@@ -201,9 +230,28 @@ def check_all_types(
                 linkMerge = sink.linkMerge or (
                     "merge_nested" if len(sourceField) > 1 else None
                 )
+                if sink.pickValue in ("first_non_null", "the_only_non_null"):
+                    linkMerge = None
                 srcs_of_sink = []
                 for parm_id in sourceField:
                     srcs_of_sink += [src_dict[parm_id]]
+                    if (
+                        _is_conditional_step(param_to_step, parm_id)
+                        and sink.pickValue is not None
+                    ):
+                        validation["warning"].append(
+                            SrcSink(
+                                src_dict[parm_id],
+                                sink,
+                                linkMerge,
+                                message="Source is from conditional step, but pickValue is not used",
+                            )
+                        )
+                    if _is_all_output_method_loop_step(param_to_step, parm_id):
+                        src_typ = type_dict[src_dict[parm_id].id]
+                        type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
+                            items=src_typ, type_="array"
+                        )
             else:
                 parm_id = cast(str, sourceField)
                 if parm_id not in src_dict:
@@ -212,6 +260,38 @@ def check_all_types(
                     )
                 srcs_of_sink = [src_dict[parm_id]]
                 linkMerge = None
+                if sink.pickValue is not None:
+                    validation["warning"].append(
+                        SrcSink(
+                            src_dict[parm_id],
+                            sink,
+                            linkMerge,
+                            message="pickValue is used but only a single input source is declared",
+                        )
+                    )
+                if _is_conditional_step(param_to_step, parm_id):
+                    src_typ = aslist(type_dict[src_dict[parm_id].id])
+                    snk_typ = type_dict[sink.id]
+                    if "null" not in src_typ:
+                        src_typ = ["null"] + cast(list[Any], src_typ)
+                    if (
+                        not isinstance(snk_typ, MutableSequence)
+                        or "null" not in snk_typ
+                    ):
+                        validation["warning"].append(
+                            SrcSink(
+                                src_dict[parm_id],
+                                sink,
+                                linkMerge,
+                                message="Source is from conditional step and may produce `null`",
+                            )
+                        )
+                    type_dict[src_dict[parm_id].id] = src_typ
+                if _is_all_output_method_loop_step(param_to_step, parm_id):
+                    src_typ = type_dict[src_dict[parm_id].id]
+                    type_dict[src_dict[parm_id].id] = cwl.ArraySchema(
+                        items=src_typ, type_="array"
+                    )
             for src in srcs_of_sink:
                 check_result = check_types(
                     type_dict[cast(str, src.id)],
@@ -220,7 +300,9 @@ def check_all_types(
                     getattr(sink, "valueFrom", None),
                 )
                 if check_result in ("warning", "exception"):
-                    validation[check_result].append(SrcSink(src, sink, linkMerge, None))
+                    validation[check_result].append(
+                        SrcSink(src, sink, linkMerge, extra_message)
+                    )
     return validation
 
 
@@ -256,16 +338,21 @@ def content_limit_respected_read_bytes(f: IO[bytes]) -> bytes:
     """
     Read file content up to 64 kB as a byte array.
 
-    Truncate content for larger files.
+    Throw exception for larger files (see https://www.commonwl.org/v1.2/Workflow.html#Changelog).
     """
-    return f.read(CONTENT_LIMIT)
+    contents = f.read(CONTENT_LIMIT + 1)
+    if len(contents) > CONTENT_LIMIT:
+        raise WorkflowException(
+            "file is too large, loadContents limited to %d bytes" % CONTENT_LIMIT
+        )
+    return contents
 
 
 def content_limit_respected_read(f: IO[bytes]) -> str:
     """
     Read file content up to 64 kB as an utf-8 encoded string.
 
-    Truncate content for larger files.
+    Throw exception for larger files (see https://www.commonwl.org/v1.2/Workflow.html#Changelog).
     """
     return content_limit_respected_read_bytes(f).decode("utf-8")
 
@@ -318,7 +405,7 @@ def load_inputfile(
     baseuri: str | None = None,
     loadingOptions: cwl.LoadingOptions | None = None,
 ) -> Any:
-    """Load a CWL v1.1 input file from a serialized YAML string or a YAML object."""
+    """Load a CWL v1.2 input file from a serialized YAML string or a YAML object."""
     if baseuri is None:
         baseuri = cwl.file_uri(str(Path.cwd())) + "/"
     if loadingOptions is None:
@@ -337,7 +424,7 @@ def load_inputfile_by_string(
     uri: str,
     loadingOptions: cwl.LoadingOptions | None = None,
 ) -> Any:
-    """Load a CWL v1.1 input file from a serialized YAML string."""
+    """Load a CWL v1.2 input file from a serialized YAML string."""
     result = yaml_no_ts().load(string)
     add_lc_filename(result, uri)
 
@@ -357,7 +444,7 @@ def load_inputfile_by_yaml(
     uri: str,
     loadingOptions: cwl.LoadingOptions | None = None,
 ) -> Any:
-    """Load a CWL v1.1 input file from a YAML object."""
+    """Load a CWL v1.2 input file from a YAML object."""
     add_lc_filename(yaml, uri)
 
     if loadingOptions is None:
@@ -393,7 +480,9 @@ def type_for_step_input(
         for step_input in step_run.inputs:
             if cast(str, step_input.id).split("#")[-1] == in_.id.split("#")[-1]:
                 input_type = step_input.type_
-                if step.scatter is not None and in_.id in aslist(step.scatter):
+                if isinstance(step, cwl.ScatterWorkflowStep) and in_.id in aslist(
+                    step.scatter
+                ):
                     input_type = cwl.ArraySchema(items=input_type, type_="array")
                 return input_type
     return "Any"
@@ -413,7 +502,7 @@ def type_for_step_output(
                 == sourcename.split("#")[-1].split("/")[-1]
             ):
                 output_type = output.type_
-                if step.scatter is not None:
+                if isinstance(step, cwl.ScatterWorkflowStep):
                     if step.scatterMethod == "nested_crossproduct":
                         for _ in range(len(aslist(step.scatter))):
                             output_type = cwl.ArraySchema(
@@ -435,11 +524,12 @@ def type_for_source(
     sourcenames: str | list[str],
     parent: cwl.Workflow | None = None,
     linkMerge: str | None = None,
+    pickValue: str | None = None,
 ) -> Any:
     """Determine the type for the given sourcenames."""
     scatter_context: list[tuple[int, str] | None] = []
     params = param_for_source_id(process, sourcenames, parent, scatter_context)
-    if not isinstance(params, MutableSequence):
+    if not isinstance(params, list):
         new_type = params.type_
         if scatter_context[0] is not None:
             if scatter_context[0][1] == "nested_crossproduct":
@@ -451,6 +541,10 @@ def type_for_source(
             new_type = cwl.ArraySchema(items=new_type, type_="array")
         elif linkMerge == "merge_flattened":
             new_type = merge_flatten_type(new_type)
+        if pickValue is not None:
+            if isinstance(new_type, cwl.ArraySchema):
+                if pickValue in ("first_non_null", "the_only_non_null"):
+                    new_type = new_type.items
         return new_type
     new_type = []
     for p, sc in zip(params, scatter_context):
@@ -473,13 +567,16 @@ def type_for_source(
     if len(new_type) == 1:
         new_type = new_type[0]
     if linkMerge == "merge_nested":
-        return cwl.ArraySchema(items=new_type, type_="array")
+        new_type = cwl.ArraySchema(items=new_type, type_="array")
     elif linkMerge == "merge_flattened":
-        return merge_flatten_type(new_type)
+        new_type = merge_flatten_type(new_type)
     elif isinstance(sourcenames, list) and len(sourcenames) > 1:
-        return cwl.ArraySchema(items=new_type, type_="array")
-    else:
-        return new_type
+        new_type = cwl.ArraySchema(items=new_type, type_="array")
+    if pickValue is not None:
+        if isinstance(new_type, cwl.ArraySchema):
+            if pickValue in ("first_non_null", "the_only_non_null"):
+                new_type = new_type.items
+    return new_type
 
 
 def param_for_source_id(
@@ -487,24 +584,11 @@ def param_for_source_id(
     sourcenames: str | list[str],
     parent: cwl.Workflow | None = None,
     scatter_context: list[tuple[int, str] | None] | None = None,
-) -> (
-    cwl.CommandInputParameter
-    | cwl.CommandOutputParameter
-    | cwl.WorkflowInputParameter
-    | MutableSequence[
-        cwl.CommandInputParameter
-        | cwl.CommandOutputParameter
-        | cwl.WorkflowInputParameter
-    ]
-):
+) -> list[cwl.WorkflowInputParameter] | cwl.WorkflowInputParameter:
     """Find the process input parameter that matches one of the given sourcenames."""
     if isinstance(sourcenames, str):
         sourcenames = [sourcenames]
-    params: MutableSequence[
-        cwl.CommandInputParameter
-        | cwl.CommandOutputParameter
-        | cwl.WorkflowInputParameter
-    ] = []
+    params: list[cwl.WorkflowInputParameter] = []
     for sourcename in sourcenames:
         if not isinstance(process, cwl.Workflow):
             for param in process.inputs:
@@ -544,24 +628,27 @@ def param_for_source_id(
                                         ):
                                             params.append(output)
                                             if scatter_context is not None:
-                                                if isinstance(step.scatter, str):
-                                                    scatter_context.append(
-                                                        (
-                                                            1,
-                                                            step.scatterMethod
-                                                            or "dotproduct",
-                                                        )
-                                                    )
-                                                elif isinstance(
-                                                    step.scatter, MutableSequence
+                                                if isinstance(
+                                                    step, cwl.ScatterWorkflowStep
                                                 ):
-                                                    scatter_context.append(
-                                                        (
-                                                            len(step.scatter),
-                                                            step.scatterMethod
-                                                            or "dotproduct",
+                                                    if isinstance(step.scatter, str):
+                                                        scatter_context.append(
+                                                            (
+                                                                1,
+                                                                step.scatterMethod
+                                                                or "dotproduct",
+                                                            )
                                                         )
-                                                    )
+                                                    elif isinstance(
+                                                        step.scatter, MutableSequence
+                                                    ):
+                                                        scatter_context.append(
+                                                            (
+                                                                len(step.scatter),
+                                                                step.scatterMethod
+                                                                or "dotproduct",
+                                                            )
+                                                        )
                                                 else:
                                                     scatter_context.append(None)
     if len(params) == 1:
