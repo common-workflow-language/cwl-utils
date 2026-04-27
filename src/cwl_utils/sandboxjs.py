@@ -108,7 +108,7 @@ class NodeJSEngine(JSEngine):
         self.processes_to_kill: Deque[subprocess.Popen[str]] = collections.deque()
 
     def __del__(self) -> None:
-        with suppress(TypeError):
+        try:
             while self.processes_to_kill:
                 process = self.processes_to_kill.popleft()
                 if isinstance(process.args, MutableSequence):
@@ -134,6 +134,8 @@ class NodeJSEngine(JSEngine):
                 with suppress(subprocess.TimeoutExpired):
                     process.wait(10)
                 process.kill()
+        except TypeError:
+            pass
 
     def check_js_threshold_version(self, working_alias: str) -> bool:
         """

@@ -17,9 +17,7 @@ else
     repo=https://github.com/common-workflow-language/cwl-utils.git
     HEAD=$(git rev-parse HEAD)
 fi
-run_tests="bin/py.test --pyargs ${module}"
 pipver=23.1  # minimum required version of pip for Python 3.12
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 
 rm -Rf testenv? || /bin/true
 
@@ -34,12 +32,7 @@ then
 	pip install ".${extras}"
 	make test
 	pip uninstall -y ${package} || true; pip uninstall -y ${package} || true; make install
-	mkdir testenv1/not-${module}
-	# if there is a subdir named '${module}' py.test will execute tests
-	# there instead of the installed module's tests
-	pushd testenv1/not-${module}
-	# shellcheck disable=SC2086
-	../${run_tests}; popd
+	make test
 fi
 
 python3 -m venv testenv2
@@ -64,9 +57,8 @@ make test
 cp dist/${module}*tar.gz ../../../testenv3/
 cp dist/${module}*whl ../../../testenv4/
 pip uninstall -y ${package} || true; pip uninstall -y ${package} || true; make install
-popd # ../.. no subdir named ${proj} here, safe for py.testing the installed module
-# shellcheck disable=SC2086
-${run_tests}
+make test
+popd
 popd
 
 # Is the source distribution in testenv2 complete enough to build
@@ -85,10 +77,7 @@ pushd out/${module}*
 make dist
 make test
 pip uninstall -y ${package} || true; pip uninstall -y ${package} || true; make install
-mkdir ../not-${module}
-pushd ../not-${module}
-# shellcheck disable=SC2086
-../../${run_tests}; popd
+make test
 popd
 popd
 
@@ -100,8 +89,5 @@ source bin/activate \
 	&& pip install --force-reinstall -U pip==${pipver} \
         && pip install build wheel
 pip install "$(ls ${module}*.whl)${extras}"
-mkdir not-${module}
-pushd not-${module}
-# shellcheck disable=SC2086
-../${run_tests}; popd
+pytest --pyargs ${module}
 popd

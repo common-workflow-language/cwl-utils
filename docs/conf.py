@@ -81,7 +81,7 @@ html_static_path = ["_static"]
 
 version = __version__
 
-autoapi_dirs = ["../cwl_utils"]
+autoapi_dirs = ["../src/cwl_utils"]
 autodoc_typehints = "description"
 autoapi_keep_files = True
 autoapi_ignore = ["*migrations*", "*.pyi", "*tests*"]

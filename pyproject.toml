@@ -71,14 +71,13 @@ cwl-normalizer = "cwl_utils.normalizer:main"
 cwl-inputs-schema-gen = "cwl_utils.inputs_schema_gen:main"
 
 [tool.pytest.ini_options]
-testpaths = ["cwl_utils/tests"]
-addopts = "-rsx -n auto"
+addopts = "-rsx -n auto --pyargs cwl_utils.tests"
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.hatch.version]
-path = "cwl_utils/__meta__.py"
+path = "src/cwl_utils/__meta__.py"
 
 [tool.hatch.build.targets.sdist]
 only-include = [
@@ -86,7 +85,7 @@ only-include = [
     ".coveragerc",
     "create_cwl_from_objects.py",
     "CONTRIBUTING.md",
-    "cwl_utils",
+    "src/cwl_utils",
     "docs",
     "LICENSE",
     "lint-requirements.txt",
@@ -97,11 +96,6 @@ only-include = [
     "mypy-stubs",
     "README.rst",
     "tox.ini"
-]
-
-[tool.hatch.build.targets.wheel]
-only-include = [
-    "cwl_utils",
 ]
 
 [tool.hatch.build.targets.wheel.hooks.mypyc]
@@ -115,8 +109,8 @@ dependencies = [
 ]
 require-runtime-dependencies = true
 include = [
-    "/cwl_utils/parser",
-    "/cwl_utils/expression.py"
+    "src/cwl_utils/parser",
+    "src/cwl_utils/expression.py"
 ]
 
 [tool.hatch.envs.test]
@@ -142,4 +136,4 @@ ignore = [
 ]
 
 [tool.bandit]
-exclude_dirs = ["cwl_utils/tests"]
+exclude_dirs = ["src/cwl_utils/tests"]
