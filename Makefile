@@ -26,15 +26,15 @@ EXTRAS="[testing]"
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
-PYSOURCES=$(filter-out $(MODULE)/parser/cwl_v%,$(shell find $(MODULE) -name "*.py")) \
+PYSOURCES=$(filter-out src/$(MODULE)/parser/cwl_v%,$(shell find src/$(MODULE) -name "*.py")) \
 	  create_cwl_from_objects.py load_cwl_by_path.py \
-	  ${MODULE}/parser/cwl_v1_?_utils.py docs/conf.py
+	  src/${MODULE}/parser/cwl_v1_?_utils.py docs/conf.py
 DEVPKGS=build diff_cover pylint pep257 ruff 'tox>=4' \
 	wheel autoflake pyupgrade bandit auto-walrus \
 	-rlint-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage ruff sloccount \
 	   python-flake8 python-mock shellcheck
-VERSION=v$(shell echo $$(tail -n 1 cwl_utils/__meta__.py | awk '{print $$3}'))
+VERSION=v$(shell echo $$(tail -n 1 src/cwl_utils/__meta__.py | awk '{print $$3}'))
 mkfile_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 UNAME_S=$(shell uname -s)
 
@@ -80,7 +80,7 @@ docs: FORCE
 
 ## clean                  : clean up all temporary / machine-generated files
 clean: FORCE
-	rm -f ${MODULE}/*.pyc ${MODULE}/tests/*.pyc
+	find src -name '*.pyc' -delete
 	rm -Rf .coverage
 	rm -f diff-cover.html
 
@@ -191,25 +191,25 @@ release: release-test
 flake8: FORCE
 	flake8 $(PYSOURCES)
 
-cwl_utils/parser/cwl_v1_0.py: FORCE
+src/cwl_utils/parser/cwl_v1_0.py: FORCE
 	schema-salad-tool --codegen python \
 		--codegen-parser-info "org.w3id.cwl.v1_0" \
 		https://github.com/common-workflow-language/common-workflow-language/raw/codegen/v1.0/extensions.yml \
 		> $@
 
-cwl_utils/parser/cwl_v1_1.py: FORCE
+src/cwl_utils/parser/cwl_v1_1.py: FORCE
 	schema-salad-tool --codegen python \
 		--codegen-parser-info "org.w3id.cwl.v1_1" \
 		https://github.com/common-workflow-language/cwl-v1.1/raw/codegen/extensions.yml \
 		> $@
 
-cwl_utils/parser/cwl_v1_2.py: FORCE
+src/cwl_utils/parser/cwl_v1_2.py: FORCE
 	schema-salad-tool --codegen python \
 		--codegen-parser-info "org.w3id.cwl.v1_2" \
 		https://github.com/common-workflow-language/cwl-v1.2/raw/codegen/extensions.yml \
 		> $@
 
-regen_parsers: cwl_utils/parser/cwl_v1_*.py
+regen_parsers: src/cwl_utils/parser/cwl_v1_*.py
 
 FORCE:
 
