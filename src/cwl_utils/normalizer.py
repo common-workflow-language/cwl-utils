@@ -12,12 +12,13 @@ from pathlib import Path
 
 from cwlupgrader import main as cwlupgrader
 from ruamel import yaml
+from schema_salad.runtime import save
 from schema_salad.sourceline import add_lc_filename
 
 from cwl_utils import cwl_v1_2_expression_refactor
 from cwl_utils.loghandler import _logger as _cwlutilslogger
 from cwl_utils.pack import pack
-from cwl_utils.parser.cwl_v1_2 import load_document_by_yaml, save
+from cwl_utils.parser.cwl_v1_2 import load_document_by_yaml
 
 _logger = logging.getLogger("cwl-normalizer")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name

@@ -3,11 +3,11 @@
 
 from pytest import raises
 from ruamel.yaml.main import YAML
+from schema_salad.runtime import shortname
 
 import cwl_utils.parser.latest as latest
 from cwl_utils.errors import GraphTargetMissingException
 from cwl_utils.parser import (
-    cwl_v1_2,
     cwl_version,
     load_document,
     load_document_by_uri,
@@ -86,12 +86,12 @@ def test_latest_parser() -> None:
 
 
 def test_shortname() -> None:
-    assert cwl_v1_2.shortname("http://example.com/foo") == "foo"
-    assert cwl_v1_2.shortname("http://example.com/#bar") == "bar"
-    assert cwl_v1_2.shortname("http://example.com/foo/bar") == "bar"
-    assert cwl_v1_2.shortname("http://example.com/foo#bar") == "bar"
-    assert cwl_v1_2.shortname("http://example.com/#foo/bar") == "bar"
-    assert cwl_v1_2.shortname("http://example.com/foo#bar/baz") == "baz"
+    assert shortname("http://example.com/foo") == "foo"
+    assert shortname("http://example.com/#bar") == "bar"
+    assert shortname("http://example.com/foo/bar") == "bar"
+    assert shortname("http://example.com/foo#bar") == "bar"
+    assert shortname("http://example.com/#foo/bar") == "bar"
+    assert shortname("http://example.com/foo#bar/baz") == "baz"
 
 
 def test_get_id_from_graph() -> None:
