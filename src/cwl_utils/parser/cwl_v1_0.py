@@ -41,27 +41,17 @@ from schema_salad.runtime import (
     convert_typing,
     extract_type,
     SaveableType,
+    Loader,
 )
 from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import yaml_no_ts  # requires schema-salad v8.2+
 
+_loaders: Final[dict[str, Loader | None]] = {}
 _vocab: Final[dict[str, str]] = {}
 _rvocab: Final[dict[str, str]] = {}
 
 
-class _Loader:
-    def load(
-        self,
-        doc: Any,
-        baseuri: str,
-        loadingOptions: LoadingOptions,
-        docRoot: str | None = None,
-        lc: Any | None = None,
-    ) -> Any | None:
-        pass
-
-
-class _AnyLoader(_Loader):
+class _AnyLoader(Loader):
     def load(
         self,
         doc: Any,
@@ -75,7 +65,7 @@ class _AnyLoader(_Loader):
         raise ValidationException("Expected non-null")
 
 
-class _PrimitiveLoader(_Loader):
+class _PrimitiveLoader(Loader):
     def __init__(self, tp: type | tuple[type[str], type[str]]) -> None:
         self.tp: Final = tp
 
@@ -95,8 +85,8 @@ class _PrimitiveLoader(_Loader):
         return str(self.tp)
 
 
-class _ArrayLoader(_Loader):
-    def __init__(self, items: _Loader) -> None:
+class _ArrayLoader(Loader):
+    def __init__(self, items: Loader) -> None:
         self.items: Final = items
 
     def load(
@@ -152,10 +142,10 @@ class _ArrayLoader(_Loader):
         return f"array<{self.items}>"
 
 
-class _MapLoader(_Loader):
+class _MapLoader(Loader):
     def __init__(
         self,
-        values: _Loader,
+        values: Loader,
         name: str | None = None,
         container: str | None = None,
         no_link_check: bool | None = None,
@@ -195,7 +185,7 @@ class _MapLoader(_Loader):
         return self.name if self.name is not None else f"map<string, {self.values}>"
 
 
-class _EnumLoader(_Loader):
+class _EnumLoader(Loader):
     def __init__(self, symbols: Sequence[str], name: str) -> None:
         self.symbols: Final = symbols
         self.name: Final = name
@@ -216,8 +206,8 @@ class _EnumLoader(_Loader):
         return self.name
 
 
-class _SecondaryDSLLoader(_Loader):
-    def __init__(self, inner: _Loader) -> None:
+class _SecondaryDSLLoader(Loader):
+    def __init__(self, inner: Loader) -> None:
         self.inner: Final = inner
 
     def load(
@@ -289,7 +279,7 @@ class _SecondaryDSLLoader(_Loader):
         return self.inner.load(r, baseuri, loadingOptions, docRoot, lc=lc)
 
 
-class _RecordLoader(_Loader, Generic[SaveableType]):
+class _RecordLoader(Loader, Generic[SaveableType]):
     def __init__(
         self,
         classtype: type[SaveableType],
@@ -323,7 +313,7 @@ class _RecordLoader(_Loader, Generic[SaveableType]):
         return str(self.classtype.__name__)
 
 
-class _ExpressionLoader(_Loader):
+class _ExpressionLoader(Loader):
     def __init__(self, items: type[str]) -> None:
         self.items: Final = items
 
@@ -344,12 +334,12 @@ class _ExpressionLoader(_Loader):
             return doc
 
 
-class _UnionLoader(_Loader):
-    def __init__(self, alternates: Sequence[_Loader], name: str | None = None) -> None:
+class _UnionLoader(Loader):
+    def __init__(self, alternates: Sequence[Loader], name: str | None = None) -> None:
         self.alternates = alternates
         self.name: Final = name
 
-    def add_loaders(self, loaders: Sequence[_Loader]) -> None:
+    def add_loaders(self, loaders: Sequence[Loader]) -> None:
         self.alternates = tuple(loader for loader in chain(self.alternates, loaders))
 
     def load(
@@ -434,10 +424,10 @@ class _UnionLoader(_Loader):
         return self.name if self.name is not None else " | ".join(str(a) for a in self.alternates)
 
 
-class _URILoader(_Loader):
+class _URILoader(Loader):
     def __init__(
         self,
-        inner: _Loader,
+        inner: Loader,
         scoped_id: bool,
         vocab_term: bool,
         scoped_ref: int | None,
@@ -503,10 +493,10 @@ class _URILoader(_Loader):
         return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
-class _TypeDSLLoader(_Loader):
+class _TypeDSLLoader(Loader):
     def __init__(
         self,
-        inner: _Loader,
+        inner: Loader,
         refScope: int | None,
         salad_version: str,
     ) -> None:
@@ -599,8 +589,8 @@ class _TypeDSLLoader(_Loader):
         return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
-class _IdMapLoader(_Loader):
-    def __init__(self, inner: _Loader, mapSubject: str, mapPredicate: str | None) -> None:
+class _IdMapLoader(Loader):
+    def __init__(self, inner: Loader, mapSubject: str, mapPredicate: str | None) -> None:
         self.inner: Final = inner
         self.mapSubject: Final = mapSubject
         self.mapPredicate: Final = mapPredicate
@@ -638,8 +628,31 @@ class _IdMapLoader(_Loader):
         return self.inner.load(doc, baseuri, loadingOptions, lc=lc)
 
 
+class _ProxyLoader(Loader):
+    def __init__(self, name: str) -> None:
+        self.name: Final = name
+
+    def load(
+        self,
+        doc: Any,
+        baseuri: str,
+        loadingOptions: LoadingOptions,
+        docRoot: str | None = None,
+        lc: Any | None = None,
+    ) -> Any | None:
+        if (
+            self.name in loadingOptions.loaders
+            and (loader := loadingOptions.loaders.get(self.name)) is not None
+        ):
+            return loader.load(doc, baseuri, loadingOptions, lc=lc)
+        elif self.name in _loaders and (loader := _loaders.get(self.name)) is not None:
+            return loader.load(doc, baseuri, loadingOptions, lc=lc)
+        else:
+            raise ValidationException(f"No Loader instance available for {self.name}")
+
+
 def _document_load(
-    loader: _Loader,
+    loader: Loader,
     doc: str | MutableMapping[str, Any] | MutableSequence[Any],
     baseuri: str,
     loadingOptions: LoadingOptions,
@@ -670,6 +683,7 @@ def _document_load(
             schemas=doc.get("$schemas", None),
             baseuri=doc.get("$base", None),
             addl_metadata=addl_metadata,
+            loaders=_loaders | loadingOptions.loaders,
         )
 
         doc2: Final = copy.copy(doc)
@@ -709,7 +723,7 @@ def _document_load(
 
 
 def _document_load_by_url(
-    loader: _Loader,
+    loader: Loader,
     url: str,
     loadingOptions: LoadingOptions,
     addl_metadata_fields: MutableSequence[str] | None = None,
@@ -809,7 +823,7 @@ def _expand_url(
 
 def _load_field(
     val: Any | None,
-    fieldtype: "_Loader",
+    fieldtype: Loader,
     baseuri: str,
     loadingOptions: LoadingOptions,
     lc: Any | None = None,
@@ -873,7 +887,7 @@ class CWLArraySchema(schema_salad.metaschema.ArraySchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -1080,7 +1094,7 @@ class CWLRecordField(schema_salad.metaschema.RecordField):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -1340,7 +1354,7 @@ class CWLRecordSchema(schema_salad.metaschema.RecordSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -1613,7 +1627,7 @@ class File(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -2357,7 +2371,7 @@ class Directory(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -2729,7 +2743,7 @@ class InputRecordField(CWLRecordField):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -3109,7 +3123,7 @@ class InputRecordSchema(CWLRecordSchema, InputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -3437,7 +3451,7 @@ class InputEnumSchema(schema_salad.metaschema.EnumSchema, InputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -3815,7 +3829,7 @@ class InputArraySchema(CWLArraySchema, InputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -4134,7 +4148,7 @@ class OutputRecordField(CWLRecordField):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -4457,7 +4471,7 @@ class OutputRecordSchema(CWLRecordSchema, OutputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -4724,7 +4738,7 @@ class OutputEnumSchema(schema_salad.metaschema.EnumSchema, OutputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -5102,7 +5116,7 @@ class OutputArraySchema(CWLArraySchema, OutputSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -5448,7 +5462,7 @@ class InputParameter(Parameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -6069,7 +6083,7 @@ class OutputParameter(Parameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -6581,7 +6595,7 @@ class InlineJavascriptRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -6761,7 +6775,7 @@ class SchemaDefRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -6792,7 +6806,7 @@ class SchemaDefRequirement(ProcessRequirement):
 
             types = _load_field(
                 _doc.get("types"),
-                array_of_union_of_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader,
+                array_of_InputSchema,
                 baseuri,
                 loadingOptions,
                 lc=_doc.get("types")
@@ -6942,7 +6956,7 @@ class EnvironmentDef(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -7193,7 +7207,7 @@ class CommandLineBinding(InputBinding):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -7691,7 +7705,7 @@ class CommandOutputBinding(OutputBinding):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -7961,7 +7975,7 @@ class CommandInputRecordField(InputRecordField):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -8341,7 +8355,7 @@ class CommandInputRecordSchema(InputRecordSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -8669,7 +8683,7 @@ class CommandInputEnumSchema(InputEnumSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -9047,7 +9061,7 @@ class CommandInputArraySchema(InputArraySchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -9366,7 +9380,7 @@ class CommandOutputRecordField(OutputRecordField):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -9694,7 +9708,7 @@ class CommandOutputRecordSchema(OutputRecordSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -10022,7 +10036,7 @@ class CommandOutputEnumSchema(OutputEnumSchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -10400,7 +10414,7 @@ class CommandOutputArraySchema(OutputArraySchema):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -10751,7 +10765,7 @@ class CommandInputParameter(InputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -11381,7 +11395,7 @@ class CommandOutputParameter(OutputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -11993,7 +12007,7 @@ class CommandLineTool(Process):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -12175,7 +12189,7 @@ class CommandLineTool(Process):
             try:
                 requirements = _load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_ProcessRequirement,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("requirements")
@@ -13038,7 +13052,7 @@ class DockerRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -13503,7 +13517,7 @@ class SoftwareRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -13683,7 +13697,7 @@ class SoftwarePackage(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -13944,7 +13958,7 @@ class Dirent(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -14202,7 +14216,7 @@ class InitialWorkDirRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -14380,7 +14394,7 @@ class EnvVarRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -14556,7 +14570,7 @@ class ShellCommandRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -14727,7 +14741,7 @@ class ResourceRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -15322,7 +15336,7 @@ class ExpressionToolOutputParameter(OutputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -15906,7 +15920,7 @@ class ExpressionTool(Process):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -16088,7 +16102,7 @@ class ExpressionTool(Process):
             try:
                 requirements = _load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_ProcessRequirement,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("requirements")
@@ -16572,7 +16586,7 @@ class WorkflowOutputParameter(OutputParameter):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -17261,7 +17275,7 @@ class WorkflowStepInput(Sink):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -17630,7 +17644,7 @@ class WorkflowStepOutput(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -17858,7 +17872,7 @@ class WorkflowStep(Saveable):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -18023,7 +18037,7 @@ class WorkflowStep(Saveable):
             try:
                 requirements = _load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_ProcessRequirement,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("requirements")
@@ -18566,7 +18580,7 @@ class Workflow(Process):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -18748,7 +18762,7 @@ class Workflow(Process):
             try:
                 requirements = _load_field(
                     _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+                    idmap_requirements_union_of_None_type_or_array_of_ProcessRequirement,
                     baseuri,
                     loadingOptions,
                     lc=_doc.get("requirements")
@@ -19184,7 +19198,7 @@ class SubworkflowFeatureRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -19305,7 +19319,7 @@ class ScatterFeatureRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -19426,7 +19440,7 @@ class MultipleInputFeatureRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -19547,7 +19561,7 @@ class StepInputExpressionRequirement(ProcessRequirement):
         doc: Any,
         baseuri: str,
         loadingOptions: LoadingOptions,
-        docRoot: str | None = None
+        docRoot: str | None = None,
     ) -> Self:
         _doc = copy.copy(doc)
 
@@ -19836,6 +19850,7 @@ floattype: Final = _PrimitiveLoader(float)
 booltype: Final = _PrimitiveLoader(bool)
 None_type: Final = _PrimitiveLoader(type(None))
 Any_type: Final = _AnyLoader()
+DocumentedProxyLoader: Final = _ProxyLoader("DocumentedLoader")
 PrimitiveTypeLoader: Final = _EnumLoader(
     (
         "null",
@@ -19929,7 +19944,13 @@ CWLVersionLoader: Final = _EnumLoader(("v1.0",), "CWLVersion")
 """
 Current version symbol for CWL documents.
 """
+SchemaBaseProxyLoader: Final = _ProxyLoader("SchemaBaseLoader")
+ParameterProxyLoader: Final = _ProxyLoader("ParameterLoader")
 ExpressionLoader: Final = _ExpressionLoader(str)
+InputBindingProxyLoader: Final = _ProxyLoader("InputBindingLoader")
+OutputBindingProxyLoader: Final = _ProxyLoader("OutputBindingLoader")
+InputSchemaProxyLoader: Final = _ProxyLoader("InputSchemaLoader")
+OutputSchemaProxyLoader: Final = _ProxyLoader("OutputSchemaLoader")
 InputRecordFieldLoader: Final = _RecordLoader(InputRecordField, None, None)
 InputRecordSchemaLoader: Final = _RecordLoader(InputRecordSchema, None, None)
 InputEnumSchemaLoader: Final = _RecordLoader(InputEnumSchema, None, None)
@@ -19940,6 +19961,8 @@ OutputEnumSchemaLoader: Final = _RecordLoader(OutputEnumSchema, None, None)
 OutputArraySchemaLoader: Final = _RecordLoader(OutputArraySchema, None, None)
 InputParameterLoader: Final = _RecordLoader(InputParameter, None, None)
 OutputParameterLoader: Final = _RecordLoader(OutputParameter, None, None)
+ProcessRequirementProxyLoader: Final = _ProxyLoader("ProcessRequirementLoader")
+ProcessProxyLoader: Final = _ProxyLoader("ProcessLoader")
 InlineJavascriptRequirementLoader: Final = _RecordLoader(
     InlineJavascriptRequirement, None, None
 )
@@ -20103,6 +20126,7 @@ The input link merge method, described in `WorkflowStepInput <#WorkflowStepInput
 WorkflowOutputParameterLoader: Final = _RecordLoader(
     WorkflowOutputParameter, None, None
 )
+SinkProxyLoader: Final = _ProxyLoader("SinkLoader")
 WorkflowStepInputLoader: Final = _RecordLoader(WorkflowStepInput, None, None)
 WorkflowStepOutputLoader: Final = _RecordLoader(WorkflowStepOutput, None, None)
 ScatterMethodLoader: Final = _EnumLoader(
@@ -20532,25 +20556,15 @@ union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_Dock
         StepInputExpressionRequirementLoader,
     )
 )
-array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader: (
-    Final
-) = _ArrayLoader(
-    union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader
-)
-union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader: (
-    Final
-) = _UnionLoader(
+array_of_ProcessRequirement: Final = _ArrayLoader(ProcessRequirementProxyLoader)
+union_of_None_type_or_array_of_ProcessRequirement: Final = _UnionLoader(
     (
         None_type,
-        array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+        array_of_ProcessRequirement,
     )
 )
-idmap_requirements_union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader: (
-    Final
-) = _IdMapLoader(
-    union_of_None_type_or_array_of_union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
-    "class",
-    "None",
+idmap_requirements_union_of_None_type_or_array_of_ProcessRequirement: Final = (
+    _IdMapLoader(union_of_None_type_or_array_of_ProcessRequirement, "class", "None")
 )
 union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader_or_Any_type: (
     Final
@@ -20627,11 +20641,7 @@ union_of_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoa
         InputArraySchemaLoader,
     )
 )
-array_of_union_of_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader: (
-    Final
-) = _ArrayLoader(
-    union_of_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader
-)
+array_of_InputSchema: Final = _ArrayLoader(InputSchemaProxyLoader)
 union_of_None_type_or_strtype_or_ExpressionLoader_or_array_of_strtype: Final = (
     _UnionLoader(
         (
@@ -21096,6 +21106,19 @@ union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_arra
         array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
     )
 )
+
+_loaders.update({
+    "DocumentedLoader": None,
+    "SchemaBaseLoader": None,
+    "ParameterLoader": None,
+    "InputBindingLoader": None,
+    "OutputBindingLoader": None,
+    "InputSchemaLoader": union_of_InputRecordSchemaLoader_or_InputEnumSchemaLoader_or_InputArraySchemaLoader,
+    "OutputSchemaLoader": None,
+    "ProcessRequirementLoader": union_of_InlineJavascriptRequirementLoader_or_SchemaDefRequirementLoader_or_DockerRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_EnvVarRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_StepInputExpressionRequirementLoader,
+    "ProcessLoader": None,
+    "SinkLoader": None,
+})
 
 CWLObjectTypeLoader.add_loaders(
     (
