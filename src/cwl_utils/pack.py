@@ -15,21 +15,17 @@ used to fetch data
 From https://github.com/rabix/sbpack/blob/b8404a0859ffcbe1edae6d8f934e51847b003320/sbpack/lib.py
 """
 
-import logging
-import sys
 import urllib.parse
-import urllib.request
 from collections.abc import ItemsView
 from typing import TYPE_CHECKING, Any, Union, cast
 
 from packaging import version
 
 from cwl_utils import schemadef, utils
+from cwl_utils.loghandler import _logger
 
 if TYPE_CHECKING:
     from _collections_abc import dict_items
-
-logger = logging.getLogger(__name__)
 
 
 def get_inner_dict(
@@ -209,9 +205,7 @@ def resolve_steps(
 
     for _, v in enumerate(cwl["steps"]):
         if isinstance(v, dict):
-            sys.stderr.write(
-                f"\n--\nRecursing into step {base_url.geturl()}:{v['id']}\n"
-            )
+            _logger.debug("Recursing into step %s:%s", base_url.geturl(), v["id"])
 
             _run = v.get("run")
             if isinstance(_run, str):
@@ -265,7 +259,7 @@ def add_missing_requirements(cwl: dict[str, Any]) -> dict[str, Any]:
 
 def pack(cwl_path: str) -> dict[str, Any]:
     """Pack a CWL document at the given path."""
-    sys.stderr.write(f"Packing {cwl_path}\n")
+    _logger.debug("Packing %s", cwl_path)
     file_path_url = urllib.parse.urlparse(cwl_path)
 
     cwl, full_url = cast(
