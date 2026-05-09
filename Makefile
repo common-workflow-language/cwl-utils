@@ -194,19 +194,22 @@ flake8: FORCE
 src/cwl_utils/parser/cwl_v1_0.py: FORCE
 	schema-salad-tool --codegen python \
 		--codegen-parser-info "org.w3id.cwl.v1_0" \
-		https://github.com/common-workflow-language/common-workflow-language/raw/codegen/v1.0/extensions.yml \
+		--codegen-parent "https://w3id.org/cwl/salad=schema_salad.metaschema" \
+		https://github.com/common-workflow-language/common-workflow-language/raw/codegen/v1.0/CommonWorkflowLanguage.yml \
 		> $@
 
 src/cwl_utils/parser/cwl_v1_1.py: FORCE
 	schema-salad-tool --codegen python \
 		--codegen-parser-info "org.w3id.cwl.v1_1" \
-		https://github.com/common-workflow-language/cwl-v1.1/raw/codegen/extensions.yml \
+		--codegen-parent "https://w3id.org/cwl/salad=schema_salad.metaschema" \
+		https://github.com/common-workflow-language/cwl-v1.1/raw/codegen/CommonWorkflowLanguage.yml \
 		> $@
 
 src/cwl_utils/parser/cwl_v1_2.py: FORCE
 	schema-salad-tool --codegen python \
 		--codegen-parser-info "org.w3id.cwl.v1_2" \
-		https://github.com/common-workflow-language/cwl-v1.2/raw/codegen/extensions.yml \
+		--codegen-parent "https://w3id.org/cwl/salad=schema_salad.metaschema" \
+		https://github.com/common-workflow-language/cwl-v1.2/raw/codegen/CommonWorkflowLanguage.yml \
 		> $@
 
 regen_parsers: src/cwl_utils/parser/cwl_v1_*.py

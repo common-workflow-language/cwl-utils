@@ -4,9 +4,11 @@ import os
 from abc import ABC
 from collections.abc import MutableMapping, MutableSequence
 from pathlib import Path
-from typing import Any, Optional, TypeAlias, cast
+from typing import Any, TypeAlias, cast
 from urllib.parse import unquote_plus, urlparse
 
+import schema_salad.metaschema
+import schema_salad.runtime
 from schema_salad.exceptions import ValidationException
 from schema_salad.utils import yaml_no_ts
 
@@ -18,11 +20,9 @@ class NoType(ABC):
     pass
 
 
-LoadingOptions: TypeAlias = (
-    cwl_v1_0.LoadingOptions | cwl_v1_1.LoadingOptions | cwl_v1_2.LoadingOptions
-)
+LoadingOptions: TypeAlias = schema_salad.runtime.LoadingOptions
 """Type union for a CWL v1.x LoadingOptions object."""
-Saveable: TypeAlias = cwl_v1_0.Saveable | cwl_v1_1.Saveable | cwl_v1_2.Saveable
+Saveable: TypeAlias = schema_salad.runtime.Saveable
 """Type union for a CWL v1.x Saveable object."""
 InputParameter: TypeAlias = (
     cwl_v1_0.InputParameter | cwl_v1_1.InputParameter | cwl_v1_2.InputParameter
@@ -181,9 +181,7 @@ SoftwareRequirementTypes = (
     cwl_v1_2.SoftwareRequirement,
 )
 """Type union for a CWL v1.x SoftwareRequirement object."""
-ArraySchema: TypeAlias = (
-    cwl_v1_0.ArraySchema | cwl_v1_1.ArraySchema | cwl_v1_2.ArraySchema
-)
+ArraySchema: TypeAlias = schema_salad.metaschema.ArraySchema
 InputArraySchema: TypeAlias = (
     cwl_v1_0.InputArraySchema | cwl_v1_1.InputArraySchema | cwl_v1_2.InputArraySchema
 )
@@ -193,7 +191,7 @@ InputArraySchemaTypes = (
     cwl_v1_2.InputArraySchema,
 )
 """Type Union for a CWL v1.x ArraySchema object."""
-EnumSchema: TypeAlias = cwl_v1_0.EnumSchema | cwl_v1_1.EnumSchema | cwl_v1_2.EnumSchema
+EnumSchema: TypeAlias = schema_salad.metaschema.EnumSchema
 InputEnumSchema: TypeAlias = (
     cwl_v1_0.InputEnumSchema | cwl_v1_1.InputEnumSchema | cwl_v1_2.InputEnumSchema
 )
@@ -203,9 +201,7 @@ InputEnumSchemaTypes = (
     cwl_v1_2.InputEnumSchema,
 )
 """Type Union for a CWL v1.x EnumSchema object."""
-RecordSchema: TypeAlias = (
-    cwl_v1_0.RecordSchema | cwl_v1_1.RecordSchema | cwl_v1_2.RecordSchema
-)
+RecordSchema: TypeAlias = schema_salad.metaschema.RecordSchema
 InputRecordSchema: TypeAlias = (
     cwl_v1_0.InputRecordSchema | cwl_v1_1.InputRecordSchema | cwl_v1_2.InputRecordSchema
 )
@@ -289,53 +285,17 @@ def load_document_by_uri(
         base_uri = path.resolve().parent.as_uri()
         id_ = path.resolve().name.split("#")[1] if "#" in path.resolve().name else None
 
-    match loadingOptions:
-        case cwl_v1_0.LoadingOptions():
-            loadingOptions = cwl_v1_0.LoadingOptions(
-                fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
-            )
-            return load_document_by_string(
-                loadingOptions.fetcher.fetch_text(real_uri),
-                real_uri,
-                loadingOptions,
-                id_,
-                load_all,
-            )
-        case cwl_v1_1.LoadingOptions():
-            loadingOptions = cwl_v1_1.LoadingOptions(
-                fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
-            )
-            return load_document_by_string(
-                loadingOptions.fetcher.fetch_text(real_uri),
-                real_uri,
-                loadingOptions,
-                id_,
-                load_all,
-            )
-        case cwl_v1_2.LoadingOptions():
-            loadingOptions = cwl_v1_2.LoadingOptions(
-                fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
-            )
-            return load_document_by_string(
-                loadingOptions.fetcher.fetch_text(real_uri),
-                real_uri,
-                loadingOptions,
-                id_,
-                load_all,
-            )
-        case None:
-            loadingOptions = cwl_v1_2.LoadingOptions(fileuri=real_uri, baseuri=base_uri)
-            return load_document_by_string(
-                loadingOptions.fetcher.fetch_text(real_uri),
-                real_uri,
-                None,
-                id_,
-                load_all,
-            )
-        case _:
-            raise ValidationException(
-                f"Unsupported loadingOptions type: {type(loadingOptions)}"
-            )
+    loadingOptions = LoadingOptions(
+        fileuri=real_uri, baseuri=base_uri, copyfrom=loadingOptions
+    )
+
+    return load_document_by_string(
+        loadingOptions.fetcher.fetch_text(real_uri),
+        real_uri,
+        loadingOptions,
+        id_,
+        load_all,
+    )
 
 
 def load_document(
@@ -347,7 +307,7 @@ def load_document(
 ) -> Any:
     """Load a CWL object from a serialized YAML string or a YAML object."""
     if baseuri is None:
-        baseuri = cwl_v1_0.file_uri(str(Path.cwd())) + "/"
+        baseuri = schema_salad.runtime.file_uri(str(Path.cwd())) + "/"
     if isinstance(doc, str):
         return load_document_by_string(doc, baseuri, loadingOptions, id_)
     return load_document_by_yaml(doc, baseuri, loadingOptions, id_, load_all)
@@ -379,17 +339,11 @@ def load_document_by_yaml(
         yaml["cwlVersion"] = version
     match version:
         case "v1.0":
-            result = cwl_v1_0.load_document_by_yaml(
-                yaml, uri, cast(Optional[cwl_v1_0.LoadingOptions], loadingOptions)
-            )
+            result = cwl_v1_0.load_document_by_yaml(yaml, uri, loadingOptions)
         case "v1.1":
-            result = cwl_v1_1.load_document_by_yaml(
-                yaml, uri, cast(Optional[cwl_v1_1.LoadingOptions], loadingOptions)
-            )
+            result = cwl_v1_1.load_document_by_yaml(yaml, uri, loadingOptions)
         case "v1.2":
-            result = cwl_v1_2.load_document_by_yaml(
-                yaml, uri, cast(Optional[cwl_v1_2.LoadingOptions], loadingOptions)
-            )
+            result = cwl_v1_2.load_document_by_yaml(yaml, uri, loadingOptions)
         case None:
             raise ValidationException("could not get the cwlVersion")
         case _:
@@ -415,7 +369,7 @@ def save(
 ) -> Any:
     """Convert a CWL Python object into a JSON/YAML serializable object."""
     match val:
-        case cwl_v1_0.Saveable() | cwl_v1_1.Saveable() | cwl_v1_2.Saveable():
+        case Saveable():
             return val.save(top=top, base_url=base_url, relative_uris=relative_uris)
         case MutableSequence():
             lst = [
