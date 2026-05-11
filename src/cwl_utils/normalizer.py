@@ -4,6 +4,7 @@
 """Normalize CWL documents to CWL v1.2, JSON style."""
 
 import argparse
+import json
 import logging
 import sys
 import tempfile
@@ -11,7 +12,7 @@ from collections.abc import MutableSequence
 from pathlib import Path
 
 from cwlupgrader import main as cwlupgrader
-from ruamel import yaml
+from ruamel.yaml import YAML
 from schema_salad.sourceline import add_lc_filename
 
 from cwl_utils import cwl_v1_2_expression_refactor
@@ -75,10 +76,12 @@ def main() -> None:
 def run(args: argparse.Namespace) -> int:
     """Primary processing loop."""
     imports: set[str] = set()
+    yaml = YAML(typ="rt")
+    yaml.preserve_quotes = True
     for document in args.inputs:
         _logger.info("Processing %s.", document)
         with open(document) as doc_handle:
-            result = yaml.main.round_trip_load(doc_handle, preserve_quotes=True)
+            result = yaml.load(doc_handle)
         add_lc_filename(result, document)
         version = result.get("cwlVersion", None)
         if version in ("draft-3", "cwl:draft-3", "v1.0", "v1.1"):
@@ -116,10 +119,12 @@ def run(args: argparse.Namespace) -> int:
         else:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 path = Path(tmpdirname) / Path(document).name
+                with open(path, "w") as handle:
+                    yaml.dump(result, handle)
                 packed = pack(str(path))
         output = Path(args.dir) / Path(document).name
         with output.open("w", encoding="utf-8") as output_filehandle:
-            output_filehandle.write(packed)
+            json.dump(packed, output_filehandle, indent=4)
     return 0
 
 
