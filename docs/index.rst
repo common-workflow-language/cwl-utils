@@ -30,6 +30,9 @@ Included Utility Programs
 .. autoprogram:: cwl_utils.graph_split:arg_parser()
    :prog: cwl-graph-split
 
+.. autoprogram:: cwl_utils.pack_cli:arg_parser()
+   :prog: cwl-pack
+
 .. autoprogram:: cwl_utils.normalizer:arg_parser()
    :prog: cwl-normalizer
 

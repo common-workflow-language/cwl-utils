@@ -106,6 +106,19 @@ workflow steps (including any sub-workflows).
 
    cwl-graph-split --outdir optional/directory/path/to/save/outputs path_to_my_workflow.cwl
 
+Pack a CWL document
+~~~~~~~~~~~~~~~~~~~
+
+``cwl-pack`` packs a CWL document and all of its referenced documents into a
+single JSON document. Unlike ``cwl-normalizer``, ``cwl-pack`` does not upgrade
+the CWL version and does not refactor expressions; it is a thin CLI wrapper
+around ``cwl_utils.pack.pack()``.
+
+.. code:: bash
+
+   cwl-pack path_to_my_workflow.cwl
+   cwl-pack --outfile packed.json path_to_my_workflow.cwl
+
 Normalize a CWL document
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
