@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test the cwl-normalizer console script."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -23,7 +24,9 @@ def test_normalizer_v1_2(tmp_path: Path) -> None:
     input_path = get_data("testdata/count-lines6-single-source-wf_v1_2.cwl")
     args = parse_args([str(tmp_path), input_path])
     assert run(args) == 0
-    assert (tmp_path / "count-lines6-single-source-wf_v1_2.cwl").is_file()
+    output_path = tmp_path / "count-lines6-single-source-wf_v1_2.cwl"
+    assert output_path.is_file()
+    assert json.loads(output_path.read_text(encoding="utf-8"))["cwlVersion"] == "v1.2"
 
 
 def test_normalizer_unsupported_version(
