@@ -86,10 +86,13 @@ def run(args: argparse.Namespace) -> int:
         version = result.get("cwlVersion", None)
         if version in ("draft-3", "cwl:draft-3", "v1.0", "v1.1"):
             result = cwlupgrader.upgrade_document(result, args.dir, imports=imports)
+        elif version == "v1.2":
+            pass  # already at target version; no upgrade needed
         else:
             _logger.error(
                 "Sorry, %s in %s is not a supported CWL version by this tool.",
-                (version, document),
+                version,
+                document,
             )
             return -1
         uri = Path(document).resolve().as_uri()
