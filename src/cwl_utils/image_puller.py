@@ -22,7 +22,11 @@ class ImagePuller(ABC):
         cmd: str,
         force_pull: bool,
     ) -> None:
-        """Create an ImagePuller."""
+        """
+        Create an ImagePuller.
+
+        req already contains any tag that will be used.
+        """
         self.req = req
         self.save_directory = save_directory
         self.cmd = cmd
@@ -86,14 +90,14 @@ class DockerImagePuller(ImagePuller):
 class SingularityImagePuller(ImagePuller):
     """Pull docker image with Singularity."""
 
-    CHARS_TO_REPLACE = ["/", ":"]
-    NEW_CHAR = "_"
+    CHARS_TO_REPLACE = ["_", "/"]
+    NEW_STRINGS = ["___", "_s_"]
 
     def get_image_name(self) -> str:
         """Determine the file name appropriate to the installed version of Singularity."""
         image_name = self.req
-        for char in self.CHARS_TO_REPLACE:
-            image_name = image_name.replace(char, self.NEW_CHAR)
+        for char, replacement in zip(self.CHARS_TO_REPLACE, self.NEW_STRINGS):
+            image_name = image_name.replace(char, replacement)
         if is_singularity_version_2_6():
             suffix = ".img"
         elif is_singularity_version_3_or_newer():
