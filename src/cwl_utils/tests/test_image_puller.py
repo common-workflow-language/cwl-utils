@@ -17,7 +17,6 @@ class TestSingularityImagePuller:
 
     def test_get_image_name_matches_cwltool(self) -> None:
         """Make sure image names generated match those expected by cwltool."""
-
         if is_singularity_version_2_6():
             suffix = ".img"
         elif is_singularity_version_3_or_newer():
