@@ -11,6 +11,8 @@ from contextlib import suppress
 from typing import Any, cast
 
 from ruamel import yaml
+from schema_salad.metaschema import ArraySchema, RecordSchema
+from schema_salad.runtime import LoadingOptions, save
 from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
 
@@ -29,6 +31,7 @@ from cwl_utils.parser.cwl_v1_0_utils import (
     InputTypeSchemas,
     OutputTypeSchemas,
 )
+from cwl_utils.parser.utils import param_for_source_id
 from cwl_utils.types import (
     CWLDirectoryType,
     CWLFileType,
@@ -53,7 +56,7 @@ def expand_stream_shortcuts(process: cwl.CommandLineTool) -> cwl.CommandLineTool
             stdout_path = process.stdout
             if not stdout_path:
                 stdout_path = hashlib.sha1(  # nosec
-                    json_dumps(cwl.save(process)).encode("utf-8")
+                    json_dumps(save(process)).encode("utf-8")
                 ).hexdigest()
                 result.stdout = stdout_path
             result.outputs[index].type_ = "File"
@@ -71,12 +74,12 @@ def escape_expression_field(contents: str) -> str:
 def _clean_type_ids(
     cwltype: InputTypeSchemas | CommandOutputTypeSchemas,
 ) -> None:
-    if isinstance(cwltype, cwl.ArraySchema):
+    if isinstance(cwltype, ArraySchema):
         if is_sequence(cwltype.items):
             for item in cwltype.items:
                 if hasattr(item, "id"):
                     item.id = item.id.split("#")[-1]
-        elif isinstance(cwltype.items, cwl.RecordSchema):
+        elif isinstance(cwltype.items, RecordSchema):
             if (
                 isinstance(
                     cwltype.items,
@@ -88,7 +91,7 @@ def _clean_type_ids(
             if cwltype.items.fields:
                 for field in cwltype.items.fields:
                     field.name = field.name.split("/")[-1]
-    elif isinstance(cwltype, cwl.RecordSchema):
+    elif isinstance(cwltype, RecordSchema):
         if cwltype.fields:
             for field in cwltype.fields:
                 field.name = field.name.split("/")[-1]
@@ -508,15 +511,7 @@ def generate_etool_from_expr(
         | cwl.CommandInputParameter
         | list[cwl.InputParameter | cwl.CommandInputParameter]
     ) = None,  # if the "self" input should be a different type than the "result" output
-    extra_processes: None | (
-        Sequence[
-            cwl.Workflow
-            | cwl.WorkflowStep
-            | cwl.CommandLineTool
-            | cwl.ExpressionTool
-            | cwl.ProcessGenerator
-        ]
-    ) = None,
+    extra_processes: None | Sequence[cwl.Process | cwl.WorkflowStep] = None,
 ) -> cwl.ExpressionTool:
     """Convert a CWL Expression into an ExpressionTool."""
     inputs: list[cwl.InputParameter] = []
@@ -596,12 +591,7 @@ def generate_etool_from_expr(
     )
 
 
-def get_input_for_id(
-    name: str,
-    tool: (
-        cwl.CommandLineTool | cwl.Workflow | cwl.ProcessGenerator | cwl.ExpressionTool
-    ),
-) -> cwl.CommandInputParameter | None:
+def get_input_for_id(name: str, tool: cwl.Process) -> cwl.CommandInputParameter | None:
     """Determine the CommandInputParameter for the given input name."""
     name = name.split("/")[-1]
 
@@ -622,13 +612,7 @@ def get_input_for_id(
 
 
 def find_expressionLib(
-    processes: Sequence[
-        cwl.CommandLineTool
-        | cwl.Workflow
-        | cwl.ExpressionTool
-        | cwl.WorkflowStep
-        | cwl.ProcessGenerator
-    ],
+    processes: Sequence[cwl.Process | cwl.WorkflowStep],
 ) -> list[str] | None:
     """
     Return the expressionLib from the highest priority InlineJavascriptRequirement.
@@ -651,36 +635,18 @@ def replace_expr_with_etool(
     target: cwl.CommandInputParameter | cwl.InputParameter,
     source: str | list[Any] | None,
     replace_etool: bool = False,
-    extra_process: None | (
-        cwl.Workflow
-        | cwl.WorkflowStep
-        | cwl.CommandLineTool
-        | cwl.ExpressionTool
-        | cwl.ProcessGenerator
-    ) = None,
+    extra_process: cwl.Process | cwl.WorkflowStep | None = None,
     source_type: cwl.CommandInputParameter | None = None,
 ) -> None:
     """Modify the given workflow, replacing the expr with an standalone ExpressionTool."""
-    extra_processes: list[
-        cwl.WorkflowStep
-        | cwl.Workflow
-        | cwl.CommandLineTool
-        | cwl.ExpressionTool
-        | cwl.ProcessGenerator
-    ] = [workflow]
+    extra_processes: list[cwl.Process | cwl.WorkflowStep] = [workflow]
     if extra_process:
         extra_processes.append(extra_process)
     etool: cwl.ExpressionTool = generate_etool_from_expr(
         expr, target, source is None, source_type, extra_processes
     )
     if replace_etool:
-        processes: list[
-            cwl.WorkflowStep
-            | cwl.Workflow
-            | cwl.CommandLineTool
-            | cwl.ExpressionTool
-            | cwl.ProcessGenerator
-        ] = [workflow]
+        processes: list[cwl.Process | cwl.WorkflowStep] = [workflow]
         if extra_process:
             processes.append(extra_process)
         final_tool: cwl.ExpressionTool | cwl.CommandLineTool = etool_to_cltool(
@@ -730,13 +696,7 @@ def replace_wf_input_ref_with_step_output(
 
 
 def empty_inputs(
-    process_or_step: (
-        cwl.CommandLineTool
-        | cwl.WorkflowStep
-        | cwl.ExpressionTool
-        | cwl.Workflow
-        | cwl.ProcessGenerator
-    ),
+    process_or_step: cwl.Process | cwl.WorkflowStep,
     parent: cwl.Workflow | None = None,
 ) -> dict[str, Any]:
     """Produce a mock input object for the given inputs."""
@@ -1189,9 +1149,7 @@ def process_workflow_reqs_and_hints(
 
 
 def process_level_reqs(
-    process: (
-        cwl.CommandLineTool | cwl.ExpressionTool | cwl.ProcessGenerator | cwl.Workflow
-    ),
+    process: cwl.Process,
     step: cwl.WorkflowStep,
     parent: cwl.Workflow,
     replace_etool: bool,
@@ -1479,7 +1437,7 @@ return result; }"""
 
 
 def add_input_to_process(
-    process: cwl.Process, name: str, inptype: Any, loadingOptions: cwl.LoadingOptions
+    process: cwl.Process, name: str, inptype: Any, loadingOptions: LoadingOptions
 ) -> None:
     """Add a new InputParameter to the given CommandLineTool."""
     if isinstance(process, cwl.CommandLineTool):
@@ -1555,7 +1513,7 @@ def traverse_CommandLineTool(
                     )
                     new_target_clt_arguments = list(target_clt.arguments or [])
                     new_target_clt_arguments[index] = cwl.CommandLineBinding(
-                        valueFrom="$(inputs.{})".format(inp_id)
+                        valueFrom=f"$(inputs.{inp_id})"
                     )
                     target_clt.arguments = new_target_clt_arguments
                     new_target_clt_inputs = list(target_clt.inputs)
@@ -1954,9 +1912,7 @@ def replace_step_process_hintreq_expr_with_etool(
 
 
 def process_inputs_to_etool_inputs(
-    tool: (
-        cwl.CommandLineTool | cwl.ExpressionTool | cwl.ProcessGenerator | cwl.Workflow
-    ),
+    tool: cwl.Process,
 ) -> list[cwl.InputParameter]:
     """Copy Process input parameters to matching ExpressionTool versions."""
     inputs = []
@@ -2027,13 +1983,7 @@ def generate_etool_from_expr2(
         cwl.InputParameter | cwl.CommandInputParameter | cwl.CommandOutputParameter
     ],
     self_name: str | None = None,
-    process: (
-        cwl.CommandLineTool
-        | cwl.ExpressionTool
-        | cwl.Workflow
-        | cwl.ProcessGenerator
-        | None
-    ) = None,
+    process: cwl.Process | None = None,
     extra_processes: None | (
         Sequence[cwl.Workflow | cwl.WorkflowStep | cwl.CommandLineTool]
     ) = None,
@@ -2061,55 +2011,16 @@ def generate_etool_from_expr2(
         + """}()};
  }"""
     )
-    hints = None
-    procs: list[
-        cwl.CommandLineTool
-        | cwl.ExpressionTool
-        | cwl.Workflow
-        | cwl.WorkflowStep
-        | cwl.ProcessGenerator
-    ] = []
+    procs: list[cwl.Process | cwl.WorkflowStep] = []
     if process:
         procs.append(process)
     if extra_processes:
         procs.extend(extra_processes)
     inlineJSReq = cwl.InlineJavascriptRequirement(find_expressionLib(procs))
-    reqs: MutableSequence[
-        cwl.CUDARequirement
-        | cwl.DockerRequirement
-        | cwl.EnvVarRequirement
-        | cwl.InitialWorkDirRequirement
-        | cwl.InlineJavascriptRequirement
-        | cwl.InplaceUpdateRequirement
-        | cwl.LoadListingRequirement
-        | cwl.MPIRequirement
-        | cwl.MultipleInputFeatureRequirement
-        | cwl.NetworkAccess
-        | cwl.ResourceRequirement
-        | cwl.ScatterFeatureRequirement
-        | cwl.SchemaDefRequirement
-        | cwl.Secrets
-        | cwl.ShellCommandRequirement
-        | cwl.ShmSize
-        | cwl.SoftwareRequirement
-        | cwl.StepInputExpressionRequirement
-        | cwl.SubworkflowFeatureRequirement
-        | cwl.TimeLimit
-        | cwl.WorkReuse
-    ] = [inlineJSReq]
-    if process:
-        if process.hints:
-            hints = copy.deepcopy(process.hints)
-            hints = [
-                x
-                for x in copy.deepcopy(hints)
-                if not isinstance(x, cwl.InitialWorkDirRequirement)
-            ]
-        if process.requirements:
-            reqs.extend(copy.deepcopy(process.requirements))
-            reqs[:] = [
-                x for x in reqs if not isinstance(x, cwl.InitialWorkDirRequirement)
-            ]
+    reqs: MutableSequence[cwl.ProcessRequirement] = [inlineJSReq]
+    if process and process.requirements:
+        reqs.extend(copy.deepcopy(process.requirements))
+        reqs[:] = [x for x in reqs if not isinstance(x, cwl.InitialWorkDirRequirement)]
     return cwl.ExpressionTool(
         id="_:" + str(uuid.uuid4()),
         inputs=parameters_to_plain_input_paramaters(inputs),
@@ -2259,7 +2170,7 @@ def workflow_step_to_InputParameters(
         inp_id = inp.id.split("#")[-1].split("/")[-1]
         if inp.source and inp_id != except_in_id:
             param = copy.deepcopy(
-                utils.param_for_source_id(parent, sourcenames=inp.source)
+                param_for_source_id(parent, sourcenames=inp.source)
             )
             if is_sequence(param):
                 for p in param:
@@ -2290,9 +2201,7 @@ def replace_step_valueFrom_expr_with_etool(
     target: cwl.CommandInputParameter | cwl.InputParameter,
     step: cwl.WorkflowStep,
     step_inp: cwl.WorkflowStepInput,
-    original_process: (
-        cwl.CommandLineTool | cwl.ExpressionTool | cwl.ProcessGenerator | cwl.Workflow
-    ),
+    original_process: cwl.Process,
     original_step_ins: Sequence[cwl.WorkflowStepInput],
     source: str | list[str] | None,
     replace_etool: bool,

@@ -9,6 +9,8 @@ from typing import IO, Any, TypeAlias, TypeVar
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
+from schema_salad.metaschema import ArraySchema, EnumSchema, RecordSchema
+from schema_salad.runtime import save, shortname, LoadingOptions, file_uri
 from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import aslist, json_dumps, yaml_no_ts
 
@@ -63,22 +65,22 @@ AnyTypeSchema = TypeVar(
 
 def _in_output_type_schema_to_output_type_schema(
     schema_type: BasicInputTypeSchemas | BasicOutputTypeSchemas,
-    loading_options: cwl.LoadingOptions,
+    loading_options: LoadingOptions,
 ) -> BasicOutputTypeSchemas:
     match schema_type:
-        case cwl.ArraySchema():
+        case ArraySchema():
             return cwl.OutputArraySchema.fromDoc(
                 schema_type.save(),
                 loading_options.baseuri,
                 loading_options,
             )
-        case cwl.EnumSchema():
+        case EnumSchema():
             return cwl.OutputEnumSchema.fromDoc(
                 schema_type.save(),
                 loading_options.baseuri,
                 loading_options,
             )
-        case cwl.RecordSchema():
+        case RecordSchema():
             return cwl.OutputRecordSchema.fromDoc(
                 schema_type.save(),
                 loading_options.baseuri,
@@ -95,7 +97,7 @@ def in_output_type_schema_to_output_type_schema(
         | BasicOutputTypeSchemas
         | Sequence[BasicInputTypeSchemas | BasicOutputTypeSchemas]
     ),
-    loading_options: cwl.LoadingOptions,
+    loading_options: LoadingOptions,
 ) -> OutputTypeSchemas:
     if is_sequence(schema_type):
         return [
@@ -109,14 +111,14 @@ def in_output_type_schema_to_output_type_schema(
 
 def _compare_type(type1: Any, type2: Any) -> bool:
     match (type1, type1):
-        case cwl.ArraySchema() as t1, cwl.ArraySchema() as t2:
+        case ArraySchema() as t1, ArraySchema() as t2:
             return _compare_type(t1.items, t2.items)
-        case cwl.RecordSchema(), cwl.RecordSchema():
+        case RecordSchema(), RecordSchema():
             fields1 = {
-                cwl.shortname(field.name): field.type_ for field in (type1.fields or {})
+                shortname(field.name): field.type_ for field in (type1.fields or {})
             }
             fields2 = {
-                cwl.shortname(field.name): field.type_ for field in (type2.fields or {})
+                shortname(field.name): field.type_ for field in (type2.fields or {})
             }
             if fields1.keys() != fields2.keys():
                 return False
@@ -134,9 +136,9 @@ def _compare_type(type1: Any, type2: Any) -> bool:
 def _inputfile_load(
     doc: str | MutableMapping[str, Any] | MutableSequence[Any],
     baseuri: str,
-    loadingOptions: cwl.LoadingOptions,
+    loadingOptions: LoadingOptions,
     addl_metadata_fields: MutableSequence[str] | None = None,
-) -> tuple[Any, cwl.LoadingOptions]:
+) -> tuple[Any, LoadingOptions]:
     loader = cwl.CWLInputFileLoader
     match doc:
         case str():
@@ -150,9 +152,7 @@ def _inputfile_load(
             yaml = yaml_no_ts()
             result = yaml.load(textIO)
             add_lc_filename(result, doc_url)
-            loadingOptions = cwl.LoadingOptions(
-                copyfrom=loadingOptions, fileuri=doc_url
-            )
+            loadingOptions = LoadingOptions(copyfrom=loadingOptions, fileuri=doc_url)
             _inputfile_load(
                 result,
                 doc_url,
@@ -166,7 +166,7 @@ def _inputfile_load(
                     if mf in doc:
                         addl_metadata[mf] = doc[mf]
 
-            loadingOptions = cwl.LoadingOptions(
+            loadingOptions = LoadingOptions(
                 copyfrom=loadingOptions,
                 baseuri=baseuri,
                 addl_metadata=addl_metadata,
@@ -306,13 +306,13 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
 def load_inputfile(
     doc: Any,
     baseuri: str | None = None,
-    loadingOptions: cwl.LoadingOptions | None = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.1 input file from a serialized YAML string or a YAML object."""
     if baseuri is None:
-        baseuri = cwl.file_uri(str(Path.cwd())) + "/"
+        baseuri = file_uri(str(Path.cwd())) + "/"
     if loadingOptions is None:
-        loadingOptions = cwl.LoadingOptions()
+        loadingOptions = LoadingOptions()
 
     result, metadata = _inputfile_load(
         doc,
@@ -325,14 +325,14 @@ def load_inputfile(
 def load_inputfile_by_string(
     string: Any,
     uri: str,
-    loadingOptions: cwl.LoadingOptions | None = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.1 input file from a serialized YAML string."""
     result = yaml_no_ts().load(string)
     add_lc_filename(result, uri)
 
     if loadingOptions is None:
-        loadingOptions = cwl.LoadingOptions(fileuri=uri)
+        loadingOptions = LoadingOptions(fileuri=uri)
 
     result, metadata = _inputfile_load(
         result,
@@ -345,13 +345,13 @@ def load_inputfile_by_string(
 def load_inputfile_by_yaml(
     yaml: Any,
     uri: str,
-    loadingOptions: cwl.LoadingOptions | None = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.1 input file from a YAML object."""
     add_lc_filename(yaml, uri)
 
     if loadingOptions is None:
-        loadingOptions = cwl.LoadingOptions(fileuri=uri)
+        loadingOptions = LoadingOptions(fileuri=uri)
 
     result, metadata = _inputfile_load(
         yaml,
@@ -420,7 +420,7 @@ def type_for_step_output(
     raise ValidationException(
         "param {} not found in {}.".format(
             sourcename,
-            yaml_dumps(cwl.save(step)),
+            yaml_dumps(save(step)),
         )
     )
 
@@ -437,7 +437,9 @@ def type_for_source(
 ):
     """Determine the type for the given sourcenames."""
     scatter_context: list[tuple[int, str] | None] = []
-    params = param_for_source_id(process, sourcenames, parent, scatter_context)
+    params = cwl_utils.parser.utils.param_for_source_id(
+        process, sourcenames, parent, scatter_context
+    )
     if not isinstance(params, MutableSequence):
         new_type: InputTypeSchemas | OutputTypeSchemas = params.type_
         if scatter_context[0] is not None:
@@ -515,92 +517,3 @@ def type_for_source(
             type_="array",
         )
     return final_type
-
-
-def param_for_source_id(
-    process: cwl.Process,
-    sourcenames: str | Sequence[str],
-    parent: cwl.Workflow | None = None,
-    scatter_context: list[tuple[int, str] | None] | None = None,
-) -> (
-    cwl_utils.parser.InputParameter
-    | cwl_utils.parser.OutputParameter
-    | MutableSequence[
-        cwl_utils.parser.InputParameter | cwl_utils.parser.OutputParameter
-    ]
-):
-    """Find the process input parameter that matches one of the given sourcenames."""
-    if isinstance(sourcenames, str):
-        sourcenames = [sourcenames]
-    params: MutableSequence[
-        cwl_utils.parser.InputParameter | cwl_utils.parser.OutputParameter
-    ] = []
-    for sourcename in sourcenames:
-        if not isinstance(process, cwl.Workflow):
-            for param in process.inputs:
-                if param.id.split("#")[-1] == sourcename.split("#")[-1]:
-                    params.append(param)
-                    if scatter_context is not None:
-                        scatter_context.append(None)
-        targets = [process]
-        if parent:
-            targets.append(parent)
-        for target in targets:
-            if isinstance(target, cwl.Workflow):
-                for inp in target.inputs:
-                    if inp.id.split("#")[-1] == sourcename.split("#")[-1]:
-                        params.append(inp)
-                        if scatter_context is not None:
-                            scatter_context.append(None)
-                for step in target.steps:
-                    if (
-                        "/".join(sourcename.split("#")[-1].split("/")[:-1])
-                        == step.id.split("#")[-1]
-                        and step.out
-                    ):
-                        step_run = cwl_utils.parser.utils.load_step(step)
-                        cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
-                        for outp in step.out:
-                            outp_id = outp if isinstance(outp, str) else outp.id
-                            if (
-                                outp_id.split("#")[-1].split("/")[-1]
-                                == sourcename.split("#")[-1].split("/")[-1]
-                            ):
-                                if step_run and step_run.outputs:
-                                    for output in step_run.outputs:
-                                        if (
-                                            output.id.split("#")[-1].split("/")[-1]
-                                            == sourcename.split("#")[-1].split("/")[-1]
-                                        ):
-                                            params.append(output)
-                                            if scatter_context is not None:
-                                                match step.scatter:
-                                                    case str():
-                                                        scatter_context.append(
-                                                            (
-                                                                1,
-                                                                step.scatterMethod
-                                                                or "dotproduct",
-                                                            )
-                                                        )
-                                                    case Sequence():
-                                                        scatter_context.append(
-                                                            (
-                                                                len(step.scatter),
-                                                                step.scatterMethod
-                                                                or "dotproduct",
-                                                            )
-                                                        )
-                                                    case _:
-                                                        scatter_context.append(None)
-    if len(params) == 1:
-        return params[0]
-    elif len(params) > 1:
-        return params
-    raise WorkflowException(
-        "param {} not found in {}\n{}.".format(
-            sourcename,
-            yaml_dumps(cwl.save(process)),
-            (f" or\n {yaml_dumps(cwl.save(parent))}" if parent is not None else ""),
-        )
-    )

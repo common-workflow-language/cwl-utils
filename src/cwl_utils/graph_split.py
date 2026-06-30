@@ -20,9 +20,9 @@ from pathlib import Path
 from typing import (
     IO,
     Any,
-    Callable,
     cast,
 )
+from collections.abc import Callable
 
 try:
     stringify_dict: Callable[[dict[str, Any]], str] | None

@@ -7,12 +7,13 @@ import argparse
 import logging
 import shutil
 import sys
-from collections.abc import Callable, MutableMapping, MutableSequence
+from collections.abc import Callable, MutableSequence
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.scalarstring import walk_tree
+from schema_salad.runtime import save
 
 from cwl_utils import (
     cwl_v1_0_expression_refactor,
@@ -28,24 +29,6 @@ defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
 _logger.addHandler(defaultStreamHandler)
 _logger.setLevel(logging.INFO)
 _cwlutilslogger.setLevel(100)
-
-save_type = (
-    MutableMapping[str, Any] | MutableSequence[Any] | int | float | bool | str | None
-)
-
-
-class saveCWL(Protocol):
-    """Shortcut type for CWL v1.x parse.save()."""
-
-    def __call__(
-        self,
-        val: Any,
-        top: bool = True,
-        base_url: str = "",
-        relative_uris: bool = True,
-    ) -> save_type:
-        """Must use this instead of a Callable due to the keyword args."""
-        ...
 
 
 def arg_parser() -> argparse.ArgumentParser:
@@ -111,15 +94,12 @@ def refactor(args: argparse.Namespace) -> int:
                 traverse: Callable[[Any, bool, bool, bool, bool], tuple[Any, bool]] = (
                     cwl_v1_0_expression_refactor.traverse
                 )
-                save: saveCWL = cwl_v1_0.save
             case "v1.1":
                 top = cwl_v1_1.load_document_by_yaml(result, uri)
                 traverse = cwl_v1_1_expression_refactor.traverse
-                save = cwl_v1_1.save
             case "v1.2":
                 top = cwl_v1_2.load_document_by_yaml(result, uri)
                 traverse = cwl_v1_2_expression_refactor.traverse
-                save = cwl_v1_2.save
             case _:
                 _logger.error(
                     "Sorry, %s is not a supported CWL version by this tool.",

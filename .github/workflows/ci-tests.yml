@@ -74,7 +74,7 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
   tox-style:
     name: CI linters via Tox
