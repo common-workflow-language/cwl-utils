@@ -102,7 +102,9 @@ def extract_docker_requirements(
         yield req
 
 
-def extract_docker_reqs(process: cwl.Process) -> Iterator[cwl.DockerRequirement]:
+def extract_docker_reqs(
+    process: cwl.Process | cwl.WorkflowStep,
+) -> Iterator[cwl.DockerRequirement]:
     """For the given process, extract the DockerRequirement(s)."""
     if process.requirements:
         for req in process.requirements:
@@ -125,7 +127,7 @@ def get_process_from_step(step: cwl.WorkflowStep) -> cwl.Process:
     """Return the process for this step, loading it if necessary."""
     if isinstance(step.run, str):
         return cast(cwl.Process, cwl.load_document_by_uri(step.run))
-    return cast(cwl.Process, step.run)
+    return step.run
 
 
 def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.DockerRequirement]:

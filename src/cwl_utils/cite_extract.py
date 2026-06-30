@@ -33,7 +33,7 @@ def main() -> int:
 
 
 def extract_software_reqs(
-    process: cwl.Process,
+    process: cwl.Process | cwl.WorkflowStep,
 ) -> Iterator[cwl.SoftwareRequirement]:
     """Return an iterator over any SoftwareRequirements found in the given process."""
     if process.requirements:
@@ -67,7 +67,7 @@ def get_process_from_step(step: cwl.WorkflowStep) -> cwl.Process:
     """Return the process for this step, loading it if needed."""
     if isinstance(step.run, str):
         return cast(cwl.Process, cwl.load_document_by_uri(step.run))
-    return cast(cwl.Process, step.run)
+    return step.run
 
 
 def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.SoftwareRequirement]:

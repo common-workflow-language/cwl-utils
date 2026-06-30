@@ -36,7 +36,7 @@ dependencies = [
     "packaging",
     "rdflib",
     "requests",
-    "schema-salad >= 8.8.20250205075315,<9",
+    "schema-salad @ git+https://github.com/common-workflow-language/schema_salad.git@refs/pull/993/head",
     "ruamel.yaml >= 0.17.6, < 0.20",
     "typing_extensions >= 4.10.0",
 ]
@@ -70,6 +70,9 @@ cwl-graph-split = "cwl_utils.graph_split:main"
 cwl-pack = "cwl_utils.pack_cli:main"
 cwl-normalizer = "cwl_utils.normalizer:main"
 cwl-inputs-schema-gen = "cwl_utils.inputs_schema_gen:main"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.pytest.ini_options]
 addopts = "-rsx -n auto --pyargs cwl_utils.tests"
@@ -135,3 +138,4 @@ ignore = [
 
 [tool.bandit]
 exclude_dirs = ["src/cwl_utils/tests"]
+skips = ["B101"]
