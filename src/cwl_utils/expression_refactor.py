@@ -4,15 +4,17 @@
 """CWL Expression refactoring tool for CWL."""
 
 import argparse
+import copy
 import logging
 import shutil
 import sys
-from collections.abc import Callable, MutableMapping, MutableSequence
+from collections.abc import MutableMapping, MutableSequence, Sequence
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast, Literal, overload
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.scalarstring import walk_tree
+from schema_salad.runtime import save, LoadingOptions
 
 from cwl_utils import (
     cwl_v1_0_expression_refactor,
@@ -21,7 +23,25 @@ from cwl_utils import (
 )
 from cwl_utils.errors import WorkflowException
 from cwl_utils.loghandler import _logger as _cwlutilslogger
-from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
+from cwl_utils.parser import (
+    cwl_v1_0,
+    cwl_v1_1,
+    cwl_v1_2,
+    WorkflowStep,
+    Process,
+    WorkflowInputParameter,
+    OperationInputParameter,
+    CommandInputParameter,
+    Workflow,
+    CommandOutputParameter,
+    ExpressionTool,
+    InitialWorkDirRequirement,
+    InlineJavascriptRequirement,
+    ProcessRequirement,
+    CommandLineTool,
+    load_document_by_uri,
+    CommandLineBinding,
+)
 
 _logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
@@ -85,6 +105,502 @@ def parse_args(args: list[str]) -> argparse.Namespace:
     return arg_parser().parse_args(args)
 
 
+def add_input_to_process(
+    process: Process,
+    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    name: str,
+    inptype: Any,
+    loadingOptions: LoadingOptions,
+) -> None:
+    match process.cwlVersion or cwlVersion:
+        case "v1.0":
+            return cwl_v1_0_expression_refactor.add_input_to_process(
+                cast(cwl_v1_0.Process, process), name, inptype, loadingOptions
+            )
+        case "v1.1":
+            return cwl_v1_1_expression_refactor.add_input_to_process(
+                cast(cwl_v1_1.Process, process), name, inptype, loadingOptions
+            )
+        case "v1.2":
+            return cwl_v1_2_expression_refactor.add_input_to_process(
+                cast(cwl_v1_2.Process, process), name, inptype, loadingOptions
+            )
+        case _:
+            raise WorkflowException(
+                f"Sorry, {process.cwlVersion or cwlVersion} is not a supported CWL version by this tool.",
+            )
+
+
+def cltool_inputs_to_etool_inputs(
+    tool: CommandLineTool, cwlVersion: Literal["v1.0", "v1.1", "v1.2"]
+) -> Sequence[WorkflowInputParameter]:
+    match tool.cwlVersion or cwlVersion:
+        case "v1.0":
+            return cwl_v1_0_expression_refactor.cltool_inputs_to_etool_inputs(
+                cast(cwl_v1_0.CommandLineTool, tool)
+            )
+        case "v1.1":
+            return cwl_v1_1_expression_refactor.cltool_inputs_to_etool_inputs(
+                cast(cwl_v1_1.CommandLineTool, tool)
+            )
+        case "v1.2":
+            return cwl_v1_2_expression_refactor.cltool_inputs_to_etool_inputs(
+                cast(cwl_v1_2.CommandLineTool, tool)
+            )
+        case _:
+            raise WorkflowException(
+                f"Sorry, {tool.cwlVersion or cwlVersion} is not a supported CWL version by this tool.",
+            )
+
+
+def empty_inputs(
+    process_or_step: Process | WorkflowStep,
+    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    parent: Workflow | None = None,
+) -> dict[str, Any]:
+    cwlVersion = (
+        process_or_step.cwlVersion
+        if isinstance(process_or_step, Process) and process_or_step.cwlVersion
+        else cwlVersion
+    )
+    match cwlVersion:
+        case "v1.0":
+            return cwl_v1_0_expression_refactor.empty_inputs(
+                cast(
+                    cwl_v1_0.CommandLineTool
+                    | cwl_v1_0.WorkflowStep
+                    | cwl_v1_0.ExpressionTool
+                    | cwl_v1_0.Workflow,
+                    process_or_step,
+                ),
+                cast(cwl_v1_0.Workflow, parent),
+            )
+        case "v1.1":
+            return cwl_v1_1_expression_refactor.empty_inputs(
+                cast(
+                    cwl_v1_1.CommandLineTool
+                    | cwl_v1_1.WorkflowStep
+                    | cwl_v1_1.ExpressionTool
+                    | cwl_v1_1.Workflow,
+                    process_or_step,
+                ),
+                cast(cwl_v1_1.Workflow, parent),
+            )
+        case "v1.2":
+            return cwl_v1_2_expression_refactor.empty_inputs(
+                cast(
+                    cwl_v1_2.CommandLineTool
+                    | cwl_v1_2.WorkflowStep
+                    | cwl_v1_2.ExpressionTool
+                    | cwl_v1_2.Workflow
+                    | cwl_v1_2.Operation,
+                    process_or_step,
+                ),
+                cast(cwl_v1_2.Workflow, parent),
+            )
+        case _:
+            raise WorkflowException(
+                f"Sorry, {cwlVersion} is not a supported CWL version by this tool.",
+            )
+
+
+def etool_to_cltool(
+    etool: ExpressionTool,
+    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    expressionLib: list[str] | None = None,
+) -> CommandLineTool:
+    cwlVersion = etool.cwlVersion if etool.cwlVersion is not None else cwlVersion
+    match cwlVersion:
+        case "v1.0":
+            return cwl_v1_0_expression_refactor.etool_to_cltool(
+                cast(cwl_v1_0.ExpressionTool, etool), expressionLib
+            )
+        case "v1.1":
+            return cwl_v1_1_expression_refactor.etool_to_cltool(
+                cast(cwl_v1_1.ExpressionTool, etool), expressionLib
+            )
+        case "v1.2":
+            return cwl_v1_2_expression_refactor.etool_to_cltool(
+                cast(cwl_v1_2.ExpressionTool, etool), expressionLib
+            )
+        case _:
+            raise WorkflowException(
+                f"Sorry, {cwlVersion} is not a supported CWL version by this tool.",
+            )
+
+
+def find_expressionLib(
+    processes: Sequence[Process | WorkflowStep],
+) -> list[str] | None:
+    """
+    Return the expressionLib from the highest priority InlineJavascriptRequirement.
+
+    processes: should be in order of least important to most important
+    (Workflow, WorkflowStep, ... CommandLineTool/ExpressionTool)
+    """
+    for process in reversed(copy.copy(processes)):
+        if process.requirements:
+            for req in process.requirements:
+                if isinstance(req, InlineJavascriptRequirement):
+                    return cast(list[str] | None, copy.deepcopy(req.expressionLib))
+    return None
+
+
+def generate_etool_from_expr2(
+    expr: str,
+    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    target: CommandInputParameter | WorkflowInputParameter | OperationInputParameter,
+    inputs: Sequence[
+        CommandInputParameter | CommandOutputParameter | WorkflowInputParameter
+    ],
+    self_name: str | None = None,
+    process: Process | None = None,
+    extra_processes: Sequence[Process | WorkflowStep] | None = None,
+) -> ExpressionTool:
+    """Generate an ExpressionTool to achieve the same result as the given expression."""
+    procs: list[Process | WorkflowStep] = []
+    hints: Sequence[Any] = []
+    requirements: Sequence[ProcessRequirement] = []
+    if process:
+        procs.append(process)
+    if extra_processes:
+        procs.extend(extra_processes)
+    if process:
+        if process.hints:
+            hints = [
+                x for x in process.hints if not isinstance(x, InitialWorkDirRequirement)
+            ]
+        if process.requirements:
+            requirements = [
+                x
+                for x in process.requirements
+                if not isinstance(x, InitialWorkDirRequirement)
+            ]
+    cwlVersion = (
+        process.cwlVersion if process and process.cwlVersion is not None else cwlVersion
+    )
+    match cwlVersion:
+        case "v1.0":
+            return cwl_v1_0_expression_refactor.generate_etool_from_expr2(
+                expr=expr,
+                target=cast(cwl_v1_0.InputParameter, target),
+                inputs=cast(
+                    Sequence[cwl_v1_0.InputParameter | cwl_v1_0.CommandOutputParameter],
+                    inputs,
+                ),
+                expression_lib=find_expressionLib(procs),
+                hints=hints,
+                requirements=cast(Sequence[cwl_v1_0.ProcessRequirement], requirements),
+                self_name=self_name,
+            )
+        case "v1.1":
+            return cwl_v1_1_expression_refactor.generate_etool_from_expr2(
+                expr=expr,
+                target=cast(
+                    cwl_v1_1.CommandInputParameter | cwl_v1_1.WorkflowInputParameter,
+                    target,
+                ),
+                inputs=cast(
+                    Sequence[
+                        cwl_v1_1.CommandInputParameter
+                        | cwl_v1_1.CommandOutputParameter
+                        | cwl_v1_1.WorkflowInputParameter
+                    ],
+                    inputs,
+                ),
+                expression_lib=find_expressionLib(procs),
+                hints=hints,
+                requirements=cast(Sequence[cwl_v1_1.ProcessRequirement], requirements),
+                self_name=self_name,
+            )
+        case "v1.2":
+            return cwl_v1_2_expression_refactor.generate_etool_from_expr2(
+                expr=expr,
+                target=cast(
+                    cwl_v1_2.CommandInputParameter
+                    | cwl_v1_2.WorkflowInputParameter
+                    | cwl_v1_2.OperationInputParameter,
+                    target,
+                ),
+                inputs=cast(
+                    Sequence[
+                        cwl_v1_2.CommandInputParameter
+                        | cwl_v1_2.CommandOutputParameter
+                        | cwl_v1_2.WorkflowInputParameter
+                    ],
+                    inputs,
+                ),
+                expression_lib=find_expressionLib(procs),
+                hints=hints,
+                requirements=cast(Sequence[cwl_v1_2.ProcessRequirement], requirements),
+                self_name=self_name,
+            )
+        case _:
+            raise WorkflowException(
+                f"Sorry, {cwlVersion} is not a supported CWL version by this tool.",
+            )
+
+
+@overload
+def get_command_input_parameter(
+    cwlVersion: Literal["v1.0"], id_: str, type_: Any
+) -> cwl_v1_0.CommandInputParameter: ...
+
+
+@overload
+def get_command_input_parameter(
+    cwlVersion: Literal["v1.1"], id_: str, type_: Any
+) -> cwl_v1_1.CommandInputParameter: ...
+
+
+@overload
+def get_command_input_parameter(
+    cwlVersion: Literal["v1.2"], id_: str, type_: Any
+) -> cwl_v1_2.CommandInputParameter: ...
+
+
+def get_command_input_parameter(
+    cwlVersion: Literal["v1.0", "v1.1", "v1.2"], id_: str, type_: Any
+) -> CommandInputParameter:
+    match cwlVersion:
+        case "v1.0":
+            return cwl_v1_0_expression_refactor.get_command_input_parameter(id_, type_)
+        case "v1.1":
+            return cwl_v1_1_expression_refactor.get_command_input_parameter(id_, type_)
+        case "v1.2":
+            return cwl_v1_2_expression_refactor.get_command_input_parameter(id_, type_)
+        case _:
+            raise WorkflowException(
+                f"Sorry, {cwlVersion} is not a supported CWL version by this tool.",
+            )
+
+
+@overload
+def get_command_line_binding(
+    cwlVersion: Literal["v1.0"],
+    valueFrom: str | None = ...,
+    loadContents: bool | None = ...,
+) -> cwl_v1_0.CommandLineBinding: ...
+
+
+@overload
+def get_command_line_binding(
+    cwlVersion: Literal["v1.1"],
+    valueFrom: str | None = ...,
+    loadContents: bool | None = ...,
+) -> cwl_v1_1.CommandLineBinding: ...
+
+
+@overload
+def get_command_line_binding(
+    cwlVersion: Literal["v1.2"],
+    valueFrom: str | None = ...,
+    loadContents: bool | None = ...,
+) -> cwl_v1_2.CommandLineBinding: ...
+
+
+def get_command_line_binding(
+    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    valueFrom: str | None = None,
+    loadContents: bool | None = None,
+) -> CommandLineBinding:
+    match cwlVersion:
+        case "v1.0":
+            return cwl_v1_0_expression_refactor.get_command_line_binding(
+                valueFrom, loadContents
+            )
+        case "v1.1":
+            return cwl_v1_1_expression_refactor.get_command_line_binding(
+                valueFrom, loadContents
+            )
+        case "v1.2":
+            return cwl_v1_2_expression_refactor.get_command_line_binding(
+                valueFrom, loadContents
+            )
+        case _:
+            raise WorkflowException(
+                f"Sorry, {cwlVersion} is not a supported CWL version by this tool.",
+            )
+
+
+@overload
+def get_inline_javascript_requirement(
+    etool: ExpressionTool,
+    cwlVersion: Literal["v1.0"],
+    expression_lib: list[str] | None,
+) -> cwl_v1_0.InlineJavascriptRequirement: ...
+
+
+@overload
+def get_inline_javascript_requirement(
+    etool: ExpressionTool,
+    cwlVersion: Literal["v1.1"],
+    expression_lib: list[str] | None,
+) -> cwl_v1_1.InlineJavascriptRequirement: ...
+
+
+@overload
+def get_inline_javascript_requirement(
+    etool: ExpressionTool,
+    cwlVersion: Literal["v1.2"],
+    expression_lib: list[str] | None,
+) -> cwl_v1_2.InlineJavascriptRequirement: ...
+
+
+def get_inline_javascript_requirement(
+    etool: ExpressionTool,
+    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    expression_lib: list[str] | None,
+) -> InlineJavascriptRequirement:
+    match etool.cwlVersion or cwlVersion:
+        case "v1.0":
+            return cwl_v1_0_expression_refactor.get_inline_javascript_requirement(
+                cast(cwl_v1_0.ExpressionTool, etool), expression_lib
+            )
+        case "v1.1":
+            return cwl_v1_1_expression_refactor.get_inline_javascript_requirement(
+                cast(cwl_v1_1.ExpressionTool, etool), expression_lib
+            )
+        case "v1.2":
+            return cwl_v1_2_expression_refactor.get_inline_javascript_requirement(
+                cast(cwl_v1_2.ExpressionTool, etool), expression_lib
+            )
+        case _:
+            raise WorkflowException(
+                f"Sorry, {etool.cwlVersion or cwlVersion} is not a supported CWL version by this tool.",
+            )
+
+
+def get_input_for_id(
+    name: str, tool: Process
+) -> CommandInputParameter | WorkflowInputParameter | OperationInputParameter | None:
+    """Determine the CommandInputParameter for the given input name."""
+    name = name.split("/")[-1]
+
+    for inp in cast(
+        list[CommandInputParameter | WorkflowInputParameter | OperationInputParameter],
+        tool.inputs,
+    ):
+        if inp.id and inp.id.split("#")[-1].split("/")[-1] == name:
+            return inp
+    if isinstance(tool, Workflow) and "/" in name:
+        stepname, stem = name.split("/", 1)
+        for step in tool.steps:
+            if step.id == stepname:
+                result = get_input_for_id(stem, step.run)
+                if result:
+                    return result
+    return None
+
+
+def load_step(
+    step: WorkflowStep,
+    replace_etool: bool,
+    skip_command_line1: bool,
+    skip_command_line2: bool,
+) -> bool:
+    """If the step's Process is not inline, load and process it."""
+    modified = False
+    if isinstance(step.run, str):
+        process = cast(
+            Process, load_document_by_uri(step.run, loadingOptions=step.loadingOptions)
+        )
+        # FIXME: with strong typing, it won't be possible to directly assign to step.run
+        match process.cwlVersion:
+            case "v1.0":
+                step.run, modified = cwl_v1_0_expression_refactor.traverse(
+                    cast(
+                        cwl_v1_0.CommandLineTool
+                        | cwl_v1_0.ExpressionTool
+                        | cwl_v1_0.Workflow,
+                        process,
+                    ),
+                    replace_etool,
+                    True,
+                    skip_command_line1,
+                    skip_command_line2,
+                )
+            case "v1.1":
+                step.run, modified = cwl_v1_1_expression_refactor.traverse(
+                    cast(
+                        cwl_v1_1.CommandLineTool
+                        | cwl_v1_1.ExpressionTool
+                        | cwl_v1_1.Workflow,
+                        process,
+                    ),
+                    replace_etool,
+                    True,
+                    skip_command_line1,
+                    skip_command_line2,
+                )
+            case "v1.2":
+                step.run, modified = cwl_v1_2_expression_refactor.traverse(
+                    cast(
+                        cwl_v1_2.CommandLineTool
+                        | cwl_v1_2.ExpressionTool
+                        | cwl_v1_2.Workflow
+                        | cwl_v1_2.Operation,
+                        process,
+                    ),
+                    replace_etool,
+                    True,
+                    skip_command_line1,
+                    skip_command_line2,
+                )
+            case _:
+                raise WorkflowException(
+                    f"Sorry, {process.cwlVersion} is not a supported CWL version by this tool.",
+                )
+    return modified
+
+
+def process_CommandLineTool_output(
+    ctool: CommandLineTool, cwlVersion: Literal["v1.0", "v1.1", "v1.2"], outp_id: str
+) -> None:
+    match ctool.cwlVersion or cwlVersion:
+        case "v1.0":
+            cwl_v1_0_expression_refactor.process_CommandLineTool_output(
+                cast(cwl_v1_0.CommandLineTool, ctool), outp_id
+            )
+        case "v1.1":
+            cwl_v1_1_expression_refactor.process_CommandLineTool_output(
+                cast(cwl_v1_1.CommandLineTool, ctool), outp_id
+            )
+        case "v1.2":
+            cwl_v1_2_expression_refactor.process_CommandLineTool_output(
+                cast(cwl_v1_2.CommandLineTool, ctool), outp_id
+            )
+        case _:
+            raise WorkflowException(
+                f"Sorry, {ctool.cwlVersion or cwlVersion} is not a supported CWL version by this tool.",
+            )
+
+
+def remove_JSReq(
+    process: CommandLineTool | WorkflowStep | Workflow,
+    skip_command_line1: bool,
+) -> None:
+    """Since the InlineJavascriptRequirement is longer needed, remove it."""
+    if skip_command_line1 and isinstance(process, CommandLineTool):
+        return
+    if process.hints:
+        process.hints[:] = [
+            hint
+            for hint in process.hints
+            if not isinstance(hint, InlineJavascriptRequirement)
+        ]
+        if not process.hints:
+            process.hints = None
+    if process.requirements:
+        process.requirements[:] = [
+            req
+            for req in process.requirements
+            if not isinstance(req, InlineJavascriptRequirement)
+        ]
+        if not process.requirements:
+            process.requirements = None
+
+
 def main() -> None:
     """Console entry point."""
     sys.exit(run(sys.argv[1:]))
@@ -105,31 +621,38 @@ def refactor(args: argparse.Namespace) -> int:
         with open(document) as doc_handle:
             result = yaml.load(doc_handle)
         uri = Path(document).resolve().as_uri()
-        match result["cwlVersion"]:
-            case "v1.0":
-                top = cwl_v1_0.load_document_by_yaml(result, uri)
-                traverse: Callable[[Any, bool, bool, bool, bool], tuple[Any, bool]] = (
-                    cwl_v1_0_expression_refactor.traverse
-                )
-                save: saveCWL = cwl_v1_0.save
-            case "v1.1":
-                top = cwl_v1_1.load_document_by_yaml(result, uri)
-                traverse = cwl_v1_1_expression_refactor.traverse
-                save = cwl_v1_1.save
-            case "v1.2":
-                top = cwl_v1_2.load_document_by_yaml(result, uri)
-                traverse = cwl_v1_2_expression_refactor.traverse
-                save = cwl_v1_2.save
-            case _:
-                _logger.error(
-                    "Sorry, %s is not a supported CWL version by this tool.",
-                    result["cwlVersion"],
-                )
-                return -1
         try:
-            result, modified = traverse(
-                top, not args.etools, False, args.skip_some1, args.skip_some2
-            )
+            match result["cwlVersion"]:
+                case "v1.0":
+                    result, modified = cwl_v1_0_expression_refactor.traverse(
+                        cwl_v1_0.load_document_by_yaml(result, uri),
+                        not args.etools,
+                        False,
+                        args.skip_some1,
+                        args.skip_some2,
+                    )
+                case "v1.1":
+                    result, modified = cwl_v1_1_expression_refactor.traverse(
+                        cwl_v1_1.load_document_by_yaml(result, uri),
+                        not args.etools,
+                        False,
+                        args.skip_some1,
+                        args.skip_some2,
+                    )
+                case "v1.2":
+                    result, modified = cwl_v1_2_expression_refactor.traverse(
+                        cwl_v1_2.load_document_by_yaml(result, uri),
+                        not args.etools,
+                        False,
+                        args.skip_some1,
+                        args.skip_some2,
+                    )
+                case _:
+                    _logger.error(
+                        "Sorry, %s is not a supported CWL version by this tool.",
+                        result["cwlVersion"],
+                    )
+                    return -1
             output = Path(args.dir) / Path(document).name
             if not modified:
                 if len(args.inputs) > 1:
