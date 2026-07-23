@@ -92,7 +92,7 @@ class SingularityImagePuller(ImagePuller):
 
     CHARS_TO_REPLACE = ["_", "/"]
     NEW_STRINGS = ["___", "_s_"]
-    
+
     def _image_to_filename(
         self,
         image_name: str,
@@ -117,7 +117,7 @@ class SingularityImagePuller(ImagePuller):
         filename = f"{image_name}{suffix}"
         return filename
 
-    def _could_be_current_image(filename: str) -> bool:
+    def _could_be_current_image(self, filename: str) -> bool:
         """
         Check if a path could belong to the current image name encoding scheme.
 
@@ -129,11 +129,11 @@ class SingularityImagePuller(ImagePuller):
         can't actually be generated under the new scheme, but will never
         return False for things that can.
         """
-        for replacement in NEW_STRINGS:
+        for replacement in self.NEW_STRINGS:
             # Remove anything the new scheme generates involving replaceable
             # characters.
             filename = filename.replace(replacement, "")
-        for remaining in CHARS_TO_REPLACE:
+        for remaining in self.CHARS_TO_REPLACE:
             if remaining in filename:
                 # We have something that can't have been generated under the
                 # new scheme.
@@ -143,7 +143,9 @@ class SingularityImagePuller(ImagePuller):
 
     def get_image_name(self) -> str:
         """Determine the file name appropriate to the installed version of Singularity."""
-        return self._image_to_filename(self.req, CHARS_TO_REPLACE, NEW_STRINGS)
+        return self._image_to_filename(
+            self.req, self.CHARS_TO_REPLACE, self.NEW_STRINGS
+        )
 
     def get_alternate_image_names(self) -> list[str]:
         """
@@ -170,7 +172,9 @@ class SingularityImagePuller(ImagePuller):
                 ["_"],
             ),
         ]
-        possibilities = [p for p in possibilities if not self._could_be_current_image(p)]
+        possibilities = [
+            p for p in possibilities if not self._could_be_current_image(p)
+        ]
         return possibilities
 
     def save_docker_image(self) -> None:
@@ -184,14 +188,17 @@ class SingularityImagePuller(ImagePuller):
                 _LOGGER.info(f"Already cached {self.req} with Singularity.")
                 return
             # Otherwise check other paths old versions may have placed it at.
-            alternate_targets = [Path(save_directory, img) for img in self.get_alternate_image_names()]
+            alternate_targets = [
+                Path(save_directory, img) for img in self.get_alternate_image_names()
+            ]
             for alt_target in alternate_targets:
                 if alt_target.exists():
-                    _LOGGER.info(f"Already cached {self.req} with Singularity using a previous caching scheme.")
+                    _LOGGER.info(
+                        f"Already cached {self.req} with Singularity using a previous caching scheme."
+                    )
                     return
-        
+
         _LOGGER.info(f"Pulling {self.req} with Singularity...")
-        os.makedirs(target.parent, exist_ok=True)
         cmd_pull = [
             self.cmd,
             "pull",
@@ -206,6 +213,4 @@ class SingularityImagePuller(ImagePuller):
             ]
         )
         ImagePuller._run_command_pull(cmd_pull)
-        _LOGGER.info(
-            f"Image successfully pulled: {target}"
-        )
+        _LOGGER.info(f"Image successfully pulled: {target}")
