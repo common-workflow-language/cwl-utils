@@ -167,7 +167,7 @@ class SingularityImagePuller(ImagePuller):
             # Check the path cwltool 3.2.20260720092025 uses, with _latest
             # potentially appended and then only slashes replaced.
             self._image_to_filename(
-                image_name + "_latest" if ":" not in image_name else image_name,
+                (image_name + "_latest") if ":" not in image_name else image_name,
                 ["/"],
                 ["_"],
             ),
