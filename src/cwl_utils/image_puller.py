@@ -92,26 +92,17 @@ class SingularityImagePuller(ImagePuller):
 
     CHARS_TO_REPLACE = ["_", "/"]
     NEW_STRINGS = ["___", "_s_"]
-    # This ends up being a directory name that often gets dropped into the user's current directory
-    FILENAME_SCHEME_VERSION = "v2"
     
     def _image_to_filename(
         self,
         image_name: str,
         to_replace: list[str],
         replacements: list[str],
-        version: str | None = None
     ) -> str:
         """
         Get the filename for an image, using the given replacements to escape it.
 
         The filename will be appropriate for the current Singularity.
-
-        The filename will include a disambiguating version if version is set.
-        No filenames from two different versions, or with and without a
-        version, will be equal. 
-
-        The filename may contain leading directory components.
         """
         for char, replacement in zip(self.CHARS_TO_REPLACE, self.NEW_STRINGS):
             image_name = image_name.replace(char, replacement)
@@ -124,14 +115,35 @@ class SingularityImagePuller(ImagePuller):
                 f"Don't know how to handle this version of singularity: {get_singularity_version()}."
             )
         filename = f"{image_name}{suffix}"
-        if version is not None:
-            filename = os.path.join(version, filename)
         return filename
+
+    def _could_be_current_image(filename: str) -> bool:
+        """
+        Check if a path could belong to the current image name encoding scheme.
+
+        This allows us to be backward-compatible with most existing cached
+        images, without risking treating cache entries created under the new
+        scheme as belonging to different images under older schemes.
+
+        Is not guaranteed to be a tight bound: may return True for things that
+        can't actually be generated under the new scheme, but will never
+        return False for things that can.
+        """
+        for replacement in NEW_STRINGS:
+            # Remove anything the new scheme generates involving replaceable
+            # characters.
+            filename = filename.replace(replacement, "")
+        for remaining in CHARS_TO_REPLACE:
+            if remaining in filename:
+                # We have something that can't have been generated under the
+                # new scheme.
+                return False
+        # If we don't see anything we can't make, we can probably make this path.
+        return True
 
     def get_image_name(self) -> str:
         """Determine the file name appropriate to the installed version of Singularity."""
-        image_name = self.req
-        return self._image_to_filename(image_name, CHARS_TO_REPLACE, NEW_STRINGS, FILENAME_SCHEME_VERSION)
+        return self._image_to_filename(self.req, CHARS_TO_REPLACE, NEW_STRINGS)
 
     def get_alternate_image_names(self) -> list[str]:
         """
@@ -141,9 +153,12 @@ class SingularityImagePuller(ImagePuller):
         instead of pulling it again.
 
         These cover cwltool 3.2.20260720092025 and cwl-utils 0.42.
+
+        If an image name could potentially also belong to some image under the
+        current scheme, it will not appear here.
         """
         image_name = self.req
-        return [
+        possibilities = [
             # Check the path cwl-utils 0.42 uses, with underscores for slashes
             # and colons.
             self._image_to_filename(image_name, ["/", ":"], ["_", "_"]),
@@ -155,6 +170,8 @@ class SingularityImagePuller(ImagePuller):
                 ["_"],
             ),
         ]
+        possibilities = [p for p in possibilities if not self._could_be_current_image(p)]
+        return possibilities
 
     def save_docker_image(self) -> None:
         """Pull down the Docker software container image and save it in the Singularity image format."""
@@ -190,5 +207,5 @@ class SingularityImagePuller(ImagePuller):
         )
         ImagePuller._run_command_pull(cmd_pull)
         _LOGGER.info(
-            f"Image successfully pulled: {save_directory}/{self.get_image_name()}"
+            f"Image successfully pulled: {target}"
         )
