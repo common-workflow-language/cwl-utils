@@ -92,10 +92,27 @@ class SingularityImagePuller(ImagePuller):
 
     CHARS_TO_REPLACE = ["_", "/"]
     NEW_STRINGS = ["___", "_s_"]
+    # This ends up being a directory name that often gets dropped into the user's current directory
+    FILENAME_SCHEME_VERSION = "v2"
+    
+    def _image_to_filename(
+        self,
+        image_name: str,
+        to_replace: list[str],
+        replacements: list[str],
+        version: str | None = None
+    ) -> str:
+        """
+        Get the filename for an image, using the given replacements to escape it.
 
-    def get_image_name(self) -> str:
-        """Determine the file name appropriate to the installed version of Singularity."""
-        image_name = self.req
+        The filename will be appropriate for the current Singularity.
+
+        The filename will include a disambiguating version if version is set.
+        No filenames from two different versions, or with and without a
+        version, will be equal. 
+
+        The filename may contain leading directory components.
+        """
         for char, replacement in zip(self.CHARS_TO_REPLACE, self.NEW_STRINGS):
             image_name = image_name.replace(char, replacement)
         if is_singularity_version_2_6():
@@ -106,7 +123,38 @@ class SingularityImagePuller(ImagePuller):
             raise Exception(
                 f"Don't know how to handle this version of singularity: {get_singularity_version()}."
             )
-        return f"{image_name}{suffix}"
+        filename = f"{image_name}{suffix}"
+        if version is not None:
+            filename = os.path.join(version, filename)
+        return filename
+
+    def get_image_name(self) -> str:
+        """Determine the file name appropriate to the installed version of Singularity."""
+        image_name = self.req
+        return self._image_to_filename(image_name, CHARS_TO_REPLACE, NEW_STRINGS, FILENAME_SCHEME_VERSION)
+
+    def get_alternate_image_names(self) -> list[str]:
+        """
+        Determine filenames used by previous versions of cwltool or cwl-utils.
+
+        These should be checked for the image and used if it exists there,
+        instead of pulling it again.
+
+        These cover cwltool 3.2.20260720092025 and cwl-utils 0.42.
+        """
+        image_name = self.req
+        return [
+            # Check the path cwl-utils 0.42 uses, with underscores for slashes
+            # and colons.
+            self._image_to_filename(image_name, ["/", ":"], ["_", "_"]),
+            # Check the path cwltool 3.2.20260720092025 uses, with _latest
+            # potentially appended and then only slashes replaced.
+            self._image_to_filename(
+                image_name + "_latest" if ":" not in image_name else image_name,
+                ["/"],
+                ["_"],
+            ),
+        ]
 
     def save_docker_image(self) -> None:
         """Pull down the Docker software container image and save it in the Singularity image format."""
@@ -114,10 +162,19 @@ class SingularityImagePuller(ImagePuller):
         if self.save_directory:
             save_directory = self.save_directory
         target = Path(save_directory, self.get_image_name())
-        if target.exists() and not self.force_pull:
-            _LOGGER.info(f"Already cached {self.req} with Singularity.")
-            return
+        if not self.force_pull:
+            if target.exists():
+                _LOGGER.info(f"Already cached {self.req} with Singularity.")
+                return
+            # Otherwise check other paths old versions may have placed it at.
+            alternate_targets = [Path(save_directory, img) for img in self.get_alternate_image_names()]
+            for alt_target in alternate_targets:
+                if alt_target.exists():
+                    _LOGGER.info(f"Already cached {self.req} with Singularity using a previous caching scheme.")
+                    return
+        
         _LOGGER.info(f"Pulling {self.req} with Singularity...")
+        os.makedirs(target.parent, exist_ok=True)
         cmd_pull = [
             self.cmd,
             "pull",
