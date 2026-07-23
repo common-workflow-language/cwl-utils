@@ -34,7 +34,7 @@ class TestSingularityImagePuller:
 
     def test_get_image_alternate_names_match_old_cwltool(self) -> None:
         """
-        Make sure alternate image names tries match those previously used by
+        Make sure alternate image names tried match those previously used by
         cwltool 3.2.20260720092025.
         """
         if is_singularity_version_2_6():
@@ -56,7 +56,7 @@ class TestSingularityImagePuller:
 
     def test_get_image_alternate_names_match_old_cwl_utils(self) -> None:
         """
-        Make sure alternate image names tries match those previously used by
+        Make sure alternate image names tried match those previously used by
         cwl-utils 0.42
         """
         if is_singularity_version_2_6():
