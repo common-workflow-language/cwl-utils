@@ -104,7 +104,7 @@ class SingularityImagePuller(ImagePuller):
 
         The filename will be appropriate for the current Singularity.
         """
-        for char, replacement in zip(self.CHARS_TO_REPLACE, self.NEW_STRINGS):
+        for char, replacement in zip(to_replace, replacements):
             image_name = image_name.replace(char, replacement)
         if is_singularity_version_2_6():
             suffix = ".img"
