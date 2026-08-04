@@ -75,6 +75,8 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
           fail_ci_if_error: true
+          # Work around https://github.com/codecov/codecov-action/issues/1876
+          use_pypi: true
 
   tox-style:
     name: CI linters via Tox
