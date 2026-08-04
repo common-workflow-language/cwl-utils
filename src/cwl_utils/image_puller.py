@@ -195,9 +195,7 @@ class SingularityImagePuller(ImagePuller):
         return possibilities
 
     def find_destination_path(self) -> Path:
-        """
-        Find the path where the image belongs.
-        """
+        """Find the path where the image belongs."""
         save_directory: str | Path
         if self.save_directory:
             save_directory = self.save_directory
@@ -290,7 +288,6 @@ class SingularityImagePuller(ImagePuller):
 
         Uses the cache if possible.
         """
-
         target = self.find_destination_path()
         if self.save_docker_image_from_cache(target):
             return
