@@ -223,7 +223,7 @@ class SingularityImagePuller(ImagePuller):
     def save_docker_image_from_cache(
         self,
         target: Path,
-        search_paths: list[Path | str] | None = None,
+        search_paths: list[Path] | None = None,
     ) -> bool:
         """
         Put the image we need at our destination path, if we have it locally.
@@ -253,13 +253,13 @@ class SingularityImagePuller(ImagePuller):
         names = [target.name] + self.get_alternate_image_names()
 
         # Recursively look under any of these paths
-        if search_paths is None:
-            search_paths = []
-        search_paths = [save_directory] + search_paths
+        to_search: list[Path | str] = [save_directory]
+        if search_paths:
+            to_search.extend(search_paths)
 
         # Find the source file to promote to the target path
         source: Path | None = None
-        for search_path in search_paths:
+        for search_path in to_search:
             for dirpath, _subdirs, files in os.walk(search_path):
                 # We need to check our filenames in priority order
                 file_set = set(files)
