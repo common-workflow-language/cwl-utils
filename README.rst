@@ -164,6 +164,27 @@ Using the CWL Parsers
    saved_obj = save(cwl_obj)
    print(f"Export of the loaded CWL object: {saved_obj}.")
 
+Choosing a JavaScript engine
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+CWL expressions are evaluated with Node.js by default (falling back to a
+``node:slim`` software container if Node.js is not installed). Setting the
+``CWL_JS_ENGINE`` environment variable to ``quickjs`` selects the
+`QuickJS <https://bellard.org/quickjs/>`_ based engine instead, which
+requires the ``qjs`` executable on the ``PATH``. QuickJS starts quickly
+enough that every evaluation runs in its own short-lived subprocess; there
+is no software container fallback. Set ``CWL_JS_ENGINE`` to ``node`` (or
+leave it unset) for the default behaviour.
+
+A specific engine can also be installed programmatically, which takes
+precedence over ``CWL_JS_ENGINE``:
+
+.. code:: python
+
+   from cwl_utils.sandboxjs import QuickJSEngine, set_js_engine
+
+   set_js_engine(QuickJSEngine())
+
 Development
 -----------
 
