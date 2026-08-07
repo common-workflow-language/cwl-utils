@@ -83,14 +83,107 @@ class JSEngine(ABC):
         **kwargs: Any,
     ) -> CWLOutputType | Awaitable[CWLOutputType]: ...
 
-    @abstractmethod
     def regex_eval(
         self,
         parsed_string: str,
         remaining_string: str,
         current_value: CWLOutputType,
         **kwargs: Any,
-    ) -> CWLOutputType | Awaitable[CWLOutputType]: ...
+    ) -> CWLOutputType | Awaitable[CWLOutputType]:
+        """Walk a parameter reference without a javascript engine (pure Python)."""
+        if remaining_string:
+            m = segment_re.match(remaining_string)
+            if not m:
+                return current_value
+            next_segment_str = m.group(1)
+            key: str | int | None = None
+            if next_segment_str[0] == ".":
+                key = next_segment_str[1:]
+            elif next_segment_str[1] in ("'", '"'):
+                key = next_segment_str[2:-2].replace("\\'", "'").replace('\\"', '"')
+            if key is not None:
+                if (
+                    isinstance(current_value, MutableSequence)
+                    and key == "length"
+                    and not remaining_string[m.end(1) :]
+                ):
+                    return len(current_value)
+                if not isinstance(current_value, MutableMapping):
+                    raise WorkflowException(
+                        "%s is a %s, cannot index on string '%s'"
+                        % (parsed_string, type(current_value).__name__, key)
+                    )
+                if key not in current_value:
+                    raise WorkflowException(
+                        f"{parsed_string} does not contain key {key!r}."
+                    )
+            else:
+                try:
+                    key = int(next_segment_str[1:-1])
+                except ValueError as v:
+                    raise WorkflowException(str(v)) from v
+                if not isinstance(current_value, MutableSequence):
+                    raise WorkflowException(
+                        "%s is a %s, cannot index on int '%s'"
+                        % (parsed_string, type(current_value).__name__, key)
+                    )
+                if key and key >= len(current_value):
+                    raise WorkflowException(
+                        "%s list index %i out of range" % (parsed_string, key)
+                    )
+
+            if isinstance(current_value, Mapping):
+                try:
+                    if is_directory(current_value) and is_directory_key(key):
+                        return self.regex_eval(
+                            parsed_string + remaining_string,
+                            remaining_string[m.end(1) :],
+                            cast(
+                                CWLOutputType,
+                                current_value[key],
+                            ),
+                        )
+                    elif is_file(current_value) and is_file_key(key):
+                        return self.regex_eval(
+                            parsed_string + remaining_string,
+                            remaining_string[m.end(1) :],
+                            cast(
+                                CWLOutputType,
+                                current_value[key],
+                            ),
+                        )
+                    else:
+                        return self.regex_eval(
+                            parsed_string + remaining_string,
+                            remaining_string[m.end(1) :],
+                            cast(
+                                CWLOutputType,
+                                cast(MutableMapping[str, Any], current_value)[
+                                    cast(str, key)
+                                ],
+                            ),
+                        )
+                except KeyError as exc:
+                    raise WorkflowException(
+                        f"{parsed_string!r} doesn't have property {key!r}."
+                    ) from exc
+            elif isinstance(current_value, list) and isinstance(key, int):
+                try:
+                    return self.regex_eval(
+                        parsed_string + remaining_string,
+                        remaining_string[m.end(1) :],
+                        current_value[key],
+                    )
+                except KeyError as exc:
+                    raise WorkflowException(
+                        f"{parsed_string!r} doesn't have property {key!r}."
+                    ) from exc
+            else:
+                raise WorkflowException(
+                    f"{parsed_string!r} doesn't have property {key!r}."
+                )
+        else:
+            return current_value
 
 
 class NodeJSEngine(JSEngine):
@@ -523,107 +616,6 @@ class NodeJSEngine(JSEngine):
                     err, linenum(fn), stdout, stderr
                 )
             ) from err
-
-    def regex_eval(
-        self,
-        parsed_string: str,
-        remaining_string: str,
-        current_value: CWLOutputType,
-        **kwargs: Any,
-    ) -> CWLOutputType:
-        if remaining_string:
-            m = segment_re.match(remaining_string)
-            if not m:
-                return current_value
-            next_segment_str = m.group(1)
-            key: str | int | None = None
-            if next_segment_str[0] == ".":
-                key = next_segment_str[1:]
-            elif next_segment_str[1] in ("'", '"'):
-                key = next_segment_str[2:-2].replace("\\'", "'").replace('\\"', '"')
-            if key is not None:
-                if (
-                    isinstance(current_value, MutableSequence)
-                    and key == "length"
-                    and not remaining_string[m.end(1) :]
-                ):
-                    return len(current_value)
-                if not isinstance(current_value, MutableMapping):
-                    raise WorkflowException(
-                        "%s is a %s, cannot index on string '%s'"
-                        % (parsed_string, type(current_value).__name__, key)
-                    )
-                if key not in current_value:
-                    raise WorkflowException(
-                        f"{parsed_string} does not contain key {key!r}."
-                    )
-            else:
-                try:
-                    key = int(next_segment_str[1:-1])
-                except ValueError as v:
-                    raise WorkflowException(str(v)) from v
-                if not isinstance(current_value, MutableSequence):
-                    raise WorkflowException(
-                        "%s is a %s, cannot index on int '%s'"
-                        % (parsed_string, type(current_value).__name__, key)
-                    )
-                if key and key >= len(current_value):
-                    raise WorkflowException(
-                        "%s list index %i out of range" % (parsed_string, key)
-                    )
-
-            if isinstance(current_value, Mapping):
-                try:
-                    if is_directory(current_value) and is_directory_key(key):
-                        return self.regex_eval(
-                            parsed_string + remaining_string,
-                            remaining_string[m.end(1) :],
-                            cast(
-                                CWLOutputType,
-                                current_value[key],
-                            ),
-                        )
-                    elif is_file(current_value) and is_file_key(key):
-                        return self.regex_eval(
-                            parsed_string + remaining_string,
-                            remaining_string[m.end(1) :],
-                            cast(
-                                CWLOutputType,
-                                current_value[key],
-                            ),
-                        )
-                    else:
-                        return self.regex_eval(
-                            parsed_string + remaining_string,
-                            remaining_string[m.end(1) :],
-                            cast(
-                                CWLOutputType,
-                                cast(MutableMapping[str, Any], current_value)[
-                                    cast(str, key)
-                                ],
-                            ),
-                        )
-                except KeyError as exc:
-                    raise WorkflowException(
-                        f"{parsed_string!r} doesn't have property {key!r}."
-                    ) from exc
-            elif isinstance(current_value, list) and isinstance(key, int):
-                try:
-                    return self.regex_eval(
-                        parsed_string + remaining_string,
-                        remaining_string[m.end(1) :],
-                        current_value[key],
-                    )
-                except KeyError as exc:
-                    raise WorkflowException(
-                        f"{parsed_string!r} doesn't have property {key!r}."
-                    ) from exc
-            else:
-                raise WorkflowException(
-                    f"{parsed_string!r} doesn't have property {key!r}."
-                )
-        else:
-            return current_value
 
 
 __js_engine: JSEngine = NodeJSEngine()
