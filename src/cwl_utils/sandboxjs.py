@@ -367,16 +367,25 @@ class NodeJSEngine(JSEngine):
                         if force_docker_pull:
                             nodejs_pull_commands.append("--force")
                         nodejs_pull_commands.append(nodeimg)
-                        cwd = singularity_cache or Path.cwd()
-                        nodejsimg = subprocess.check_output(  # nosec
-                            nodejs_pull_commands, text=True, cwd=str(cwd)
+                        cwd = (
+                            Path(singularity_cache) if singularity_cache else Path.cwd()
                         )
-                        _logger.debug(
-                            "Pulled Docker image %s %s using %s",
-                            nodeimg,
-                            nodejsimg,
-                            container_engine,
-                        )
+                        try:
+                            nodejsimg = subprocess.check_output(  # nosec
+                                nodejs_pull_commands, text=True, cwd=str(cwd)
+                            )
+                            _logger.debug(
+                                "Pulled Docker image %s %s using %s",
+                                nodeimg,
+                                nodejsimg,
+                                container_engine,
+                            )
+                        except (subprocess.CalledProcessError, OSError) as err:
+                            if not (
+                                need_singularity
+                                and glob.glob(str(cwd / "node_alpine.sif"))
+                            ):
+                                raise err
                     self.have_node_slim = True
                 nodejs_commands = [container_engine]
                 if (
