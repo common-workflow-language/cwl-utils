@@ -9,13 +9,14 @@ from typing import IO, Any, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
+from schema_salad.metaschema import RecordSchema, ArraySchema
+from schema_salad.runtime import shortname, LoadingOptions, file_uri, save
 from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import aslist, json_dumps, yaml_no_ts
 
 import cwl_utils.parser
 import cwl_utils.parser.cwl_v1_0 as cwl
 import cwl_utils.parser.utils
-from cwl_utils.errors import WorkflowException
 from cwl_utils.utils import yaml_dumps
 
 CONTENT_LIMIT: int = 64 * 1024
@@ -25,49 +26,16 @@ _logger = logging.getLogger("cwl_utils")
 SrcSink = namedtuple("SrcSink", ["src", "sink", "linkMerge", "message"])
 
 
-def _compare_records(
-    src: cwl.RecordSchema, sink: cwl.RecordSchema, strict: bool = False
-) -> bool:
-    """
-    Compare two records, ensuring they have compatible fields.
-
-    This handles normalizing record names, which will be relative to workflow
-    step, so that they can be compared.
-    """
-    srcfields = {cwl.shortname(field.name): field.type_ for field in (src.fields or {})}
-    sinkfields = {
-        cwl.shortname(field.name): field.type_ for field in (sink.fields or {})
-    }
-    for key in sinkfields.keys():
-        if (
-            not can_assign_src_to_sink(
-                srcfields.get(key, "null"), sinkfields.get(key, "null"), strict
-            )
-            and sinkfields.get(key) is not None
-        ):
-            _logger.info(
-                "Record comparison failure for %s and %s\n"
-                "Did not match fields for %s: %s and %s",
-                cast(cwl.InputRecordSchema | cwl.CommandOutputRecordSchema, src).name,
-                cast(cwl.InputRecordSchema | cwl.CommandOutputRecordSchema, sink).name,
-                key,
-                srcfields.get(key),
-                sinkfields.get(key),
-            )
-            return False
-    return True
-
-
 def _compare_type(type1: Any, type2: Any) -> bool:
     match (type1, type1):
-        case cwl.ArraySchema() as t1, cwl.ArraySchema() as t2:
+        case ArraySchema() as t1, ArraySchema() as t2:
             return _compare_type(t1.items, t2.items)
-        case cwl.RecordSchema(), cwl.RecordSchema():
+        case RecordSchema(), RecordSchema():
             fields1 = {
-                cwl.shortname(field.name): field.type_ for field in (type1.fields or {})
+                shortname(field.name): field.type_ for field in (type1.fields or {})
             }
             fields2 = {
-                cwl.shortname(field.name): field.type_ for field in (type2.fields or {})
+                shortname(field.name): field.type_ for field in (type2.fields or {})
             }
             if fields1.keys() != fields2.keys():
                 return False
@@ -85,9 +53,9 @@ def _compare_type(type1: Any, type2: Any) -> bool:
 def _inputfile_load(
     doc: str | MutableMapping[str, Any] | MutableSequence[Any],
     baseuri: str,
-    loadingOptions: cwl.LoadingOptions,
+    loadingOptions: LoadingOptions,
     addl_metadata_fields: MutableSequence[str] | None = None,
-) -> tuple[Any, cwl.LoadingOptions]:
+) -> tuple[Any, LoadingOptions]:
     loader = cwl.CWLInputFileLoader
     match doc:
         case str():
@@ -101,9 +69,7 @@ def _inputfile_load(
             yaml = yaml_no_ts()
             result = yaml.load(textIO)
             add_lc_filename(result, doc_url)
-            loadingOptions = cwl.LoadingOptions(
-                copyfrom=loadingOptions, fileuri=doc_url
-            )
+            loadingOptions = LoadingOptions(copyfrom=loadingOptions, fileuri=doc_url)
             _inputfile_load(
                 result,
                 doc_url,
@@ -117,7 +83,7 @@ def _inputfile_load(
                     if mf in doc:
                         addl_metadata[mf] = doc[mf]
 
-            loadingOptions = cwl.LoadingOptions(
+            loadingOptions = LoadingOptions(
                 copyfrom=loadingOptions,
                 baseuri=baseuri,
                 addl_metadata=addl_metadata,
@@ -142,41 +108,6 @@ def _inputfile_load(
                 "Expected URI string, MutableMapping or MutableSequence, got %s"
                 % type(doc)
             )
-
-
-def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
-    """
-    Check for identical type specifications, ignoring extra keys like inputBinding.
-
-    src: admissible source types
-    sink: admissible sink types
-
-    In non-strict comparison, at least one source type must match one sink type,
-    except for 'null'.
-    In strict comparison, all source types must match at least one sink type.
-    """
-    if "Any" in (src, sink):
-        return True
-    if isinstance(src, cwl.ArraySchema) and isinstance(sink, cwl.ArraySchema):
-        return can_assign_src_to_sink(src.items, sink.items, strict)
-    if isinstance(src, cwl.RecordSchema) and isinstance(sink, cwl.RecordSchema):
-        return _compare_records(src, sink, strict)
-    if isinstance(src, MutableSequence):
-        if strict:
-            for this_src in src:
-                if not can_assign_src_to_sink(this_src, sink):
-                    return False
-            return True
-        for this_src in src:
-            if this_src != "null" and can_assign_src_to_sink(this_src, sink):
-                return True
-        return False
-    if isinstance(sink, MutableSequence):
-        for this_sink in sink:
-            if can_assign_src_to_sink(src, this_sink):
-                return True
-        return False
-    return bool(src == sink)
 
 
 def check_all_types(
@@ -213,7 +144,7 @@ def check_all_types(
                 srcs_of_sink = [src_dict[parm_id]]
                 linkMerge = None
             for src in srcs_of_sink:
-                check_result = check_types(
+                check_result = cwl_utils.parser.utils.check_types(
                     type_dict[cast(str, src.id)],
                     type_dict[sink.id],
                     linkMerge,
@@ -222,34 +153,6 @@ def check_all_types(
                 if check_result in ("warning", "exception"):
                     validation[check_result].append(SrcSink(src, sink, linkMerge, None))
     return validation
-
-
-def check_types(
-    srctype: Any,
-    sinktype: Any,
-    linkMerge: str | None,
-    valueFrom: str | None = None,
-) -> str:
-    """
-    Check if the source and sink types are correct.
-
-    Acceptable types are "pass", "warning", or "exception".
-    """
-    if valueFrom is not None:
-        return "pass"
-    if linkMerge is None:
-        if can_assign_src_to_sink(srctype, sinktype, strict=True):
-            return "pass"
-        if can_assign_src_to_sink(srctype, sinktype, strict=False):
-            return "warning"
-        return "exception"
-    if linkMerge == "merge_nested":
-        return check_types(
-            cwl.ArraySchema(items=srctype, type_="array"), sinktype, None, None
-        )
-    if linkMerge == "merge_flattened":
-        return check_types(merge_flatten_type(srctype), sinktype, None, None)
-    raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
 
 
 def content_limit_respected_read_bytes(f: IO[bytes]) -> bytes:
@@ -300,13 +203,13 @@ def convert_stdstreams_to_files(clt: cwl.CommandLineTool) -> None:
 def load_inputfile(
     doc: Any,
     baseuri: str | None = None,
-    loadingOptions: cwl.LoadingOptions | None = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.0 input file from a serialized YAML string or a YAML object."""
     if baseuri is None:
-        baseuri = cwl.file_uri(str(Path.cwd())) + "/"
+        baseuri = file_uri(str(Path.cwd())) + "/"
     if loadingOptions is None:
-        loadingOptions = cwl.LoadingOptions()
+        loadingOptions = LoadingOptions()
 
     result, metadata = _inputfile_load(
         doc,
@@ -319,14 +222,14 @@ def load_inputfile(
 def load_inputfile_by_string(
     string: Any,
     uri: str,
-    loadingOptions: cwl.LoadingOptions | None = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.0 input file from a serialized YAML string."""
     result = yaml_no_ts().load(string)
     add_lc_filename(result, uri)
 
     if loadingOptions is None:
-        loadingOptions = cwl.LoadingOptions(fileuri=uri)
+        loadingOptions = LoadingOptions(fileuri=uri)
 
     result, metadata = _inputfile_load(
         result,
@@ -339,13 +242,13 @@ def load_inputfile_by_string(
 def load_inputfile_by_yaml(
     yaml: Any,
     uri: str,
-    loadingOptions: cwl.LoadingOptions | None = None,
+    loadingOptions: LoadingOptions | None = None,
 ) -> Any:
     """Load a CWL v1.0 input file from a YAML object."""
     add_lc_filename(yaml, uri)
 
     if loadingOptions is None:
-        loadingOptions = cwl.LoadingOptions(fileuri=uri)
+        loadingOptions = LoadingOptions(fileuri=uri)
 
     result, metadata = _inputfile_load(
         yaml,
@@ -353,15 +256,6 @@ def load_inputfile_by_yaml(
         loadingOptions,
     )
     return result
-
-
-def merge_flatten_type(src: Any) -> Any:
-    """Return the merge flattened type of the source type."""
-    if isinstance(src, MutableSequence):
-        return [merge_flatten_type(t) for t in src]
-    if isinstance(src, cwl.ArraySchema):
-        return src
-    return cwl.ArraySchema(type_="array", items=src)
 
 
 def type_for_step_input(
@@ -378,7 +272,7 @@ def type_for_step_input(
             if cast(str, step_input.id).split("#")[-1] == in_.id.split("#")[-1]:
                 input_type = step_input.type_
                 if step.scatter is not None and in_.id in aslist(step.scatter):
-                    input_type = cwl.ArraySchema(items=input_type, type_="array")
+                    input_type = ArraySchema(items=input_type, type_="array")
                 return input_type
     return "Any"
 
@@ -400,16 +294,14 @@ def type_for_step_output(
                 if step.scatter is not None:
                     if step.scatterMethod == "nested_crossproduct":
                         for _ in range(len(aslist(step.scatter))):
-                            output_type = cwl.ArraySchema(
-                                items=output_type, type_="array"
-                            )
+                            output_type = ArraySchema(items=output_type, type_="array")
                     else:
-                        output_type = cwl.ArraySchema(items=output_type, type_="array")
+                        output_type = ArraySchema(items=output_type, type_="array")
                 return output_type
     raise ValidationException(
         "param {} not found in {}.".format(
             sourcename,
-            yaml_dumps(cwl.save(step)),
+            yaml_dumps(save(step)),
         )
     )
 
@@ -422,19 +314,21 @@ def type_for_source(
 ) -> Any:
     """Determine the type for the given sourcenames."""
     scatter_context: list[tuple[int, str] | None] = []
-    params = param_for_source_id(process, sourcenames, parent, scatter_context)
+    params = cwl_utils.parser.utils.param_for_source_id(
+        process, sourcenames, parent, scatter_context
+    )
     if not isinstance(params, MutableSequence):
         new_type = params.type_
         if scatter_context[0] is not None:
             if scatter_context[0][1] == "nested_crossproduct":
                 for _ in range(scatter_context[0][0]):
-                    new_type = cwl.ArraySchema(items=new_type, type_="array")
+                    new_type = ArraySchema(items=new_type, type_="array")
             else:
-                new_type = cwl.ArraySchema(items=new_type, type_="array")
+                new_type = ArraySchema(items=new_type, type_="array")
         if linkMerge == "merge_nested":
-            new_type = cwl.ArraySchema(items=new_type, type_="array")
+            new_type = ArraySchema(items=new_type, type_="array")
         elif linkMerge == "merge_flattened":
-            new_type = merge_flatten_type(new_type)
+            new_type = cwl_utils.parser.utils.merge_flatten_type(new_type)
         return new_type
     new_type = []
     for p, sc in zip(params, scatter_context):
@@ -450,102 +344,16 @@ def type_for_source(
             if sc is not None:
                 if sc[1] == "nested_crossproduct":
                     for _ in range(sc[0]):
-                        cur_type = cwl.ArraySchema(items=cur_type, type_="array")
+                        cur_type = ArraySchema(items=cur_type, type_="array")
                 else:
-                    cur_type = cwl.ArraySchema(items=cur_type, type_="array")
+                    cur_type = ArraySchema(items=cur_type, type_="array")
             new_type.append(cur_type)
     if len(new_type) == 1:
         new_type = new_type[0]
     if linkMerge == "merge_nested":
-        return cwl.ArraySchema(items=new_type, type_="array")
+        return ArraySchema(items=new_type, type_="array")
     elif linkMerge == "merge_flattened":
-        return merge_flatten_type(new_type)
+        return cwl_utils.parser.utils.merge_flatten_type(new_type)
     elif isinstance(sourcenames, list) and len(sourcenames) > 1:
-        return cwl.ArraySchema(items=new_type, type_="array")
+        return ArraySchema(items=new_type, type_="array")
     return new_type
-
-
-def param_for_source_id(
-    process: cwl.CommandLineTool | cwl.Workflow | cwl.ExpressionTool,
-    sourcenames: str | list[str],
-    parent: cwl.Workflow | None = None,
-    scatter_context: list[tuple[int, str] | None] | None = None,
-) -> (
-    cwl.InputParameter
-    | cwl.CommandOutputParameter
-    | MutableSequence[cwl.InputParameter | cwl.CommandOutputParameter]
-):
-    """Find the process input parameter that matches one of the given sourcenames."""
-    if isinstance(sourcenames, str):
-        sourcenames = [sourcenames]
-    params: MutableSequence[cwl.InputParameter | cwl.CommandOutputParameter] = []
-    for sourcename in sourcenames:
-        if not isinstance(process, cwl.Workflow):
-            for param in process.inputs:
-                if param.id.split("#")[-1] == sourcename.split("#")[-1]:
-                    params.append(param)
-                    if scatter_context is not None:
-                        scatter_context.append(None)
-        targets = [process]
-        if parent:
-            targets.append(parent)
-        for target in targets:
-            if isinstance(target, cwl.Workflow):
-                for inp in target.inputs:
-                    if inp.id.split("#")[-1] == sourcename.split("#")[-1]:
-                        params.append(inp)
-                        if scatter_context is not None:
-                            scatter_context.append(None)
-                for step in target.steps:
-                    if (
-                        "/".join(sourcename.split("#")[-1].split("/")[:-1])
-                        == step.id.split("#")[-1]
-                        and step.out
-                    ):
-                        step_run = cwl_utils.parser.utils.load_step(step)
-                        cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
-                        for outp in step.out:
-                            outp_id = outp if isinstance(outp, str) else outp.id
-                            if (
-                                outp_id.split("#")[-1].split("/")[-1]
-                                == sourcename.split("#")[-1].split("/")[-1]
-                            ):
-                                if step_run and step_run.outputs:
-                                    for output in step_run.outputs:
-                                        if (
-                                            output.id.split("#")[-1].split("/")[-1]
-                                            == sourcename.split("#")[-1].split("/")[-1]
-                                        ):
-                                            params.append(output)
-                                            if scatter_context is not None:
-                                                if isinstance(step.scatter, str):
-                                                    scatter_context.append(
-                                                        (
-                                                            1,
-                                                            step.scatterMethod
-                                                            or "dotproduct",
-                                                        )
-                                                    )
-                                                elif isinstance(
-                                                    step.scatter, MutableSequence
-                                                ):
-                                                    scatter_context.append(
-                                                        (
-                                                            len(step.scatter),
-                                                            step.scatterMethod
-                                                            or "dotproduct",
-                                                        )
-                                                    )
-                                                else:
-                                                    scatter_context.append(None)
-    if len(params) == 1:
-        return params[0]
-    elif len(params) > 1:
-        return params
-    raise WorkflowException(
-        "param {} not found in {}\n{}.".format(
-            sourcename,
-            yaml_dumps(cwl.save(process)),
-            (f" or\n {yaml_dumps(cwl.save(parent))}" if parent is not None else ""),
-        )
-    )

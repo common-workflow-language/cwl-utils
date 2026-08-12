@@ -4,18 +4,17 @@ import copy
 import logging
 from collections.abc import MutableSequence
 from pathlib import Path
-from types import ModuleType
-from typing import Any, Optional, cast
+from typing import Any, cast
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
+from schema_salad.metaschema import ArraySchema, RecordSchema
+from schema_salad.runtime import file_uri, shortname, save
 from schema_salad.sourceline import SourceLine, strip_dup_lineno
 from schema_salad.utils import json_dumps, yaml_no_ts
 
 import cwl_utils
-import cwl_utils.parser
-
-from . import (
+from cwl_utils.parser import (
     LoadingOptions,
     Process,
     Workflow,
@@ -27,9 +26,122 @@ from . import (
     cwl_v1_1_utils,
     cwl_v1_2,
     cwl_v1_2_utils,
+    InputRecordSchema,
+    CommandOutputRecordSchema,
+    CommandInputParameter,
+    CommandOutputParameter,
+    WorkflowInputParameter,
+    load_document_by_uri,
 )
+from cwl_utils.errors import WorkflowException
+from cwl_utils.utils import yaml_dumps
 
 _logger = logging.getLogger("cwl_utils")
+
+
+def _compare_records(
+    src: RecordSchema, sink: RecordSchema, strict: bool = False
+) -> bool:
+    """
+    Compare two records, ensuring they have compatible fields.
+
+    This handles normalizing record names, which will be relative to workflow
+    step, so that they can be compared.
+    """
+    srcfields = {shortname(field.name): field.type_ for field in (src.fields or {})}
+    sinkfields = {shortname(field.name): field.type_ for field in (sink.fields or {})}
+    for key in sinkfields.keys():
+        if (
+            not can_assign_src_to_sink(
+                srcfields.get(key, "null"), sinkfields.get(key, "null"), strict
+            )
+            and sinkfields.get(key) is not None
+        ):
+            _logger.info(
+                "Record comparison failure for %s and %s\n"
+                "Did not match fields for %s: %s and %s",
+                cast(
+                    InputRecordSchema | CommandOutputRecordSchema,
+                    src,
+                ).name,
+                cast(
+                    InputRecordSchema | CommandOutputRecordSchema,
+                    sink,
+                ).name,
+                key,
+                srcfields.get(key),
+                sinkfields.get(key),
+            )
+            return False
+    return True
+
+
+def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
+    """
+    Check for identical type specifications, ignoring extra keys like inputBinding.
+
+    src: admissible source types
+    sink: admissible sink types
+
+    In non-strict comparison, at least one source type must match one sink type,
+    except for 'null'.
+    In strict comparison, all source types must match at least one sink type.
+    """
+    if "Any" in (src, sink):
+        return True
+    if isinstance(src, ArraySchema) and isinstance(sink, ArraySchema):
+        return can_assign_src_to_sink(src.items, sink.items, strict)
+    if isinstance(src, RecordSchema) and isinstance(sink, RecordSchema):
+        return _compare_records(src, sink, strict)
+    if isinstance(src, MutableSequence):
+        if strict:
+            for this_src in src:
+                if not can_assign_src_to_sink(this_src, sink):
+                    return False
+            return True
+        for this_src in src:
+            if this_src != "null" and can_assign_src_to_sink(this_src, sink):
+                return True
+        return False
+    if isinstance(sink, MutableSequence):
+        for this_sink in sink:
+            if can_assign_src_to_sink(src, this_sink):
+                return True
+        return False
+    return bool(src == sink)
+
+
+def check_types(
+    srctype: Any,
+    sinktype: Any,
+    linkMerge: str | None,
+    valueFrom: str | None = None,
+) -> str:
+    """
+    Check if the source and sink types are correct.
+
+    Acceptable types are "pass", "warning", or "exception".
+    """
+    if valueFrom is not None:
+        return "pass"
+    match linkMerge:
+        case None:
+            if can_assign_src_to_sink(srctype, sinktype, strict=True):
+                return "pass"
+            if can_assign_src_to_sink(srctype, sinktype, strict=False):
+                return "warning"
+            return "exception"
+        case "merge_nested":
+            return check_types(
+                ArraySchema(items=srctype, type_="array"),
+                sinktype,
+                None,
+                None,
+            )
+        case "merge_flattened":
+            return check_types(merge_flatten_type(srctype), sinktype, None, None)
+        case _:
+            raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
 
 
 def convert_stdstreams_to_files(process: Process) -> None:
@@ -64,17 +176,7 @@ def load_inputfile_by_uri(
     baseuri: str = real_path
 
     if loadingOptions is None:
-        match version:
-            case "v1.0":
-                loadingOptions = cwl_v1_0.LoadingOptions(fileuri=baseuri)
-            case "v1.1":
-                loadingOptions = cwl_v1_1.LoadingOptions(fileuri=baseuri)
-            case "v1.2":
-                loadingOptions = cwl_v1_2.LoadingOptions(fileuri=baseuri)
-            case _:
-                raise ValidationException(
-                    f"Version error. Did not recognise {version} as a CWL version"
-                )
+        loadingOptions = LoadingOptions(fileuri=baseuri)
 
     doc = loadingOptions.fetcher.fetch_text(real_path)
     return load_inputfile_by_string(version, doc, baseuri, loadingOptions)
@@ -88,7 +190,7 @@ def load_inputfile(
 ) -> Any:
     """Load a CWL input file from a serialized YAML string or a YAML object."""
     if baseuri is None:
-        baseuri = cwl_v1_0.file_uri(str(Path.cwd())) + "/"
+        baseuri = file_uri(str(Path.cwd())) + "/"
     if isinstance(doc, str):
         return load_inputfile_by_string(version, doc, baseuri, loadingOptions)
     return load_inputfile_by_yaml(version, doc, baseuri, loadingOptions)
@@ -114,17 +216,11 @@ def load_inputfile_by_yaml(
     """Load a CWL input file from a YAML object."""
     match version:
         case "v1.0":
-            return cwl_v1_0_utils.load_inputfile_by_yaml(
-                yaml, uri, cast(Optional[cwl_v1_0.LoadingOptions], loadingOptions)
-            )
+            return cwl_v1_0_utils.load_inputfile_by_yaml(yaml, uri, loadingOptions)
         case "v1.1":
-            return cwl_v1_1_utils.load_inputfile_by_yaml(
-                yaml, uri, cast(Optional[cwl_v1_1.LoadingOptions], loadingOptions)
-            )
+            return cwl_v1_1_utils.load_inputfile_by_yaml(yaml, uri, loadingOptions)
         case "v1.2":
-            return cwl_v1_2_utils.load_inputfile_by_yaml(
-                yaml, uri, cast(Optional[cwl_v1_2.LoadingOptions], loadingOptions)
-            )
+            return cwl_v1_2_utils.load_inputfile_by_yaml(yaml, uri, loadingOptions)
         case None:
             raise ValidationException("could not get the cwlVersion")
         case _:
@@ -134,10 +230,10 @@ def load_inputfile_by_yaml(
 
 
 def load_step(
-    step: cwl_utils.parser.WorkflowStep,
+    step: WorkflowStep,
 ) -> Process:
     if isinstance(step.run, str):
-        step_run = cwl_utils.parser.load_document_by_uri(
+        step_run = load_document_by_uri(
             path=step.loadingOptions.fetcher.urljoin(
                 base_url=cast(str, step.loadingOptions.fileuri),
                 url=step.run,
@@ -148,7 +244,108 @@ def load_step(
     return cast(Process, copy.deepcopy(step.run))
 
 
-def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
+def merge_flatten_type(src: Any) -> Any:
+    """Return the merge flattened type of the source type."""
+    if isinstance(src, MutableSequence):
+        return [merge_flatten_type(t) for t in src]
+    if isinstance(src, ArraySchema):
+        return src
+    return ArraySchema(type_="array", items=src)
+
+
+def param_for_source_id(
+    process: Process,
+    sourcenames: str | list[str],
+    parent: Workflow | None = None,
+    scatter_context: list[tuple[int, str] | None] | None = None,
+) -> (
+    CommandInputParameter
+    | CommandOutputParameter
+    | WorkflowInputParameter
+    | MutableSequence[
+        CommandInputParameter | CommandOutputParameter | WorkflowInputParameter
+    ]
+):
+    """Find the process input parameter that matches one of the given sourcenames."""
+    if isinstance(sourcenames, str):
+        sourcenames = [sourcenames]
+    params: MutableSequence[
+        CommandInputParameter | CommandOutputParameter | WorkflowInputParameter
+    ] = []
+    for sourcename in sourcenames:
+        if not isinstance(process, Workflow):
+            for param in process.inputs:
+                if param.id.split("#")[-1] == sourcename.split("#")[-1]:
+                    params.append(param)
+                    if scatter_context is not None:
+                        scatter_context.append(None)
+        targets = [process]
+        if parent:
+            targets.append(parent)
+        for target in targets:
+            if isinstance(target, Workflow):
+                for inp in target.inputs:
+                    if inp.id.split("#")[-1] == sourcename.split("#")[-1]:
+                        params.append(inp)
+                        if scatter_context is not None:
+                            scatter_context.append(None)
+                for step in target.steps:
+                    if (
+                        "/".join(sourcename.split("#")[-1].split("/")[:-1])
+                        == step.id.split("#")[-1]
+                        and step.out
+                    ):
+                        step_run = cwl_utils.parser.utils.load_step(step)
+                        cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
+                        for outp in step.out:
+                            outp_id = outp if isinstance(outp, str) else outp.id
+                            if (
+                                outp_id.split("#")[-1].split("/")[-1]
+                                == sourcename.split("#")[-1].split("/")[-1]
+                            ):
+                                if step_run and step_run.outputs:
+                                    for output in step_run.outputs:
+                                        if (
+                                            output.id.split("#")[-1].split("/")[-1]
+                                            == sourcename.split("#")[-1].split("/")[-1]
+                                        ):
+                                            params.append(output)
+                                            if scatter_context is not None:
+                                                if scatter_context is not None:
+                                                    if isinstance(step.scatter, str):
+                                                        scatter_context.append(
+                                                            (
+                                                                1,
+                                                                step.scatterMethod
+                                                                or "dotproduct",
+                                                            )
+                                                        )
+                                                    elif isinstance(
+                                                        step.scatter, MutableSequence
+                                                    ):
+                                                        scatter_context.append(
+                                                            (
+                                                                len(step.scatter),
+                                                                step.scatterMethod
+                                                                or "dotproduct",
+                                                            )
+                                                        )
+                                                    else:
+                                                        scatter_context.append(None)
+    if len(params) == 1:
+        return params[0]
+    elif len(params) > 1:
+        return params
+    raise WorkflowException(
+        "param {} not found in {}\n{}.".format(
+            sourcename,
+            yaml_dumps(save(process)),
+            (f" or\n {yaml_dumps(save(parent))}" if parent is not None else ""),
+        )
+    )
+
+
+def static_checker(workflow: Workflow) -> None:
     """Check if all source and sink types of a workflow are compatible before run time."""
     step_inputs = []
     step_outputs = []
@@ -204,12 +401,10 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         **{param.id: param.type_ for param in workflow.outputs},
     }
 
-    parser: ModuleType
     step_inputs_val: dict[str, Any]
     workflow_outputs_val: dict[str, Any]
     match workflow.cwlVersion:
         case "v1.0":
-            parser = cwl_v1_0
             step_inputs_val = cwl_v1_0_utils.check_all_types(
                 src_dict, step_inputs, type_dict
             )
@@ -217,7 +412,6 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
                 src_dict, workflow.outputs, type_dict
             )
         case "v1.1":
-            parser = cwl_v1_1
             step_inputs_val = cwl_v1_1_utils.check_all_types(
                 src_dict, step_inputs, type_dict
             )
@@ -225,7 +419,6 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
                 src_dict, workflow.outputs, type_dict
             )
         case "v1.2":
-            parser = cwl_v1_2
             step_inputs_val = cwl_v1_2_utils.check_all_types(
                 src_dict, step_inputs, param_to_step, type_dict
             )
@@ -248,16 +441,16 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
             SourceLine(src, "type").makeError(
                 "Source '%s' of type %s may be incompatible"
                 % (
-                    parser.shortname(src.id),
-                    json_dumps(parser.save(type_dict[src.id])),
+                    shortname(src.id),
+                    json_dumps(save(type_dict[src.id])),
                 )
             )
             + "\n"
             + SourceLine(sink, "type").makeError(
                 "  with sink '%s' of type %s"
                 % (
-                    parser.shortname(sink.id),
-                    json_dumps(parser.save(type_dict[sink.id])),
+                    shortname(sink.id),
+                    json_dumps(save(type_dict[sink.id])),
                 )
             )
         )
@@ -281,14 +474,14 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         msg = (
             SourceLine(src, "type").makeError(
                 "Source '%s' of type %s is incompatible"
-                % (parser.shortname(src.id), json_dumps(parser.save(type_dict[src.id])))
+                % (shortname(src.id), json_dumps(save(type_dict[src.id])))
             )
             + "\n"
             + SourceLine(sink, "type").makeError(
                 "  with sink '%s' of type %s"
                 % (
-                    parser.shortname(sink.id),
-                    json_dumps(parser.save(type_dict[sink.id])),
+                    shortname(sink.id),
+                    json_dumps(save(type_dict[sink.id])),
                 )
             )
         )
@@ -314,7 +507,7 @@ def static_checker(workflow: cwl_utils.parser.Workflow) -> None:
         ):
             msg = SourceLine(sink).makeError(
                 "Required parameter '%s' does not have source, default, or valueFrom expression"
-                % parser.shortname(sink.id)
+                % shortname(sink.id)
             )
             exception_msgs.append(msg)
 
@@ -414,88 +607,4 @@ def type_for_step_output(step: WorkflowStep, sourcename: str, cwlVersion: str) -
         case "v1.2":
             return cwl_v1_2_utils.type_for_step_output(
                 cast(cwl_v1_2.WorkflowStep, step), sourcename
-            )
-
-
-def param_for_source_id(
-    process: (
-        cwl_utils.parser.CommandLineTool
-        | cwl_utils.parser.Workflow
-        | cwl_utils.parser.ExpressionTool
-    ),
-    sourcenames: str | list[str],
-    parent: cwl_utils.parser.Workflow | None = None,
-    scatter_context: list[tuple[int, str] | None] | None = None,
-) -> (
-    (
-        MutableSequence[
-            cwl_utils.parser.cwl_v1_0.InputParameter
-            | cwl_utils.parser.cwl_v1_0.CommandOutputParameter
-        ]
-        | cwl_utils.parser.cwl_v1_0.InputParameter
-        | cwl_utils.parser.cwl_v1_0.CommandOutputParameter
-    )
-    | (
-        MutableSequence[
-            cwl_utils.parser.cwl_v1_1.CommandInputParameter
-            | cwl_utils.parser.cwl_v1_1.CommandOutputParameter
-            | cwl_utils.parser.cwl_v1_1.WorkflowInputParameter
-        ]
-        | cwl_utils.parser.cwl_v1_1.CommandInputParameter
-        | cwl_utils.parser.cwl_v1_1.CommandOutputParameter
-        | cwl_utils.parser.cwl_v1_1.WorkflowInputParameter
-    )
-    | (
-        MutableSequence[
-            cwl_utils.parser.cwl_v1_2.CommandInputParameter
-            | cwl_utils.parser.cwl_v1_2.CommandOutputParameter
-            | cwl_utils.parser.cwl_v1_2.WorkflowInputParameter
-        ]
-        | cwl_utils.parser.cwl_v1_2.CommandInputParameter
-        | cwl_utils.parser.cwl_v1_2.CommandOutputParameter
-        | cwl_utils.parser.cwl_v1_2.WorkflowInputParameter
-    )
-):
-    match process.cwlVersion:
-        case "v1.0":
-            return cwl_utils.parser.cwl_v1_0_utils.param_for_source_id(
-                cast(
-                    cwl_utils.parser.cwl_v1_0.CommandLineTool
-                    | cwl_utils.parser.cwl_v1_0.Workflow
-                    | cwl_utils.parser.cwl_v1_0.ExpressionTool,
-                    process,
-                ),
-                sourcenames,
-                cast(cwl_utils.parser.cwl_v1_0.Workflow, parent),
-                scatter_context,
-            )
-        case "v1.1":
-            return cwl_utils.parser.cwl_v1_1_utils.param_for_source_id(
-                cast(
-                    cwl_utils.parser.cwl_v1_1.CommandLineTool
-                    | cwl_utils.parser.cwl_v1_1.Workflow
-                    | cwl_utils.parser.cwl_v1_1.ExpressionTool,
-                    process,
-                ),
-                sourcenames,
-                cast(cwl_utils.parser.cwl_v1_1.Workflow, parent),
-                scatter_context,
-            )
-        case "v1.2":
-            return cwl_utils.parser.cwl_v1_2_utils.param_for_source_id(
-                cast(
-                    cwl_utils.parser.cwl_v1_2.CommandLineTool
-                    | cwl_utils.parser.cwl_v1_2.Workflow
-                    | cwl_utils.parser.cwl_v1_2.ExpressionTool,
-                    process,
-                ),
-                sourcenames,
-                cast(cwl_utils.parser.cwl_v1_2.Workflow, parent),
-                scatter_context,
-            )
-        case None:
-            raise ValidationException("could not get the cwlVersion")
-        case _:
-            raise ValidationException(
-                f"Version error. Did not recognise {process.cwlVersion} as a CWL version"
             )
