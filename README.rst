@@ -184,7 +184,7 @@ To regenerate install the ``schema_salad`` package and run:
 Release
 ~~~~~~~
 
-To release CWLUtils, bump the version in ``cwl_utils/__meta__.py``, and
+To release CWLUtils, bump the version in ``src/cwl_utils/__meta__.py``, and
 tag that commit with the new version. The
 `gh-action-pypi-publish <https://github.com/pypa/gh-action-pypi-publish>`__
 should release that tag.
