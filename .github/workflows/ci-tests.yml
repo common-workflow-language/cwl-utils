@@ -22,7 +22,7 @@ jobs:
     strategy:
       matrix:
         py-ver-major: [3]
-        py-ver-minor: [10, 11, 12, 13, 14]
+        py-ver-minor: [10, 11, 12, 13, 14, 15]
         step: [lint, unit, bandit, mypy]
 
     env:
@@ -86,8 +86,8 @@ jobs:
         step: [lint-readme, pydocstyle]
 
     env:
-      py-semver: "3.12"
-      TOXENV: ${{ format('py312-{0}', matrix.step) }}
+      py-semver: "3.14"
+      TOXENV: ${{ format('py314-{0}', matrix.step) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -142,7 +142,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: 3.12
+          python-version: 3.14
           cache: pip
 
       - name: Install packages
