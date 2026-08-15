@@ -7,11 +7,11 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import MutableMapping, MutableSequence, Sequence
 from copy import deepcopy
 from importlib.resources import files
 from io import StringIO
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from ruamel.yaml.main import YAML
@@ -22,7 +22,7 @@ from cwl_utils.errors import MissingKeyField
 from cwl_utils.loghandler import _logger
 
 # Type hinting
-from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
+from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2, WorkflowStep
 
 # Load as 1.2 files
 from cwl_utils.parser.cwl_v1_2 import InputArraySchema as InputArraySchemaV1_2
@@ -415,11 +415,15 @@ def sanitise_schema_field(
         case {"type": {"type": "enum", **rest}}:
             schema_field_item["type"] = InputEnumSchemaV1_2(
                 type_="enum",
-                symbols=rest.get("symbols", ""),
+                symbols=cast(Sequence[str], rest.get("symbols", [])),
             )
         case {"type": {"type": "array", **rest}}:
             schema_field_item["type"] = InputArraySchemaV1_2(
-                type_="array", items=rest.get("items", "")
+                type_="array",
+                items=cast(
+                    cwl_v1_2.InputParameterType,
+                    rest.get("items", ""),
+                ),
             )
         case {"type": {"$import": _}}:
             pass  # Leave import as is
@@ -452,6 +456,17 @@ def is_local_uri(uri: str) -> bool:
     if is_uri(uri) and urlparse(uri).scheme == "file":
         return True
     return False
+
+
+def get_step_uri(step: WorkflowStep) -> str:
+    if not isinstance(step.run, str):
+        raise Exception(
+            f"Impossible to retrieve URI for step {step.id}: it embeds a process"
+        )
+    return step.loadingOptions.fetcher.urljoin(
+        base_url=cast(str, step.loadingOptions.fileuri),
+        url=step.run,
+    )
 
 
 def get_value_from_uri(uri: str) -> str:

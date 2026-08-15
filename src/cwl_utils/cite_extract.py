@@ -33,7 +33,7 @@ def main() -> int:
 
 
 def extract_software_reqs(
-    process: cwl.Process,
+    process: cwl.Process | cwl.WorkflowStep,
 ) -> Iterator[cwl.SoftwareRequirement]:
     """Return an iterator over any SoftwareRequirements found in the given process."""
     if process.requirements:
