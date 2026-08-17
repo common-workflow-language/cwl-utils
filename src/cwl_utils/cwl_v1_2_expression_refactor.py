@@ -294,6 +294,7 @@ def traverse(
                 run=copy.deepcopy(process),
             )
             workflow = cwl.Workflow(
+                id=process.id,
                 inputs=wf_inputs,
                 outputs=wf_outputs,
                 steps=[step],

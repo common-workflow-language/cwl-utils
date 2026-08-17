@@ -5,7 +5,6 @@
 
 import copy
 import hashlib
-import uuid
 from collections.abc import MutableSequence, Sequence
 from contextlib import suppress
 from typing import Any, cast, Final
@@ -294,6 +293,7 @@ def traverse(
                 run=copy.deepcopy(process),
             )
             workflow = cwl.Workflow(
+                id=process.id,
                 inputs=wf_inputs,
                 outputs=wf_outputs,
                 steps=[step],
