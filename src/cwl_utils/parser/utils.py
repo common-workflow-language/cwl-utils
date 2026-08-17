@@ -4,7 +4,7 @@ import copy
 import logging
 from collections.abc import MutableSequence
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, Literal
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
@@ -522,13 +522,14 @@ def static_checker(workflow: Workflow) -> None:
 
 def type_for_source(
     process: Process,
+    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
     sourcenames: str | list[str],
     parent: Workflow | None = None,
     linkMerge: str | None = None,
     pickValue: str | None = None,
 ) -> Any:
     """Determine the type for the given sourcenames."""
-    match process.cwlVersion:
+    match process.cwlVersion or cwlVersion:
         case "v1.0":
             return cwl_v1_0_utils.type_for_source(
                 cast(
@@ -566,8 +567,6 @@ def type_for_source(
                 linkMerge,
                 pickValue,
             )
-        case None:
-            raise ValidationException("could not get the cwlVersion")
         case _ as cwlVersion:
             raise ValidationException(
                 f"Version error. Did not recognise {cwlVersion} as a CWL version"
