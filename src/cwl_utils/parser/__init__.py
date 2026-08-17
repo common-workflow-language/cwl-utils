@@ -193,8 +193,10 @@ DockerRequirementTypes = (
     cwl_v1_2.DockerRequirement,
 )
 """Type union for a CWL v1.x DockerRequirement object."""
-Process: TypeAlias = Workflow | CommandLineTool | ExpressionTool | cwl_v1_2.Operation
+AbstractProcess: TypeAlias = cwl_v1_0.Process | cwl_v1_1.Process | cwl_v1_2.Process
 """Type Union for a CWL v1.x Process object."""
+Process: TypeAlias = Workflow | CommandLineTool | ExpressionTool | cwl_v1_2.Operation
+"""Type Union for a CWL v1.x Process implementations."""
 ProcessRequirement: TypeAlias = (
     cwl_v1_0.ProcessRequirement
     | cwl_v1_1.ProcessRequirement
@@ -449,7 +451,7 @@ def save(
 
 def is_process(v: Any) -> bool:
     """Test to see if the object is a CWL v1.x Python Process object."""
-    return isinstance(v, cwl_v1_0.Process | cwl_v1_1.Process | cwl_v1_2.Process)
+    return isinstance(v, AbstractProcess)
 
 
 def version_split(version: str) -> MutableSequence[int]:
