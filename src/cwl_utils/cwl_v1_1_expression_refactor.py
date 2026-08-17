@@ -5,7 +5,6 @@
 
 import copy
 import hashlib
-import uuid
 from collections.abc import MutableSequence, Sequence
 from contextlib import suppress
 from typing import Any, cast, Final
@@ -407,7 +406,6 @@ def generate_etool_from_expr(
         else None
     )
     return cwl.ExpressionTool(
-        id="_:" + str(uuid.uuid4()),
         inputs=inputs,
         outputs=outputs,
         expression=expression,
@@ -1738,7 +1736,6 @@ def generate_etool_from_expr2(
  }"""
     )
     return cwl.ExpressionTool(
-        id="_:" + str(uuid.uuid4()),
         inputs=inputs,
         outputs=outputs,
         expression=expression,
