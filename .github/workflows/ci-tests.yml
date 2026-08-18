@@ -41,6 +41,10 @@ jobs:
           wget --no-verbose https://github.com/sylabs/singularity/releases/download/v4.2.1/singularity-ce_4.2.1-noble_amd64.deb
           sudo apt-get install -y ./singularity-ce_4.2.1-noble_amd64.deb
 
+      - name: Set up QuickJS
+        if: ${{ matrix.step == 'unit' }}
+        run: sudo apt-get install -y quickjs
+
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:

@@ -8,7 +8,9 @@ import json
 import os
 import re
 import select
+import shutil
 import subprocess  # nosec
+import tempfile
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Mapping, MutableMapping, MutableSequence
@@ -83,14 +85,107 @@ class JSEngine(ABC):
         **kwargs: Any,
     ) -> CWLOutputType | Awaitable[CWLOutputType]: ...
 
-    @abstractmethod
     def regex_eval(
         self,
         parsed_string: str,
         remaining_string: str,
         current_value: CWLOutputType,
         **kwargs: Any,
-    ) -> CWLOutputType | Awaitable[CWLOutputType]: ...
+    ) -> CWLOutputType | Awaitable[CWLOutputType]:
+        """Walk a parameter reference without a javascript engine (pure Python)."""
+        if remaining_string:
+            m = segment_re.match(remaining_string)
+            if not m:
+                return current_value
+            next_segment_str = m.group(1)
+            key: str | int | None = None
+            if next_segment_str[0] == ".":
+                key = next_segment_str[1:]
+            elif next_segment_str[1] in ("'", '"'):
+                key = next_segment_str[2:-2].replace("\\'", "'").replace('\\"', '"')
+            if key is not None:
+                if (
+                    isinstance(current_value, MutableSequence)
+                    and key == "length"
+                    and not remaining_string[m.end(1) :]
+                ):
+                    return len(current_value)
+                if not isinstance(current_value, MutableMapping):
+                    raise WorkflowException(
+                        "%s is a %s, cannot index on string '%s'"
+                        % (parsed_string, type(current_value).__name__, key)
+                    )
+                if key not in current_value:
+                    raise WorkflowException(
+                        f"{parsed_string} does not contain key {key!r}."
+                    )
+            else:
+                try:
+                    key = int(next_segment_str[1:-1])
+                except ValueError as v:
+                    raise WorkflowException(str(v)) from v
+                if not isinstance(current_value, MutableSequence):
+                    raise WorkflowException(
+                        "%s is a %s, cannot index on int '%s'"
+                        % (parsed_string, type(current_value).__name__, key)
+                    )
+                if key and key >= len(current_value):
+                    raise WorkflowException(
+                        "%s list index %i out of range" % (parsed_string, key)
+                    )
+
+            if isinstance(current_value, Mapping):
+                try:
+                    if is_directory(current_value) and is_directory_key(key):
+                        return self.regex_eval(
+                            parsed_string + remaining_string,
+                            remaining_string[m.end(1) :],
+                            cast(
+                                CWLOutputType,
+                                current_value[key],
+                            ),
+                        )
+                    elif is_file(current_value) and is_file_key(key):
+                        return self.regex_eval(
+                            parsed_string + remaining_string,
+                            remaining_string[m.end(1) :],
+                            cast(
+                                CWLOutputType,
+                                current_value[key],
+                            ),
+                        )
+                    else:
+                        return self.regex_eval(
+                            parsed_string + remaining_string,
+                            remaining_string[m.end(1) :],
+                            cast(
+                                CWLOutputType,
+                                cast(MutableMapping[str, Any], current_value)[
+                                    cast(str, key)
+                                ],
+                            ),
+                        )
+                except KeyError as exc:
+                    raise WorkflowException(
+                        f"{parsed_string!r} doesn't have property {key!r}."
+                    ) from exc
+            elif isinstance(current_value, list) and isinstance(key, int):
+                try:
+                    return self.regex_eval(
+                        parsed_string + remaining_string,
+                        remaining_string[m.end(1) :],
+                        current_value[key],
+                    )
+                except KeyError as exc:
+                    raise WorkflowException(
+                        f"{parsed_string!r} doesn't have property {key!r}."
+                    ) from exc
+            else:
+                raise WorkflowException(
+                    f"{parsed_string!r} doesn't have property {key!r}."
+                )
+        else:
+            return current_value
 
 
 class NodeJSEngine(JSEngine):
@@ -524,112 +619,172 @@ class NodeJSEngine(JSEngine):
                 )
             ) from err
 
-    def regex_eval(
+
+class QuickJSEngine(JSEngine):
+    """Evaluate CWL javascript fragments with the ``qjs`` interpreter.
+
+    QuickJS starts in about a millisecond, so unlike :py:class:`NodeJSEngine`
+    no persistent process or wire protocol is needed: each evaluation runs in
+    one short-lived ``qjs`` subprocess.  The container fallback keyword
+    arguments accepted by the NodeJS engine (``force_docker_pull``,
+    ``container_engine``) are accepted and ignored; ``js_console`` is not
+    supported.
+    """
+
+    def __init__(self, qjs_path: str = "qjs") -> None:
+        self.qjs_path = qjs_path
+
+    def _run_script(self, script: str, timeout: float) -> tuple[int, str, str]:
+        """Execute a generated script in a fresh qjs subprocess.
+
+        A timeout is reported as return code -1, mirroring
+        :py:meth:`NodeJSEngine.exec_js_process`.
+        """
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".js", delete=False
+        ) as script_file:
+            script_file.write(script)
+            script_path = Path(script_file.name)
+        try:
+            proc = subprocess.run(  # nosec
+                [self.qjs_path, "--std", str(script_path)],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            return -1, _output_text(exc.stdout), _output_text(exc.stderr)
+        except OSError as exc:
+            raise JavascriptException(
+                f"failed to execute {self.qjs_path!r}: {exc}"
+            ) from exc
+        finally:
+            script_path.unlink(missing_ok=True)
+        return proc.returncode, proc.stdout, proc.stderr
+
+    def eval(
         self,
-        parsed_string: str,
-        remaining_string: str,
-        current_value: CWLOutputType,
+        scan: str,
+        jslib: str = "",
+        timeout: float = default_timeout,
+        force_docker_pull: bool = False,
+        debug: bool = False,
+        js_console: bool = False,
+        container_engine: str = "docker",
         **kwargs: Any,
     ) -> CWLOutputType:
-        if remaining_string:
-            m = segment_re.match(remaining_string)
-            if not m:
-                return current_value
-            next_segment_str = m.group(1)
-            key: str | int | None = None
-            if next_segment_str[0] == ".":
-                key = next_segment_str[1:]
-            elif next_segment_str[1] in ("'", '"'):
-                key = next_segment_str[2:-2].replace("\\'", "'").replace('\\"', '"')
-            if key is not None:
-                if (
-                    isinstance(current_value, MutableSequence)
-                    and key == "length"
-                    and not remaining_string[m.end(1) :]
-                ):
-                    return len(current_value)
-                if not isinstance(current_value, MutableMapping):
-                    raise WorkflowException(
-                        "%s is a %s, cannot index on string '%s'"
-                        % (parsed_string, type(current_value).__name__, key)
-                    )
-                if key not in current_value:
-                    raise WorkflowException(
-                        f"{parsed_string} does not contain key {key!r}."
-                    )
-            else:
-                try:
-                    key = int(next_segment_str[1:-1])
-                except ValueError as v:
-                    raise WorkflowException(str(v)) from v
-                if not isinstance(current_value, MutableSequence):
-                    raise WorkflowException(
-                        "%s is a %s, cannot index on int '%s'"
-                        % (parsed_string, type(current_value).__name__, key)
-                    )
-                if key and key >= len(current_value):
-                    raise WorkflowException(
-                        "%s list index %i out of range" % (parsed_string, key)
-                    )
-
-            if isinstance(current_value, Mapping):
-                try:
-                    if is_directory(current_value) and is_directory_key(key):
-                        return self.regex_eval(
-                            parsed_string + remaining_string,
-                            remaining_string[m.end(1) :],
-                            cast(
-                                CWLOutputType,
-                                current_value[key],
-                            ),
-                        )
-                    elif is_file(current_value) and is_file_key(key):
-                        return self.regex_eval(
-                            parsed_string + remaining_string,
-                            remaining_string[m.end(1) :],
-                            cast(
-                                CWLOutputType,
-                                current_value[key],
-                            ),
-                        )
-                    else:
-                        return self.regex_eval(
-                            parsed_string + remaining_string,
-                            remaining_string[m.end(1) :],
-                            cast(
-                                CWLOutputType,
-                                cast(MutableMapping[str, Any], current_value)[
-                                    cast(str, key)
-                                ],
-                            ),
-                        )
-                except KeyError as exc:
-                    raise WorkflowException(
-                        f"{parsed_string!r} doesn't have property {key!r}."
-                    ) from exc
-            elif isinstance(current_value, list) and isinstance(key, int):
-                try:
-                    return self.regex_eval(
-                        parsed_string + remaining_string,
-                        remaining_string[m.end(1) :],
-                        current_value[key],
-                    )
-                except KeyError as exc:
-                    raise WorkflowException(
-                        f"{parsed_string!r} doesn't have property {key!r}."
-                    ) from exc
-            else:
-                raise WorkflowException(
-                    f"{parsed_string!r} doesn't have property {key!r}."
+        # code_fragment_to_js returns a full script -- `"use strict"; <jslib>
+        # (function(){...})()` -- designed to be run the way cwlNodeEngine.js
+        # runs it: via vm.runInNewContext, which yields the script's
+        # *completion value* (the value of its last statement, i.e. the
+        # IIFE's return).  A direct eval() reproduces that; the script's
+        # "use strict" directive and the IIFE's function scope keep the
+        # evaluation isolated either way.
+        fn = code_fragment_to_js(scan, jslib)
+        script = (
+            "var __cwl_result = eval(" + json.dumps(fn) + ");\n"
+            "print(JSON.stringify("
+            "__cwl_result === undefined ? null : __cwl_result));\n"
+        )
+        returncode, stdout, stderr = self._run_script(script, timeout)
+        if returncode == -1:
+            raise JavascriptException(
+                f"Long-running script killed after {timeout} seconds: "
+                f"Javascript expression was: {scan}"
+            )
+        if returncode != 0:
+            raise JavascriptException(
+                "Javascript expression was: {}\nstdout was: {}\nstderr was: {}".format(
+                    scan, stdfmt(stdout), stdfmt(stderr)
                 )
-        else:
-            return current_value
+            )
+        try:
+            return cast(CWLOutputType, json.loads(stdout.strip().split("\n")[-1]))
+        except ValueError as err:
+            raise JavascriptException(
+                "{}\nscript was:\n{}\nstdout was: '{}'\nstderr was: '{}'\n".format(
+                    err, linenum(fn), stdout, stderr
+                )
+            ) from err
+
+    def exec_js_process(
+        self,
+        js_text: str,
+        timeout: float = default_timeout,
+        js_console: bool = False,
+        context: str | None = None,
+        force_docker_pull: bool = False,
+        container_engine: str = "docker",
+    ) -> tuple[int, str, str]:
+        """
+        Run a javascript text in a fresh qjs subprocess.
+
+        The ``context`` script, when given, is evaluated first and the
+        properties of its completion value become global variables for
+        ``js_text``, mirroring how cwlNodeEngineWithContext.js applies
+        ``vm.runInNewContext(js_text, context)``.
+
+        :param timeout: Max number of seconds to wait.
+        :returns: A tuple of the return code, stdout, and stderr of the
+                  javascript engine invocation.  A timeout is reported as
+                  return code -1.
+        """
+        if js_console:
+            raise NotImplementedError(
+                "js_console is not implemented in the QuickJS engine"
+            )
+        lines = []
+        if context is not None:
+            lines.append("var __cwl_context = eval(%s);" % json.dumps(context))
+            lines.append("Object.assign(globalThis, __cwl_context);")
+        lines.append("var __cwl_result = eval(%s);" % json.dumps(js_text))
+        lines.append(
+            "print(JSON.stringify(__cwl_result === undefined ? null : __cwl_result));"
+        )
+        return self._run_script("\n".join(lines) + "\n", timeout)
 
 
-__js_engine: JSEngine = NodeJSEngine()
+def _output_text(data: str | bytes | None) -> str:
+    """Normalise subprocess output that may be str, bytes, or None."""
+    if data is None:
+        return ""
+    if isinstance(data, bytes):
+        return data.decode("utf-8", errors="replace")
+    return data
+
+
+def _default_js_engine() -> JSEngine:
+    """Instantiate the JS engine named by the CWL_JS_ENGINE environment variable."""
+    choice = os.environ.get("CWL_JS_ENGINE", "node")
+    if choice == "node":
+        return NodeJSEngine()
+    if choice == "quickjs":
+        qjs_path = shutil.which("qjs")
+        if qjs_path is None:
+            raise JavascriptException(
+                "CWL_JS_ENGINE is set to 'quickjs', but the qjs executable "
+                "was not found on PATH."
+            )
+        return QuickJSEngine(qjs_path)
+    raise ValueError(
+        f"Unsupported CWL_JS_ENGINE value {choice!r}: expected 'node' or 'quickjs'."
+    )
+
+
+__js_engine: JSEngine | None = None
 
 
 def get_js_engine() -> JSEngine:
+    """Return the process-wide JS engine, creating it on first use.
+
+    The engine is chosen by the ``CWL_JS_ENGINE`` environment variable
+    (``node``, the default, or ``quickjs``) unless a specific engine has been
+    installed with :py:func:`set_js_engine`.
+    """
+    global __js_engine
+    if __js_engine is None:
+        __js_engine = _default_js_engine()
     return __js_engine
 
 
