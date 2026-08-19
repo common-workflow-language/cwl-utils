@@ -11,7 +11,7 @@ from collections.abc import MutableMapping, MutableSequence
 from copy import deepcopy
 from importlib.resources import files
 from io import StringIO
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from ruamel.yaml.main import YAML
@@ -22,7 +22,7 @@ from cwl_utils.errors import MissingKeyField
 from cwl_utils.loghandler import _logger
 
 # Type hinting
-from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2
+from cwl_utils.parser import cwl_v1_0, cwl_v1_1, cwl_v1_2, WorkflowStep
 
 # Load as 1.2 files
 from cwl_utils.parser.cwl_v1_2 import InputArraySchema as InputArraySchemaV1_2
@@ -452,6 +452,17 @@ def is_local_uri(uri: str) -> bool:
     if is_uri(uri) and urlparse(uri).scheme == "file":
         return True
     return False
+
+
+def get_step_uri(step: WorkflowStep) -> str:
+    if not isinstance(step.run, str):
+        raise Exception(
+            f"Impossible to retrieve URI for step {step.id}: it embeds a process"
+        )
+    return step.loadingOptions.fetcher.urljoin(
+        base_url=cast(str, step.loadingOptions.fileuri),
+        url=step.run,
+    )
 
 
 def get_value_from_uri(uri: str) -> str:
