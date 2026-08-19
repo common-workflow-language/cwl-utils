@@ -1553,7 +1553,10 @@ def traverse_CommandLineTool(
                         tool_inp.id = tool_inp.id.split("#")[-1]
                     for tool_out in new_clt.outputs:
                         tool_out.id = tool_out.id.split("#")[-1]
-                    context[get_step_uri(new_clt_step)] = (new_clt, True)
+                    if isinstance(new_clt_step.run, str):
+                        context[get_step_uri(new_clt_step)] = (new_clt, True)
+                    else:
+                        new_clt_step.run = new_clt
                     sub_wf_steps = [new_clt_step, etool_step]
                     sub_workflow = cwl.Workflow(
                         inputs=sub_wf_inputs,
