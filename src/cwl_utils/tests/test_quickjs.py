@@ -211,6 +211,38 @@ def test_quickjs_module_level_exec_js_process(restore_js_engine: None) -> None:
 
 
 @needs_qjs
+def test_quickjs_threshold_version() -> None:
+    """A working qjs passes the capability probe."""
+    assert sandboxjs.QuickJSEngine().check_js_threshold_version() is True
+
+
+def test_quickjs_threshold_version_missing_binary() -> None:
+    """A missing qjs binary fails the probe instead of raising."""
+    engine = sandboxjs.QuickJSEngine(qjs_path="/nonexistent/qjs")
+    assert engine.check_js_threshold_version() is False
+
+
+def test_quickjs_threshold_version_broken_interpreter() -> None:
+    """An executable that is not a working qjs fails the probe."""
+    engine = sandboxjs.QuickJSEngine(qjs_path="/bin/false")
+    assert engine.check_js_threshold_version() is False
+
+
+@needs_qjs
+def test_quickjs_threshold_version_explicit_alias() -> None:
+    """The probe accepts an explicit interpreter path like the node engine."""
+    engine = sandboxjs.QuickJSEngine(qjs_path="/nonexistent/qjs")
+    assert engine.check_js_threshold_version(shutil.which("qjs")) is True
+
+
+@needs_qjs
+def test_quickjs_module_level_threshold_version(restore_js_engine: None) -> None:
+    """The module-level dispatcher reaches the QuickJS implementation."""
+    sandboxjs.set_js_engine(sandboxjs.QuickJSEngine())
+    assert sandboxjs.check_js_threshold_version() is True
+
+
+@needs_qjs
 def test_env_var_selects_quickjs(
     monkeypatch: pytest.MonkeyPatch, fresh_engine_state: None
 ) -> None:

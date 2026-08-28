@@ -665,6 +665,29 @@ class QuickJSEngine(JSEngine):
             script_path.unlink(missing_ok=True)
         return proc.returncode, proc.stdout, proc.stderr
 
+    def check_js_threshold_version(self, working_alias: str | None = None) -> bool:
+        """
+        Check that the qjs interpreter supports the features this engine needs.
+
+        QuickJS distributions do not share a version scheme (the original
+        QuickJS uses dates while quickjs-ng uses semantic versions), so
+        rather than parsing version strings this probes the interpreter
+        with a small script exercising the features the engine relies on:
+        eval() completion values, globalThis, Object.assign, JSON, and
+        print. A missing or broken interpreter fails the probe.
+        """
+        engine = QuickJSEngine(working_alias) if working_alias else self
+        probe = (
+            'var __cwl_probe = eval("({ok: 1})");\n'
+            "Object.assign(globalThis, __cwl_probe);\n"
+            "print(JSON.stringify(ok === 1));\n"
+        )
+        try:
+            returncode, stdout, _ = engine._run_script(probe, default_timeout)
+        except JavascriptException:
+            return False
+        return returncode == 0 and stdout.strip().split("\n")[-1] == "true"
+
     def eval(
         self,
         scan: str,
