@@ -167,14 +167,13 @@ Using the CWL Parsers
 Choosing a JavaScript engine
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-CWL expressions are evaluated with Node.js by default (falling back to a
-``node:slim`` software container if Node.js is not installed). Setting the
-``CWL_JS_ENGINE`` environment variable to ``quickjs`` selects the
-`QuickJS <https://bellard.org/quickjs/>`_ based engine instead, which
-requires the ``qjs`` executable on the ``PATH``. QuickJS starts quickly
-enough that every evaluation runs in its own short-lived subprocess; there
-is no software container fallback. Set ``CWL_JS_ENGINE`` to ``node`` (or
-leave it unset) for the default behaviour.
+CWL expressions are evaluated with `QuickJS <https://bellard.org/quickjs/>`_
+when a usable ``qjs`` executable is found on the ``PATH``, and with Node.js
+otherwise (falling back to a ``node:slim`` software container if Node.js is
+not installed either). QuickJS starts quickly enough that every evaluation
+runs in its own short-lived subprocess; there is no software container
+fallback for QuickJS. Setting the ``CWL_JS_ENGINE`` environment variable to
+``node`` or ``quickjs`` forces a specific engine.
 
 A specific engine can also be installed programmatically, which takes
 precedence over ``CWL_JS_ENGINE``:
