@@ -621,7 +621,8 @@ class NodeJSEngine(JSEngine):
 
 
 class QuickJSEngine(JSEngine):
-    """Evaluate CWL javascript fragments with the ``qjs`` interpreter.
+    """
+    Evaluate CWL javascript fragments with the ``qjs`` interpreter.
 
     QuickJS starts in about a millisecond, so unlike :py:class:`NodeJSEngine`
     no persistent process or wire protocol is needed: each evaluation runs in
@@ -635,7 +636,8 @@ class QuickJSEngine(JSEngine):
         self.qjs_path = qjs_path
 
     def _run_script(self, script: str, timeout: float) -> tuple[int, str, str]:
-        """Execute a generated script in a fresh qjs subprocess.
+        """
+        Execute a generated script in a fresh qjs subprocess.
 
         A timeout is reported as return code -1, mirroring
         :py:meth:`NodeJSEngine.exec_js_process`.
@@ -776,7 +778,8 @@ __js_engine: JSEngine | None = None
 
 
 def get_js_engine() -> JSEngine:
-    """Return the process-wide JS engine, creating it on first use.
+    """
+    Return the process-wide JS engine, creating it on first use.
 
     The engine is chosen by the ``CWL_JS_ENGINE`` environment variable
     (``node``, the default, or ``quickjs``) unless a specific engine has been
