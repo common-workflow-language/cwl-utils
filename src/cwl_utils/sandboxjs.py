@@ -780,8 +780,21 @@ def _output_text(data: str | bytes | None) -> str:
 
 
 def _default_js_engine() -> JSEngine:
-    """Instantiate the JS engine named by the CWL_JS_ENGINE environment variable."""
-    choice = os.environ.get("CWL_JS_ENGINE", "node")
+    """
+    Instantiate the default JS engine.
+
+    The ``CWL_JS_ENGINE`` environment variable forces a specific engine
+    (``node`` or ``quickjs``). When it is unset, QuickJS is preferred if a
+    usable ``qjs`` executable is found on the PATH, NodeJS otherwise.
+    """
+    choice = os.environ.get("CWL_JS_ENGINE")
+    if choice is None:
+        qjs_path = shutil.which("qjs")
+        if qjs_path is not None:
+            quickjs = QuickJSEngine(qjs_path)
+            if quickjs.check_js_threshold_version():
+                return quickjs
+        return NodeJSEngine()
     if choice == "node":
         return NodeJSEngine()
     if choice == "quickjs":
@@ -805,8 +818,9 @@ def get_js_engine() -> JSEngine:
     Return the process-wide JS engine, creating it on first use.
 
     The engine is chosen by the ``CWL_JS_ENGINE`` environment variable
-    (``node``, the default, or ``quickjs``) unless a specific engine has been
-    installed with :py:func:`set_js_engine`.
+    (``node`` or ``quickjs``); when it is unset, QuickJS is preferred if a
+    usable ``qjs`` executable is found on the PATH, NodeJS otherwise.
+    Engines installed with :py:func:`set_js_engine` take precedence.
     """
     global __js_engine
     if __js_engine is None:
