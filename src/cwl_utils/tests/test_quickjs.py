@@ -250,10 +250,35 @@ def test_env_var_selects_quickjs(
     assert isinstance(sandboxjs.get_js_engine(), sandboxjs.QuickJSEngine)
 
 
-def test_env_var_unset_defaults_to_node(
+@needs_qjs
+def test_env_var_unset_prefers_quickjs(
     monkeypatch: pytest.MonkeyPatch, fresh_engine_state: None
 ) -> None:
+    """With CWL_JS_ENGINE unset, a usable qjs on the PATH is preferred."""
     monkeypatch.delenv("CWL_JS_ENGINE", raising=False)
+    assert isinstance(sandboxjs.get_js_engine(), sandboxjs.QuickJSEngine)
+
+
+def test_env_var_unset_falls_back_to_node_without_qjs(
+    monkeypatch: pytest.MonkeyPatch, fresh_engine_state: None
+) -> None:
+    """With CWL_JS_ENGINE unset and no qjs on the PATH, node is used."""
+    monkeypatch.delenv("CWL_JS_ENGINE", raising=False)
+    monkeypatch.setattr("cwl_utils.sandboxjs.shutil.which", lambda _: None)
+    assert isinstance(sandboxjs.get_js_engine(), sandboxjs.NodeJSEngine)
+
+
+@needs_qjs
+def test_env_var_unset_falls_back_to_node_when_probe_fails(
+    monkeypatch: pytest.MonkeyPatch, fresh_engine_state: None
+) -> None:
+    """A qjs that fails the capability probe is not silently used."""
+    monkeypatch.delenv("CWL_JS_ENGINE", raising=False)
+    monkeypatch.setattr(
+        sandboxjs.QuickJSEngine,
+        "check_js_threshold_version",
+        lambda self, working_alias=None: False,
+    )
     assert isinstance(sandboxjs.get_js_engine(), sandboxjs.NodeJSEngine)
 
 
