@@ -3,7 +3,8 @@
 """Shared Python type definitions for commons JSON like CWL objects."""
 
 import sys
-from collections.abc import Mapping, MutableMapping, MutableSequence
+from collections import namedtuple
+from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from typing import Any, Literal, TypeAlias, TypedDict, TypeGuard
 
 if sys.version_info >= (3, 13):
@@ -79,6 +80,7 @@ CWLOutputType: TypeAlias = (
 )
 CWLObjectType: TypeAlias = MutableMapping[str, CWLOutputType | None]
 SinkType: TypeAlias = CWLOutputType | CWLObjectType
+SrcSink = namedtuple("SrcSink", ["src", "sink", "linkMerge", "message"])
 
 
 class CWLRuntimeParameterContext(TypedDict, total=False):
@@ -161,3 +163,7 @@ def is_file_or_directory(
     value: Any,
 ) -> TypeIs[CWLFileType | CWLDirectoryType]:
     return isinstance(value, Mapping) and value.get("class") in ("File", "Directory")
+
+
+def is_sequence(thing: object) -> TypeIs[Sequence[Any]]:
+    return isinstance(thing, Sequence) and not isinstance(thing, str | bytes)
