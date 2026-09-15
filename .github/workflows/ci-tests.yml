@@ -22,7 +22,7 @@ jobs:
     strategy:
       matrix:
         py-ver-major: [3]
-        py-ver-minor: [10, 11, 12, 13, 14]
+        py-ver-minor: [10, 11, 12, 13, 14, 15]
         step: [lint, unit, bandit, mypy]
 
     env:
@@ -30,7 +30,7 @@ jobs:
       TOXENV: ${{ format('py{0}{1}-{2}', matrix.py-ver-major, matrix.py-ver-minor, matrix.step) }}
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -42,7 +42,7 @@ jobs:
           sudo apt-get install -y ./singularity-ce_4.2.1-noble_amd64.deb
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           allow-prereleases: true
           python-version: ${{ env.py-semver }}
@@ -60,7 +60,7 @@ jobs:
 
       - name: MyPy cache
         if: ${{ matrix.step == 'mypy' }}
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .mypy_cache/${{ env.py-semver }}
           key: mypy-${{ env.py-semver }}
@@ -70,11 +70,11 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.step == 'unit' }}
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           # Work around https://github.com/codecov/codecov-action/issues/1876
           use_pypi: true
 
@@ -88,17 +88,17 @@ jobs:
         step: [lint-readme, pydocstyle]
 
     env:
-      py-semver: "3.12"
-      TOXENV: ${{ format('py312-{0}', matrix.step) }}
+      py-semver: "3.14"
+      TOXENV: ${{ format('py314-{0}', matrix.step) }}
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.py-semver }}
           cache: pip
@@ -123,7 +123,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -142,9 +142,9 @@ jobs:
           echo "CWL_SINGULARITY_CACHE=${CWL_SINGULARITY_CACHE}" >> "$GITHUB_ENV"
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: 3.12
+          python-version: 3.14
           cache: pip
 
       - name: Install packages

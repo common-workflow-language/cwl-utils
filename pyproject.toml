@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: File Formats",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Information Analysis",
@@ -29,14 +30,14 @@ classifiers = [
     "Topic :: System :: Distributed Computing",
     "Typing :: Typed",
 ]
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.10,<3.16"
 dynamic = ["version"]
 dependencies = [
     "cwl-upgrader >= 1.2.3",
     "packaging",
     "rdflib",
     "requests",
-    "schema-salad >= 8.8.20250205075315,<9",
+    "schema-salad >= 8.10.20260810193251,<9",
     "ruamel.yaml >= 0.17.6, < 0.20",
     "typing_extensions >= 4.10.0",
 ]

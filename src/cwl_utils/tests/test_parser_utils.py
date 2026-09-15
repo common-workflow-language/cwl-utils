@@ -10,6 +10,7 @@ from typing import cast
 import pytest
 from pytest import LogCaptureFixture, raises
 from schema_salad.exceptions import ValidationException
+from schema_salad.metaschema import ArraySchema, RecordSchema, RecordField
 
 import cwl_utils.parser.cwl_v1_0
 import cwl_utils.parser.cwl_v1_0_utils
@@ -294,6 +295,7 @@ def test_v1_0_type_compare_record() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
     assert cwl_utils.parser.cwl_v1_0_utils._compare_type(source_type, source_type)
@@ -304,7 +306,9 @@ def test_v1_0_type_for_source() -> None:
     uri = get_path("testdata/step_valuefrom5_wf_v1_0.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
-        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+        cwl_obj,
+        cwl_obj.cwlVersion,
+        cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file",
     )
     assert source_type == "File"
 
@@ -314,7 +318,9 @@ def test_v1_0_type_for_source_with_id() -> None:
     uri = get_path("testdata/step_valuefrom5_wf_with_id_v1_0.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
-        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+        cwl_obj,
+        cwl_obj.cwlVersion,
+        cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file",
     )
     assert source_type == "File"
 
@@ -324,7 +330,7 @@ def test_v1_0_type_for_stdout() -> None:
     uri = get_path("testdata/stdout-wf_v1_0.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
-        cwl_obj, cwl_obj.outputs[0].outputSource
+        cwl_obj, cwl_obj.cwlVersion, cwl_obj.outputs[0].outputSource
     )
     assert source_type == "File"
 
@@ -335,12 +341,11 @@ def test_v1_0_type_output_source_record() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.RecordSchema)
-    fields = cast(
-        MutableSequence[cwl_utils.parser.cwl_v1_0.RecordField], source_type.fields
-    )
+    assert isinstance(source_type, RecordSchema)
+    fields = cast(MutableSequence[RecordField], source_type.fields)
     assert len(fields) == 2
     assert fields[0].type_ == "File"
     assert fields[1].type_ == "File"
@@ -352,9 +357,10 @@ def test_v1_0_type_for_output_source_with_single_scatter_step() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "string"
 
 
@@ -364,10 +370,11 @@ def test_v1_0_type_for_output_source_with_nested_crossproduct_scatter_step() -> 
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
-    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
+    assert isinstance(source_type.items, ArraySchema)
     assert source_type.items.items == "string"
 
 
@@ -376,9 +383,11 @@ def test_v1_0_type_for_output_source_with_flat_crossproduct_scatter_step() -> No
     uri = get_path("testdata/scatter-wf3_v1_0.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
-        process=cwl_obj, sourcenames=cwl_obj.outputs[0].outputSource
+        process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
+        sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "string"
 
 
@@ -388,11 +397,12 @@ def test_v1_0_type_for_source_with_multiple_entries_merge_nested() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
-    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
+    assert isinstance(source_type.items, ArraySchema)
     assert source_type.items.items == "File"
 
 
@@ -402,10 +412,11 @@ def test_v1_0_type_for_source_with_multiple_entries_merge_flattened() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "File"
 
 
@@ -415,11 +426,12 @@ def test_v1_0_type_for_source_with_single_entry_merge_nested() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
-    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
+    assert isinstance(source_type.items, ArraySchema)
     assert source_type.items.items == "File"
 
 
@@ -429,10 +441,11 @@ def test_v1_0_type_for_source_with_single_entry_merge_flattened() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_0.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "File"
 
 
@@ -643,6 +656,7 @@ def test_v1_1_type_compare_record() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
     assert cwl_utils.parser.cwl_v1_1_utils._compare_type(source_type, source_type)
@@ -653,7 +667,9 @@ def test_v1_1_type_for_source() -> None:
     uri = get_path("testdata/step_valuefrom5_wf_v1_1.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
-        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+        cwl_obj,
+        cwl_obj.cwlVersion,
+        cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file",
     )
     assert source_type == "File"
 
@@ -663,7 +679,9 @@ def test_v1_1_type_for_source_with_id() -> None:
     uri = get_path("testdata/step_valuefrom5_wf_with_id_v1_1.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
-        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+        cwl_obj,
+        cwl_obj.cwlVersion,
+        cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file",
     )
     assert source_type == "File"
 
@@ -673,7 +691,7 @@ def test_v1_1_type_for_stdout() -> None:
     uri = get_path("testdata/stdout-wf_v1_1.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
-        cwl_obj, cwl_obj.outputs[0].outputSource
+        cwl_obj, cwl_obj.cwlVersion, cwl_obj.outputs[0].outputSource
     )
     assert source_type == "File"
 
@@ -684,12 +702,11 @@ def test_v1_1_type_output_source_record() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.RecordSchema)
-    fields = cast(
-        MutableSequence[cwl_utils.parser.cwl_v1_1.RecordField], source_type.fields
-    )
+    assert isinstance(source_type, RecordSchema)
+    fields = cast(MutableSequence[RecordField], source_type.fields)
     assert len(fields) == 2
     assert fields[0].type_ == "File"
     assert fields[1].type_ == "File"
@@ -701,9 +718,10 @@ def test_v1_1_type_for_output_source_with_single_scatter_step() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "string"
 
 
@@ -713,10 +731,11 @@ def test_v1_1_type_for_output_source_with_nested_crossproduct_scatter_step() -> 
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
-    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
+    assert isinstance(source_type.items, ArraySchema)
     assert source_type.items.items == "string"
 
 
@@ -726,9 +745,10 @@ def test_v1_1_type_for_output_source_with_flat_crossproduct_scatter_step() -> No
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "string"
 
 
@@ -738,11 +758,12 @@ def test_v1_1_type_for_source_with_multiple_entries_merge_nested() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
-    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
+    assert isinstance(source_type.items, ArraySchema)
     assert source_type.items.items == "File"
 
 
@@ -752,10 +773,11 @@ def test_v1_1_type_for_source_with_multiple_entries_merge_flattened() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "File"
 
 
@@ -765,11 +787,12 @@ def test_v1_1_type_for_source_with_single_entry_merge_nested() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
-    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
+    assert isinstance(source_type.items, ArraySchema)
     assert source_type.items.items == "File"
 
 
@@ -779,10 +802,11 @@ def test_v1_1_type_for_source_with_single_entry_merge_flattened() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_1.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "File"
 
 
@@ -993,6 +1017,7 @@ def test_v1_2_type_compare_record() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
     assert cwl_utils.parser.cwl_v1_2_utils._compare_type(source_type, source_type)
@@ -1003,7 +1028,9 @@ def test_v1_2_type_for_source() -> None:
     uri = get_path("testdata/step_valuefrom5_wf_v1_2.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
-        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+        cwl_obj,
+        cwl_obj.cwlVersion,
+        cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file",
     )
     assert source_type == "File"
 
@@ -1013,7 +1040,9 @@ def test_v1_2_type_for_source_with_id() -> None:
     uri = get_path("testdata/step_valuefrom5_wf_with_id_v1_2.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
-        cwl_obj, cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file"
+        cwl_obj,
+        cwl_obj.cwlVersion,
+        cwl_obj.loadingOptions.fileuri + "#step1/echo_out_file",
     )
     assert source_type == "File"
 
@@ -1023,7 +1052,7 @@ def test_v1_2_type_for_stdout() -> None:
     uri = get_path("testdata/stdout-wf_v1_2.cwl").as_uri()
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
-        cwl_obj, cwl_obj.outputs[0].outputSource
+        cwl_obj, cwl_obj.cwlVersion, cwl_obj.outputs[0].outputSource
     )
     assert source_type == "File"
 
@@ -1034,12 +1063,11 @@ def test_v1_2_type_output_source_record() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.RecordSchema)
-    fields = cast(
-        MutableSequence[cwl_utils.parser.cwl_v1_2.RecordField], source_type.fields
-    )
+    assert isinstance(source_type, RecordSchema)
+    fields = cast(MutableSequence[RecordField], source_type.fields)
     assert len(fields) == 2
     assert fields[0].type_ == "File"
     assert fields[1].type_ == "File"
@@ -1051,9 +1079,10 @@ def test_v1_2_type_for_output_source_with_single_scatter_step() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "string"
 
 
@@ -1063,10 +1092,11 @@ def test_v1_2_type_for_output_source_with_nested_crossproduct_scatter_step() -> 
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
-    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
+    assert isinstance(source_type.items, ArraySchema)
     assert source_type.items.items == "string"
 
 
@@ -1076,9 +1106,10 @@ def test_v1_2_type_for_output_source_with_flat_crossproduct_scatter_step() -> No
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "string"
 
 
@@ -1088,11 +1119,12 @@ def test_v1_2_type_for_source_with_multiple_entries_merge_nested() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
-    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
+    assert isinstance(source_type.items, ArraySchema)
     assert source_type.items.items == "File"
 
 
@@ -1102,10 +1134,11 @@ def test_v1_2_type_for_source_with_multiple_entries_merge_flattened() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "File"
 
 
@@ -1115,11 +1148,12 @@ def test_v1_2_type_for_source_with_single_entry_merge_nested() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
-    assert isinstance(source_type.items, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
+    assert isinstance(source_type.items, ArraySchema)
     assert source_type.items.items == "File"
 
 
@@ -1129,10 +1163,11 @@ def test_v1_2_type_for_source_with_single_entry_merge_flattened() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.steps[0].in_[0].source,
         linkMerge=cwl_obj.steps[0].in_[0].linkMerge,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "File"
 
 
@@ -1142,6 +1177,7 @@ def test_v1_2_type_for_source_with_multiple_entries_first_non_null() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
         pickValue=cwl_obj.outputs[0].pickValue,
     )
@@ -1154,6 +1190,7 @@ def test_v1_2_type_for_source_with_multiple_entries_the_only_non_null() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
         pickValue=cwl_obj.outputs[0].pickValue,
     )
@@ -1166,10 +1203,11 @@ def test_v1_2_type_for_source_with_multiple_entries_all_non_null() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
         pickValue=cwl_obj.outputs[0].pickValue,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "string"
 
 
@@ -1179,6 +1217,7 @@ def test_v1_2_type_for_source_with_single_entry_first_non_null() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
         pickValue=cwl_obj.outputs[0].pickValue,
     )
@@ -1191,6 +1230,7 @@ def test_v1_2_type_for_source_with_single_entry_the_only_non_null() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
         pickValue=cwl_obj.outputs[0].pickValue,
     )
@@ -1203,8 +1243,9 @@ def test_v1_2_type_for_source_with_single_entry_all_non_null() -> None:
     cwl_obj = load_document_by_uri(uri)
     source_type = cwl_utils.parser.utils.type_for_source(
         process=cwl_obj,
+        cwlVersion=cwl_obj.cwlVersion,
         sourcenames=cwl_obj.outputs[0].outputSource,
         pickValue=cwl_obj.outputs[0].pickValue,
     )
-    assert isinstance(source_type, cwl_utils.parser.cwl_v1_2.ArraySchema)
+    assert isinstance(source_type, ArraySchema)
     assert source_type.items == "string"
