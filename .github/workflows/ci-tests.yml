@@ -23,11 +23,10 @@ jobs:
       matrix:
         py-ver-major: [3]
         py-ver-minor: [10, 11, 12, 13, 14, 15]
-        step: [lint, unit, bandit, mypy]
+      fail-fast: false
 
     env:
       py-semver: ${{ format('{0}.{1}', matrix.py-ver-major, matrix.py-ver-minor) }}
-      TOXENV: ${{ format('py{0}{1}-{2}', matrix.py-ver-major, matrix.py-ver-minor, matrix.step) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,7 +35,6 @@ jobs:
           persist-credentials: false
 
       - name: Set up Singularity
-        if: ${{ matrix.step == 'unit' || matrix.step == 'mypy' }}
         run: |
           wget --no-verbose https://github.com/sylabs/singularity/releases/download/v4.2.1/singularity-ce_4.2.1-noble_amd64.deb
           sudo apt-get install -y ./singularity-ce_4.2.1-noble_amd64.deb
@@ -44,8 +42,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          allow-prereleases: true
           python-version: ${{ env.py-semver }}
+          allow-prereleases: true
           cache: pip
           cache-dependency-path: |
             tox.ini
@@ -56,10 +54,9 @@ jobs:
       - name: Upgrade setuptools and install tox
         run: |
           pip install -U pip setuptools wheel
-          pip install "tox<4" "tox-gh-actions<3"
+          pip install 'tox>=4' tox-gh-actions
 
       - name: MyPy cache
-        if: ${{ matrix.step == 'mypy' }}
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .mypy_cache/${{ env.py-semver }}
@@ -69,14 +66,13 @@ jobs:
         run: tox
 
       - name: Upload coverage to Codecov
-        if: ${{ matrix.step == 'unit' }}
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           fail_ci_if_error: false
           # Work around https://github.com/codecov/codecov-action/issues/1876
           use_pypi: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   tox-style:
     name: CI linters via Tox
@@ -106,14 +102,13 @@ jobs:
       - name: Upgrade setuptools and install tox
         run: |
           pip install -U pip setuptools wheel
-          pip install "tox<4" "tox-gh-actions<3"
+          pip install 'tox>=4' tox-gh-actions
 
       - if: ${{ matrix.step == 'pydocstyle' && github.event_name == 'pull_request'}}
         name: Create local branch for diff-quality for PRs
         run: git branch "${GITHUB_BASE_REF}" "origin/${GITHUB_BASE_REF}"
         env:
           GITHUB_BASE_REF: ${{ github.base_ref }}
-
 
       - name: Test with tox
         run: tox
