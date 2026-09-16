@@ -70,7 +70,7 @@ jobs:
         with:
           fail_ci_if_error: false
           # Work around https://github.com/codecov/codecov-action/issues/1876
-          use_pypi: true
+          use_pypi: ${{ env.py-semver != '15' }}
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
