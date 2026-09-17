@@ -375,10 +375,9 @@ def type_for_step_input(
     """Determine the type for the given step input."""
     if in_.valueFrom is not None:
         return "Any"
-    step_run = cwl_utils.parser.utils.load_step(step)
-    cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
-    if step_run and step_run.inputs:
-        for step_input in step_run.inputs:
+    if step_run := cwl_utils.parser.utils.load_step(step):
+        cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
+        for step_input in cast(cwl_utils.parser.Process, step_run).inputs or []:
             if cast(str, step_input.id).split("#")[-1] == in_.id.split("#")[-1]:
                 input_type = step_input.type_
                 if step.scatter is not None and in_.id in aslist(step.scatter):
@@ -392,10 +391,9 @@ def type_for_step_output(
     sourcename: str,
 ) -> Any:
     """Determine the type for the given step output."""
-    step_run = cwl_utils.parser.utils.load_step(step)
-    cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
-    if step_run and step_run.outputs:
-        for output in step_run.outputs:
+    if step_run := cwl_utils.parser.utils.load_step(step):
+        cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
+        for output in cast(cwl_utils.parser.Process, step_run).outputs or []:
             if (
                 output.id.split("#")[-1].split("/")[-1]
                 == sourcename.split("#")[-1].split("/")[-1]
@@ -422,11 +420,12 @@ def type_for_source(
     parent: cwl.Workflow | None = None,
     linkMerge: str | None = None,
     pickValue: str | None = None,
+    loaded_steps: dict[str, cwl_utils.parser.AbstractProcess] | None = None,
 ) -> Any:
     """Determine the type for the given sourcenames."""
     scatter_context: list[tuple[int, str] | None] = []
     params = cwl_utils.parser.utils.param_for_source_id(
-        process, sourcenames, parent, scatter_context
+        process, sourcenames, parent, scatter_context, loaded_steps
     )
     if not isinstance(params, MutableSequence):
         new_type = params.type_

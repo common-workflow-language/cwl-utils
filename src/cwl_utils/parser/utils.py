@@ -32,9 +32,10 @@ from cwl_utils.parser import (
     CommandOutputParameter,
     WorkflowInputParameter,
     load_document_by_uri,
+    AbstractProcess,
 )
 from cwl_utils.errors import WorkflowException
-from cwl_utils.utils import yaml_dumps
+from cwl_utils.utils import yaml_dumps, get_step_uri
 
 _logger = logging.getLogger("cwl_utils")
 
@@ -144,7 +145,7 @@ def check_types(
             raise ValidationException(f"Invalid value {linkMerge} for linkMerge field.")
 
 
-def convert_stdstreams_to_files(process: Process) -> None:
+def convert_stdstreams_to_files(process: AbstractProcess) -> None:
     """Convert stdin, stdout and stderr type shortcuts to files."""
     match process:
         case cwl_v1_0.CommandLineTool():
@@ -230,18 +231,28 @@ def load_inputfile_by_yaml(
 
 
 def load_step(
-    step: WorkflowStep,
-) -> Process:
+    step: WorkflowStep, loaded_steps: dict[str, AbstractProcess] | None = None
+) -> AbstractProcess:
     if isinstance(step.run, str):
-        step_run = load_document_by_uri(
-            path=step.loadingOptions.fetcher.urljoin(
-                base_url=cast(str, step.loadingOptions.fileuri),
-                url=step.run,
-            ),
-            loadingOptions=step.loadingOptions,
-        )
-        return cast(Process, step_run)
-    return cast(Process, copy.deepcopy(step.run))
+        uri = get_step_uri(step)
+        if loaded_steps is not None and uri in loaded_steps:
+            return loaded_steps[uri]
+        else:
+            step_run = cast(
+                AbstractProcess,
+                load_document_by_uri(
+                    path=uri,
+                    loadingOptions=step.loadingOptions,
+                ),
+            )
+            if loaded_steps is not None:
+                loaded_steps[uri] = step_run
+            return step_run
+    else:
+        step_run = copy.deepcopy(step.run)
+        if not isinstance(step_run, cwl_utils.parser.Process):
+            raise Exception(f"Unsupported process type: {step_run.__class__.__name__}")
+        return step_run
 
 
 def merge_flatten_type(src: Any) -> Any:
@@ -258,6 +269,7 @@ def param_for_source_id(
     sourcenames: str | list[str],
     parent: Workflow | None = None,
     scatter_context: list[tuple[int, str] | None] | None = None,
+    loaded_steps: dict[str, cwl_utils.parser.AbstractProcess] | None = None,
 ) -> (
     CommandInputParameter
     | CommandOutputParameter
@@ -295,7 +307,10 @@ def param_for_source_id(
                         == step.id.split("#")[-1]
                         and step.out
                     ):
-                        step_run = cwl_utils.parser.utils.load_step(step)
+                        step_run = cast(
+                            Process,
+                            cwl_utils.parser.utils.load_step(step, loaded_steps),
+                        )
                         cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
                         for outp in step.out:
                             outp_id = outp if isinstance(outp, str) else outp.id
@@ -527,6 +542,7 @@ def type_for_source(
     parent: Workflow | None = None,
     linkMerge: str | None = None,
     pickValue: str | None = None,
+    loaded_steps: dict[str, cwl_utils.parser.AbstractProcess] | None = None,
 ) -> Any:
     """Determine the type for the given sourcenames."""
     match process.cwlVersion or cwlVersion:
@@ -541,6 +557,7 @@ def type_for_source(
                 sourcenames,
                 cast(cwl_v1_0.Workflow | None, parent),
                 linkMerge,
+                loaded_steps,
             )
         case "v1.1":
             return cwl_v1_1_utils.type_for_source(
@@ -553,6 +570,7 @@ def type_for_source(
                 sourcenames,
                 cast(cwl_v1_1.Workflow | None, parent),
                 linkMerge,
+                loaded_steps,
             )
         case "v1.2":
             return cwl_v1_2_utils.type_for_source(
@@ -566,6 +584,7 @@ def type_for_source(
                 cast(cwl_v1_2.Workflow | None, parent),
                 linkMerge,
                 pickValue,
+                loaded_steps,
             )
         case _ as cwlVersion:
             raise ValidationException(
