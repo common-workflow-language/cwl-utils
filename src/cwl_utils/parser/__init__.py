@@ -2,7 +2,7 @@
 
 import os
 from abc import ABC
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import MutableMapping, MutableSequence, Sequence
 from pathlib import Path
 from typing import Any, TypeAlias, cast
 from urllib.parse import unquote_plus, urlparse
@@ -22,12 +22,20 @@ class NoType(ABC):
 
 LoadingOptions: TypeAlias = schema_salad.runtime.LoadingOptions
 """Type union for a CWL v1.x LoadingOptions object."""
+PrimitiveType: TypeAlias = schema_salad.metaschema.PrimitiveType
+"""Type union for a CWL v1.x PrimitiveType object."""
 Saveable: TypeAlias = schema_salad.runtime.Saveable
 """Type union for a CWL v1.x Saveable object."""
+InputParameterType: TypeAlias = (
+    cwl_v1_0.InputParameterType
+    | cwl_v1_1.InputParameterType
+    | cwl_v1_2.InputParameterType
+)
+"""Type union for a CWL v1.x InputParameterType object."""
 InputParameter: TypeAlias = (
     cwl_v1_0.InputParameter | cwl_v1_1.InputParameter | cwl_v1_2.InputParameter
 )
-"""Type union for a CWL v1.x InputEnumSchema object."""
+"""Type union for a CWL v1.x InputParameter object."""
 InputRecordField: TypeAlias = (
     cwl_v1_0.InputRecordField | cwl_v1_1.InputRecordField | cwl_v1_2.InputRecordField
 )
@@ -36,6 +44,12 @@ InputSchema: TypeAlias = (
     cwl_v1_0.InputSchema | cwl_v1_1.InputSchema | cwl_v1_2.InputSchema
 )
 """Type union for a CWL v1.x InputSchema object."""
+OutputParameterType: TypeAlias = (
+    cwl_v1_0.OutputParameterType
+    | cwl_v1_1.OutputParameterType
+    | cwl_v1_2.OutputParameterType
+)
+"""Type union for a CWL v1.x OutputParameterType object."""
 OutputParameter: TypeAlias = (
     cwl_v1_0.CommandOutputParameter
     | cwl_v1_0.ExpressionToolOutputParameter
@@ -100,6 +114,10 @@ WorkflowStep: TypeAlias = (
     cwl_v1_0.WorkflowStep | cwl_v1_1.WorkflowStep | cwl_v1_2.WorkflowStep
 )
 """Type union for a CWL v1.x WorkflowStep object."""
+ScatterMethod: TypeAlias = (
+    cwl_v1_0.ScatterMethod | cwl_v1_1.ScatterMethod | cwl_v1_2.ScatterMethod
+)
+"""Type union for a CWL v1.x ScatterMethod object."""
 ScatterWorkflowStep: TypeAlias = (
     cwl_v1_0.WorkflowStep | cwl_v1_1.WorkflowStep | cwl_v1_2.WorkflowStep
 )
@@ -144,18 +162,29 @@ CommandOutputBinding: TypeAlias = (
     | cwl_v1_2.CommandOutputBinding
 )
 """Type union for a CWL v1.x CommandOutputBinding object."""
+CommandInputParameterType: TypeAlias = (
+    cwl_v1_0.CommandInputParameterType
+    | cwl_v1_1.CommandInputParameterType
+    | cwl_v1_2.CommandInputParameterType
+)
+"""Type union for a CWL v1.x CommandInputParameterType object."""
 CommandInputParameter: TypeAlias = (
     cwl_v1_0.CommandInputParameter
     | cwl_v1_1.CommandInputParameter
     | cwl_v1_2.CommandInputParameter
 )
 """Type union for a CWL v1.x CommandInputParameter object."""
+CommandOutputParameterType: TypeAlias = (
+    cwl_v1_0.CommandOutputParameterType
+    | cwl_v1_1.CommandOutputParameterType
+    | cwl_v1_2.CommandOutputParameterType
+)
+"""Type union for a CWL v1.x CommandOutputParameterType object."""
 CommandOutputParameter: TypeAlias = (
     cwl_v1_0.CommandOutputParameter
     | cwl_v1_1.CommandOutputParameter
     | cwl_v1_2.CommandOutputParameter
 )
-
 """Type union for a CWL v1.x CommandOutputParameter object."""
 CommandOutputRecordField: TypeAlias = (
     cwl_v1_0.CommandOutputRecordField
@@ -193,8 +222,10 @@ DockerRequirementTypes = (
     cwl_v1_2.DockerRequirement,
 )
 """Type union for a CWL v1.x DockerRequirement object."""
-Process: TypeAlias = Workflow | CommandLineTool | ExpressionTool | cwl_v1_2.Operation
+AbstractProcess: TypeAlias = cwl_v1_0.Process | cwl_v1_1.Process | cwl_v1_2.Process
 """Type Union for a CWL v1.x Process object."""
+Process: TypeAlias = Workflow | CommandLineTool | ExpressionTool | cwl_v1_2.Operation
+"""Type Union for a CWL v1.x Process implementations."""
 ProcessRequirement: TypeAlias = (
     cwl_v1_0.ProcessRequirement
     | cwl_v1_1.ProcessRequirement
@@ -269,6 +300,10 @@ EnvVarRequirement: TypeAlias = (
     cwl_v1_0.EnvVarRequirement | cwl_v1_1.EnvVarRequirement | cwl_v1_2.EnvVarRequirement
 )
 """Type Union for a CWL v1.x EnvVarRequirement object."""
+EnvironmentDef: TypeAlias = (
+    cwl_v1_0.EnvironmentDef | cwl_v1_1.EnvironmentDef | cwl_v1_2.EnvironmentDef
+)
+"""Type Union for a CWL v1.x EnvironmentDef object."""
 InitialWorkDirRequirement: TypeAlias = (
     cwl_v1_0.InitialWorkDirRequirement
     | cwl_v1_1.InitialWorkDirRequirement
@@ -289,6 +324,26 @@ ResourceRequirement: TypeAlias = (
 """Type Union for a CWL v1.x ResourceRequirement object."""
 Loader: TypeAlias = schema_salad.runtime.Loader
 """Type union for a CWL v1.x Loader."""
+CWLVersion: TypeAlias = cwl_v1_0.CWLVersion | cwl_v1_1.CWLVersion | cwl_v1_2.CWLVersion
+"""Type union for a CWL v1.x Loader."""
+
+CWLTypeSchema: TypeAlias = (
+    ArraySchema
+    | RecordSchema
+    | PrimitiveType
+    | EnumSchema
+    | str
+    | Sequence[ArraySchema | RecordSchema | PrimitiveType | EnumSchema | str]
+)
+ParameterType: TypeAlias = (
+    InputParameterType
+    | CommandInputParameterType
+    | OutputParameterType
+    | CommandOutputParameterType
+)
+ParameterTypeOrArraySchema: TypeAlias = (
+    ParameterType | ArraySchema | Sequence[ArraySchema]
+)
 
 
 def _get_id_from_graph(yaml: MutableMapping[str, Any], id_: str | None) -> Any:
@@ -449,7 +504,7 @@ def save(
 
 def is_process(v: Any) -> bool:
     """Test to see if the object is a CWL v1.x Python Process object."""
-    return isinstance(v, cwl_v1_0.Process | cwl_v1_1.Process | cwl_v1_2.Process)
+    return isinstance(v, AbstractProcess)
 
 
 def version_split(version: str) -> MutableSequence[int]:

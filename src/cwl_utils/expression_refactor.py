@@ -9,6 +9,7 @@ import logging
 import shutil
 import sys
 from collections.abc import MutableMapping, MutableSequence, Sequence
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Protocol, cast, Literal, overload
 
@@ -33,7 +34,6 @@ from cwl_utils.parser import (
     OperationInputParameter,
     CommandInputParameter,
     Workflow,
-    CommandOutputParameter,
     ExpressionTool,
     InitialWorkDirRequirement,
     InlineJavascriptRequirement,
@@ -41,7 +41,13 @@ from cwl_utils.parser import (
     CommandLineTool,
     load_document_by_uri,
     CommandLineBinding,
+    CWLVersion,
+    AbstractProcess,
+    Operation,
 )
+from cwl_utils.parser.utils import type_for_source
+from cwl_utils.types import CWLFileType, CWLDirectoryType
+from cwl_utils.utils import get_step_uri
 
 _logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
@@ -107,7 +113,7 @@ def parse_args(args: list[str]) -> argparse.Namespace:
 
 def add_input_to_process(
     process: Process,
-    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    cwlVersion: CWLVersion,
     name: str,
     inptype: Any,
     loadingOptions: LoadingOptions,
@@ -132,7 +138,7 @@ def add_input_to_process(
 
 
 def cltool_inputs_to_etool_inputs(
-    tool: CommandLineTool, cwlVersion: Literal["v1.0", "v1.1", "v1.2"]
+    tool: CommandLineTool, cwlVersion: CWLVersion
 ) -> Sequence[WorkflowInputParameter]:
     match tool.cwlVersion or cwlVersion:
         case "v1.0":
@@ -155,58 +161,41 @@ def cltool_inputs_to_etool_inputs(
 
 def empty_inputs(
     process_or_step: Process | WorkflowStep,
-    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    context: dict[str, tuple[Process, bool]],
     parent: Workflow | None = None,
 ) -> dict[str, Any]:
-    cwlVersion = (
-        process_or_step.cwlVersion
-        if isinstance(process_or_step, Process) and process_or_step.cwlVersion
-        else cwlVersion
-    )
-    match cwlVersion:
-        case "v1.0":
-            return cwl_v1_0_expression_refactor.empty_inputs(
-                cast(
-                    cwl_v1_0.CommandLineTool
-                    | cwl_v1_0.WorkflowStep
-                    | cwl_v1_0.ExpressionTool
-                    | cwl_v1_0.Workflow,
-                    process_or_step,
-                ),
-                cast(cwl_v1_0.Workflow, parent),
-            )
-        case "v1.1":
-            return cwl_v1_1_expression_refactor.empty_inputs(
-                cast(
-                    cwl_v1_1.CommandLineTool
-                    | cwl_v1_1.WorkflowStep
-                    | cwl_v1_1.ExpressionTool
-                    | cwl_v1_1.Workflow,
-                    process_or_step,
-                ),
-                cast(cwl_v1_1.Workflow, parent),
-            )
-        case "v1.2":
-            return cwl_v1_2_expression_refactor.empty_inputs(
-                cast(
-                    cwl_v1_2.CommandLineTool
-                    | cwl_v1_2.WorkflowStep
-                    | cwl_v1_2.ExpressionTool
-                    | cwl_v1_2.Workflow
-                    | cwl_v1_2.Operation,
-                    process_or_step,
-                ),
-                cast(cwl_v1_2.Workflow, parent),
-            )
-        case _:
-            raise WorkflowException(
-                f"Sorry, {cwlVersion} is not a supported CWL version by this tool.",
-            )
+    """Produce a mock input object for the given inputs."""
+    result = {}
+    if isinstance(process_or_step, Process):
+        for param in process_or_step.inputs:
+            result[param.id.split("#")[-1]] = example_input(param.type_)
+    else:
+        for param1 in process_or_step.in_:
+            param_id = param1.id.split("/")[-1]
+            if param1.source is None and param1.valueFrom:
+                result[param_id] = example_input("string")
+            elif param1.source is None and param1.default:
+                result[param_id] = param1.default
+            elif param1.source is not None:
+                with suppress(WorkflowException):
+                    if isinstance(process_or_step.run, str):
+                        process = context[get_step_uri(process_or_step)][0]
+                    else:
+                        process = cast(Process, process_or_step.run)
+                    cwlVersion = (
+                        process.cwlVersion
+                        or (parent.cwlVersion if parent is not None else None)
+                        or "Undefined"
+                    )
+                    result[param_id] = example_input(
+                        type_for_source(process, cwlVersion, param1.source, parent)
+                    )
+    return result
 
 
 def etool_to_cltool(
     etool: ExpressionTool,
-    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    cwlVersion: CWLVersion,
     expressionLib: list[str] | None = None,
 ) -> CommandLineTool:
     cwlVersion = etool.cwlVersion if etool.cwlVersion is not None else cwlVersion
@@ -229,6 +218,50 @@ def etool_to_cltool(
             )
 
 
+def example_input(some_type: Any) -> Any:
+    """Produce a fake input for the given type."""
+    # TODO: accept some sort of context object with local custom type definitions
+    if some_type == "Directory":
+        return CWLDirectoryType(
+            **{
+                "class": "Directory",
+                "location": "https://www.example.com/example",
+                "basename": "example",
+                "listing": [
+                    CWLFileType(
+                        **{
+                            "class": "File",
+                            "basename": "example.txt",
+                            "size": 23,
+                            "contents": "hoopla",
+                            "nameroot": "example",
+                            "nameext": "txt",
+                        }
+                    )
+                ],
+            }
+        )
+    if some_type == "File":
+        return CWLFileType(
+            **{
+                "class": "File",
+                "location": "https://www.example.com/example.txt",
+                "basename": "example.txt",
+                "size": 23,
+                "contents": "hoopla",
+                "nameroot": "example",
+                "nameext": "txt",
+            }
+        )
+    if some_type == "int":
+        return 23
+    if some_type == "string":
+        return "hoopla!"
+    if some_type == "boolean":
+        return True
+    return None
+
+
 def find_expressionLib(
     processes: Sequence[Process | WorkflowStep],
 ) -> list[str] | None:
@@ -248,11 +281,9 @@ def find_expressionLib(
 
 def generate_etool_from_expr2(
     expr: str,
-    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    cwlVersion: CWLVersion,
     target: CommandInputParameter | WorkflowInputParameter | OperationInputParameter,
-    inputs: Sequence[
-        CommandInputParameter | CommandOutputParameter | WorkflowInputParameter
-    ],
+    inputs: Sequence[WorkflowInputParameter],
     self_name: str | None = None,
     process: Process | None = None,
     extra_processes: Sequence[Process | WorkflowStep] | None = None,
@@ -285,7 +316,7 @@ def generate_etool_from_expr2(
                 expr=expr,
                 target=cast(cwl_v1_0.InputParameter, target),
                 inputs=cast(
-                    Sequence[cwl_v1_0.InputParameter | cwl_v1_0.CommandOutputParameter],
+                    Sequence[cwl_v1_0.InputParameter],
                     inputs,
                 ),
                 expression_lib=find_expressionLib(procs),
@@ -301,11 +332,7 @@ def generate_etool_from_expr2(
                     target,
                 ),
                 inputs=cast(
-                    Sequence[
-                        cwl_v1_1.CommandInputParameter
-                        | cwl_v1_1.CommandOutputParameter
-                        | cwl_v1_1.WorkflowInputParameter
-                    ],
+                    Sequence[cwl_v1_1.WorkflowInputParameter],
                     inputs,
                 ),
                 expression_lib=find_expressionLib(procs),
@@ -323,11 +350,7 @@ def generate_etool_from_expr2(
                     target,
                 ),
                 inputs=cast(
-                    Sequence[
-                        cwl_v1_2.CommandInputParameter
-                        | cwl_v1_2.CommandOutputParameter
-                        | cwl_v1_2.WorkflowInputParameter
-                    ],
+                    Sequence[cwl_v1_2.WorkflowInputParameter],
                     inputs,
                 ),
                 expression_lib=find_expressionLib(procs),
@@ -360,7 +383,7 @@ def get_command_input_parameter(
 
 
 def get_command_input_parameter(
-    cwlVersion: Literal["v1.0", "v1.1", "v1.2"], id_: str, type_: Any
+    cwlVersion: CWLVersion, id_: str, type_: Any
 ) -> CommandInputParameter:
     match cwlVersion:
         case "v1.0":
@@ -400,7 +423,7 @@ def get_command_line_binding(
 
 
 def get_command_line_binding(
-    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    cwlVersion: CWLVersion,
     valueFrom: str | None = None,
     loadContents: bool | None = None,
 ) -> CommandLineBinding:
@@ -449,7 +472,7 @@ def get_inline_javascript_requirement(
 
 def get_inline_javascript_requirement(
     etool: ExpressionTool,
-    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    cwlVersion: CWLVersion,
     expression_lib: list[str] | None,
 ) -> InlineJavascriptRequirement:
     match etool.cwlVersion or cwlVersion:
@@ -472,7 +495,7 @@ def get_inline_javascript_requirement(
 
 
 def get_input_for_id(
-    name: str, tool: Process
+    name: str, tool: Process, context: dict[str, tuple[Process, bool]]
 ) -> CommandInputParameter | WorkflowInputParameter | OperationInputParameter | None:
     """Determine the CommandInputParameter for the given input name."""
     name = name.split("/")[-1]
@@ -487,7 +510,15 @@ def get_input_for_id(
         stepname, stem = name.split("/", 1)
         for step in tool.steps:
             if step.id == stepname:
-                result = get_input_for_id(stem, step.run)
+                if isinstance(step.run, str):
+                    inner_tool = context[get_step_uri(step)][0]
+                else:
+                    inner_tool = cast(Process, step.run)
+                result = get_input_for_id(
+                    stem,
+                    inner_tool,
+                    context,
+                )
                 if result:
                     return result
     return None
@@ -498,64 +529,77 @@ def load_step(
     replace_etool: bool,
     skip_command_line1: bool,
     skip_command_line2: bool,
-) -> bool:
+    context: dict[str, tuple[Process, bool]],
+) -> tuple[Process, bool]:
     """If the step's Process is not inline, load and process it."""
     modified = False
     if isinstance(step.run, str):
-        process = cast(
-            Process, load_document_by_uri(step.run, loadingOptions=step.loadingOptions)
-        )
-        # FIXME: with strong typing, it won't be possible to directly assign to step.run
-        match process.cwlVersion:
-            case "v1.0":
-                step.run, modified = cwl_v1_0_expression_refactor.traverse(
-                    cast(
-                        cwl_v1_0.CommandLineTool
-                        | cwl_v1_0.ExpressionTool
-                        | cwl_v1_0.Workflow,
+        if (uri := get_step_uri(step)) not in context:
+            process = cast(
+                AbstractProcess,
+                load_document_by_uri(path=uri, loadingOptions=step.loadingOptions),
+            )
+            if not isinstance(process, Process):
+                raise Exception(
+                    f"Unsupported process type: {process.__class__.__name__}"
+                )
+            match process.cwlVersion:
+                case "v1.0":
+                    process, modified = cwl_v1_0_expression_refactor.traverse(
                         process,
-                    ),
-                    replace_etool,
-                    True,
-                    skip_command_line1,
-                    skip_command_line2,
-                )
-            case "v1.1":
-                step.run, modified = cwl_v1_1_expression_refactor.traverse(
-                    cast(
-                        cwl_v1_1.CommandLineTool
-                        | cwl_v1_1.ExpressionTool
-                        | cwl_v1_1.Workflow,
+                        replace_etool,
+                        True,
+                        skip_command_line1,
+                        skip_command_line2,
+                        context,
+                    )
+                case "v1.1":
+                    process, modified = cwl_v1_1_expression_refactor.traverse(
                         process,
-                    ),
-                    replace_etool,
-                    True,
-                    skip_command_line1,
-                    skip_command_line2,
-                )
-            case "v1.2":
-                step.run, modified = cwl_v1_2_expression_refactor.traverse(
-                    cast(
-                        cwl_v1_2.CommandLineTool
-                        | cwl_v1_2.ExpressionTool
-                        | cwl_v1_2.Workflow
-                        | cwl_v1_2.Operation,
+                        replace_etool,
+                        True,
+                        skip_command_line1,
+                        skip_command_line2,
+                        context,
+                    )
+                case "v1.2":
+                    process, modified = cwl_v1_2_expression_refactor.traverse(
                         process,
-                    ),
-                    replace_etool,
-                    True,
-                    skip_command_line1,
-                    skip_command_line2,
-                )
-            case _:
-                raise WorkflowException(
-                    f"Sorry, {process.cwlVersion} is not a supported CWL version by this tool.",
-                )
-    return modified
+                        replace_etool,
+                        True,
+                        skip_command_line1,
+                        skip_command_line2,
+                        context,
+                    )
+                case _:
+                    raise WorkflowException(
+                        f"Sorry, {process.cwlVersion} is not a supported CWL version by this tool.",
+                    )
+            context[uri] = (process, modified)
+        return context[uri]
+    else:
+        process = step.run
+        if not isinstance(process, Process):
+            raise Exception(f"Unsupported process type: {process.__class__.__name__}")
+        return process, modified
+
+
+def otool_inputs_to_etool_inputs(
+    tool: Operation, cwlVersion: CWLVersion
+) -> Sequence[WorkflowInputParameter]:
+    match tool.cwlVersion or cwlVersion:
+        case "v1.2":
+            return cwl_v1_2_expression_refactor.otool_inputs_to_etool_inputs(
+                cast(cwl_v1_2.Operation, tool)
+            )
+        case _:
+            raise WorkflowException(
+                f"Sorry, {tool.cwlVersion or cwlVersion} is not a supported CWL version by this tool.",
+            )
 
 
 def process_CommandLineTool_output(
-    ctool: CommandLineTool, cwlVersion: Literal["v1.0", "v1.1", "v1.2"], outp_id: str
+    ctool: CommandLineTool, cwlVersion: CWLVersion, outp_id: str
 ) -> None:
     match ctool.cwlVersion or cwlVersion:
         case "v1.0":
@@ -577,14 +621,14 @@ def process_CommandLineTool_output(
 
 
 def remove_JSReq(
-    process: CommandLineTool | WorkflowStep | Workflow,
+    process: Process,
     skip_command_line1: bool,
 ) -> None:
     """Since the InlineJavascriptRequirement is longer needed, remove it."""
     if skip_command_line1 and isinstance(process, CommandLineTool):
         return
     if process.hints:
-        process.hints[:] = [
+        process.hints = [
             hint
             for hint in process.hints
             if not isinstance(hint, InlineJavascriptRequirement)
@@ -592,7 +636,7 @@ def remove_JSReq(
         if not process.hints:
             process.hints = None
     if process.requirements:
-        process.requirements[:] = [
+        process.requirements = [
             req
             for req in process.requirements
             if not isinstance(req, InlineJavascriptRequirement)
@@ -621,6 +665,7 @@ def refactor(args: argparse.Namespace) -> int:
         with open(document) as doc_handle:
             result = yaml.load(doc_handle)
         uri = Path(document).resolve().as_uri()
+        context = {}
         try:
             match result["cwlVersion"]:
                 case "v1.0":
@@ -630,6 +675,7 @@ def refactor(args: argparse.Namespace) -> int:
                         False,
                         args.skip_some1,
                         args.skip_some2,
+                        context,
                     )
                 case "v1.1":
                     result, modified = cwl_v1_1_expression_refactor.traverse(
@@ -638,6 +684,7 @@ def refactor(args: argparse.Namespace) -> int:
                         False,
                         args.skip_some1,
                         args.skip_some2,
+                        context,
                     )
                 case "v1.2":
                     result, modified = cwl_v1_2_expression_refactor.traverse(
@@ -646,6 +693,7 @@ def refactor(args: argparse.Namespace) -> int:
                         False,
                         args.skip_some1,
                         args.skip_some2,
+                        context,
                     )
                 case _:
                     _logger.error(
@@ -653,33 +701,35 @@ def refactor(args: argparse.Namespace) -> int:
                         result["cwlVersion"],
                     )
                     return -1
-            output = Path(args.dir) / Path(document).name
-            if not modified:
-                if len(args.inputs) > 1:
-                    shutil.copyfile(document, output)
-                    continue
+            if not modified and len(args.inputs) == 1:
+                return 7
+            context[document] = (result, modified)
+            for path, (process, modified) in context.items():
+                output = Path(args.dir) / Path(path).name
+                if not modified:
+                    if len(args.inputs) > 1:
+                        shutil.copyfile(path, output)
+                        continue
+                if not isinstance(process, MutableSequence):
+                    result_json = save(
+                        process,
+                        base_url=(process.loadingOptions.fileuri or ""),
+                    )
+                #   ^^ Setting the base_url and keeping the default value
+                #      for relative_uris=True means that the IDs in the generated
+                #      JSON/YAML are kept clean of the path to the input document
                 else:
-                    return 7
-            if not isinstance(result, MutableSequence):
-                result_json = save(
-                    result,
-                    base_url=(result.loadingOptions.fileuri or ""),
-                )
-            #   ^^ Setting the base_url and keeping the default value
-            #      for relative_uris=True means that the IDs in the generated
-            #      JSON/YAML are kept clean of the path to the input document
-            else:
-                result_json = [
-                    save(result_item, base_url=result_item.loadingOptions.fileuri)
-                    for result_item in result
-                ]
-            walk_tree(result_json)
-            # ^ converts multiline strings to nice multiline YAML
-            with output.open("w", encoding="utf-8") as output_filehandle:
-                output_filehandle.write(
-                    "#!/usr/bin/env cwl-runner\n"
-                )  # TODO: teach the codegen to do this?
-                yaml.dump(result_json, output_filehandle)
+                    result_json = [
+                        save(result_item, base_url=result_item.loadingOptions.fileuri)
+                        for result_item in process
+                    ]
+                walk_tree(result_json)
+                # ^ converts multiline strings to nice multiline YAML
+                with output.open("w", encoding="utf-8") as output_filehandle:
+                    output_filehandle.write(
+                        "#!/usr/bin/env cwl-runner\n"
+                    )  # TODO: teach the codegen to do this?
+                    yaml.dump(result_json, output_filehandle)
         except WorkflowException as exc:
             return_code = 1
             _logger.exception("Skipping %s due to error.", document, exc_info=exc)
