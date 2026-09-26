@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for classes for docker-extract."""
 
+import subprocess  # nosec
+import sys
+
 from cwl_utils.image_puller import SingularityImagePuller
 from cwl_utils.singularity import get_version as get_singularity_version
 from cwl_utils.singularity import is_version_2_6 as is_singularity_version_2_6
@@ -81,3 +84,12 @@ class TestSingularityImagePuller:
 
         assert f"debian_stable-slim{suffix}" in get_names("debian:stable-slim")
         assert f"quay.io_user_image{suffix}" in get_names("quay.io/user/image")
+
+
+def test_import_leaves_root_logger_unconfigured() -> None:
+    check = (
+        "import logging, cwl_utils.image_puller; "
+        "root = logging.getLogger(); "
+        "assert not root.handlers and root.level == logging.WARNING"
+    )
+    subprocess.run([sys.executable, "-c", check], check=True)  # nosec
