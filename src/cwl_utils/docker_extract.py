@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 import argparse
+import logging
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -137,6 +138,7 @@ def traverse_workflow(workflow: cwl.Workflow) -> Iterator[cwl.DockerRequirement]
 
 def main() -> int:
     """Command line entry point."""
+    logging.basicConfig(level=logging.INFO)
     run(arg_parser().parse_args(sys.argv[1:]))
     return 0
 

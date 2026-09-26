@@ -13,7 +13,6 @@ from .singularity import get_version as get_singularity_version
 from .singularity import is_version_2_6 as is_singularity_version_2_6
 from .singularity import is_version_3_or_newer as is_singularity_version_3_or_newer
 
-logging.basicConfig(level=logging.INFO)
 _LOGGER = logging.getLogger(__name__)
 
 
