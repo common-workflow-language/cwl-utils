@@ -26,7 +26,7 @@ def test_node_version(version: str, supported: bool, mocker: Any) -> None:
     mocked_subprocess = mocker.patch("cwl_utils.sandboxjs.subprocess")
     mocked_subprocess.check_output = mocker.Mock(return_value=version)
 
-    assert sandboxjs.check_js_threshold_version("node") == supported
+    assert sandboxjs.NodeJSEngine().check_js_threshold_version("node") == supported
 
 
 def test_value_from_two_concatenated_expressions() -> None:
@@ -84,9 +84,10 @@ def test_value_from_two_concatenated_expressions_podman(
     new_paths = hide_nodejs(tmp_path)
     with monkeypatch.context() as m:
         m.setenv("PATH", new_paths)
-        js_engine = sandboxjs.get_js_engine()
-        js_engine.have_node_slim = False  # type: ignore[attr-defined]
-        js_engine.localdata = threading.local()  # type: ignore[attr-defined]
+        js_engine = sandboxjs.NodeJSEngine()
+        js_engine.have_node_slim = False
+        js_engine.localdata = threading.local()
+        m.setattr(sandboxjs, "__js_engine", js_engine)
         assert (
             expression.do_eval(
                 '$("a ")$("string")',
@@ -110,9 +111,10 @@ def test_value_from_two_concatenated_expressions_udocker(
     new_paths = hide_nodejs(tmp_path)
     with monkeypatch.context() as m:
         m.setenv("PATH", new_paths)
-        js_engine = sandboxjs.get_js_engine()
-        js_engine.have_node_slim = False  # type: ignore[attr-defined]
-        js_engine.localdata = threading.local()  # type: ignore[attr-defined]
+        js_engine = sandboxjs.NodeJSEngine()
+        js_engine.have_node_slim = False
+        js_engine.localdata = threading.local()
+        m.setattr(sandboxjs, "__js_engine", js_engine)
         assert (
             expression.do_eval(
                 '$("a ")$("string")',
@@ -136,9 +138,10 @@ def test_value_from_two_concatenated_expressions_singularity(
     new_paths = hide_nodejs(tmp_path)
     with monkeypatch.context() as m:
         m.setenv("PATH", new_paths)
-        js_engine = sandboxjs.get_js_engine()
-        js_engine.have_node_slim = False  # type: ignore[attr-defined]
-        js_engine.localdata = threading.local()  # type: ignore[attr-defined]
+        js_engine = sandboxjs.NodeJSEngine()
+        js_engine.have_node_slim = False
+        js_engine.localdata = threading.local()
+        m.setattr(sandboxjs, "__js_engine", js_engine)
         assert (
             expression.do_eval(
                 '$("a ")$("string")',
@@ -165,9 +168,10 @@ def test_singularity_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     with monkeypatch.context() as m:
         m.setenv("PATH", new_paths)
         m.setenv("CWL_SINGULARITY_CACHE", str(cache_path))
-        js_engine = sandboxjs.get_js_engine()
-        js_engine.localdata = threading.local()  # type: ignore[attr-defined]
-        js_engine.have_node_slim = False  # type: ignore[attr-defined]
+        js_engine = sandboxjs.NodeJSEngine()
+        js_engine.localdata = threading.local()
+        js_engine.have_node_slim = False
+        m.setattr(sandboxjs, "__js_engine", js_engine)
         assert (
             expression.do_eval(
                 "$(42*23)",
@@ -184,7 +188,8 @@ def test_singularity_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         assert (cache_path / "node_alpine.sif").exists()
 
 
-def test_caches_js_processes(mocker: Any) -> None:
+def test_caches_js_processes(mocker: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sandboxjs, "__js_engine", sandboxjs.NodeJSEngine())
     sandboxjs.exec_js_process("7", context="{}")
 
     mocked_new_js_proc = mocker.patch("cwl_utils.sandboxjs.new_js_proc")
