@@ -147,6 +147,10 @@ class NodeJSEngine(JSEngine):
         current_version_str = subprocess.check_output(  # nosec
             [working_alias, "-v"], text=True
         )
+
+        # Remove any pre-release or build metadata from the version string
+        current_version_str = current_version_str.split("-")[0]
+        
         current_version = [
             int(v) for v in current_version_str.strip().strip("v").split(".")
         ]
