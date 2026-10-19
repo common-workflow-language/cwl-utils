@@ -148,9 +148,9 @@ class NodeJSEngine(JSEngine):
             [working_alias, "-v"], text=True
         )
 
-        # Remove any pre-release or build metadata from the version string
-        current_version_str = current_version_str.split("-")[0]
-        
+        is_alpha = "-alpha" in current_version_str
+        current_version_str = current_version_str.split("-alpha")[0]
+
         current_version = [
             int(v) for v in current_version_str.strip().strip("v").split(".")
         ]
@@ -158,7 +158,7 @@ class NodeJSEngine(JSEngine):
             int(v) for v in self.minimum_node_version_str.split(".")
         ]
 
-        return current_version >= minimum_node_version
+        return current_version > minimum_node_version if is_alpha else current_version >= minimum_node_version
 
     def exec_js_process(
         self,
