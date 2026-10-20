@@ -19,8 +19,8 @@ node_versions = [
     ("v4.4.2\n", True),
     ("v7.7.3\n", True),
     ("v0.10.27-alpha.0.0.0\n", True),
-    ("v0.10.26-alpha.0.0.0\n", False),
-    ("v0.10.25-alpha.0.0.0\n", False)
+    ("v0.10.26-beta.0.0.0\n", False),
+    ("v0.10.25-rc1\n", False)
 ]
 
 
