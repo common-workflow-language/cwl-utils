@@ -8,7 +8,7 @@ from typing import Any, cast, Literal
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
-from schema_salad.metaschema import ArraySchema, RecordSchema
+from schema_salad.metaschema import ArraySchema, EnumSchema, RecordSchema
 from schema_salad.runtime import file_uri, shortname, save
 from schema_salad.sourceline import SourceLine, strip_dup_lineno
 from schema_salad.utils import json_dumps, yaml_no_ts
@@ -93,6 +93,12 @@ def can_assign_src_to_sink(src: Any, sink: Any, strict: bool = False) -> bool:
         return can_assign_src_to_sink(src.items, sink.items, strict)
     if isinstance(src, RecordSchema) and isinstance(sink, RecordSchema):
         return _compare_records(src, sink, strict)
+    if isinstance(src, EnumSchema) and isinstance(sink, EnumSchema):
+        # As cwltool's checker: two enums are compatible whatever their names,
+        # which differ between a workflow and its tools, or are generated
+        # afresh for anonymous enums. A value is checked against the sink's
+        # symbols when it is bound.
+        return True
     if isinstance(src, MutableSequence):
         if strict:
             for this_src in src:
