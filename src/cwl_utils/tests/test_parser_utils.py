@@ -130,6 +130,7 @@ def test_static_checker_success(cwlVersion: str) -> None:
         f"testdata/count-lines7-wf_{cwlVersion}.cwl",
         f"testdata/count-lines7-single-source-wf_{cwlVersion}.cwl",
         f"testdata/mixed-versions/wf-{cwlVersion}.cwl",
+        f"testdata/enum-names-wf_{cwlVersion}.cwl",
     ]
     if cwlVersion == "v1_2":
         test_files.extend(
