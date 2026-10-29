@@ -74,6 +74,14 @@ def test_static_checker_fail(cwlVersion: str) -> None:
     with pytest.raises(ValidationException, match=".* pickValue is the_only_non_null"):
         cwl_utils.parser.utils.static_checker(cwl_obj7)
 
+    uri8 = get_path(f"testdata/step-input-type-mismatch-wf_{cwlVersion}.cwl").as_uri()
+    cwl_obj8 = load_document_by_uri(uri8)
+    with pytest.raises(
+        ValidationException,
+        match="\nSource 'files' of type \"int\" is incompatible\n.*with sink 'files'",
+    ):
+        cwl_utils.parser.utils.static_checker(cwl_obj8)
+
 
 def test_static_checker_warning(caplog: LogCaptureFixture) -> None:
     uri1 = get_path("testdata/checker_wf/warning-wf.cwl").as_uri()
@@ -121,6 +129,7 @@ def test_static_checker_success(cwlVersion: str) -> None:
         f"testdata/scatter-wf3_{cwlVersion}.cwl",
         f"testdata/count-lines7-wf_{cwlVersion}.cwl",
         f"testdata/count-lines7-single-source-wf_{cwlVersion}.cwl",
+        f"testdata/enum-names-wf_{cwlVersion}.cwl",
     ]
     if cwlVersion == "v1_2":
         test_files.extend(
