@@ -291,6 +291,9 @@ Loader: TypeAlias = schema_salad.runtime.Loader
 """Type union for a CWL v1.x Loader."""
 
 
+_loaders: dict[str, dict[str, Loader | None]] = {}
+
+
 def _get_id_from_graph(yaml: MutableMapping[str, Any], id_: str | None) -> Any:
     if id_ is None:
         id_ = "main"
@@ -391,11 +394,29 @@ def load_document_by_yaml(
         yaml["cwlVersion"] = version
     match version:
         case "v1.0":
-            result = cwl_v1_0.load_document_by_yaml(yaml, uri, loadingOptions)
+            result = cwl_v1_0.load_document_by_yaml(
+                yaml=yaml,
+                uri=uri,
+                loadingOptions=LoadingOptions(
+                    copyfrom=loadingOptions, loaders=_loaders.get(version, {})
+                ),
+            )
         case "v1.1":
-            result = cwl_v1_1.load_document_by_yaml(yaml, uri, loadingOptions)
+            result = cwl_v1_1.load_document_by_yaml(
+                yaml=yaml,
+                uri=uri,
+                loadingOptions=LoadingOptions(
+                    copyfrom=loadingOptions, loaders=_loaders.get(version, {})
+                ),
+            )
         case "v1.2":
-            result = cwl_v1_2.load_document_by_yaml(yaml, uri, loadingOptions)
+            result = cwl_v1_2.load_document_by_yaml(
+                yaml=yaml,
+                uri=uri,
+                loadingOptions=LoadingOptions(
+                    copyfrom=loadingOptions, loaders=_loaders.get(version, {})
+                ),
+            )
         case None:
             raise ValidationException("could not get the cwlVersion")
         case _:
