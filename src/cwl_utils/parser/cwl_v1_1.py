@@ -51,6 +51,11 @@ _vocab: Final[dict[str, str]] = {}
 _rvocab: Final[dict[str, str]] = {}
 
 
+def get_loaders() -> dict[str, Loader | None]:
+    """Return a copy of the loaders registry."""
+    return _loaders.copy()
+
+
 class _AnyLoader(Loader):
     def load(
         self,
@@ -310,7 +315,7 @@ class _RecordLoader(Loader, Generic[SaveableType]):
         return self.classtype.fromDoc(doc, baseuri, loadingOptions, docRoot=docRoot)
 
     def __repr__(self) -> str:
-        return str(self.classtype.__name__)
+        return self.classtype.__name__
 
 
 class _ExpressionLoader(Loader):
@@ -735,7 +740,7 @@ def _document_load_by_url(
 
     text: Final = loadingOptions.fetcher.fetch_text(doc_url)
     textIO: Final = StringIO(text)
-    textIO.name = str(doc_url)
+    textIO.name = doc_url
     yaml: Final = yaml_no_ts()
     result: Final = yaml.load(textIO)
     add_lc_filename(result, doc_url)
@@ -24783,27 +24788,27 @@ MultipleInputFeatureRequirementLoader: Final = _RecordLoader(
 StepInputExpressionRequirementLoader: Final = _RecordLoader(
     StepInputExpressionRequirement, None, None
 )
-union_of_SchemaDefRequirementLoader_or_StepInputExpressionRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_WorkReuseLoader_or_SoftwareRequirementLoader_or_LoadListingRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_InitialWorkDirRequirementLoader_or_DockerRequirementLoader_or_InplaceUpdateRequirementLoader_or_EnvVarRequirementLoader_or_ToolTimeLimitLoader_or_NetworkAccessLoader_or_InlineJavascriptRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader: (
+union_of_StepInputExpressionRequirementLoader_or_InitialWorkDirRequirementLoader_or_WorkReuseLoader_or_LoadListingRequirementLoader_or_NetworkAccessLoader_or_ShellCommandRequirementLoader_or_InlineJavascriptRequirementLoader_or_ResourceRequirementLoader_or_InplaceUpdateRequirementLoader_or_ToolTimeLimitLoader_or_ScatterFeatureRequirementLoader_or_DockerRequirementLoader_or_SchemaDefRequirementLoader_or_SoftwareRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_EnvVarRequirementLoader: (
     Final
 ) = _UnionLoader(
     (
-        SchemaDefRequirementLoader,
         StepInputExpressionRequirementLoader,
-        ScatterFeatureRequirementLoader,
-        MultipleInputFeatureRequirementLoader,
-        WorkReuseLoader,
-        SoftwareRequirementLoader,
-        LoadListingRequirementLoader,
-        SubworkflowFeatureRequirementLoader,
         InitialWorkDirRequirementLoader,
-        DockerRequirementLoader,
-        InplaceUpdateRequirementLoader,
-        EnvVarRequirementLoader,
-        ToolTimeLimitLoader,
+        WorkReuseLoader,
+        LoadListingRequirementLoader,
         NetworkAccessLoader,
-        InlineJavascriptRequirementLoader,
         ShellCommandRequirementLoader,
+        InlineJavascriptRequirementLoader,
         ResourceRequirementLoader,
+        InplaceUpdateRequirementLoader,
+        ToolTimeLimitLoader,
+        ScatterFeatureRequirementLoader,
+        DockerRequirementLoader,
+        SchemaDefRequirementLoader,
+        SoftwareRequirementLoader,
+        MultipleInputFeatureRequirementLoader,
+        SubworkflowFeatureRequirementLoader,
+        EnvVarRequirementLoader,
     )
 )
 array_of_ProcessRequirementProxyLoader: Final = _ArrayLoader(
@@ -25188,31 +25193,31 @@ array_of_OutputParameterProxyLoader: Final = _ArrayLoader(OutputParameterProxyLo
 idmap_outputs_array_of_OutputParameterProxyLoader: Final = _IdMapLoader(
     array_of_OutputParameterProxyLoader, "id", "type"
 )
-union_of_ShmSizeLoader_or_ScatterFeatureRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_NetworkAccessLoader_or_InlineJavascriptRequirementLoader_or_MPIRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_DockerRequirementLoader_or_CUDARequirementLoader_or_SchemaDefRequirementLoader_or_StepInputExpressionRequirementLoader_or_InplaceUpdateRequirementLoader_or_EnvVarRequirementLoader_or_ResourceRequirementLoader_or_SecretsLoader_or_MultipleInputFeatureRequirementLoader_or_WorkReuseLoader_or_LoadListingRequirementLoader_or_ToolTimeLimitLoader_or_ShellCommandRequirementLoader: (
+union_of_StepInputExpressionRequirementLoader_or_NetworkAccessLoader_or_ShellCommandRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_InitialWorkDirRequirementLoader_or_LoadListingRequirementLoader_or_CUDARequirementLoader_or_SchemaDefRequirementLoader_or_SoftwareRequirementLoader_or_SecretsLoader_or_EnvVarRequirementLoader_or_InlineJavascriptRequirementLoader_or_ResourceRequirementLoader_or_DockerRequirementLoader_or_ShmSizeLoader_or_WorkReuseLoader_or_MPIRequirementLoader_or_InplaceUpdateRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader: (
     Final
 ) = _UnionLoader(
     (
-        ShmSizeLoader,
-        ScatterFeatureRequirementLoader,
-        SubworkflowFeatureRequirementLoader,
+        StepInputExpressionRequirementLoader,
         NetworkAccessLoader,
-        InlineJavascriptRequirementLoader,
-        MPIRequirementLoader,
-        SoftwareRequirementLoader,
+        ShellCommandRequirementLoader,
+        ToolTimeLimitLoader,
+        SubworkflowFeatureRequirementLoader,
         InitialWorkDirRequirementLoader,
-        DockerRequirementLoader,
+        LoadListingRequirementLoader,
         CUDARequirementLoader,
         SchemaDefRequirementLoader,
-        StepInputExpressionRequirementLoader,
-        InplaceUpdateRequirementLoader,
-        EnvVarRequirementLoader,
-        ResourceRequirementLoader,
+        SoftwareRequirementLoader,
         SecretsLoader,
-        MultipleInputFeatureRequirementLoader,
+        EnvVarRequirementLoader,
+        InlineJavascriptRequirementLoader,
+        ResourceRequirementLoader,
+        DockerRequirementLoader,
+        ShmSizeLoader,
         WorkReuseLoader,
-        LoadListingRequirementLoader,
-        ToolTimeLimitLoader,
-        ShellCommandRequirementLoader,
+        MPIRequirementLoader,
+        InplaceUpdateRequirementLoader,
+        ScatterFeatureRequirementLoader,
+        MultipleInputFeatureRequirementLoader,
     )
 )
 union_of_None_type_or_array_of_ProcessRequirementProxyLoader: Final = _UnionLoader(
@@ -25277,13 +25282,13 @@ SchemaDefRequirement_classLoader: Final = _EnumLoader(
 uri_SchemaDefRequirement_classLoader_False_True_None_None: Final = _URILoader(
     SchemaDefRequirement_classLoader, False, True, None, None
 )
-union_of_CommandInputEnumSchemaLoader_or_CommandInputRecordSchemaLoader_or_CommandInputArraySchemaLoader: (
+union_of_CommandInputRecordSchemaLoader_or_CommandInputArraySchemaLoader_or_CommandInputEnumSchemaLoader: (
     Final
 ) = _UnionLoader(
     (
-        CommandInputEnumSchemaLoader,
         CommandInputRecordSchemaLoader,
         CommandInputArraySchemaLoader,
+        CommandInputEnumSchemaLoader,
     )
 )
 array_of_CommandInputSchemaProxyLoader: Final = _ArrayLoader(
@@ -25657,14 +25662,14 @@ union_of_None_type_or_array_of_Any_type: Final = _UnionLoader(
 idmap_hints_union_of_None_type_or_array_of_Any_type: Final = _IdMapLoader(
     union_of_None_type_or_array_of_Any_type, "class", "None"
 )
-union_of_WorkflowLoader_or_CommandLineToolLoader_or_ProcessGeneratorLoader_or_ExpressionToolLoader: (
+union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader: (
     Final
 ) = _UnionLoader(
     (
-        WorkflowLoader,
         CommandLineToolLoader,
-        ProcessGeneratorLoader,
         ExpressionToolLoader,
+        WorkflowLoader,
+        ProcessGeneratorLoader,
     )
 )
 union_of_strtype_or_ProcessProxyLoader: Final = _UnionLoader(
@@ -25739,16 +25744,6 @@ union_of_strtype_or_array_of_strtype: Final = _UnionLoader(
         array_of_strtype,
     )
 )
-union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader: (
-    Final
-) = _UnionLoader(
-    (
-        CommandLineToolLoader,
-        ExpressionToolLoader,
-        WorkflowLoader,
-        ProcessGeneratorLoader,
-    )
-)
 array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader: (
     Final
 ) = _ArrayLoader(
@@ -25781,9 +25776,9 @@ _loaders.update({
     "OutputSchemaLoader": None,
     "InputParameterLoader": union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader,
     "OutputParameterLoader": union_of_WorkflowOutputParameterLoader_or_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader,
-    "ProcessRequirementLoader": union_of_ShmSizeLoader_or_ScatterFeatureRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_NetworkAccessLoader_or_InlineJavascriptRequirementLoader_or_MPIRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_DockerRequirementLoader_or_CUDARequirementLoader_or_SchemaDefRequirementLoader_or_StepInputExpressionRequirementLoader_or_InplaceUpdateRequirementLoader_or_EnvVarRequirementLoader_or_ResourceRequirementLoader_or_SecretsLoader_or_MultipleInputFeatureRequirementLoader_or_WorkReuseLoader_or_LoadListingRequirementLoader_or_ToolTimeLimitLoader_or_ShellCommandRequirementLoader,
-    "ProcessLoader": union_of_WorkflowLoader_or_CommandLineToolLoader_or_ProcessGeneratorLoader_or_ExpressionToolLoader,
-    "CommandInputSchemaLoader": union_of_CommandInputEnumSchemaLoader_or_CommandInputRecordSchemaLoader_or_CommandInputArraySchemaLoader,
+    "ProcessRequirementLoader": union_of_StepInputExpressionRequirementLoader_or_NetworkAccessLoader_or_ShellCommandRequirementLoader_or_ToolTimeLimitLoader_or_SubworkflowFeatureRequirementLoader_or_InitialWorkDirRequirementLoader_or_LoadListingRequirementLoader_or_CUDARequirementLoader_or_SchemaDefRequirementLoader_or_SoftwareRequirementLoader_or_SecretsLoader_or_EnvVarRequirementLoader_or_InlineJavascriptRequirementLoader_or_ResourceRequirementLoader_or_DockerRequirementLoader_or_ShmSizeLoader_or_WorkReuseLoader_or_MPIRequirementLoader_or_InplaceUpdateRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader,
+    "ProcessLoader": union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
+    "CommandInputSchemaLoader": union_of_CommandInputRecordSchemaLoader_or_CommandInputArraySchemaLoader_or_CommandInputEnumSchemaLoader,
     "CommandLineBindableLoader": None,
     "SinkLoader": None,
 })

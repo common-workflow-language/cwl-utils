@@ -434,6 +434,11 @@ def load_document_by_yaml(
     return result
 
 
+def register_loaders(cwlVersion: str, loaders: dict[str, Loader | None]) -> None:
+    """Register a set of loaders for a specific CWL version."""
+    _loaders[cwlVersion] = loaders
+
+
 def save(
     val: Saveable | MutableSequence[Saveable] | None,
     top: bool = True,
