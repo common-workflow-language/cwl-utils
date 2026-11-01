@@ -7,7 +7,7 @@ export LC_ALL=C
 
 package=cwl-utils
 module=cwl_utils
-extras="[pretty,testing]"
+extras="[pretty]"
 
 if [ "$GITHUB_ACTIONS" = "true" ]; then
     # We are running as a GH Action
@@ -17,7 +17,8 @@ else
     repo=https://github.com/common-workflow-language/cwl-utils.git
     HEAD=$(git rev-parse HEAD)
 fi
-pipver=23.1  # minimum required version of pip for Python 3.12
+pipver=25.1  # minimum required version of pip for PEP 735 dependency groups
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 
 rm -Rf testenv? || /bin/true
 
@@ -30,6 +31,7 @@ then
 	source testenv1/bin/activate
 	pip install --force-reinstall -U pip==${pipver} build
 	pip install ".${extras}"
+	pip install --group test
 	make test
 	pip uninstall -y ${package} || true; pip uninstall -y ${package} || true; make install
 	make test
@@ -51,7 +53,7 @@ pip install --force-reinstall -U pip==${pipver} \
 # The following can fail if you haven't pushed your commits to ${repo}
 pip install -e "git+${repo}@${HEAD}#egg=${package}${extras}"
 pushd src/${package}
-pip install build
+pip install build --group test
 make dist
 make test
 cp dist/${module}*tar.gz ../../../testenv3/
@@ -75,6 +77,7 @@ mkdir out
 tar --extract --directory=out -z -f ${module}*.tar.gz
 pushd out/${module}*
 make dist
+pip install --group test
 make test
 pip uninstall -y ${package} || true; pip uninstall -y ${package} || true; make install
 make test
@@ -89,5 +92,6 @@ source bin/activate \
 	&& pip install --force-reinstall -U pip==${pipver} \
         && pip install build wheel
 pip install "$(ls ${module}*.whl)${extras}"
+pip install --group "${DIR}/pyproject.toml:test"
 pytest --pyargs ${module}
 popd

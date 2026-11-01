@@ -52,16 +52,6 @@ Changelog = "https://github.com/common-workflow-language/cwl-utils/releases"
 
 [project.optional-dependencies]
 pretty = ["cwlformat"]
-testing = [
-    "pytest<10",
-    "pytest-cov",
-    "pytest-xdist[psutil]",
-    "cwl-utils[pretty]",
-    "pytest-mock >= 1.10.0",
-    "jsonschema >= 4.21.1",
-    "udocker",
-    "cwltool",
-]
 
 [project.scripts]
 cwl-cite-extract = "cwl_utils.cite_extract:main"
@@ -75,6 +65,46 @@ cwl-inputs-schema-gen = "cwl_utils.inputs_schema_gen:main"
 [tool.pytest.ini_options]
 addopts = "-rsx -n auto --pyargs cwl_utils.tests"
 
+[dependency-groups]
+lint = [
+  "flake8-bugbear < 26.10",
+  "black == 26.*",
+  "codespell",
+  "isort >= 9.0.2",
+]
+test = [
+    "pytest<10",
+    "pytest-cov",
+    "pytest-xdist[psutil]",
+    "cwl-utils[pretty]",
+    "pytest-mock >= 1.10.0",
+    "jsonschema >= 4.21.1",
+    "udocker",
+    "cwltool",
+]
+mypy = [
+  "mypy==2.4.0",
+  "types-requests",
+  "types-jsonschema",
+  "types-setuptools>=57.4.0",
+]
+dev = [
+  {include-group = "test"},
+  {include-group = "mypy"},
+  {include-group = "lint"},
+  "build",
+  "diff_cover",
+  "pylint",
+  "pep257",
+  "ruff",
+  "tox>=4",
+  "wheel",
+  "autoflake",
+  "pyupgrade",
+  "bandit",
+  "auto-walrus",
+]
+
 [tool.hatch.version]
 path = "src/cwl_utils/__meta__.py"
 
@@ -87,7 +117,6 @@ only-include = [
     "src/cwl_utils",
     "docs",
     "LICENSE",
-    "lint-requirements.txt",
     "load_cwl_by_path.py",
     "Makefile",
     "mypy.ini",
@@ -113,7 +142,7 @@ include = [
 ]
 
 [tool.hatch.envs.test]
-features = ["testing"]
+dependency-groups = ["test"]
 
 [tool.isort]
 profile = "black"
