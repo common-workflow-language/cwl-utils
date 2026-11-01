@@ -22,16 +22,13 @@
 
 MODULE=cwl_utils
 PACKAGE=cwl-utils
-EXTRAS="[testing]"
+EXTRAS="[pretty]"
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
 PYSOURCES=$(filter-out src/$(MODULE)/parser/cwl_v%,$(shell find src/$(MODULE) -name "*.py")) \
 	  create_cwl_from_objects.py load_cwl_by_path.py \
 	  src/${MODULE}/parser/cwl_v1_?_utils.py docs/conf.py
-DEVPKGS=build diff_cover pylint pep257 ruff 'tox>=4' \
-	wheel autoflake pyupgrade bandit auto-walrus \
-	-rlint-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage ruff sloccount \
 	   python-flake8 python-mock shellcheck
 VERSION=v$(shell echo $$(tail -n 1 src/cwl_utils/__meta__.py | awk '{print $$3}'))
@@ -53,7 +50,7 @@ install-dep: install-dependencies
 
 install-dependencies:
 	pip install -U pip wheel build
-	pip install --upgrade $(DEVPKGS)
+	pip install --group dev
 
 ## install-deb-dep        : install many of the dev dependencies via apt-get
 install-deb-dep:
