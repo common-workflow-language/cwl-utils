@@ -5,7 +5,7 @@ from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
 from pathlib import Path
-from typing import IO, Any, cast
+from typing import Callable, IO, Any, cast, TypeAlias
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -25,6 +25,15 @@ CONTENT_LIMIT: int = 64 * 1024
 _logger = logging.getLogger("cwl_utils")
 
 SrcSink = namedtuple("SrcSink", ["src", "sink", "linkMerge", "message"])
+Checker: TypeAlias = Callable[
+    [
+        dict[str, Any],
+        MutableSequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
+        dict[str, cwl.WorkflowStep],
+        dict[str, Any],
+    ],
+    dict[str, list[SrcSink]],
+]
 
 
 def _compare_type(type1: Any, type2: Any) -> bool:
@@ -49,16 +58,6 @@ def _compare_type(type1: Any, type2: Any) -> bool:
                     return False
             return True
     return bool(type1 == type2)
-
-
-def _is_all_output_method_loop_step(
-    param_to_step: dict[str, cwl.WorkflowStep], parm_id: str
-) -> bool:
-    if (source_step := param_to_step.get(parm_id)) is not None:
-        for requirement in source_step.requirements or []:
-            if isinstance(requirement, cwl.Loop) and requirement.outputMethod == "all":
-                return True
-    return False
 
 
 def _is_conditional_step(
@@ -182,11 +181,6 @@ def check_all_types(
                                 )
                             )
                         type_dict[src_dict[parm_id].id] = src_typ
-                    if _is_all_output_method_loop_step(param_to_step, parm_id):
-                        src_typ = type_dict[src_dict[parm_id].id]
-                        type_dict[src_dict[parm_id].id] = ArraySchema(
-                            items=src_typ, type_="array"
-                        )
             else:
                 if isinstance(sourceField, MutableSequence):
                     parm_id = cast(str, sourceField[0])
@@ -225,11 +219,6 @@ def check_all_types(
                             )
                         )
                     type_dict[src_dict[parm_id].id] = src_typ
-                if _is_all_output_method_loop_step(param_to_step, parm_id):
-                    src_typ = type_dict[src_dict[parm_id].id]
-                    type_dict[src_dict[parm_id].id] = ArraySchema(
-                        items=src_typ, type_="array"
-                    )
             for src in srcs_of_sink:
                 check_result = cwl_utils.parser.utils.check_types(
                     type_dict[cast(str, src.id)],
