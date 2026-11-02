@@ -1,10 +1,12 @@
 """CWL parser utility functions."""
 
+from __future__ import annotations
+
 import copy
 import logging
 from collections.abc import MutableSequence
 from pathlib import Path
-from typing import Any, cast, Literal
+from typing import Any, cast, Literal, overload
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
@@ -13,7 +15,7 @@ from schema_salad.runtime import file_uri, shortname, save
 from schema_salad.sourceline import SourceLine, strip_dup_lineno
 from schema_salad.utils import json_dumps, yaml_no_ts
 
-import cwl_utils
+from cwl_utils.errors import WorkflowException
 from cwl_utils.parser import (
     LoadingOptions,
     Process,
@@ -33,9 +35,12 @@ from cwl_utils.parser import (
     WorkflowInputParameter,
     load_document_by_uri,
 )
-from cwl_utils.errors import WorkflowException
 from cwl_utils.utils import yaml_dumps
 
+_checkers: dict[
+    Literal["v1.0", "v1.1", "v1.2"],
+    cwl_v1_0_utils.Checker | cwl_v1_1_utils.Checker | cwl_v1_2_utils.Checker,
+] = {}
 _logger = logging.getLogger("cwl_utils")
 
 
@@ -295,8 +300,8 @@ def param_for_source_id(
                         == step.id.split("#")[-1]
                         and step.out
                     ):
-                        step_run = cwl_utils.parser.utils.load_step(step)
-                        cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
+                        step_run = load_step(step)
+                        convert_stdstreams_to_files(step_run)
                         for outp in step.out:
                             outp_id = outp if isinstance(outp, str) else outp.id
                             if (
@@ -343,6 +348,34 @@ def param_for_source_id(
             (f" or\n {yaml_dumps(save(parent))}" if parent is not None else ""),
         )
     )
+
+
+@overload
+def register_checker(
+    cwlVersion: Literal["v1.0"],
+    checker: cwl_v1_0_utils.Checker,
+) -> None: ...
+
+
+@overload
+def register_checker(
+    cwlVersion: Literal["v1.1"],
+    checker: cwl_v1_1_utils.Checker,
+) -> None: ...
+
+
+@overload
+def register_checker(
+    cwlVersion: Literal["v1.2"],
+    checker: cwl_v1_2_utils.Checker,
+) -> None: ...
+
+
+def register_checker(
+    cwlVersion: Literal["v1.0", "v1.1", "v1.2"],
+    checker: Any,
+) -> None:
+    _checkers[cwlVersion] = checker
 
 
 def static_checker(workflow: Workflow) -> None:
@@ -405,24 +438,28 @@ def static_checker(workflow: Workflow) -> None:
     workflow_outputs_val: dict[str, Any]
     match workflow.cwlVersion:
         case "v1.0":
-            step_inputs_val = cwl_v1_0_utils.check_all_types(
-                src_dict, step_inputs, type_dict
+            checker_v10 = cast(
+                cwl_v1_0_utils.Checker,
+                _checkers.get("v1.0", cwl_v1_0_utils.check_all_types),
             )
-            workflow_outputs_val = cwl_v1_0_utils.check_all_types(
-                src_dict, workflow.outputs, type_dict
-            )
+            step_inputs_val = checker_v10(src_dict, step_inputs, type_dict)
+            workflow_outputs_val = checker_v10(src_dict, workflow.outputs, type_dict)
         case "v1.1":
-            step_inputs_val = cwl_v1_1_utils.check_all_types(
-                src_dict, step_inputs, type_dict
+            checker_v11 = cast(
+                cwl_v1_1_utils.Checker,
+                _checkers.get("v1.1", cwl_v1_1_utils.check_all_types),
             )
-            workflow_outputs_val = cwl_v1_1_utils.check_all_types(
-                src_dict, workflow.outputs, type_dict
-            )
+            step_inputs_val = checker_v11(src_dict, step_inputs, type_dict)
+            workflow_outputs_val = checker_v11(src_dict, workflow.outputs, type_dict)
         case "v1.2":
-            step_inputs_val = cwl_v1_2_utils.check_all_types(
+            checker_v12 = cast(
+                cwl_v1_2_utils.Checker,
+                _checkers.get("v1.2", cwl_v1_2_utils.check_all_types),
+            )
+            step_inputs_val = checker_v12(
                 src_dict, step_inputs, param_to_step, type_dict
             )
-            workflow_outputs_val = cwl_v1_2_utils.check_all_types(
+            workflow_outputs_val = checker_v12(
                 src_dict, workflow.outputs, param_to_step, type_dict
             )
         case _ as cwlVersion:

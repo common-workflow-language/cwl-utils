@@ -22528,1571 +22528,9 @@ class StepInputExpressionRequirement(ProcessRequirement):
     attrs: ClassVar[Collection[str]] = frozenset(["class"])
 
 
-class Secrets(ProcessRequirement):
-    def __init__(
-        self,
-        secrets: Any,
-        extension_fields: MutableMapping[str, Any] | None = None,
-        loadingOptions: LoadingOptions | None = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "Secrets"
-        self.secrets = secrets
-
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, Secrets):
-            return bool(self.class_ == other.class_ and self.secrets == other.secrets)
-        return False
-
-    def __hash__(self) -> int:
-        return hash((self.class_, self.secrets))
-
-    @classmethod
-    def fromDoc(
-        cls,
-        doc: Any,
-        baseuri: str,
-        loadingOptions: LoadingOptions,
-        docRoot: str | None = None,
-    ) -> Self:
-        _doc = copy.copy(doc)
-
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        try:
-            if _doc.get("class") is None:
-                raise ValidationException("missing required field `class`", None, [])
-
-            class_ = _load_field(
-                _doc.get("class"),
-                uri_strtype_False_True_None_None,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("class")
-            )
-
-            vocab = _vocab | loadingOptions.vocab
-            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-                raise ValidationException(f"tried `{cls.__name__}` but")
-        except ValidationException as e:
-            raise e
-        try:
-            if _doc.get("secrets") is None:
-                raise ValidationException("missing required field `secrets`", None, [])
-
-            secrets = _load_field(
-                _doc.get("secrets"),
-                uri_array_of_strtype_False_False_0_None,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("secrets")
-            )
-
-        except ValidationException as e:
-            error_message, to_print, verb_tensage = parse_errors(str(e))
-
-            if str(e) == "missing required field `secrets`":
-                _errors__.append(
-                    ValidationException(
-                        str(e),
-                        None
-                    )
-                )
-            else:
-                val = _doc.get("secrets")
-                if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(val)))
-                    _errors__.append(
-                        ValidationException(
-                            "the `secrets` field is not valid because:",
-                            SourceLine(_doc, "secrets", str),
-                            [ValidationException(f"Value is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}",
-                                                 detailed_message=f"Value `{val}` is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}")],
-                        )
-                    )
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "the `secrets` field is not valid because:",
-                            SourceLine(_doc, "secrets", str),
-                            [e],
-                            detailed_message=f"the `secrets` field with value `{val}` "
-                            "is not valid because:",
-                        )
-                    )
-        extension_fields: MutableMapping[str, Any] = {}
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if not k:
-                    _errors__.append(
-                        ValidationException("mapping with implicit null key")
-                    )
-                elif ":" in k:
-                    ex = _expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `{}`, expected one of: `class`, `secrets`".format(
-                                k
-                            ),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-
-        if _errors__:
-            raise ValidationException("", None, _errors__, "*")
-        _constructed = cls(
-            secrets=secrets,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-        return _constructed
-
-    def save(
-        self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> dict[str, Any]:
-        r: dict[str, Any] = {}
-
-        if relative_uris:
-            for ef in self.extension_fields:
-                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-        else:
-            for ef in self.extension_fields:
-                r[ef] = self.extension_fields[ef]
-        if self.class_ is not None:
-            vocab = _vocab | self.loadingOptions.vocab
-            rvocab = _rvocab | self.loadingOptions.rvocab
-            uri = vocab[self.class_]
-            if p := rvocab.get(uri[: -len(self.class_)]):
-                uri = f"{p}:{self.class_}"
-            else:
-                uri = self.class_
-            u = save_relative_uri(uri, base_url, False, None, relative_uris)
-            r["class"] = u
-        if self.secrets is not None:
-            u = save_relative_uri(self.secrets, base_url, False, 0, relative_uris)
-            r["secrets"] = u
-
-        # top refers to the directory level
-        if top:
-            if self.loadingOptions.namespaces:
-                r["$namespaces"] = self.loadingOptions.namespaces
-            if self.loadingOptions.schemas:
-                r["$schemas"] = self.loadingOptions.schemas
-        return r
-
-    attrs: ClassVar[Collection[str]] = frozenset(["class", "secrets"])
-
-
-class ProcessGenerator(Process):
-    id: str
-
-    def __init__(
-        self,
-        inputs: Any,
-        outputs: Any,
-        run: Any,
-        id: Any | None = None,
-        label: Any | None = None,
-        doc: Any | None = None,
-        requirements: Any | None = None,
-        hints: Any | None = None,
-        cwlVersion: Any | None = None,
-        extension_fields: MutableMapping[str, Any] | None = None,
-        loadingOptions: LoadingOptions | None = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.id = id if id is not None else "_:" + str(_uuid__.uuid4())
-        self.label = label
-        self.doc = doc
-        self.inputs = inputs
-        self.outputs = outputs
-        self.requirements = requirements
-        self.hints = hints
-        self.cwlVersion = cwlVersion
-        self.class_: Final[str] = "ProcessGenerator"
-        self.run = run
-
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, ProcessGenerator):
-            return bool(
-                self.id == other.id
-                and self.label == other.label
-                and self.doc == other.doc
-                and self.inputs == other.inputs
-                and self.outputs == other.outputs
-                and self.requirements == other.requirements
-                and self.hints == other.hints
-                and self.cwlVersion == other.cwlVersion
-                and self.class_ == other.class_
-                and self.run == other.run
-            )
-        return False
-
-    def __hash__(self) -> int:
-        return hash(
-            (
-                self.id,
-                self.label,
-                self.doc,
-                self.inputs,
-                self.outputs,
-                self.requirements,
-                self.hints,
-                self.cwlVersion,
-                self.class_,
-                self.run,
-            )
-        )
-
-    @classmethod
-    def fromDoc(
-        cls,
-        doc: Any,
-        baseuri: str,
-        loadingOptions: LoadingOptions,
-        docRoot: str | None = None,
-    ) -> Self:
-        _doc = copy.copy(doc)
-
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        id = None
-        if "id" in _doc:
-            try:
-                id = _load_field(
-                    _doc.get("id"),
-                    uri_union_of_None_type_or_strtype_True_False_None_None,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("id")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `id`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    val = _doc.get("id")
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(val)))
-                        _errors__.append(
-                            ValidationException(
-                                "the `id` field is not valid because:",
-                                SourceLine(_doc, "id", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}",
-                                                     detailed_message=f"Value `{val}` is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `id` field is not valid because:",
-                                SourceLine(_doc, "id", str),
-                                [e],
-                                detailed_message=f"the `id` field with value `{val}` "
-                                "is not valid because:",
-                            )
-                        )
-
-        __original_id_is_none = id is None
-        if id is None:
-            if docRoot is not None:
-                id = docRoot
-            else:
-                id = "_:" + str(_uuid__.uuid4())
-        if not __original_id_is_none:
-            baseuri = cast(str, id)
-        try:
-            if _doc.get("class") is None:
-                raise ValidationException("missing required field `class`", None, [])
-
-            class_ = _load_field(
-                _doc.get("class"),
-                uri_strtype_False_True_None_None,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("class")
-            )
-
-            vocab = _vocab | loadingOptions.vocab
-            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-                raise ValidationException(f"tried `{cls.__name__}` but")
-        except ValidationException as e:
-            raise e
-        label = None
-        if "label" in _doc:
-            try:
-                label = _load_field(
-                    _doc.get("label"),
-                    union_of_None_type_or_strtype,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("label")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `label`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    val = _doc.get("label")
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(val)))
-                        _errors__.append(
-                            ValidationException(
-                                "the `label` field is not valid because:",
-                                SourceLine(_doc, "label", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}",
-                                                     detailed_message=f"Value `{val}` is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `label` field is not valid because:",
-                                SourceLine(_doc, "label", str),
-                                [e],
-                                detailed_message=f"the `label` field with value `{val}` "
-                                "is not valid because:",
-                            )
-                        )
-        doc = None
-        if "doc" in _doc:
-            try:
-                doc = _load_field(
-                    _doc.get("doc"),
-                    union_of_None_type_or_strtype_or_array_of_strtype,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("doc")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `doc`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    val = _doc.get("doc")
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(val)))
-                        _errors__.append(
-                            ValidationException(
-                                "the `doc` field is not valid because:",
-                                SourceLine(_doc, "doc", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}",
-                                                     detailed_message=f"Value `{val}` is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `doc` field is not valid because:",
-                                SourceLine(_doc, "doc", str),
-                                [e],
-                                detailed_message=f"the `doc` field with value `{val}` "
-                                "is not valid because:",
-                            )
-                        )
-        try:
-            if _doc.get("inputs") is None:
-                raise ValidationException("missing required field `inputs`", None, [])
-
-            inputs = _load_field(
-                _doc.get("inputs"),
-                idmap_inputs_array_of_WorkflowInputParameterLoader,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("inputs")
-            )
-
-        except ValidationException as e:
-            error_message, to_print, verb_tensage = parse_errors(str(e))
-
-            if str(e) == "missing required field `inputs`":
-                _errors__.append(
-                    ValidationException(
-                        str(e),
-                        None
-                    )
-                )
-            else:
-                val = _doc.get("inputs")
-                if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(val)))
-                    _errors__.append(
-                        ValidationException(
-                            "the `inputs` field is not valid because:",
-                            SourceLine(_doc, "inputs", str),
-                            [ValidationException(f"Value is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}",
-                                                 detailed_message=f"Value `{val}` is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}")],
-                        )
-                    )
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "the `inputs` field is not valid because:",
-                            SourceLine(_doc, "inputs", str),
-                            [e],
-                            detailed_message=f"the `inputs` field with value `{val}` "
-                            "is not valid because:",
-                        )
-                    )
-        try:
-            if _doc.get("outputs") is None:
-                raise ValidationException("missing required field `outputs`", None, [])
-
-            outputs = _load_field(
-                _doc.get("outputs"),
-                idmap_outputs_array_of_ExpressionToolOutputParameterLoader,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("outputs")
-            )
-
-        except ValidationException as e:
-            error_message, to_print, verb_tensage = parse_errors(str(e))
-
-            if str(e) == "missing required field `outputs`":
-                _errors__.append(
-                    ValidationException(
-                        str(e),
-                        None
-                    )
-                )
-            else:
-                val = _doc.get("outputs")
-                if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(val)))
-                    _errors__.append(
-                        ValidationException(
-                            "the `outputs` field is not valid because:",
-                            SourceLine(_doc, "outputs", str),
-                            [ValidationException(f"Value is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}",
-                                                 detailed_message=f"Value `{val}` is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}")],
-                        )
-                    )
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "the `outputs` field is not valid because:",
-                            SourceLine(_doc, "outputs", str),
-                            [e],
-                            detailed_message=f"the `outputs` field with value `{val}` "
-                            "is not valid because:",
-                        )
-                    )
-        requirements = None
-        if "requirements" in _doc:
-            try:
-                requirements = _load_field(
-                    _doc.get("requirements"),
-                    idmap_requirements_union_of_None_type_or_array_of_ProcessRequirementProxyLoader,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("requirements")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `requirements`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    val = _doc.get("requirements")
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(val)))
-                        _errors__.append(
-                            ValidationException(
-                                "the `requirements` field is not valid because:",
-                                SourceLine(_doc, "requirements", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}",
-                                                     detailed_message=f"Value `{val}` is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `requirements` field is not valid because:",
-                                SourceLine(_doc, "requirements", str),
-                                [e],
-                                detailed_message=f"the `requirements` field with value `{val}` "
-                                "is not valid because:",
-                            )
-                        )
-        hints = None
-        if "hints" in _doc:
-            try:
-                hints = _load_field(
-                    _doc.get("hints"),
-                    idmap_hints_union_of_None_type_or_array_of_union_of_ProcessRequirementProxyLoader_or_Any_type,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("hints")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `hints`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    val = _doc.get("hints")
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(val)))
-                        _errors__.append(
-                            ValidationException(
-                                "the `hints` field is not valid because:",
-                                SourceLine(_doc, "hints", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}",
-                                                     detailed_message=f"Value `{val}` is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `hints` field is not valid because:",
-                                SourceLine(_doc, "hints", str),
-                                [e],
-                                detailed_message=f"the `hints` field with value `{val}` "
-                                "is not valid because:",
-                            )
-                        )
-        cwlVersion = None
-        if "cwlVersion" in _doc:
-            try:
-                cwlVersion = _load_field(
-                    _doc.get("cwlVersion"),
-                    uri_union_of_None_type_or_CWLVersionLoader_False_True_None_None,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("cwlVersion")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `cwlVersion`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    val = _doc.get("cwlVersion")
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(val)))
-                        _errors__.append(
-                            ValidationException(
-                                "the `cwlVersion` field is not valid because:",
-                                SourceLine(_doc, "cwlVersion", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}",
-                                                     detailed_message=f"Value `{val}` is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `cwlVersion` field is not valid because:",
-                                SourceLine(_doc, "cwlVersion", str),
-                                [e],
-                                detailed_message=f"the `cwlVersion` field with value `{val}` "
-                                "is not valid because:",
-                            )
-                        )
-
-        subscope_baseuri = _expand_url('run', baseuri, loadingOptions, True)
-        try:
-            if _doc.get("run") is None:
-                raise ValidationException("missing required field `run`", None, [])
-
-            run = _load_field(
-                _doc.get("run"),
-                uri_union_of_strtype_or_ProcessProxyLoader_False_False_None_None,
-                subscope_baseuri,
-                loadingOptions,
-                lc=_doc.get("run")
-            )
-
-        except ValidationException as e:
-            error_message, to_print, verb_tensage = parse_errors(str(e))
-
-            if str(e) == "missing required field `run`":
-                _errors__.append(
-                    ValidationException(
-                        str(e),
-                        None
-                    )
-                )
-            else:
-                val = _doc.get("run")
-                if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(val)))
-                    _errors__.append(
-                        ValidationException(
-                            "the `run` field is not valid because:",
-                            SourceLine(_doc, "run", str),
-                            [ValidationException(f"Value is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}",
-                                                 detailed_message=f"Value `{val}` is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}")],
-                        )
-                    )
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "the `run` field is not valid because:",
-                            SourceLine(_doc, "run", str),
-                            [e],
-                            detailed_message=f"the `run` field with value `{val}` "
-                            "is not valid because:",
-                        )
-                    )
-        extension_fields: MutableMapping[str, Any] = {}
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if not k:
-                    _errors__.append(
-                        ValidationException("mapping with implicit null key")
-                    )
-                elif ":" in k:
-                    ex = _expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `{}`, expected one of: `id`, `label`, `doc`, `inputs`, `outputs`, `requirements`, `hints`, `cwlVersion`, `class`, `run`".format(
-                                k
-                            ),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-
-        if _errors__:
-            raise ValidationException("", None, _errors__, "*")
-        _constructed = cls(
-            id=id,
-            label=label,
-            doc=doc,
-            inputs=inputs,
-            outputs=outputs,
-            requirements=requirements,
-            hints=hints,
-            cwlVersion=cwlVersion,
-            run=run,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-        loadingOptions.idx[cast(str, id)] = (_constructed, loadingOptions)
-        return _constructed
-
-    def save(
-        self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> dict[str, Any]:
-        r: dict[str, Any] = {}
-
-        if relative_uris:
-            for ef in self.extension_fields:
-                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-        else:
-            for ef in self.extension_fields:
-                r[ef] = self.extension_fields[ef]
-        if self.id is not None:
-            u = save_relative_uri(self.id, base_url, True, None, relative_uris)
-            r["id"] = u
-        if self.class_ is not None:
-            vocab = _vocab | self.loadingOptions.vocab
-            rvocab = _rvocab | self.loadingOptions.rvocab
-            uri = vocab[self.class_]
-            if p := rvocab.get(uri[: -len(self.class_)]):
-                uri = f"{p}:{self.class_}"
-            else:
-                uri = self.class_
-            u = save_relative_uri(uri, self.id, False, None, relative_uris)
-            r["class"] = u
-        if self.label is not None:
-            r["label"] = save(
-                self.label, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-        if self.doc is not None:
-            r["doc"] = save(
-                self.doc, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-        if self.inputs is not None:
-            r["inputs"] = save(
-                self.inputs, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-        if self.outputs is not None:
-            r["outputs"] = save(
-                self.outputs, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-        if self.requirements is not None:
-            r["requirements"] = save(
-                self.requirements,
-                top=False,
-                base_url=self.id,
-                relative_uris=relative_uris,
-            )
-        if self.hints is not None:
-            r["hints"] = save(
-                self.hints, top=False, base_url=self.id, relative_uris=relative_uris
-            )
-        if self.cwlVersion is not None:
-            u = save_relative_uri(self.cwlVersion, self.id, False, None, relative_uris)
-            r["cwlVersion"] = u
-        if self.run is not None:
-            u = save_relative_uri(self.run, self.id, False, None, relative_uris)
-            r["run"] = u
-
-        # top refers to the directory level
-        if top:
-            if self.loadingOptions.namespaces:
-                r["$namespaces"] = self.loadingOptions.namespaces
-            if self.loadingOptions.schemas:
-                r["$schemas"] = self.loadingOptions.schemas
-        return r
-
-    attrs: ClassVar[Collection[str]] = frozenset(
-        [
-            "id",
-            "label",
-            "doc",
-            "inputs",
-            "outputs",
-            "requirements",
-            "hints",
-            "cwlVersion",
-            "class",
-            "run",
-        ]
-    )
-
-
-class MPIRequirement(ProcessRequirement):
-    """
-    Indicates that a process requires an MPI runtime.
-
-    """
-
-    def __init__(
-        self,
-        processes: Any,
-        extension_fields: MutableMapping[str, Any] | None = None,
-        loadingOptions: LoadingOptions | None = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "MPIRequirement"
-        self.processes = processes
-
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, MPIRequirement):
-            return bool(
-                self.class_ == other.class_ and self.processes == other.processes
-            )
-        return False
-
-    def __hash__(self) -> int:
-        return hash((self.class_, self.processes))
-
-    @classmethod
-    def fromDoc(
-        cls,
-        doc: Any,
-        baseuri: str,
-        loadingOptions: LoadingOptions,
-        docRoot: str | None = None,
-    ) -> Self:
-        _doc = copy.copy(doc)
-
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        try:
-            if _doc.get("class") is None:
-                raise ValidationException("missing required field `class`", None, [])
-
-            class_ = _load_field(
-                _doc.get("class"),
-                uri_strtype_False_True_None_None,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("class")
-            )
-
-            vocab = _vocab | loadingOptions.vocab
-            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-                raise ValidationException(f"tried `{cls.__name__}` but")
-        except ValidationException as e:
-            raise e
-        try:
-            if _doc.get("processes") is None:
-                raise ValidationException("missing required field `processes`", None, [])
-
-            processes = _load_field(
-                _doc.get("processes"),
-                union_of_inttype_or_ExpressionLoader,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("processes")
-            )
-
-        except ValidationException as e:
-            error_message, to_print, verb_tensage = parse_errors(str(e))
-
-            if str(e) == "missing required field `processes`":
-                _errors__.append(
-                    ValidationException(
-                        str(e),
-                        None
-                    )
-                )
-            else:
-                val = _doc.get("processes")
-                if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(val)))
-                    _errors__.append(
-                        ValidationException(
-                            "the `processes` field is not valid because:",
-                            SourceLine(_doc, "processes", str),
-                            [ValidationException(f"Value is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}",
-                                                 detailed_message=f"Value `{val}` is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}")],
-                        )
-                    )
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "the `processes` field is not valid because:",
-                            SourceLine(_doc, "processes", str),
-                            [e],
-                            detailed_message=f"the `processes` field with value `{val}` "
-                            "is not valid because:",
-                        )
-                    )
-        extension_fields: MutableMapping[str, Any] = {}
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if not k:
-                    _errors__.append(
-                        ValidationException("mapping with implicit null key")
-                    )
-                elif ":" in k:
-                    ex = _expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `{}`, expected one of: `class`, `processes`".format(
-                                k
-                            ),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-
-        if _errors__:
-            raise ValidationException("", None, _errors__, "*")
-        _constructed = cls(
-            processes=processes,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-        return _constructed
-
-    def save(
-        self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> dict[str, Any]:
-        r: dict[str, Any] = {}
-
-        if relative_uris:
-            for ef in self.extension_fields:
-                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-        else:
-            for ef in self.extension_fields:
-                r[ef] = self.extension_fields[ef]
-        if self.class_ is not None:
-            vocab = _vocab | self.loadingOptions.vocab
-            rvocab = _rvocab | self.loadingOptions.rvocab
-            uri = vocab[self.class_]
-            if p := rvocab.get(uri[: -len(self.class_)]):
-                uri = f"{p}:{self.class_}"
-            else:
-                uri = self.class_
-            u = save_relative_uri(uri, base_url, False, None, relative_uris)
-            r["class"] = u
-        if self.processes is not None:
-            r["processes"] = save(
-                self.processes,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-
-        # top refers to the directory level
-        if top:
-            if self.loadingOptions.namespaces:
-                r["$namespaces"] = self.loadingOptions.namespaces
-            if self.loadingOptions.schemas:
-                r["$schemas"] = self.loadingOptions.schemas
-        return r
-
-    attrs: ClassVar[Collection[str]] = frozenset(["class", "processes"])
-
-
-class CUDARequirement(ProcessRequirement):
-    """
-    Require support for NVIDA CUDA (GPU hardware acceleration).
-
-    """
-
-    def __init__(
-        self,
-        cudaComputeCapability: Any,
-        cudaVersionMin: Any,
-        cudaDeviceCountMax: Any | None = None,
-        cudaDeviceCountMin: Any | None = None,
-        extension_fields: MutableMapping[str, Any] | None = None,
-        loadingOptions: LoadingOptions | None = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "CUDARequirement"
-        self.cudaComputeCapability = cudaComputeCapability
-        self.cudaDeviceCountMax = cudaDeviceCountMax
-        self.cudaDeviceCountMin = cudaDeviceCountMin
-        self.cudaVersionMin = cudaVersionMin
-
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, CUDARequirement):
-            return bool(
-                self.class_ == other.class_
-                and self.cudaComputeCapability == other.cudaComputeCapability
-                and self.cudaDeviceCountMax == other.cudaDeviceCountMax
-                and self.cudaDeviceCountMin == other.cudaDeviceCountMin
-                and self.cudaVersionMin == other.cudaVersionMin
-            )
-        return False
-
-    def __hash__(self) -> int:
-        return hash(
-            (
-                self.class_,
-                self.cudaComputeCapability,
-                self.cudaDeviceCountMax,
-                self.cudaDeviceCountMin,
-                self.cudaVersionMin,
-            )
-        )
-
-    @classmethod
-    def fromDoc(
-        cls,
-        doc: Any,
-        baseuri: str,
-        loadingOptions: LoadingOptions,
-        docRoot: str | None = None,
-    ) -> Self:
-        _doc = copy.copy(doc)
-
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        try:
-            if _doc.get("class") is None:
-                raise ValidationException("missing required field `class`", None, [])
-
-            class_ = _load_field(
-                _doc.get("class"),
-                uri_strtype_False_True_None_None,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("class")
-            )
-
-            vocab = _vocab | loadingOptions.vocab
-            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-                raise ValidationException(f"tried `{cls.__name__}` but")
-        except ValidationException as e:
-            raise e
-        try:
-            if _doc.get("cudaComputeCapability") is None:
-                raise ValidationException("missing required field `cudaComputeCapability`", None, [])
-
-            cudaComputeCapability = _load_field(
-                _doc.get("cudaComputeCapability"),
-                union_of_strtype_or_array_of_strtype,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("cudaComputeCapability")
-            )
-
-        except ValidationException as e:
-            error_message, to_print, verb_tensage = parse_errors(str(e))
-
-            if str(e) == "missing required field `cudaComputeCapability`":
-                _errors__.append(
-                    ValidationException(
-                        str(e),
-                        None
-                    )
-                )
-            else:
-                val = _doc.get("cudaComputeCapability")
-                if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(val)))
-                    _errors__.append(
-                        ValidationException(
-                            "the `cudaComputeCapability` field is not valid because:",
-                            SourceLine(_doc, "cudaComputeCapability", str),
-                            [ValidationException(f"Value is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}",
-                                                 detailed_message=f"Value `{val}` is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}")],
-                        )
-                    )
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "the `cudaComputeCapability` field is not valid because:",
-                            SourceLine(_doc, "cudaComputeCapability", str),
-                            [e],
-                            detailed_message=f"the `cudaComputeCapability` field with value `{val}` "
-                            "is not valid because:",
-                        )
-                    )
-        cudaDeviceCountMax = None
-        if "cudaDeviceCountMax" in _doc:
-            try:
-                cudaDeviceCountMax = _load_field(
-                    _doc.get("cudaDeviceCountMax"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("cudaDeviceCountMax")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `cudaDeviceCountMax`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    val = _doc.get("cudaDeviceCountMax")
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(val)))
-                        _errors__.append(
-                            ValidationException(
-                                "the `cudaDeviceCountMax` field is not valid because:",
-                                SourceLine(_doc, "cudaDeviceCountMax", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}",
-                                                     detailed_message=f"Value `{val}` is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `cudaDeviceCountMax` field is not valid because:",
-                                SourceLine(_doc, "cudaDeviceCountMax", str),
-                                [e],
-                                detailed_message=f"the `cudaDeviceCountMax` field with value `{val}` "
-                                "is not valid because:",
-                            )
-                        )
-        cudaDeviceCountMin = None
-        if "cudaDeviceCountMin" in _doc:
-            try:
-                cudaDeviceCountMin = _load_field(
-                    _doc.get("cudaDeviceCountMin"),
-                    union_of_None_type_or_inttype_or_ExpressionLoader,
-                    baseuri,
-                    loadingOptions,
-                    lc=_doc.get("cudaDeviceCountMin")
-                )
-
-            except ValidationException as e:
-                error_message, to_print, verb_tensage = parse_errors(str(e))
-
-                if str(e) == "missing required field `cudaDeviceCountMin`":
-                    _errors__.append(
-                        ValidationException(
-                            str(e),
-                            None
-                        )
-                    )
-                else:
-                    val = _doc.get("cudaDeviceCountMin")
-                    if error_message != str(e):
-                        val_type = convert_typing(extract_type(type(val)))
-                        _errors__.append(
-                            ValidationException(
-                                "the `cudaDeviceCountMin` field is not valid because:",
-                                SourceLine(_doc, "cudaDeviceCountMin", str),
-                                [ValidationException(f"Value is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}",
-                                                     detailed_message=f"Value `{val}` is a {val_type}, "
-                                                     f"but valid {to_print} for this field "
-                                                     f"{verb_tensage} {error_message}")],
-                            )
-                        )
-                    else:
-                        _errors__.append(
-                            ValidationException(
-                                "the `cudaDeviceCountMin` field is not valid because:",
-                                SourceLine(_doc, "cudaDeviceCountMin", str),
-                                [e],
-                                detailed_message=f"the `cudaDeviceCountMin` field with value `{val}` "
-                                "is not valid because:",
-                            )
-                        )
-        try:
-            if _doc.get("cudaVersionMin") is None:
-                raise ValidationException("missing required field `cudaVersionMin`", None, [])
-
-            cudaVersionMin = _load_field(
-                _doc.get("cudaVersionMin"),
-                strtype,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("cudaVersionMin")
-            )
-
-        except ValidationException as e:
-            error_message, to_print, verb_tensage = parse_errors(str(e))
-
-            if str(e) == "missing required field `cudaVersionMin`":
-                _errors__.append(
-                    ValidationException(
-                        str(e),
-                        None
-                    )
-                )
-            else:
-                val = _doc.get("cudaVersionMin")
-                if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(val)))
-                    _errors__.append(
-                        ValidationException(
-                            "the `cudaVersionMin` field is not valid because:",
-                            SourceLine(_doc, "cudaVersionMin", str),
-                            [ValidationException(f"Value is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}",
-                                                 detailed_message=f"Value `{val}` is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}")],
-                        )
-                    )
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "the `cudaVersionMin` field is not valid because:",
-                            SourceLine(_doc, "cudaVersionMin", str),
-                            [e],
-                            detailed_message=f"the `cudaVersionMin` field with value `{val}` "
-                            "is not valid because:",
-                        )
-                    )
-        extension_fields: MutableMapping[str, Any] = {}
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if not k:
-                    _errors__.append(
-                        ValidationException("mapping with implicit null key")
-                    )
-                elif ":" in k:
-                    ex = _expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `{}`, expected one of: `class`, `cudaComputeCapability`, `cudaDeviceCountMax`, `cudaDeviceCountMin`, `cudaVersionMin`".format(
-                                k
-                            ),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-
-        if _errors__:
-            raise ValidationException("", None, _errors__, "*")
-        _constructed = cls(
-            cudaComputeCapability=cudaComputeCapability,
-            cudaDeviceCountMax=cudaDeviceCountMax,
-            cudaDeviceCountMin=cudaDeviceCountMin,
-            cudaVersionMin=cudaVersionMin,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-        return _constructed
-
-    def save(
-        self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> dict[str, Any]:
-        r: dict[str, Any] = {}
-
-        if relative_uris:
-            for ef in self.extension_fields:
-                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-        else:
-            for ef in self.extension_fields:
-                r[ef] = self.extension_fields[ef]
-        if self.class_ is not None:
-            vocab = _vocab | self.loadingOptions.vocab
-            rvocab = _rvocab | self.loadingOptions.rvocab
-            uri = vocab[self.class_]
-            if p := rvocab.get(uri[: -len(self.class_)]):
-                uri = f"{p}:{self.class_}"
-            else:
-                uri = self.class_
-            u = save_relative_uri(uri, base_url, False, None, relative_uris)
-            r["class"] = u
-        if self.cudaComputeCapability is not None:
-            r["cudaComputeCapability"] = save(
-                self.cudaComputeCapability,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-        if self.cudaDeviceCountMax is not None:
-            r["cudaDeviceCountMax"] = save(
-                self.cudaDeviceCountMax,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-        if self.cudaDeviceCountMin is not None:
-            r["cudaDeviceCountMin"] = save(
-                self.cudaDeviceCountMin,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-        if self.cudaVersionMin is not None:
-            r["cudaVersionMin"] = save(
-                self.cudaVersionMin,
-                top=False,
-                base_url=base_url,
-                relative_uris=relative_uris,
-            )
-
-        # top refers to the directory level
-        if top:
-            if self.loadingOptions.namespaces:
-                r["$namespaces"] = self.loadingOptions.namespaces
-            if self.loadingOptions.schemas:
-                r["$schemas"] = self.loadingOptions.schemas
-        return r
-
-    attrs: ClassVar[Collection[str]] = frozenset(
-        [
-            "class",
-            "cudaComputeCapability",
-            "cudaDeviceCountMax",
-            "cudaDeviceCountMin",
-            "cudaVersionMin",
-        ]
-    )
-
-
-class ShmSize(ProcessRequirement):
-    def __init__(
-        self,
-        shmSize: Any,
-        extension_fields: MutableMapping[str, Any] | None = None,
-        loadingOptions: LoadingOptions | None = None,
-    ) -> None:
-        if extension_fields:
-            self.extension_fields = extension_fields
-        else:
-            self.extension_fields = CommentedMap()
-        if loadingOptions:
-            self.loadingOptions = loadingOptions
-        else:
-            self.loadingOptions = LoadingOptions()
-        self.class_: Final[str] = "ShmSize"
-        self.shmSize = shmSize
-
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, ShmSize):
-            return bool(self.class_ == other.class_ and self.shmSize == other.shmSize)
-        return False
-
-    def __hash__(self) -> int:
-        return hash((self.class_, self.shmSize))
-
-    @classmethod
-    def fromDoc(
-        cls,
-        doc: Any,
-        baseuri: str,
-        loadingOptions: LoadingOptions,
-        docRoot: str | None = None,
-    ) -> Self:
-        _doc = copy.copy(doc)
-
-        if hasattr(doc, "lc"):
-            _doc.lc.data = doc.lc.data
-            _doc.lc.filename = doc.lc.filename
-        _errors__ = []
-        try:
-            if _doc.get("class") is None:
-                raise ValidationException("missing required field `class`", None, [])
-
-            class_ = _load_field(
-                _doc.get("class"),
-                uri_strtype_False_True_None_None,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("class")
-            )
-
-            vocab = _vocab | loadingOptions.vocab
-            if class_ not in (cls.__name__, vocab.get(cls.__name__)):
-                raise ValidationException(f"tried `{cls.__name__}` but")
-        except ValidationException as e:
-            raise e
-        try:
-            if _doc.get("shmSize") is None:
-                raise ValidationException("missing required field `shmSize`", None, [])
-
-            shmSize = _load_field(
-                _doc.get("shmSize"),
-                strtype,
-                baseuri,
-                loadingOptions,
-                lc=_doc.get("shmSize")
-            )
-
-        except ValidationException as e:
-            error_message, to_print, verb_tensage = parse_errors(str(e))
-
-            if str(e) == "missing required field `shmSize`":
-                _errors__.append(
-                    ValidationException(
-                        str(e),
-                        None
-                    )
-                )
-            else:
-                val = _doc.get("shmSize")
-                if error_message != str(e):
-                    val_type = convert_typing(extract_type(type(val)))
-                    _errors__.append(
-                        ValidationException(
-                            "the `shmSize` field is not valid because:",
-                            SourceLine(_doc, "shmSize", str),
-                            [ValidationException(f"Value is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}",
-                                                 detailed_message=f"Value `{val}` is a {val_type}, "
-                                                 f"but valid {to_print} for this field "
-                                                 f"{verb_tensage} {error_message}")],
-                        )
-                    )
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "the `shmSize` field is not valid because:",
-                            SourceLine(_doc, "shmSize", str),
-                            [e],
-                            detailed_message=f"the `shmSize` field with value `{val}` "
-                            "is not valid because:",
-                        )
-                    )
-        extension_fields: MutableMapping[str, Any] = {}
-        for k in _doc.keys():
-            if k not in cls.attrs:
-                if not k:
-                    _errors__.append(
-                        ValidationException("mapping with implicit null key")
-                    )
-                elif ":" in k:
-                    ex = _expand_url(
-                        k, "", loadingOptions, scoped_id=False, vocab_term=False
-                    )
-                    extension_fields[ex] = _doc[k]
-                else:
-                    _errors__.append(
-                        ValidationException(
-                            "invalid field `{}`, expected one of: `class`, `shmSize`".format(
-                                k
-                            ),
-                            SourceLine(_doc, k, str),
-                        )
-                    )
-
-        if _errors__:
-            raise ValidationException("", None, _errors__, "*")
-        _constructed = cls(
-            shmSize=shmSize,
-            extension_fields=extension_fields,
-            loadingOptions=loadingOptions,
-        )
-        return _constructed
-
-    def save(
-        self, top: bool = False, base_url: str = "", relative_uris: bool = True
-    ) -> dict[str, Any]:
-        r: dict[str, Any] = {}
-
-        if relative_uris:
-            for ef in self.extension_fields:
-                r[prefix_url(ef, self.loadingOptions.vocab)] = self.extension_fields[ef]
-        else:
-            for ef in self.extension_fields:
-                r[ef] = self.extension_fields[ef]
-        if self.class_ is not None:
-            vocab = _vocab | self.loadingOptions.vocab
-            rvocab = _rvocab | self.loadingOptions.rvocab
-            uri = vocab[self.class_]
-            if p := rvocab.get(uri[: -len(self.class_)]):
-                uri = f"{p}:{self.class_}"
-            else:
-                uri = self.class_
-            u = save_relative_uri(uri, base_url, False, None, relative_uris)
-            r["class"] = u
-        if self.shmSize is not None:
-            r["shmSize"] = save(
-                self.shmSize, top=False, base_url=base_url, relative_uris=relative_uris
-            )
-
-        # top refers to the directory level
-        if top:
-            if self.loadingOptions.namespaces:
-                r["$namespaces"] = self.loadingOptions.namespaces
-            if self.loadingOptions.schemas:
-                r["$schemas"] = self.loadingOptions.schemas
-        return r
-
-    attrs: ClassVar[Collection[str]] = frozenset(["class", "shmSize"])
-
-
 _vocab.update({
     "Any": "https://w3id.org/cwl/salad#Any",
     "ArraySchema": "https://w3id.org/cwl/salad#ArraySchema",
-    "CUDARequirement": "http://commonwl.org/cwltool#CUDARequirement",
     "CWLArraySchema": "https://w3id.org/cwl/cwl#CWLArraySchema",
     "CWLInputFile": "https://w3id.org/cwl/cwl#CWLInputFile",
     "CWLObjectType": "https://w3id.org/cwl/cwl#CWLObjectType",
@@ -24150,7 +22588,6 @@ _vocab.update({
     "LoadContents": "https://w3id.org/cwl/cwl#LoadContents",
     "LoadListingEnum": "https://w3id.org/cwl/cwl#LoadListingEnum",
     "LoadListingRequirement": "https://w3id.org/cwl/cwl#LoadListingRequirement",
-    "MPIRequirement": "http://commonwl.org/cwltool#MPIRequirement",
     "MapSchema": "https://w3id.org/cwl/salad#MapSchema",
     "MultipleInputFeatureRequirement": "https://w3id.org/cwl/cwl#MultipleInputFeatureRequirement",
     "NetworkAccess": "https://w3id.org/cwl/cwl#NetworkAccess",
@@ -24165,7 +22602,6 @@ _vocab.update({
     "Parameter": "https://w3id.org/cwl/cwl#Parameter",
     "PrimitiveType": "https://w3id.org/cwl/salad#PrimitiveType",
     "Process": "https://w3id.org/cwl/cwl#Process",
-    "ProcessGenerator": "http://commonwl.org/cwltool#ProcessGenerator",
     "ProcessRequirement": "https://w3id.org/cwl/cwl#ProcessRequirement",
     "RecordField": "https://w3id.org/cwl/salad#RecordField",
     "RecordSchema": "https://w3id.org/cwl/salad#RecordSchema",
@@ -24174,9 +22610,7 @@ _vocab.update({
     "ScatterMethod": "https://w3id.org/cwl/cwl#ScatterMethod",
     "SchemaDefRequirement": "https://w3id.org/cwl/cwl#SchemaDefRequirement",
     "SecondaryFileSchema": "https://w3id.org/cwl/cwl#SecondaryFileSchema",
-    "Secrets": "http://commonwl.org/cwltool#Secrets",
     "ShellCommandRequirement": "https://w3id.org/cwl/cwl#ShellCommandRequirement",
-    "ShmSize": "http://commonwl.org/cwltool#ShmSize",
     "Sink": "https://w3id.org/cwl/cwl#Sink",
     "SoftwarePackage": "https://w3id.org/cwl/cwl#SoftwarePackage",
     "SoftwareRequirement": "https://w3id.org/cwl/cwl#SoftwareRequirement",
@@ -24219,7 +22653,6 @@ _vocab.update({
 _rvocab.update({
     "https://w3id.org/cwl/salad#Any": "Any",
     "https://w3id.org/cwl/salad#ArraySchema": "ArraySchema",
-    "http://commonwl.org/cwltool#CUDARequirement": "CUDARequirement",
     "https://w3id.org/cwl/cwl#CWLArraySchema": "CWLArraySchema",
     "https://w3id.org/cwl/cwl#CWLInputFile": "CWLInputFile",
     "https://w3id.org/cwl/cwl#CWLObjectType": "CWLObjectType",
@@ -24277,7 +22710,6 @@ _rvocab.update({
     "https://w3id.org/cwl/cwl#LoadContents": "LoadContents",
     "https://w3id.org/cwl/cwl#LoadListingEnum": "LoadListingEnum",
     "https://w3id.org/cwl/cwl#LoadListingRequirement": "LoadListingRequirement",
-    "http://commonwl.org/cwltool#MPIRequirement": "MPIRequirement",
     "https://w3id.org/cwl/salad#MapSchema": "MapSchema",
     "https://w3id.org/cwl/cwl#MultipleInputFeatureRequirement": "MultipleInputFeatureRequirement",
     "https://w3id.org/cwl/cwl#NetworkAccess": "NetworkAccess",
@@ -24292,7 +22724,6 @@ _rvocab.update({
     "https://w3id.org/cwl/cwl#Parameter": "Parameter",
     "https://w3id.org/cwl/salad#PrimitiveType": "PrimitiveType",
     "https://w3id.org/cwl/cwl#Process": "Process",
-    "http://commonwl.org/cwltool#ProcessGenerator": "ProcessGenerator",
     "https://w3id.org/cwl/cwl#ProcessRequirement": "ProcessRequirement",
     "https://w3id.org/cwl/salad#RecordField": "RecordField",
     "https://w3id.org/cwl/salad#RecordSchema": "RecordSchema",
@@ -24301,9 +22732,7 @@ _rvocab.update({
     "https://w3id.org/cwl/cwl#ScatterMethod": "ScatterMethod",
     "https://w3id.org/cwl/cwl#SchemaDefRequirement": "SchemaDefRequirement",
     "https://w3id.org/cwl/cwl#SecondaryFileSchema": "SecondaryFileSchema",
-    "http://commonwl.org/cwltool#Secrets": "Secrets",
     "https://w3id.org/cwl/cwl#ShellCommandRequirement": "ShellCommandRequirement",
-    "http://commonwl.org/cwltool#ShmSize": "ShmSize",
     "https://w3id.org/cwl/cwl#Sink": "Sink",
     "https://w3id.org/cwl/cwl#SoftwarePackage": "SoftwarePackage",
     "https://w3id.org/cwl/cwl#SoftwareRequirement": "SoftwareRequirement",
@@ -24783,27 +23212,27 @@ MultipleInputFeatureRequirementLoader: Final = _RecordLoader(
 StepInputExpressionRequirementLoader: Final = _RecordLoader(
     StepInputExpressionRequirement, None, None
 )
-union_of_SchemaDefRequirementLoader_or_StepInputExpressionRequirementLoader_or_ScatterFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_WorkReuseLoader_or_SoftwareRequirementLoader_or_LoadListingRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_InitialWorkDirRequirementLoader_or_DockerRequirementLoader_or_InplaceUpdateRequirementLoader_or_EnvVarRequirementLoader_or_ToolTimeLimitLoader_or_NetworkAccessLoader_or_InlineJavascriptRequirementLoader_or_ShellCommandRequirementLoader_or_ResourceRequirementLoader: (
+union_of_ResourceRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_InitialWorkDirRequirementLoader_or_ShellCommandRequirementLoader_or_NetworkAccessLoader_or_StepInputExpressionRequirementLoader_or_ToolTimeLimitLoader_or_ScatterFeatureRequirementLoader_or_InplaceUpdateRequirementLoader_or_WorkReuseLoader_or_InlineJavascriptRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_SoftwareRequirementLoader_or_EnvVarRequirementLoader_or_DockerRequirementLoader: (
     Final
 ) = _UnionLoader(
     (
-        SchemaDefRequirementLoader,
-        StepInputExpressionRequirementLoader,
-        ScatterFeatureRequirementLoader,
-        MultipleInputFeatureRequirementLoader,
-        WorkReuseLoader,
-        SoftwareRequirementLoader,
-        LoadListingRequirementLoader,
-        SubworkflowFeatureRequirementLoader,
-        InitialWorkDirRequirementLoader,
-        DockerRequirementLoader,
-        InplaceUpdateRequirementLoader,
-        EnvVarRequirementLoader,
-        ToolTimeLimitLoader,
-        NetworkAccessLoader,
-        InlineJavascriptRequirementLoader,
-        ShellCommandRequirementLoader,
         ResourceRequirementLoader,
+        SchemaDefRequirementLoader,
+        LoadListingRequirementLoader,
+        InitialWorkDirRequirementLoader,
+        ShellCommandRequirementLoader,
+        NetworkAccessLoader,
+        StepInputExpressionRequirementLoader,
+        ToolTimeLimitLoader,
+        ScatterFeatureRequirementLoader,
+        InplaceUpdateRequirementLoader,
+        WorkReuseLoader,
+        InlineJavascriptRequirementLoader,
+        SubworkflowFeatureRequirementLoader,
+        MultipleInputFeatureRequirementLoader,
+        SoftwareRequirementLoader,
+        EnvVarRequirementLoader,
+        DockerRequirementLoader,
     )
 )
 array_of_ProcessRequirementProxyLoader: Final = _ArrayLoader(
@@ -24829,11 +23258,6 @@ map_of_union_of_None_type_or_array_of_ProcessRequirementProxyLoader_or_CWLObject
 CWLInputFileLoader: Final = (
     map_of_union_of_None_type_or_array_of_ProcessRequirementProxyLoader_or_CWLObjectTypeLoader
 )
-SecretsLoader: Final = _RecordLoader(Secrets, None, None)
-ProcessGeneratorLoader: Final = _RecordLoader(ProcessGenerator, None, None)
-MPIRequirementLoader: Final = _RecordLoader(MPIRequirement, None, None)
-CUDARequirementLoader: Final = _RecordLoader(CUDARequirement, None, None)
-ShmSizeLoader: Final = _RecordLoader(ShmSize, None, None)
 array_of_strtype: Final = _ArrayLoader(strtype)
 union_of_None_type_or_strtype_or_array_of_strtype: Final = _UnionLoader(
     (
@@ -25175,45 +23599,18 @@ array_of_InputParameterProxyLoader: Final = _ArrayLoader(InputParameterProxyLoad
 idmap_inputs_array_of_InputParameterProxyLoader: Final = _IdMapLoader(
     array_of_InputParameterProxyLoader, "id", "type"
 )
-union_of_WorkflowOutputParameterLoader_or_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader: (
+union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader: (
     Final
 ) = _UnionLoader(
     (
-        WorkflowOutputParameterLoader,
         CommandOutputParameterLoader,
         ExpressionToolOutputParameterLoader,
+        WorkflowOutputParameterLoader,
     )
 )
 array_of_OutputParameterProxyLoader: Final = _ArrayLoader(OutputParameterProxyLoader)
 idmap_outputs_array_of_OutputParameterProxyLoader: Final = _IdMapLoader(
     array_of_OutputParameterProxyLoader, "id", "type"
-)
-union_of_ShmSizeLoader_or_ScatterFeatureRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_NetworkAccessLoader_or_InlineJavascriptRequirementLoader_or_MPIRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_DockerRequirementLoader_or_CUDARequirementLoader_or_SchemaDefRequirementLoader_or_StepInputExpressionRequirementLoader_or_InplaceUpdateRequirementLoader_or_EnvVarRequirementLoader_or_ResourceRequirementLoader_or_SecretsLoader_or_MultipleInputFeatureRequirementLoader_or_WorkReuseLoader_or_LoadListingRequirementLoader_or_ToolTimeLimitLoader_or_ShellCommandRequirementLoader: (
-    Final
-) = _UnionLoader(
-    (
-        ShmSizeLoader,
-        ScatterFeatureRequirementLoader,
-        SubworkflowFeatureRequirementLoader,
-        NetworkAccessLoader,
-        InlineJavascriptRequirementLoader,
-        MPIRequirementLoader,
-        SoftwareRequirementLoader,
-        InitialWorkDirRequirementLoader,
-        DockerRequirementLoader,
-        CUDARequirementLoader,
-        SchemaDefRequirementLoader,
-        StepInputExpressionRequirementLoader,
-        InplaceUpdateRequirementLoader,
-        EnvVarRequirementLoader,
-        ResourceRequirementLoader,
-        SecretsLoader,
-        MultipleInputFeatureRequirementLoader,
-        WorkReuseLoader,
-        LoadListingRequirementLoader,
-        ToolTimeLimitLoader,
-        ShellCommandRequirementLoader,
-    )
 )
 union_of_None_type_or_array_of_ProcessRequirementProxyLoader: Final = _UnionLoader(
     (
@@ -25277,13 +23674,13 @@ SchemaDefRequirement_classLoader: Final = _EnumLoader(
 uri_SchemaDefRequirement_classLoader_False_True_None_None: Final = _URILoader(
     SchemaDefRequirement_classLoader, False, True, None, None
 )
-union_of_CommandInputEnumSchemaLoader_or_CommandInputRecordSchemaLoader_or_CommandInputArraySchemaLoader: (
+union_of_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_CommandInputRecordSchemaLoader: (
     Final
 ) = _UnionLoader(
     (
         CommandInputEnumSchemaLoader,
-        CommandInputRecordSchemaLoader,
         CommandInputArraySchemaLoader,
+        CommandInputRecordSchemaLoader,
     )
 )
 array_of_CommandInputSchemaProxyLoader: Final = _ArrayLoader(
@@ -25657,14 +24054,13 @@ union_of_None_type_or_array_of_Any_type: Final = _UnionLoader(
 idmap_hints_union_of_None_type_or_array_of_Any_type: Final = _IdMapLoader(
     union_of_None_type_or_array_of_Any_type, "class", "None"
 )
-union_of_WorkflowLoader_or_CommandLineToolLoader_or_ProcessGeneratorLoader_or_ExpressionToolLoader: (
-    Final
-) = _UnionLoader(
-    (
-        WorkflowLoader,
-        CommandLineToolLoader,
-        ProcessGeneratorLoader,
-        ExpressionToolLoader,
+union_of_ExpressionToolLoader_or_WorkflowLoader_or_CommandLineToolLoader: Final = (
+    _UnionLoader(
+        (
+            ExpressionToolLoader,
+            WorkflowLoader,
+            CommandLineToolLoader,
+        )
     )
 )
 union_of_strtype_or_ProcessProxyLoader: Final = _UnionLoader(
@@ -25729,40 +24125,28 @@ StepInputExpressionRequirement_classLoader: Final = _EnumLoader(
 uri_StepInputExpressionRequirement_classLoader_False_True_None_None: Final = _URILoader(
     StepInputExpressionRequirement_classLoader, False, True, None, None
 )
-uri_strtype_False_True_None_None: Final = _URILoader(strtype, False, True, None, None)
-uri_array_of_strtype_False_False_0_None: Final = _URILoader(
-    array_of_strtype, False, False, 0, None
-)
-union_of_strtype_or_array_of_strtype: Final = _UnionLoader(
-    (
-        strtype,
-        array_of_strtype,
+union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader: Final = (
+    _UnionLoader(
+        (
+            CommandLineToolLoader,
+            ExpressionToolLoader,
+            WorkflowLoader,
+        )
     )
 )
-union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader: (
-    Final
-) = _UnionLoader(
-    (
-        CommandLineToolLoader,
-        ExpressionToolLoader,
-        WorkflowLoader,
-        ProcessGeneratorLoader,
-    )
-)
-array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader: (
+array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader: (
     Final
 ) = _ArrayLoader(
-    union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader
+    union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader
 )
-union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader: (
+union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader: (
     Final
 ) = _UnionLoader(
     (
         CommandLineToolLoader,
         ExpressionToolLoader,
         WorkflowLoader,
-        ProcessGeneratorLoader,
-        array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
+        array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
     )
 )
 
@@ -25780,10 +24164,10 @@ _loaders.update({
     "InputSchemaLoader": None,
     "OutputSchemaLoader": None,
     "InputParameterLoader": union_of_CommandInputParameterLoader_or_WorkflowInputParameterLoader,
-    "OutputParameterLoader": union_of_WorkflowOutputParameterLoader_or_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader,
-    "ProcessRequirementLoader": union_of_ShmSizeLoader_or_ScatterFeatureRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_NetworkAccessLoader_or_InlineJavascriptRequirementLoader_or_MPIRequirementLoader_or_SoftwareRequirementLoader_or_InitialWorkDirRequirementLoader_or_DockerRequirementLoader_or_CUDARequirementLoader_or_SchemaDefRequirementLoader_or_StepInputExpressionRequirementLoader_or_InplaceUpdateRequirementLoader_or_EnvVarRequirementLoader_or_ResourceRequirementLoader_or_SecretsLoader_or_MultipleInputFeatureRequirementLoader_or_WorkReuseLoader_or_LoadListingRequirementLoader_or_ToolTimeLimitLoader_or_ShellCommandRequirementLoader,
-    "ProcessLoader": union_of_WorkflowLoader_or_CommandLineToolLoader_or_ProcessGeneratorLoader_or_ExpressionToolLoader,
-    "CommandInputSchemaLoader": union_of_CommandInputEnumSchemaLoader_or_CommandInputRecordSchemaLoader_or_CommandInputArraySchemaLoader,
+    "OutputParameterLoader": union_of_CommandOutputParameterLoader_or_ExpressionToolOutputParameterLoader_or_WorkflowOutputParameterLoader,
+    "ProcessRequirementLoader": union_of_ResourceRequirementLoader_or_SchemaDefRequirementLoader_or_LoadListingRequirementLoader_or_InitialWorkDirRequirementLoader_or_ShellCommandRequirementLoader_or_NetworkAccessLoader_or_StepInputExpressionRequirementLoader_or_ToolTimeLimitLoader_or_ScatterFeatureRequirementLoader_or_InplaceUpdateRequirementLoader_or_WorkReuseLoader_or_InlineJavascriptRequirementLoader_or_SubworkflowFeatureRequirementLoader_or_MultipleInputFeatureRequirementLoader_or_SoftwareRequirementLoader_or_EnvVarRequirementLoader_or_DockerRequirementLoader,
+    "ProcessLoader": union_of_ExpressionToolLoader_or_WorkflowLoader_or_CommandLineToolLoader,
+    "CommandInputSchemaLoader": union_of_CommandInputEnumSchemaLoader_or_CommandInputArraySchemaLoader_or_CommandInputRecordSchemaLoader,
     "CommandLineBindableLoader": None,
     "SinkLoader": None,
 })
@@ -25855,7 +24239,7 @@ def load_document(
     if loadingOptions is None:
         loadingOptions = LoadingOptions()
     result, metadata = _document_load(
-        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
+        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
         doc,
         baseuri,
         loadingOptions,
@@ -25874,7 +24258,7 @@ def load_document_with_metadata(
     if loadingOptions is None:
         loadingOptions = LoadingOptions(fileuri=baseuri)
     return _document_load(
-        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
+        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
         doc,
         baseuri,
         loadingOptions,
@@ -25895,7 +24279,7 @@ def load_document_by_string(
         loadingOptions = LoadingOptions(fileuri=uri)
 
     result, metadata = _document_load(
-        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
+        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
         result,
         uri,
         loadingOptions,
@@ -25918,7 +24302,7 @@ def load_document_by_yaml(
         loadingOptions = LoadingOptions(fileuri=uri)
 
     result, metadata = _document_load(
-        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_ProcessGeneratorLoader,
+        union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader_or_array_of_union_of_CommandLineToolLoader_or_ExpressionToolLoader_or_WorkflowLoader,
         yaml,
         uri,
         loadingOptions,

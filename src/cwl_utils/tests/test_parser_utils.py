@@ -130,8 +130,6 @@ def test_static_checker_success(cwlVersion: str) -> None:
                 "testdata/cond-wf-004.1.cwl",
                 "testdata/cond-wf-005.1.cwl",
                 "testdata/cond-single-source-wf-005.1.cwl",
-                "testdata/extensions/all-output-loop_v1_2.cwl",
-                "testdata/extensions/single-var-loop_v1_2.cwl",
                 "testdata/wf2.cwl",
             ]
         )
