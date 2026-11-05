@@ -209,7 +209,7 @@ class SingularityImagePuller(ImagePuller):
         """
         try:
             target.hardlink_to(source)
-        except NotImplementedError:
+        except (NotImplementedError, OSError):
             # Use a temporary file to make sure the replacement is atomic.
             # Don't use mkstemp because we might want the file to be readable
             # by other users.
