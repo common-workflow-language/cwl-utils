@@ -83,7 +83,7 @@ test = [
     "cwltool",
 ]
 mypy = [
-  "mypy==2.4.0",
+  "mypy==2.4.1",
   "types-requests",
   "types-jsonschema",
   "types-setuptools>=57.4.0",
