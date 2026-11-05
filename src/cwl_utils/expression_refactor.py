@@ -10,11 +10,11 @@ import shutil
 import sys
 from collections.abc import MutableMapping, MutableSequence, Sequence
 from pathlib import Path
-from typing import Any, Protocol, cast, Literal, overload
+from typing import Any, Literal, Protocol, cast, overload
 
 from ruamel.yaml.main import YAML
 from ruamel.yaml.scalarstring import walk_tree
-from schema_salad.runtime import save, LoadingOptions
+from schema_salad.runtime import LoadingOptions, save
 
 from cwl_utils import (
     cwl_v1_0_expression_refactor,
@@ -24,23 +24,23 @@ from cwl_utils import (
 from cwl_utils.errors import WorkflowException
 from cwl_utils.loghandler import _logger as _cwlutilslogger
 from cwl_utils.parser import (
-    cwl_v1_0,
-    cwl_v1_1,
-    cwl_v1_2,
-    WorkflowStep,
-    Process,
-    WorkflowInputParameter,
-    OperationInputParameter,
     CommandInputParameter,
-    Workflow,
+    CommandLineBinding,
+    CommandLineTool,
     CommandOutputParameter,
     ExpressionTool,
     InitialWorkDirRequirement,
     InlineJavascriptRequirement,
+    OperationInputParameter,
+    Process,
     ProcessRequirement,
-    CommandLineTool,
+    Workflow,
+    WorkflowInputParameter,
+    WorkflowStep,
+    cwl_v1_0,
+    cwl_v1_1,
+    cwl_v1_2,
     load_document_by_uri,
-    CommandLineBinding,
 )
 
 _logger = logging.getLogger("cwl-expression-refactor")  # pylint: disable=invalid-name

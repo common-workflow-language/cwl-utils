@@ -253,7 +253,11 @@ class NodeJSEngine(JSEngine):
             int(v) for v in self.minimum_node_version_str.split(".")
         ]
 
-        return current_version > minimum_node_version if is_prerelease else current_version >= minimum_node_version
+        return (
+            current_version > minimum_node_version
+            if is_prerelease
+            else current_version >= minimum_node_version
+        )
 
     def exec_js_process(
         self,

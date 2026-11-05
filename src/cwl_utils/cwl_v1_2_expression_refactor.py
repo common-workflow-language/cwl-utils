@@ -8,11 +8,11 @@ import hashlib
 import uuid
 from collections.abc import Mapping, MutableSequence, Sequence
 from contextlib import suppress
-from typing import Any, cast, Final
+from typing import Any, Final, cast
 
 from ruamel import yaml
 from schema_salad.metaschema import ArraySchema
-from schema_salad.runtime import save, LoadingOptions
+from schema_salad.runtime import LoadingOptions, save
 from schema_salad.sourceline import SourceLine
 from schema_salad.utils import json_dumps
 
