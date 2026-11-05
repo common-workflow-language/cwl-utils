@@ -10,7 +10,7 @@ from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
 from schema_salad.metaschema import ArraySchema, RecordSchema
-from schema_salad.runtime import LoadingOptions, shortname, file_uri, save
+from schema_salad.runtime import LoadingOptions, file_uri, save, shortname
 from schema_salad.sourceline import SourceLine, add_lc_filename
 from schema_salad.utils import aslist, json_dumps, yaml_no_ts
 

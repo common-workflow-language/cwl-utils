@@ -10,7 +10,7 @@ from typing import cast
 import pytest
 from pytest import LogCaptureFixture, raises
 from schema_salad.exceptions import ValidationException
-from schema_salad.metaschema import ArraySchema, RecordSchema, RecordField
+from schema_salad.metaschema import ArraySchema, RecordField, RecordSchema
 
 import cwl_utils.parser.cwl_v1_0
 import cwl_utils.parser.cwl_v1_0_utils

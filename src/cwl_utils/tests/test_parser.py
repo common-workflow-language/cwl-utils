@@ -13,6 +13,7 @@ from cwl_utils.parser import (
     load_document_by_uri,
     save,
 )
+
 from .util import get_path
 
 TEST_v1_0_CWL = get_path("testdata/md5sum.cwl")

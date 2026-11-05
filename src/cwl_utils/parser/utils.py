@@ -4,20 +4,26 @@ import copy
 import logging
 from collections.abc import MutableSequence
 from pathlib import Path
-from typing import Any, cast, Literal
+from typing import Any, Literal, cast
 from urllib.parse import unquote_plus, urlparse
 
 from schema_salad.exceptions import ValidationException
 from schema_salad.metaschema import ArraySchema, RecordSchema
-from schema_salad.runtime import file_uri, shortname, save
+from schema_salad.runtime import file_uri, save, shortname
 from schema_salad.sourceline import SourceLine, strip_dup_lineno
 from schema_salad.utils import json_dumps, yaml_no_ts
 
 import cwl_utils
+from cwl_utils.errors import WorkflowException
 from cwl_utils.parser import (
+    CommandInputParameter,
+    CommandOutputParameter,
+    CommandOutputRecordSchema,
+    InputRecordSchema,
     LoadingOptions,
     Process,
     Workflow,
+    WorkflowInputParameter,
     WorkflowStep,
     WorkflowStepInput,
     cwl_v1_0,
@@ -26,14 +32,8 @@ from cwl_utils.parser import (
     cwl_v1_1_utils,
     cwl_v1_2,
     cwl_v1_2_utils,
-    InputRecordSchema,
-    CommandOutputRecordSchema,
-    CommandInputParameter,
-    CommandOutputParameter,
-    WorkflowInputParameter,
     load_document_by_uri,
 )
-from cwl_utils.errors import WorkflowException
 from cwl_utils.utils import yaml_dumps
 
 _logger = logging.getLogger("cwl_utils")
