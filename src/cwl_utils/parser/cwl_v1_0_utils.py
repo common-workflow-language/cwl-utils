@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
 import logging
-from collections import namedtuple
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
 from pathlib import Path
-from typing import IO, Any, cast
+from typing import IO, Any, NamedTuple, cast
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -23,7 +22,12 @@ CONTENT_LIMIT: int = 64 * 1024
 
 _logger = logging.getLogger("cwl_utils")
 
-SrcSink = namedtuple("SrcSink", ["src", "sink", "linkMerge", "message"])
+
+class SrcSink(NamedTuple):
+    src: cwl.InputParameter | cwl.WorkflowStepOutput
+    sink: cwl.WorkflowStepInput | cwl.WorkflowOutputParameter
+    linkMerge: str | None
+    message: str | None
 
 
 def _compare_type(type1: Any, type2: Any) -> bool:
