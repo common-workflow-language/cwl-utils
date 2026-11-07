@@ -50,7 +50,7 @@ install-dep: install-dependencies
 
 install-dependencies:
 	pip install -U pip wheel build
-	pip install --group dev
+	pip install --group dev -r docs/requirements.txt
 
 ## install-deb-dep        : install many of the dev dependencies via apt-get
 install-deb-dep:
