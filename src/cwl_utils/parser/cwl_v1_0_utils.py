@@ -273,7 +273,13 @@ def type_for_step_input(
     cwl_utils.parser.utils.convert_stdstreams_to_files(step_run)
     if step_run and step_run.inputs:
         for step_input in step_run.inputs:
-            if cast(str, step_input.id).split("#")[-1] == in_.id.split("#")[-1]:
+            # Compare the parameters' own names: the step input's id is scoped
+            # by the step ("wf.cwl#step/x"), a run in another file's by that
+            # file ("tool.cwl#x"). An inline run shares the step's scope.
+            if (
+                cast(str, step_input.id).split("#")[-1].split("/")[-1]
+                == in_.id.split("#")[-1].split("/")[-1]
+            ):
                 input_type = step_input.type_
                 if step.scatter is not None and in_.id in aslist(step.scatter):
                     input_type = ArraySchema(items=input_type, type_="array")
