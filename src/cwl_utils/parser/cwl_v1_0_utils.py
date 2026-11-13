@@ -274,7 +274,8 @@ def type_for_step_input(
     if step_run and step_run.inputs:
         for step_input in step_run.inputs:
             # Compare the parameters' own names: the step input's id is scoped
-            # by the step ("#main/step/x"), the run's by the run ("#tool/x")
+            # by the step ("wf.cwl#step/x"), a run in another file's by that
+            # file ("tool.cwl#x"). An inline run shares the step's scope.
             if (
                 cast(str, step_input.id).split("#")[-1].split("/")[-1]
                 == in_.id.split("#")[-1].split("/")[-1]

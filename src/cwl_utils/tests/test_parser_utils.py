@@ -82,6 +82,19 @@ def test_static_checker_fail(cwlVersion: str) -> None:
     ):
         cwl_utils.parser.utils.static_checker(cwl_obj8)
 
+    if cwlVersion == "v1_0":
+        # An inline run shares the step's scope in v1.0, so its input ids
+        # equal the step's; a run in another file has its own
+        uri9 = get_path(
+            "testdata/step-input-type-mismatch-external-wf_v1_0.cwl"
+        ).as_uri()
+        cwl_obj9 = load_document_by_uri(uri9)
+        with pytest.raises(
+            ValidationException,
+            match="\nSource 'files' of type \"int\" is incompatible\n.*with sink 'files'",
+        ):
+            cwl_utils.parser.utils.static_checker(cwl_obj9)
+
 
 def test_static_checker_warning(caplog: LogCaptureFixture) -> None:
     uri1 = get_path("testdata/checker_wf/warning-wf.cwl").as_uri()
