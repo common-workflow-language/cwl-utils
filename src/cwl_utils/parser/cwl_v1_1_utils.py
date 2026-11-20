@@ -4,7 +4,7 @@ import logging
 from collections.abc import MutableMapping, MutableSequence
 from io import StringIO
 from pathlib import Path
-from typing import IO, Any, NamedTuple, cast
+from typing import Callable, IO, Any, cast, TypeAlias, NamedTuple
 from urllib.parse import urldefrag
 
 from schema_salad.exceptions import ValidationException
@@ -28,6 +28,16 @@ class SrcSink(NamedTuple):
     sink: cwl.WorkflowStepInput | cwl.WorkflowOutputParameter
     linkMerge: str | None
     message: str | None
+
+
+Checker: TypeAlias = Callable[
+    [
+        dict[str, Any],
+        MutableSequence[cwl.WorkflowStepInput | cwl.WorkflowOutputParameter],
+        dict[str, Any],
+    ],
+    dict[str, list[SrcSink]],
+]
 
 
 def _compare_records(
