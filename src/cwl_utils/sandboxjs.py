@@ -597,7 +597,9 @@ class NodeJSEngine(JSEngine):
                 _logger.info("----------------------------------------")
                 _logger.info(
                     "\n".join(
-                        re.findall(r"^[[](?:log|err)[]].*$", stderr, flags=re.MULTILINE)
+                        re.findall(
+                            r"^[\[](?:log|err)[]].*$", stderr, flags=re.MULTILINE
+                        )
                     )
                 )
                 _logger.info("----------------------------------------")
