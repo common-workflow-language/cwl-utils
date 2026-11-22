@@ -23,22 +23,43 @@ def get_data(filename: str) -> str:
     return str(get_path(filename))
 
 
+SKIP_DOCKER = bool(os.environ.get("SKIP_DOCKER_TESTS")) or not bool(
+    shutil.which("docker")
+)
+
 needs_docker = pytest.mark.skipif(
-    not bool(shutil.which("docker")),
+    SKIP_DOCKER,
     reason="Requires the docker executable on the system path.",
 )
 
+SKIP_SINGULARITY = bool(os.environ.get("SKIP_SINGULARITY_TESTS")) or not bool(
+    shutil.which("singularity")
+)
+
 needs_singularity = pytest.mark.skipif(
-    not bool(shutil.which("singularity")),
+    SKIP_SINGULARITY,
     reason="Requires the singularity executable on the system path.",
 )
 
+SKIP_PODMAN = bool(os.environ.get("SKIP_PODMAN_TESTS")) or not bool(
+    shutil.which("podman")
+)
+
 needs_podman = pytest.mark.skipif(
-    not bool(shutil.which("podman")),
+    SKIP_PODMAN,
     reason="Requires the podman executable on the system path.",
 )
 
+SKIP_UDOCKER = bool(os.environ.get("SKIP_UDOCKER_TESTS")) or not bool(
+    shutil.which("udocker")
+)
+
 needs_udocker = pytest.mark.skipif(
-    not bool(shutil.which("udocker")),
+    SKIP_UDOCKER,
     reason="Requires the udocker executable on the system path.",
+)
+
+needs_node = pytest.mark.skipif(
+    not bool(shutil.which("qjs")),
+    reason="Requires node{,js} on the system path.",
 )
