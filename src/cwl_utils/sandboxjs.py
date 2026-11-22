@@ -709,6 +709,10 @@ class QuickJSEngine(JSEngine):
         container_engine: str = "docker",
         **kwargs: Any,
     ) -> CWLOutputType:
+        if js_console:
+            raise NotImplementedError(
+                "js_console is not implemented in the QuickJS engine"
+            )
         # code_fragment_to_js returns a full script -- `"use strict"; <jslib>
         # (function(){...})()` -- designed to be run the way cwlNodeEngine.js
         # runs it: via vm.runInNewContext, which yields the script's
