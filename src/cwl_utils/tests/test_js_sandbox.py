@@ -1,5 +1,6 @@
 """Test sandboxjs.py and related code."""
 
+import logging
 import os
 import shutil
 import threading
@@ -10,7 +11,13 @@ import pytest
 
 from cwl_utils import expression, sandboxjs
 
-from .util import needs_podman, needs_singularity, needs_udocker
+from .util import (
+    needs_docker,
+    needs_node,
+    needs_podman,
+    needs_singularity,
+    needs_udocker,
+)
 
 node_versions = [
     ("v0.8.26\n", False),
@@ -45,6 +52,7 @@ def test_value_from_two_concatenated_expressions() -> None:
             None,
             {},
             cwlVersion="v1.0",
+            js_engine=js_engine,
         )
         == "a string"
     )
@@ -101,6 +109,7 @@ def test_value_from_two_concatenated_expressions_podman(
                 {},
                 cwlVersion="v1.0",
                 container_engine="podman",
+                js_engine=js_engine,
             )
             == "a string"
         )
@@ -128,6 +137,7 @@ def test_value_from_two_concatenated_expressions_udocker(
                 {},
                 cwlVersion="v1.0",
                 container_engine="udocker",
+                js_engine=js_engine,
             )
             == "a string"
         )
@@ -155,6 +165,7 @@ def test_value_from_two_concatenated_expressions_singularity(
                 {},
                 cwlVersion="v1.0",
                 container_engine="singularity",
+                js_engine=js_engine,
             )
             == "a string"
         )
@@ -185,6 +196,7 @@ def test_singularity_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
                 {},
                 cwlVersion="v1.0",
                 container_engine="singularity",
+                js_engine=js_engine,
             )
             == 42 * 23
         )
@@ -199,3 +211,88 @@ def test_caches_js_processes(mocker: Any, monkeypatch: pytest.MonkeyPatch) -> No
     sandboxjs.exec_js_process("7", context="{}")
 
     mocked_new_js_proc.assert_not_called()
+
+
+def _test_jsconsole(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    container_engine: str,
+) -> None:
+    caplog.set_level(logging.INFO, logger="cwl_utils")
+    js_engine = sandboxjs.NodeJSEngine()
+    js_engine.have_node_slim = False
+    js_engine.localdata = threading.local()
+    assert (
+        expression.do_eval(
+            '${console.log("Log message 23");console.error("Error message 42");return "a " + "string";}',
+            {},
+            [{"class": "InlineJavascriptRequirement"}],
+            None,
+            None,
+            {},
+            cwlVersion="v1.0",
+            js_console=True,
+            js_engine=js_engine,
+            container_engine=container_engine,
+        )
+        == "a string"
+    )
+    assert (
+        "Running with support for javascript console in expressions (DO NOT USE IN PRODUCTION)"
+        in caplog.text
+    )
+    assert "Javascript console output" in caplog.text
+    assert "[log] Log message 23" in caplog.text
+    assert "[err] Error message 42" in caplog.text
+
+
+@needs_node
+def test_jsconsole_node(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test the JS console feature with local node{,js}."""
+    _test_jsconsole(caplog, monkeypatch, "")
+
+
+@needs_docker
+def test_jsconsole_docker(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Test the JS console feature with nodejs via a Docker container engine."""
+    new_paths = hide_nodejs(tmp_path)
+    with monkeypatch.context() as m:
+        m.setenv("PATH", new_paths)
+        _test_jsconsole(caplog, monkeypatch, "docker")
+
+
+@needs_podman
+def test_jsconsole_podman(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Test the JS console feature with nodejs via a Podman container engine."""
+    new_paths = hide_nodejs(tmp_path)
+    with monkeypatch.context() as m:
+        m.setenv("PATH", new_paths)
+        _test_jsconsole(caplog, monkeypatch, "podman")
+
+
+@needs_singularity
+def test_jsconsole_singularity(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Test the JS console feature with nodejs via a Apptainer/Singularity container engine."""
+    new_paths = hide_nodejs(tmp_path)
+    with monkeypatch.context() as m:
+        m.setenv("PATH", new_paths)
+        _test_jsconsole(caplog, monkeypatch, "singularity")
+
+
+@needs_udocker
+def test_jsconsole_udocker(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Test the JS console feature with nodejs via a Docker container engine."""
+    new_paths = hide_nodejs(tmp_path)
+    with monkeypatch.context() as m:
+        m.setenv("PATH", new_paths)
+        _test_jsconsole(caplog, monkeypatch, "udocker")
